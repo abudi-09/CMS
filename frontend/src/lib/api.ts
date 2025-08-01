@@ -51,8 +51,10 @@ export async function signupApi(formData: {
   if (!res.ok) throw new Error(data.error || "Signup failed");
   return data;
 }
+
 // API utility for backend integration
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+export const API_BASE =
+  import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 export async function loginApi(email: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {

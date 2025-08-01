@@ -52,7 +52,7 @@ export function ComplaintTable({
 }: ComplaintTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  // const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
 
@@ -71,13 +71,13 @@ export function ComplaintTable({
       complaint.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
-    const matchesDepartment =
-      departmentFilter === "all" || complaint.department === departmentFilter;
+    // const matchesDepartment =
+    //   departmentFilter === "all" || complaint.department === departmentFilter;
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
     return (
-      matchesSearch && matchesStatus && matchesDepartment && matchesPriority
+      matchesSearch && matchesStatus && matchesPriority
     );
   });
 
@@ -88,7 +88,7 @@ export function ComplaintTable({
     return prioritySort === "asc" ? aP - bP : bP - aP;
   });
 
-  const departments = Array.from(new Set(complaints.map((c) => c.department)));
+  // const departments = Array.from(new Set(complaints.map((c) => c.department)));
 
   return (
     <Card>
@@ -108,20 +108,7 @@ export function ComplaintTable({
               className="pl-10 w-full"
             />
           </div>
-          {/* Department dropdown */}
-          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Department" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
-              {departments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Department dropdown removed */}
           {/* Priority dropdown */}
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger className="w-full">
@@ -182,9 +169,6 @@ export function ComplaintTable({
                           {complaint.title}
                         </h4>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            {complaint.department}
-                          </span>
                           <Badge
                             className={
                               priorityColors[complaint.priority || "Medium"]
@@ -272,7 +256,7 @@ export function ComplaintTable({
                     <TableHead>ID</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Department</TableHead>
+                    {/* <TableHead>Department</TableHead> */}
                     <TableHead>
                       <div className="flex items-center gap-1">
                         Priority
@@ -309,7 +293,7 @@ export function ComplaintTable({
                           {complaint.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{complaint.department}</TableCell>
+                      {/* <TableCell>{complaint.department}</TableCell> */}
                       <TableCell>
                         <Badge
                           className={

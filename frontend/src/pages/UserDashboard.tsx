@@ -16,46 +16,6 @@ import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { getMyComplaintsApi } from "@/lib/api";
 
-// Mock data for demonstration
-const mockComplaints: Complaint[] = [
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    category: "IT & Technology",
-    status: "In Progress",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-  },
-  {
-    id: "CMP-002",
-    title: "Cafeteria food quality concerns",
-    description:
-      "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    category: "Student Services",
-    status: "Resolved",
-    submittedBy: "John Doe",
-    assignedStaff: "Food Services Manager",
-    submittedDate: new Date("2024-01-10"),
-    lastUpdated: new Date("2024-01-20"),
-  },
-  {
-    id: "CMP-003",
-    title: "Broken air conditioning in lecture hall",
-    description:
-      "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    category: "Infrastructure & Facilities",
-    status: "Pending",
-    submittedBy: "John Doe",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-22"),
-  },
-];
-
 export function UserDashboard() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
