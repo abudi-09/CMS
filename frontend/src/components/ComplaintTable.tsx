@@ -29,6 +29,14 @@ interface ComplaintTableProps {
   onAssign?: (complaint: Complaint) => void;
   userRole?: "user" | "staff" | "admin";
   title?: string;
+  // Priority filter/sort controls
+  showPriorityFilter?: boolean;
+  priorityFilter?: string;
+  onPriorityFilterChange?: (value: string) => void;
+  showPrioritySort?: boolean;
+  prioritySort?: "asc" | "desc";
+  onPrioritySortChange?: () => void;
+  onViewAll?: () => void;
 }
 
 const statusColors = {
@@ -41,52 +49,66 @@ const statusColors = {
   Closed: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
 };
 
+const priorityColors = {
+  Critical: "bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-400",
+  High: "bg-orange-100 text-orange-800 dark:bg-orange-950/20 dark:text-orange-400",
+  Medium:
+    "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/20 dark:text-yellow-400",
+  Low: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+};
+
 export function ComplaintTable({
-  complaints,
+  complaints = [],
   onView,
   onStatusUpdate,
   onFeedback,
   onAssign,
   userRole = "user",
   title = "Complaints",
+  showPriorityFilter = false,
+  priorityFilter = "all",
+  onPriorityFilterChange,
+  showPrioritySort = false,
+  prioritySort = "desc",
+  onPrioritySortChange,
+  onViewAll,
 }: ComplaintTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  // const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-  const priorityColors = {
-    Low: "bg-gray-200 text-gray-700 border-gray-300",
-    Medium: "bg-blue-100 text-blue-800 border-blue-200",
-    High: "bg-orange-100 text-orange-800 border-orange-200",
-    Critical: "bg-red-100 text-red-800 border-red-200 font-bold border-2",
-  };
-
-  let filteredComplaints = complaints.filter((complaint) => {
+  const filteredComplaints = complaints?.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.id.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
-    // const matchesDepartment =
-    //   departmentFilter === "all" || complaint.department === departmentFilter;
+    const matchesCategory =
+      categoryFilter === "all" || complaint.department === categoryFilter;
     const matchesPriority =
+      !showPriorityFilter ||
       priorityFilter === "all" ||
-      (complaint.priority || "Medium") === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+      complaint.priority === priorityFilter;
+
+    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
   });
 
-  // Sort by priority if enabled
-  filteredComplaints = filteredComplaints.sort((a, b) => {
-    const aP = priorityOrder[a.priority || "Medium"];
-    const bP = priorityOrder[b.priority || "Medium"];
-    return prioritySort === "asc" ? aP - bP : bP - aP;
-  });
+  // Priority sort if enabled
+  let displayedComplaints = filteredComplaints;
+  if (showPrioritySort) {
+    const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+    displayedComplaints = [...filteredComplaints].sort((a, b) => {
+      const aValue =
+        priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+      const bValue =
+        priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+      return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
+    });
+  }
 
-  // const departments = Array.from(new Set(complaints.map((c) => c.department)));
+  const categories = Array.from(new Set(complaints.map((c) => c.department)));
 
   return (
     <Card>
@@ -95,9 +117,9 @@ export function ComplaintTable({
           <Filter className="h-5 w-5" />
           {title}
         </CardTitle>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 w-full">
-          {/* Search input */}
-          <div className="relative w-full">
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-4 w-full">
+          <div className="relative w-full sm:flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search complaints..."
@@ -106,48 +128,78 @@ export function ComplaintTable({
               className="pl-10 w-full"
             />
           </div>
-          {/* Department dropdown removed */}
-          {/* Priority dropdown */}
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Priority" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priority</SelectItem>
-              <SelectItem value="Low">Low</SelectItem>
-              <SelectItem value="Medium">Medium</SelectItem>
-              <SelectItem value="High">High</SelectItem>
-              <SelectItem value="Critical">Critical</SelectItem>
-            </SelectContent>
-          </Select>
-          {/* Sort by Priority button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setPrioritySort((s) => (s === "asc" ? "desc" : "asc"))
-            }
-            className="w-full h-10 flex items-center justify-center border rounded-md font-normal"
-          >
-            Sort by Priority {prioritySort === "asc" ? "↑" : "↓"}
-          </Button>
-          {/* Status dropdown (full width on mobile, right-aligned on desktop) */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="Resolved">Resolved</SelectItem>
-              <SelectItem value="Closed">Closed</SelectItem>
-            </SelectContent>
-          </Select>
+
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Resolved">Resolved</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category, idx) => (
+                  <SelectItem key={category || idx} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {showPriorityFilter && onPriorityFilterChange && (
+              <Select
+                value={priorityFilter}
+                onValueChange={onPriorityFilterChange}
+              >
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priority</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            {showPrioritySort && onPrioritySortChange && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={onPrioritySortChange}
+              >
+                Sort by Priority {prioritySort === "desc" ? "↓" : "↑"}
+              </Button>
+            )}
+            {onViewAll && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={onViewAll}
+              >
+                View All
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
+
       <CardContent>
-        {filteredComplaints.length === 0 ? (
+        {displayedComplaints.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No complaints found matching your criteria
           </div>
@@ -155,7 +207,7 @@ export function ComplaintTable({
           <>
             {/* Mobile Card Layout */}
             <div className="md:hidden space-y-4">
-              {filteredComplaints.map((complaint) => (
+              {displayedComplaints.map((complaint) => (
                 <Card key={complaint.id} className="p-4">
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
@@ -166,13 +218,16 @@ export function ComplaintTable({
                         <h4 className="font-medium text-sm leading-tight">
                           {complaint.title}
                         </h4>
-                        <div className="flex items-center gap-2">
+                        <div className="text-xs text-muted-foreground">
+                          {complaint.department}
+                        </div>
+                        <div className="text-xs">
                           <Badge
                             className={
-                              priorityColors[complaint.priority || "Medium"]
+                              priorityColors[complaint.priority] + " text-xs"
                             }
                           >
-                            {complaint.priority || "Medium"}
+                            {complaint.priority}
                           </Badge>
                         </div>
                       </div>
@@ -182,6 +237,7 @@ export function ComplaintTable({
                         {complaint.status}
                       </Badge>
                     </div>
+
                     {(userRole === "admin" || userRole === "staff") && (
                       <div className="space-y-1">
                         {userRole === "admin" && (
@@ -198,17 +254,10 @@ export function ComplaintTable({
                         )}
                       </div>
                     )}
+
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">
-                        {(() => {
-                          const d =
-                            complaint.submittedDate instanceof Date
-                              ? complaint.submittedDate
-                              : new Date(complaint.submittedDate);
-                          return isNaN(d.getTime())
-                            ? "-"
-                            : d.toLocaleDateString();
-                        })()}
+                        {complaint.submittedDate.toLocaleDateString()}
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -218,6 +267,7 @@ export function ComplaintTable({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+
                         {userRole === "staff" && onStatusUpdate && (
                           <Button
                             variant="ghost"
@@ -227,6 +277,7 @@ export function ComplaintTable({
                             <Settings className="h-4 w-4" />
                           </Button>
                         )}
+
                         {userRole === "admin" && onAssign && (
                           <Button
                             variant="ghost"
@@ -236,6 +287,7 @@ export function ComplaintTable({
                             <Settings className="h-4 w-4" />
                           </Button>
                         )}
+
                         {userRole === "user" &&
                           complaint.status === "Resolved" &&
                           onFeedback &&
@@ -254,6 +306,7 @@ export function ComplaintTable({
                 </Card>
               ))}
             </div>
+
             {/* Desktop Table Layout */}
             <div className="hidden md:block rounded-md border overflow-x-auto">
               <Table>
@@ -262,53 +315,42 @@ export function ComplaintTable({
                     <TableHead>ID</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
-                    {/* <TableHead>Department</TableHead> */}
-                    <TableHead>
-                      <div className="flex items-center gap-1">
-                        Priority
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setPrioritySort((s) =>
-                              s === "asc" ? "desc" : "asc"
-                            )
-                          }
-                        >
-                          {prioritySort === "asc" ? "↑" : "↓"}
-                        </Button>
-                      </div>
-                    </TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Department</TableHead>
                     {userRole === "admin" && (
                       <TableHead>Submitted By</TableHead>
                     )}
                     {(userRole === "staff" || userRole === "admin") && (
                       <TableHead>Assigned Staff</TableHead>
                     )}
-                    <TableHead>Submitted Date</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredComplaints.map((complaint) => (
+                  {displayedComplaints.map((complaint) => (
                     <TableRow key={complaint.id}>
-                      <TableCell>{complaint.id}</TableCell>
-                      <TableCell>{complaint.title}</TableCell>
+                      <TableCell className="font-medium">
+                        #{complaint.id}
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <div className="truncate">{complaint.title}</div>
+                      </TableCell>
                       <TableCell>
                         <Badge className={statusColors[complaint.status]}>
                           {complaint.status}
                         </Badge>
                       </TableCell>
-                      {/* <TableCell>{complaint.department}</TableCell> */}
                       <TableCell>
                         <Badge
                           className={
-                            priorityColors[complaint.priority || "Medium"]
+                            priorityColors[complaint.priority] + " text-xs"
                           }
                         >
-                          {complaint.priority || "Medium"}
+                          {complaint.priority}
                         </Badge>
                       </TableCell>
+                      <TableCell>{complaint.department}</TableCell>
                       {userRole === "admin" && (
                         <TableCell>{complaint.submittedBy}</TableCell>
                       )}
@@ -318,15 +360,7 @@ export function ComplaintTable({
                         </TableCell>
                       )}
                       <TableCell>
-                        {(() => {
-                          const d =
-                            complaint.submittedDate instanceof Date
-                              ? complaint.submittedDate
-                              : new Date(complaint.submittedDate);
-                          return isNaN(d.getTime())
-                            ? "-"
-                            : d.toLocaleDateString();
-                        })()}
+                        {complaint.submittedDate.toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -337,6 +371,7 @@ export function ComplaintTable({
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+
                           {userRole === "staff" && onStatusUpdate && (
                             <Button
                               variant="ghost"
@@ -346,6 +381,7 @@ export function ComplaintTable({
                               <Settings className="h-4 w-4" />
                             </Button>
                           )}
+
                           {userRole === "admin" && onAssign && (
                             <Button
                               variant="ghost"
@@ -355,6 +391,7 @@ export function ComplaintTable({
                               <Settings className="h-4 w-4" />
                             </Button>
                           )}
+
                           {userRole === "user" &&
                             complaint.status === "Resolved" &&
                             onFeedback &&

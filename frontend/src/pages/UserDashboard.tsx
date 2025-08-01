@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -7,14 +7,63 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PlusCircle, FileText, MessageSquare, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SummaryCards } from "@/components/SummaryCards";
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
-import { getMyComplaintsApi } from "@/lib/api";
+
+// Mock data for demonstration
+const mockComplaints: Complaint[] = [
+  {
+    id: "CMP-001",
+    title: "Library computers are slow and outdated",
+    description:
+      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
+    department: "IT & Technology",
+    priority: "High",
+    status: "In Progress",
+    submittedBy: "John Doe",
+    assignedStaff: "IT Support Team",
+    submittedDate: new Date("2024-01-15"),
+    lastUpdated: new Date("2024-01-18"),
+  },
+  {
+    id: "CMP-002",
+    title: "Cafeteria food quality concerns",
+    description:
+      "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
+    department: "Student Services",
+    priority: "Critical",
+    status: "Resolved",
+    submittedBy: "John Doe",
+    assignedStaff: "Food Services Manager",
+    submittedDate: new Date("2024-01-10"),
+    lastUpdated: new Date("2024-01-20"),
+  },
+  {
+    id: "CMP-003",
+    title: "Broken air conditioning in lecture hall",
+    description:
+      "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
+    department: "Infrastructure & Facilities",
+    priority: "Medium",
+    status: "Pending",
+    submittedBy: "John Doe",
+    assignedStaff: undefined,
+    submittedDate: new Date("2024-01-22"),
+    lastUpdated: new Date("2024-01-22"),
+  },
+];
 
 export function UserDashboard() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
@@ -22,33 +71,10 @@ export function UserDashboard() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   const navigate = useNavigate();
-
-  useEffect(() => {
-    async function fetchComplaints() {
-      try {
-        const data = await getMyComplaintsApi();
-        setComplaints(
-          data.map((c: any) => ({
-            id: c._id,
-            title: c.title,
-            description: c.description,
-            category: c.category,
-            status: c.status,
-            submittedBy: c.submittedBy?.name || "",
-            assignedStaff: c.assignedTo?.name || "Not Assigned",
-            submittedDate: new Date(c.createdAt),
-            lastUpdated: new Date(c.updatedAt),
-            feedback: c.feedback,
-          }))
-        );
-      } catch (err) {
-        // Optionally handle error
-      }
-    }
-    fetchComplaints();
-  }, []);
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -69,6 +95,7 @@ export function UserDashboard() {
     );
   };
 
+  // Show only the 3 most recent complaints (after filtering/sorting in table)
   const recentComplaints = complaints.slice(0, 3);
 
   return (
@@ -97,7 +124,7 @@ export function UserDashboard() {
           </CardHeader>
           <CardContent>
             <Button
-              className="w-full"
+              className="w-full hover:bg-primary/90 dark:hover:bg-hover-blue"
               onClick={() => navigate("/submit-complaint")}
             >
               Submit New Complaint
@@ -118,7 +145,7 @@ export function UserDashboard() {
           <CardContent>
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full hover:bg-muted dark:hover:bg-hover-blue/10"
               onClick={() => navigate("/my-complaints")}
             >
               My Complaints
@@ -129,25 +156,24 @@ export function UserDashboard() {
 
       {/* Recent Complaints */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl md:text-2xl font-semibold">
-            Recent Complaints
-          </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/my-complaints")}
-          >
-            View All
-          </Button>
-        </div>
-
+        <h2 className="text-xl md:text-2xl font-semibold mb-6">
+          Recent Complaints
+        </h2>
         <ComplaintTable
-          complaints={recentComplaints}
+          complaints={complaints}
           onView={handleViewComplaint}
           onFeedback={handleFeedback}
           userRole="user"
           title="My Recent Complaints"
+          showPriorityFilter
+          priorityFilter={priorityFilter}
+          onPriorityFilterChange={setPriorityFilter}
+          showPrioritySort
+          prioritySort={prioritySort}
+          onPrioritySortChange={() =>
+            setPrioritySort(prioritySort === "desc" ? "asc" : "desc")
+          }
+          onViewAll={() => navigate("/my-complaints")}
         />
       </div>
 

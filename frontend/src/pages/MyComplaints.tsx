@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -20,7 +20,6 @@ import { Search, Filter, Eye, MessageSquare } from "lucide-react";
 import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
-import { getMyComplaintsApi } from "@/lib/api";
 
 // Mock data - replace with real data
 const mockComplaints: Complaint[] = [
@@ -29,7 +28,7 @@ const mockComplaints: Complaint[] = [
     title: "Library computers are slow and outdated",
     description:
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    category: "IT & Technology",
+    department: "IT & Technology",
     status: "In Progress",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
@@ -41,7 +40,7 @@ const mockComplaints: Complaint[] = [
     title: "Cafeteria food quality concerns",
     description:
       "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    category: "Student Services",
+    department: "Student Services",
     status: "Resolved",
     submittedBy: "John Doe",
     assignedStaff: "Food Services Manager",
@@ -53,24 +52,12 @@ const mockComplaints: Complaint[] = [
     title: "Broken air conditioning in lecture hall",
     description:
       "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    category: "Infrastructure & Facilities",
+    department: "Infrastructure & Facilities",
     status: "Pending",
     submittedBy: "John Doe",
     assignedStaff: undefined,
     submittedDate: new Date("2024-01-22"),
     lastUpdated: new Date("2024-01-22"),
-  },
-  {
-    id: "CMP-004",
-    title: "Wi-Fi connectivity issues in dormitory",
-    description:
-      "The Wi-Fi in Building A dormitory keeps disconnecting every few minutes, making it impossible to study online.",
-    category: "IT & Technology",
-    status: "Closed",
-    submittedBy: "John Doe",
-    assignedStaff: "Network Team",
-    submittedDate: new Date("2024-01-05"),
-    lastUpdated: new Date("2024-01-25"),
   },
 ];
 
@@ -82,7 +69,7 @@ const statusColors = {
 };
 
 export function MyComplaints() {
-  const [complaints, setComplaints] = useState<Complaint[]>([]); // Start with empty
+  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
@@ -90,32 +77,6 @@ export function MyComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-
-  useEffect(() => {
-    async function fetchComplaints() {
-      try {
-        const data = await getMyComplaintsApi();
-        // Map backend data to ComplaintCard format if needed
-        setComplaints(
-          data.map((c: any) => ({
-            id: c._id,
-            title: c.title,
-            description: c.description,
-            category: c.category,
-            status: c.status,
-            submittedBy: c.submittedBy?.name || "",
-            assignedStaff: c.assignedTo?.name || "Not Assigned",
-            submittedDate: new Date(c.createdAt),
-            lastUpdated: new Date(c.updatedAt),
-            feedback: c.feedback,
-          }))
-        );
-      } catch (err) {
-        // Optionally handle error
-      }
-    }
-    fetchComplaints();
-  }, []);
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -141,7 +102,7 @@ export function MyComplaints() {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.category.toLowerCase().includes(searchTerm.toLowerCase());
+      complaint.department.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
@@ -222,7 +183,7 @@ export function MyComplaints() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 font-medium">Title</th>
-                      <th className="text-left p-3 font-medium">Category</th>
+                      <th className="text-left p-3 font-medium">Department</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">
                         Assigned Staff
@@ -244,7 +205,9 @@ export function MyComplaints() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <span className="text-sm">{complaint.category}</span>
+                          <span className="text-sm">
+                            {complaint.department}
+                          </span>
                         </td>
                         <td className="p-3">
                           <Badge
@@ -327,9 +290,9 @@ export function MyComplaints() {
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
                           <span className="text-muted-foreground">
-                            Category:
+                            department:
                           </span>
-                          <p className="font-medium">{complaint.category}</p>
+                          <p className="font-medium">{complaint.department}</p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Date:</span>

@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth/AuthContext";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Login } from "@/pages/Login";
 import { Signup } from "@/pages/Signup";
@@ -17,6 +16,7 @@ import { StaffManagement } from "@/pages/StaffManagement";
 import { FeedbackReview } from "@/pages/FeedbackReview";
 import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
+
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
 import NotFound from "./pages/NotFound";
@@ -37,7 +37,7 @@ function DashboardRouter() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isCheckingAuth } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   return (
     <Routes>
@@ -46,10 +46,10 @@ function AppContent() {
       <Route path="/signup" element={<Signup />} />
 
       {/* Protected routes */}
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
+      {isAuthenticated ? (
+        <Route
+          path="/*"
+          element={
             <Layout>
               <Routes>
                 <Route path="/" element={<DashboardRouter />} />
@@ -59,13 +59,16 @@ function AppContent() {
                 <Route path="/feedback-review" element={<FeedbackReview />} />
                 <Route path="/assign" element={<AssignComplaints />} />
                 <Route path="/staff-feedback" element={<StaffFeedback />} />
+                {/* <Route path="/my-assigned" element={<MyAssignedComplaints />} /> */}
                 <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>
-          </ProtectedRoute>
-        }
-      />
+          }
+        />
+      ) : (
+        <Route path="*" element={<Login />} />
+      )}
     </Routes>
   );
 }
