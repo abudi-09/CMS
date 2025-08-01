@@ -76,9 +76,7 @@ export function ComplaintTable({
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
-    return (
-      matchesSearch && matchesStatus && matchesPriority
-    );
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
   // Sort by priority if enabled
@@ -202,7 +200,15 @@ export function ComplaintTable({
                     )}
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">
-                        {complaint.submittedDate.toLocaleDateString()}
+                        {(() => {
+                          const d =
+                            complaint.submittedDate instanceof Date
+                              ? complaint.submittedDate
+                              : new Date(complaint.submittedDate);
+                          return isNaN(d.getTime())
+                            ? "-"
+                            : d.toLocaleDateString();
+                        })()}
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -312,7 +318,15 @@ export function ComplaintTable({
                         </TableCell>
                       )}
                       <TableCell>
-                        {complaint.submittedDate.toLocaleDateString()}
+                        {(() => {
+                          const d =
+                            complaint.submittedDate instanceof Date
+                              ? complaint.submittedDate
+                              : new Date(complaint.submittedDate);
+                          return isNaN(d.getTime())
+                            ? "-"
+                            : d.toLocaleDateString();
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
