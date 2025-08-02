@@ -10,6 +10,9 @@ import { Signup } from "@/pages/Signup";
 import { UserDashboard } from "@/pages/UserDashboard";
 import { StaffDashboard } from "@/pages/StaffDashboard";
 import { AdminDashboard } from "@/pages/AdminDashboard";
+import HomePage from "./pages/HomePage";
+import AboutPage from "./pages/AboutPage";
+import HelpPage from "./pages/HelpPage";
 import { SubmitComplaint } from "@/pages/SubmitComplaint";
 import { MyComplaints } from "@/pages/MyComplaints";
 import { StaffManagement } from "@/pages/StaffManagement";
@@ -42,6 +45,9 @@ function AppContent() {
   return (
     <Routes>
       {/* Public routes */}
+      <Route path="/" element={<HomePage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/help" element={<HelpPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
 
@@ -52,7 +58,7 @@ function AppContent() {
           element={
             <Layout>
               <Routes>
-                <Route path="/" element={<DashboardRouter />} />
+                <Route path="/dashboard" element={<DashboardRouter />} />
                 <Route path="/submit-complaint" element={<SubmitComplaint />} />
                 <Route path="/my-complaints" element={<MyComplaints />} />
                 <Route path="/staff-management" element={<StaffManagement />} />
