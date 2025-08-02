@@ -118,6 +118,8 @@ export function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
 
   const { pendingStaff, getAllStaff } = useAuth();
   const navigate = useNavigate();
@@ -180,22 +182,30 @@ export function AdminDashboard() {
     });
   };
 
-  // Filter complaints based on search and filters
+  // Add priority filter and sort to filtering logic
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
     const matchesCategory =
       categoryFilter === "all" || complaint.department === categoryFilter;
-
-    return matchesSearch && matchesStatus && matchesCategory;
+    const matchesPriority =
+      priorityFilter === "all" || complaint.priority === priorityFilter;
+    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
+  });
+  // Sort by priority if enabled
+  const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
+    const aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+    const bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+    return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
   });
 
   const categories = Array.from(new Set(complaints.map((c) => c.department)));
+  const priorities = ["Critical", "High", "Medium", "Low"];
 
   return (
     <div className="space-y-8">
@@ -250,6 +260,7 @@ export function AdminDashboard() {
 
       {/* Quick Actions */}
       <div className="grid md:grid-cols-3 gap-6">
+        {/* ...existing quick action cards... */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => navigate("/staff-management")}
@@ -313,17 +324,24 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* All Complaints */}
-      <div>
-        <ComplaintTable
-          complaints={filteredComplaints}
-          onView={handleViewComplaint}
-          onStatusUpdate={handleStatusUpdate}
-          onAssign={handleAssignStaff}
-          userRole="admin"
-          title="All Complaints"
-        />
-      </div>
+      {/* Complaint Search and Filters */}
+
+      <ComplaintTable
+        complaints={sortedComplaints}
+        onView={handleViewComplaint}
+        onStatusUpdate={handleStatusUpdate}
+        onAssign={handleAssignStaff}
+        userRole="admin"
+        title="All Complaints"
+        showPriorityFilter
+        priorityFilter={priorityFilter}
+        onPriorityFilterChange={setPriorityFilter}
+        showPrioritySort
+        prioritySort={prioritySort}
+        onPrioritySortChange={() =>
+          setPrioritySort(prioritySort === "desc" ? "asc" : "desc")
+        }
+      />
 
       {/* Modals */}
       <ComplaintDetailModal

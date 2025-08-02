@@ -16,11 +16,10 @@ import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, FileText, Info, ArrowRight } from "lucide-react";
 
 const departments = [
-  "ICT",
-  "Finance",
-  "Registrar",
-  "Library",
-  "Academic Affairs",
+  "Computer Science",
+  "Information Systems",
+  "Information Technology",
+  "Computer Systems",
 ];
 
 export function SubmitComplaint() {
@@ -57,6 +56,7 @@ export function SubmitComplaint() {
     });
     setIsSubmitting(false);
   };
+  // Reset form for submitting another complaint
 
   const handleSubmitAnother = () => {
     setSubmitted(false);
