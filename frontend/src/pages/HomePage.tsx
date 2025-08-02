@@ -81,7 +81,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 text-center">
           <div className="max-w-4xl mx-auto">
             <Badge variant="outline" className="mb-6 text-sm font-medium">
-              <GraduationCap className="w-4 h-4 mr-2" />
+              <GraduationCap className="w-9 h-9 mr-2" />
               University of Gondar
             </Badge>
 
@@ -148,7 +148,7 @@ export default function HomePage() {
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            <h2 className="text-6xl md:text-4xl font-bold text-foreground mb-4">
               Why Choose Our System?
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">

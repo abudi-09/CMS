@@ -19,6 +19,7 @@ import { StaffManagement } from "@/pages/StaffManagement";
 import { FeedbackReview } from "@/pages/FeedbackReview";
 import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
+import { PublicLayout } from "@/components/PublicLayout";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -45,9 +46,30 @@ function AppContent() {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/about" element={<AboutPage />} />
-      <Route path="/help" element={<HelpPage />} />
+      <Route
+        path="/"
+        element={
+          <PublicLayout>
+            <HomePage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/about"
+        element={
+          <PublicLayout>
+            <AboutPage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/help"
+        element={
+          <PublicLayout>
+            <HelpPage />
+          </PublicLayout>
+        }
+      />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
 

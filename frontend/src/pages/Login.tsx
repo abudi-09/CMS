@@ -59,7 +59,7 @@ export function Login() {
           variant: "default",
         });
         setTimeout(() => {
-          navigate("/");
+          navigate("/dashboard");
         }, 1000);
       }
     } catch (err) {
@@ -77,31 +77,25 @@ export function Login() {
   return (
     <div className="min-h-screen flex bg-white dark:bg-black">
       {/* Left side - Hero Image */}
-      <div className="hidden lg:flex lg:w-1/2 relative dark:bg-black">
+      <div className="hidden lg:flex lg:w-1/2 relative">
         <img
           src="https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=1200&h=800&fit=crop"
           alt="University Campus"
-          className="object-cover w-full h-full dark:hidden"
+          className="object-cover w-full h-full"
         />
-        {/* Dark mode overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-transparent dark:bg-black">
-          <div className="text-center text-white dark:text-[#FFD700] p-8 w-full">
-            <GraduationCap className="h-20 w-20 mx-auto mb-6 text-white dark:text-[#c4c44c]" />
-            <h1 className="text-4xl font-bold mb-4 dark:text-[#FFD700]">
-              Gondar University
-            </h1>
-            <p className="text-xl mb-2 dark:text-[#FFD700]">
-              Complaint Management System
-            </p>
-            <p className="text-lg opacity-90 dark:text-[#FFD700]">
+        <div className="absolute inset-0 bg-primary/90 dark:bg-black flex items-center justify-center">
+          <div className="text-center text-white dark:text-[#FFD700] p-8">
+            <GraduationCap className="h-20 w-20 mx-auto mb-6 text-white dark:text-[#FFD700]" />
+            <h1 className="text-4xl font-bold mb-4">Gondar University</h1>
+            <p className="text-xl mb-2">Complaint Management System</p>
+            <p className="text-lg opacity-90">
               Your voice matters. Let us help you resolve your concerns.
             </p>
           </div>
         </div>
       </div>
-
       {/* Right side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-black">
+      <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-black lg:dark:bg-white">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:hidden">
             <GraduationCap className="h-16 w-16 mx-auto mb-4 text-primary" />
@@ -150,7 +144,7 @@ export function Login() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-yellow-400 text-black hover:bg-yellow-500 focus:bg-yellow-500 dark:bg-[#FFD700] dark:text-black dark:hover:bg-[#E6C200] dark:focus:bg-[#E6C200] border-none shadow-md"
+                  className="w-full dark:bg-[#FFD700] dark:text-black dark:hover:bg-[#E6C200]"
                   disabled={isLoading}
                 >
                   {isLoading && (

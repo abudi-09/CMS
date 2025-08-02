@@ -20,7 +20,7 @@ export function HomePageHeader() {
           {/* Left Side - Logo Section */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
+              <GraduationCap className="h-10 w-10 text-primary" />
               <div className="flex flex-col">
                 <span className="text-lg font-bold text-foreground">
                   University of Gondar
