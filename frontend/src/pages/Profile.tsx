@@ -299,19 +299,19 @@ export function Profile() {
                   <div className="space-y-2 pt-3 border-t">
                     <p className="text-sm text-muted-foreground">Position</p>
                     <p className="font-medium">{profileData.position}</p>
-                    <p className="text-sm text-muted-foreground">Department</p>
-                    <p className="font-medium">{profileData.department}</p>
+                   {/* <p className="text-sm text-muted-foreground">Department</p>
+                    <p className="font-medium">{profileData.department}</p> */}
                   </div>
                 )}
 
                 {user?.role === "user" && "studentId" in profileData && (
                   <div className="space-y-2 pt-3 border-t">
-                    <p className="text-sm text-muted-foreground">Student ID</p>
-                    <p className="font-medium">{profileData.studentId}</p>
+                    {/* <p className="text-sm text-muted-foreground">Student ID</p> */}
+                    {/*<p className="font-medium">{profileData.studentId}</p>*/}
                     <p className="text-sm text-muted-foreground">Department</p>
                     <p className="font-medium">{profileData.department}</p>
-                    <p className="text-sm text-muted-foreground">Year</p>
-                    <p className="font-medium">{profileData.year}</p>
+                    {/*<p className="text-sm text-muted-foreground">Year</p>
+                  /<p className="font-medium">{profileData.year}</p>*/}
                   </div>
                 )}
 

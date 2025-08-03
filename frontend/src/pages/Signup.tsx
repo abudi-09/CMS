@@ -113,16 +113,16 @@ export function Signup() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left Side - Dark Theme with Education Icon */}
-      <div className="hidden lg:flex lg:w-1/2 bg-black items-center justify-center p-8">
+      <div className="hidden lg:flex lg:w-1/2  bg-blue-900 dark:bg-black items-center justify-center p-8">
         <div className="text-center space-y-6">
           <div className="bg-gold/10 p-6 rounded-full mx-auto w-fit">
-            <UserPlus className="h-16 w-16 text-[#FFD700] dark:text-gold" />
+            <UserPlus className="h-16 w-16 text-white dark:text-[#FFD700] dark:text-gold" />
           </div>
           <div className="space-y-4">
-            <h1 className="text-4xl font-bold text-[#FFD700] dark:text-gold">
-              Student Portal
+            <h1 className="text-4xl font-bold text-white dark:text-[#FFD700] dark:text-gold">
+              Create Your Account
             </h1>
-            <p className="text-lg text-[#FFD700]/80 dark:text-gold/80 max-w-md">
+            <p className="text-lg text-white dark:text-[#FFD700]/80 dark:text-gold/80 max-w-md">
               Join our community of students and staff working together to
               improve your educational experience.
             </p>
@@ -252,36 +252,15 @@ export function Signup() {
               {formData.role === "Student" && (
                 <div className="space-y-2">
                   <Label htmlFor="department">Department *</Label>
-                  <Select
+                  <Input
+                    id="department"
+                    placeholder="Enter your department"
                     value={formData.department}
-                    onValueChange={(value) =>
-                      handleInputChange("department", value)
+                    onChange={(e) =>
+                      handleInputChange("department", e.target.value)
                     }
-                  >
-                    <SelectTrigger
-                      className={errors.department ? "border-destructive" : ""}
-                    >
-                      <SelectValue placeholder="Select your department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Computer Science">
-                        Computer Science
-                      </SelectItem>
-                      <SelectItem value="Mathematics">Mathematics</SelectItem>
-                      <SelectItem value="Physics">Physics</SelectItem>
-                      <SelectItem value="Chemistry">Chemistry</SelectItem>
-                      <SelectItem value="Biology">Biology</SelectItem>
-                      <SelectItem value="Engineering">Engineering</SelectItem>
-                      <SelectItem value="Medicine">Medicine</SelectItem>
-                      <SelectItem value="Business">Business</SelectItem>
-                      <SelectItem value="Law">Law</SelectItem>
-                      <SelectItem value="Social Sciences">
-                        Social Sciences
-                      </SelectItem>
-                      <SelectItem value="Agriculture">Agriculture</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    className={errors.department ? "border-destructive" : ""}
+                  />
                   {errors.department && (
                     <p className="text-sm text-destructive">
                       {errors.department}
@@ -293,27 +272,15 @@ export function Signup() {
               {formData.role === "Staff" && (
                 <div className="space-y-2">
                   <Label htmlFor="workingStatus">Working Status *</Label>
-                  <Select
+                  <Input
+                    id="workingStatus"
+                    placeholder="Enter your working status"
                     value={formData.workingStatus}
-                    onValueChange={(value) =>
-                      handleInputChange("workingStatus", value)
+                    onChange={(e) =>
+                      handleInputChange("workingStatus", e.target.value)
                     }
-                  >
-                    <SelectTrigger
-                      className={
-                        errors.workingStatus ? "border-destructive" : ""
-                      }
-                    >
-                      <SelectValue placeholder="Select your working status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="On Leave">On Leave</SelectItem>
-                      <SelectItem value="Contract">Contract</SelectItem>
-                      <SelectItem value="Part-time">Part-time</SelectItem>
-                      <SelectItem value="Temporary">Temporary</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    className={errors.workingStatus ? "border-destructive" : ""}
+                  />
                   {errors.workingStatus && (
                     <p className="text-sm text-destructive">
                       {errors.workingStatus}

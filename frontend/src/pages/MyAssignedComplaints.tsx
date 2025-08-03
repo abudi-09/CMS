@@ -196,7 +196,7 @@ export function MyAssignedComplaints() {
       </div>
 
       {/* Main Content */}
-      <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
+      <Card className="shadow-lg rounded-2xl bg-white dark:bg-black/80">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -263,7 +263,7 @@ export function MyAssignedComplaints() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">Department</TableHead>
+                  <TableHead className="text-sm">category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Submitted By</TableHead>
                   <TableHead className="text-sm">Status</TableHead>

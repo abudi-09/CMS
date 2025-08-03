@@ -24,21 +24,21 @@ export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
 
   const userMenuItems = [
-    { icon: Home, label: "Dashboard", href: "/", active: true },
+    { icon: Home, label: "Dashboard", href: "/dashboard", active: true },
     { icon: PlusCircle, label: "Submit Complaint", href: "/submit-complaint" },
     { icon: FileText, label: "My Complaints", href: "/my-complaints" },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
   const staffMenuItems = [
-    { icon: Home, label: "Dashboard", href: "/" },
+    { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: FileText, label: "My Assigned", href: "/my-assigned" },
     { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
   const adminMenuItems = [
-    { icon: Home, label: "Dashboard", href: "/" },
+    { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: UserCheck, label: "Staff Management", href: "/staff-management" },
     { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
     { icon: UserPlus, label: "Assign Complaints", href: "/assign" },

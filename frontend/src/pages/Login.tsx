@@ -95,7 +95,7 @@ export function Login() {
         </div>
       </div>
       {/* Right side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-black lg:dark:bg-white">
+      <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-black lg:dark:bg-black">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:hidden">
             <GraduationCap className="h-16 w-16 mx-auto mb-4 text-primary" />

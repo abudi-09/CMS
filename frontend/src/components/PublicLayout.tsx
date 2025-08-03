@@ -1,4 +1,5 @@
-import { Footer } from "@/components/Footer";
+import { Footer } from "@/components/footer";
+import React from "react";
 
 export function PublicLayout({ children }) {
   return (

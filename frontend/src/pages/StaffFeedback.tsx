@@ -1,10 +1,22 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, MessageSquare, Check, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 
 interface Feedback {
@@ -26,71 +38,78 @@ const mockFeedback: Feedback[] = [
     complaintId: "CMP-001",
     complaintTitle: "Library computers are slow and outdated",
     studentName: "John Doe",
-    message: "Thank you for fixing the computers. They are much faster now and students can access resources without long wait times.",
+    message:
+      "Thank you for fixing the computers. They are much faster now and students can access resources without long wait times.",
     rating: 5,
     status: "Unreviewed",
     submittedDate: new Date("2024-01-20"),
-    category: "IT & Technology"
+    category: "IT & Technology",
   },
   {
     id: "FB-002",
     complaintId: "CMP-002",
     complaintTitle: "Cafeteria food quality concerns",
     studentName: "Jane Smith",
-    message: "The food quality has improved significantly. No more health issues reported from students.",
+    message:
+      "The food quality has improved significantly. No more health issues reported from students.",
     rating: 4,
     status: "Reviewed",
     submittedDate: new Date("2024-01-18"),
-    category: "Student Services"
+    category: "Student Services",
   },
   {
     id: "FB-003",
     complaintId: "CMP-005",
     complaintTitle: "Wi-Fi connectivity issues in dormitory",
     studentName: "Mike Johnson",
-    message: "Wi-Fi is still having issues. The problem was not completely resolved. It still disconnects frequently.",
+    message:
+      "Wi-Fi is still having issues. The problem was not completely resolved. It still disconnects frequently.",
     rating: 2,
     status: "Unreviewed",
     submittedDate: new Date("2024-01-22"),
-    category: "IT & Technology"
-  }
+    category: "IT & Technology",
+  },
 ];
 
 export function StaffFeedback() {
   const [feedback, setFeedback] = useState<Feedback[]>(mockFeedback);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [ratingFilter, setRatingFilter] = useState("all");
 
   const handleMarkAsReviewed = (feedbackId: string) => {
-    setFeedback(prev => 
-      prev.map(f => 
-        f.id === feedbackId 
-          ? { ...f, status: "Reviewed" as const }
-          : f
+    setFeedback((prev) =>
+      prev.map((f) =>
+        f.id === feedbackId ? { ...f, status: "Reviewed" as const } : f
       )
     );
-    
+
     toast({
       title: "Feedback Reviewed",
       description: "Feedback has been marked as reviewed.",
     });
   };
 
-  // Filter feedback based on search and status
-  const filteredFeedback = feedback.filter(item => {
-    const matchesSearch = 
+  // Filter feedback based on search and rating
+  const filteredFeedback = feedback.filter((item) => {
+    const matchesSearch =
       item.complaintTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.category.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+
+    const matchesRating =
+      ratingFilter === "all" ||
+      (ratingFilter === "5" && item.rating === 5) ||
+      (ratingFilter === "4+" && item.rating >= 4) ||
+      (ratingFilter === "3+" && item.rating >= 3) ||
+      (ratingFilter === "2+" && item.rating >= 2) ||
+      (ratingFilter === "1+" && item.rating >= 1);
+
+    return matchesSearch && matchesRating;
   });
 
-  const unreviewed = feedback.filter(f => f.status === "Unreviewed").length;
-  const reviewed = feedback.filter(f => f.status === "Reviewed").length;
+  const unreviewed = feedback.filter((f) => f.status === "Unreviewed").length;
+  const reviewed = feedback.filter((f) => f.status === "Reviewed").length;
 
   const getRatingColor = (rating: number) => {
     if (rating >= 4) return "text-green-600";
@@ -108,7 +127,9 @@ export function StaffFeedback() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Student Feedback</h1>
-        <p className="text-muted-foreground">Review feedback from students on resolved complaints</p>
+        <p className="text-muted-foreground">
+          Review feedback from students on resolved complaints
+        </p>
       </div>
 
       {/* Summary Cards */}
@@ -124,7 +145,9 @@ export function StaffFeedback() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{feedback.length}</div>
-            <p className="text-xs text-muted-foreground">All feedback received</p>
+            <p className="text-xs text-muted-foreground">
+              All feedback received
+            </p>
           </CardContent>
         </Card>
 
@@ -167,7 +190,7 @@ export function StaffFeedback() {
             Search & Filter
           </CardTitle>
           <CardDescription>
-            Find specific feedback or filter by status
+            Find specific feedback or filter by rating
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -181,17 +204,64 @@ export function StaffFeedback() {
                 className="pl-10"
               />
             </div>
-            
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Unreviewed">Unreviewed</SelectItem>
-                <SelectItem value="Reviewed">Reviewed</SelectItem>
-              </SelectContent>
-            </Select>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Filter by Rating</label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={ratingFilter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRatingFilter("all")}
+                  className="flex items-center gap-1"
+                >
+                  All Ratings
+                </Button>
+                <Button
+                  variant={ratingFilter === "5" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRatingFilter("5")}
+                  className="flex items-center gap-1"
+                >
+                  <span className="text-yellow-400">⭐</span>5 Stars
+                </Button>
+                <Button
+                  variant={ratingFilter === "4+" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRatingFilter("4+")}
+                  className="flex items-center gap-1"
+                >
+                  <span className="text-yellow-400">⭐</span>
+                  4+ Stars
+                </Button>
+                <Button
+                  variant={ratingFilter === "3+" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRatingFilter("3+")}
+                  className="flex items-center gap-1"
+                >
+                  <span className="text-yellow-400">⭐</span>
+                  3+ Stars
+                </Button>
+                <Button
+                  variant={ratingFilter === "2+" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRatingFilter("2+")}
+                  className="flex items-center gap-1"
+                >
+                  <span className="text-yellow-400">⭐</span>
+                  2+ Stars
+                </Button>
+                <Button
+                  variant={ratingFilter === "1+" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRatingFilter("1+")}
+                  className="flex items-center gap-1"
+                >
+                  <span className="text-yellow-400">⭐</span>
+                  1+ Stars
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -199,18 +269,21 @@ export function StaffFeedback() {
       {/* Feedback List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Feedback ({filteredFeedback.length})</CardTitle>
+          <CardTitle className="text-lg">
+            Feedback ({filteredFeedback.length})
+          </CardTitle>
           <CardDescription>
-            {filteredFeedback.length === feedback.length 
-              ? "All feedback entries" 
-              : `Showing ${filteredFeedback.length} of ${feedback.length} feedback entries`
-            }
+            {filteredFeedback.length === feedback.length
+              ? "All feedback entries"
+              : `Showing ${filteredFeedback.length} of ${feedback.length} feedback entries`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {filteredFeedback.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No feedback found matching your criteria.</p>
+              <p className="text-muted-foreground">
+                No feedback found matching your criteria.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -219,40 +292,51 @@ export function StaffFeedback() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                       <div className="flex-1">
-                        <h3 className="font-medium text-sm md:text-base">{item.complaintTitle}</h3>
+                        <h3 className="font-medium text-sm md:text-base">
+                          {item.complaintTitle}
+                        </h3>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
-                          <p className="text-xs md:text-sm text-muted-foreground">ID: {item.complaintId}</p>
+                          <p className="text-xs md:text-sm text-muted-foreground">
+                            ID: {item.complaintId}
+                          </p>
                           <span className="text-muted-foreground">•</span>
-                          <p className="text-xs md:text-sm text-muted-foreground">By: {item.studentName}</p>
+                          <p className="text-xs md:text-sm text-muted-foreground">
+                            By: {item.studentName}
+                          </p>
                           <span className="text-muted-foreground">•</span>
-                          <p className="text-xs md:text-sm text-muted-foreground">{item.category}</p>
+                          <p className="text-xs md:text-sm text-muted-foreground">
+                            {item.category}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={getRatingBadge(item.rating)}>
                           ⭐ {item.rating}/5
                         </Badge>
-                        <Badge 
+                        <Badge
                           variant="outline"
-                          className={item.status === "Reviewed" 
-                            ? "bg-green-50 text-green-700 border-green-200" 
-                            : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                          className={
+                            item.status === "Reviewed"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-yellow-50 text-yellow-700 border-yellow-200"
                           }
                         >
                           {item.status}
                         </Badge>
                       </div>
                     </div>
-                    
+
                     <div className="bg-muted/50 p-3 md:p-4 rounded-lg">
-                      <p className="text-sm md:text-base italic">"{item.message}"</p>
+                      <p className="text-sm md:text-base italic">
+                        "{item.message}"
+                      </p>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                       <p className="text-xs md:text-sm text-muted-foreground">
                         Submitted: {item.submittedDate.toLocaleDateString()}
                       </p>
-                      
+
                       {item.status === "Unreviewed" && (
                         <Button
                           size="sm"
