@@ -88,12 +88,9 @@ function AppContent() {
                 <Route path="/feedback-review" element={<FeedbackReview />} />
                 <Route path="/assign" element={<AssignComplaints />} />
                 <Route path="/staff-feedback" element={<StaffFeedback />} />
-                {
-                  <Route
-                    path="/my-assigned"
-                    element={<MyAssignedComplaints />}
-                  />
-                }
+
+                <Route path="/my-assigned" element={<MyAssignedComplaints />} />
+
                 <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -1,18 +1,18 @@
-import { useAuth } from '@/components/auth/AuthContext';
-import { Button } from '@/components/ui/button';
-import { 
-  Home, 
-  PlusCircle, 
-  FileText, 
-  MessageSquare, 
-  Users, 
-  Settings, 
+import { useAuth } from "@/components/auth/AuthContext";
+import { Button } from "@/components/ui/button";
+import {
+  Home,
+  PlusCircle,
+  FileText,
+  MessageSquare,
+  Users,
+  Settings,
   TrendingUp,
   UserCheck,
-  UserPlus
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useNavigate, useLocation } from 'react-router-dom';
+  UserPlus,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface SidebarProps {
   className?: string;
@@ -24,31 +24,32 @@ export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
 
   const userMenuItems = [
-    { icon: Home, label: 'Dashboard', href: '/', active: true },
-    { icon: PlusCircle, label: 'Submit Complaint', href: '/submit-complaint' },
-    { icon: FileText, label: 'My Complaints', href: '/my-complaints' },
-    { icon: Settings, label: 'Profile', href: '/profile' },
+    { icon: Home, label: "Dashboard", href: "/", active: true },
+    { icon: PlusCircle, label: "Submit Complaint", href: "/submit-complaint" },
+    { icon: FileText, label: "My Complaints", href: "/my-complaints" },
+    { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
   const staffMenuItems = [
-    { icon: Home, label: 'Dashboard', href: '/' },
-    { icon: MessageSquare, label: 'Student Feedback', href: '/staff-feedback' },
-    { icon: Settings, label: 'Profile', href: '/profile' },
+    { icon: Home, label: "Dashboard", href: "/" },
+    { icon: FileText, label: "My Assigned", href: "/my-assigned" },
+    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
+    { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
   const adminMenuItems = [
-    { icon: Home, label: 'Dashboard', href: '/' },
-    { icon: UserCheck, label: 'Staff Management', href: '/staff-management' },
-    { icon: MessageSquare, label: 'Feedback Review', href: '/feedback-review' },
-    { icon: UserPlus, label: 'Assign Complaints', href: '/assign' },
-    { icon: Settings, label: 'Profile', href: '/profile' },
+    { icon: Home, label: "Dashboard", href: "/" },
+    { icon: UserCheck, label: "Staff Management", href: "/staff-management" },
+    { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
+    { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
+    { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
   const getMenuItems = () => {
     switch (user?.role) {
-      case 'staff':
+      case "staff":
         return staffMenuItems;
-      case 'admin':
+      case "admin":
         return adminMenuItems;
       default:
         return userMenuItems;
@@ -61,13 +62,13 @@ export function Sidebar({ className }: SidebarProps) {
     <div className={cn("flex flex-col h-full p-4", className)}>
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-2">
-          {user?.role === 'admin' ? 'Admin Panel' : 
-           user?.role === 'staff' ? 'Staff Portal' : 
-           'Student Portal'}
+          {user?.role === "admin"
+            ? "Admin Panel"
+            : user?.role === "staff"
+            ? "Staff Portal"
+            : "Student Portal"}
         </h2>
-        <p className="text-sm text-muted-foreground">
-          Welcome, {user?.name}
-        </p>
+        <p className="text-sm text-muted-foreground">Welcome, {user?.name}</p>
       </div>
 
       <nav className="space-y-2 flex-1">
