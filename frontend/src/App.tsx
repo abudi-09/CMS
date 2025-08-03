@@ -20,6 +20,7 @@ import { FeedbackReview } from "@/pages/FeedbackReview";
 import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
 import { PublicLayout } from "@/components/PublicLayout";
+import { MyAssignedComplaints } from "@/pages/MyAssignedComplaints";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -87,7 +88,12 @@ function AppContent() {
                 <Route path="/feedback-review" element={<FeedbackReview />} />
                 <Route path="/assign" element={<AssignComplaints />} />
                 <Route path="/staff-feedback" element={<StaffFeedback />} />
-                {/* <Route path="/my-assigned" element={<MyAssignedComplaints />} /> */}
+                {
+                  <Route
+                    path="/my-assigned"
+                    element={<MyAssignedComplaints />}
+                  />
+                }
                 <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
