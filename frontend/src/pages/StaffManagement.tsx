@@ -47,12 +47,42 @@ export function StaffManagement() {
     });
   };
 
+  // Helper action handlers
+  const handlePromote = (staffId: string, staffName: string) => {
+    // TODO: Implement promote logic (e.g., call promoteStaff)
+    toast({
+      title: "Staff Promoted",
+      description: `${staffName} has been promoted to admin.`,
+    });
+  };
+
+  const handleDeactivate = (staffId: string, staffName: string) => {
+    // TODO: Implement deactivate logic (e.g., call deactivateStaff)
+    toast({
+      title: "Staff Deactivated",
+      description: `${staffName} has been deactivated and can no longer access the system.`,
+      variant: "destructive",
+    });
+  };
+
+  const handleActivate = (staffId: string, staffName: string) => {
+    // TODO: Implement activate logic (e.g., call activateStaff)
+    toast({
+      title: "Staff Activated",
+      description: `${staffName} has been re-activated and can now access the system.`,
+    });
+  };
+
   const StaffTable = ({
     staff,
     showActions = false,
+    approvedActions = false,
+    rejectedActions = false,
   }: {
     staff: any[];
     showActions?: boolean;
+    approvedActions?: boolean;
+    rejectedActions?: boolean;
   }) => (
     <>
       {/* Desktop Table */}
@@ -65,7 +95,7 @@ export function StaffManagement() {
               <TableHead className="text-sm">Department</TableHead>
               <TableHead className="text-sm">Registration Date</TableHead>
               <TableHead className="text-sm">Status</TableHead>
-              {showActions && (
+              {(showActions || approvedActions || rejectedActions) && (
                 <TableHead className="text-right text-sm">Actions</TableHead>
               )}
             </TableRow>
@@ -74,7 +104,9 @@ export function StaffManagement() {
             {staff.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={showActions ? 6 : 5}
+                  colSpan={
+                    showActions || approvedActions || rejectedActions ? 6 : 5
+                  }
                   className="text-center py-8 text-muted-foreground"
                 >
                   No staff members found
@@ -118,37 +150,86 @@ export function StaffManagement() {
                       {member.status}
                     </Badge>
                   </TableCell>
-                  {showActions && (
+                  {(showActions || approvedActions || rejectedActions) && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            handleApprove(
-                              member.id,
-                              member.fullName || member.name
-                            )
-                          }
-                          className="text-green-600 hover:text-green-700 dark:hover:text-blue-400 text-xs"
-                        >
-                          <UserCheck className="h-4 w-4" />
-                          Approve
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            handleReject(
-                              member.id,
-                              member.fullName || member.name
-                            )
-                          }
-                          className="text-red-600 hover:text-red-700 dark:hover:text-blue-400 text-xs"
-                        >
-                          <UserX className="h-4 w-4" />
-                          Reject
-                        </Button>
+                        {showActions && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleApprove(
+                                  member.id,
+                                  member.fullName || member.name
+                                )
+                              }
+                              className="text-green-600 hover:text-green-700 dark:hover:text-blue-400 text-xs"
+                            >
+                              <UserCheck className="h-4 w-4" />
+                              Approve
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleReject(
+                                  member.id,
+                                  member.fullName || member.name
+                                )
+                              }
+                              className="text-red-600 hover:text-red-700 dark:hover:text-blue-400 text-xs"
+                            >
+                              <UserX className="h-4 w-4" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {approvedActions && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handlePromote(
+                                  member.id,
+                                  member.fullName || member.name
+                                )
+                              }
+                              className="text-blue-600 hover:text-blue-700 dark:hover:text-blue-400 text-xs"
+                            >
+                              Promote
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleDeactivate(
+                                  member.id,
+                                  member.fullName || member.name
+                                )
+                              }
+                              className="text-red-600 hover:text-red-700 dark:hover:text-blue-400 text-xs"
+                            >
+                              Deactivate
+                            </Button>
+                          </>
+                        )}
+                        {rejectedActions && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleActivate(
+                                member.id,
+                                member.fullName || member.name
+                              )
+                            }
+                            className="text-green-600 hover:text-green-700 dark:hover:text-blue-400 text-xs"
+                          >
+                            Activate
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   )}
@@ -210,30 +291,85 @@ export function StaffManagement() {
                   </div>
                 </div>
 
-                {showActions && (
+                {(showActions || approvedActions || rejectedActions) && (
                   <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        handleApprove(member.id, member.fullName || member.name)
-                      }
-                      className="flex-1 text-green-600 hover:text-green-700 dark:hover:text-blue-400 text-xs"
-                    >
-                      <UserCheck className="h-3 w-3 mr-1" />
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        handleReject(member.id, member.fullName || member.name)
-                      }
-                      className="flex-1 text-red-600 hover:text-red-700 dark:hover:text-blue-400 text-xs"
-                    >
-                      <UserX className="h-3 w-3 mr-1" />
-                      Reject
-                    </Button>
+                    {showActions && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleApprove(
+                              member.id,
+                              member.fullName || member.name
+                            )
+                          }
+                          className="flex-1 text-green-600 hover:text-green-700 dark:hover:text-blue-400 text-xs"
+                        >
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleReject(
+                              member.id,
+                              member.fullName || member.name
+                            )
+                          }
+                          className="flex-1 text-red-600 hover:text-red-700 dark:hover:text-blue-400 text-xs"
+                        >
+                          <UserX className="h-3 w-3 mr-1" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {approvedActions && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handlePromote(
+                              member.id,
+                              member.fullName || member.name
+                            )
+                          }
+                          className="flex-1 text-blue-600 hover:text-blue-700 dark:hover:text-blue-400 text-xs"
+                        >
+                          Promote
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleDeactivate(
+                              member.id,
+                              member.fullName || member.name
+                            )
+                          }
+                          className="flex-1 text-gray-600 hover:text-gray-700 dark:hover:text-blue-400 text-xs"
+                        >
+                          Deactivate
+                        </Button>
+                      </>
+                    )}
+                    {rejectedActions && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          handleActivate(
+                            member.id,
+                            member.fullName || member.name
+                          )
+                        }
+                        className="flex-1 text-green-600 hover:text-green-700 dark:hover:text-blue-400 text-xs"
+                      >
+                        Activate
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -342,11 +478,11 @@ export function StaffManagement() {
             </TabsContent>
 
             <TabsContent value="approved" className="mt-6">
-              <StaffTable staff={approvedStaff} />
+              <StaffTable staff={approvedStaff} approvedActions={true} />
             </TabsContent>
 
             <TabsContent value="rejected" className="mt-6">
-              <StaffTable staff={rejectedStaff} />
+              <StaffTable staff={rejectedStaff} rejectedActions={true} />
             </TabsContent>
           </Tabs>
         </CardContent>

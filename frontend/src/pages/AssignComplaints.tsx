@@ -26,7 +26,20 @@ import {
 } from "@/components/ui/table";
 import { Search, UserPlus } from "lucide-react";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
-import { Complaint } from "@/components/ComplaintCard";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Complaint as BaseComplaint } from "@/components/ComplaintCard";
+
+type Complaint = BaseComplaint & {
+  evidence?: string;
+  status: "Pending" | "In Progress" | "Resolved" | "Closed" | "Delayed";
+};
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
@@ -37,36 +50,79 @@ const mockComplaints: Complaint[] = [
     title: "Library computers are slow and outdated",
     description:
       "The computers in the main library are extremely slow and need upgrading.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "In Progress",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-15"),
     lastUpdated: new Date("2024-01-18"),
+    evidence: "https://via.placeholder.com/150.jpg",
+  },
+  {
+    id: "CMP-002",
+    title: "Wi-Fi not working in dormitory",
+    description:
+      "The Wi-Fi in Dorm A has been down for three days, affecting all students.",
+    category: "IT & Technology",
+    status: "Resolved",
+    submittedBy: "Alice Smith",
+    assignedStaff: "Network Team",
+    submittedDate: new Date("2024-01-10"),
+    lastUpdated: new Date("2024-01-12"),
+    evidence: "https://via.placeholder.com/120.jpg",
   },
   {
     id: "CMP-003",
     title: "Broken air conditioning in lecture hall",
     description:
       "The air conditioning in lecture hall B-204 has been broken for over a week.",
-    department: "Infrastructure & Facilities",
+    category: "Infrastructure & Facilities",
     status: "Pending",
     submittedBy: "Mike Johnson",
     assignedStaff: undefined,
     submittedDate: new Date("2024-01-22"),
     lastUpdated: new Date("2024-01-22"),
+    evidence:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
   },
   {
     id: "CMP-004",
     title: "Classroom projector not working",
     description:
       "The projector in room C-305 has been malfunctioning for the past week.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "Pending",
     submittedBy: "Sarah Johnson",
     assignedStaff: undefined,
     submittedDate: new Date("2024-01-20"),
     lastUpdated: new Date("2024-01-20"),
+    evidence: "https://via.placeholder.com/100.png",
+  },
+  {
+    id: "CMP-005",
+    title: "Cafeteria food quality issue",
+    description:
+      "The food served in the cafeteria is often cold and lacks variety.",
+    category: "Cafeteria",
+    status: "In Progress",
+    submittedBy: "Emily Brown",
+    assignedStaff: undefined,
+    submittedDate: new Date("2024-01-18"),
+    lastUpdated: new Date("2024-01-19"),
+    evidence: "https://via.placeholder.com/140.jpg",
+  },
+  {
+    id: "CMP-006",
+    title: "Elevator not working in dorm B",
+    description:
+      "The elevator in Dorm B has been out of service for two weeks.",
+    category: "Infrastructure & Facilities",
+    status: "In Progress",
+    submittedBy: "David Lee",
+    assignedStaff: "Maintenance Team",
+    submittedDate: new Date("2024-01-05"),
+    lastUpdated: new Date("2024-01-10"),
+    evidence: "https://via.placeholder.com/160.jpg",
   },
 ];
 
@@ -79,23 +135,34 @@ const statusColors = {
 };
 
 export function AssignComplaints() {
+  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [assignmentFilter, setAssignmentFilter] = useState<string>("all");
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [assigningStaffId, setAssigningStaffId] = useState<string>("");
+  const [reassigning, setReassigning] = useState(false);
 
   const { getAllStaff } = useAuth();
 
   const handleAssignStaff = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowAssignModal(true);
+  };
+
+  const handleViewDetail = (complaint: Complaint) => {
+    setSelectedComplaint(complaint);
+    setShowDetailModal(true);
+    setAssigningStaffId("");
+    setReassigning(false);
   };
 
   const handleStaffAssignment = (
@@ -134,11 +201,18 @@ export function AssignComplaints() {
     });
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
+    // Assignment filter
+    const matchesAssignment =
+      assignmentFilter === "all"
+        ? true
+        : assignmentFilter === "assigned"
+        ? !!complaint.assignedStaff
+        : !complaint.assignedStaff;
 
     const matchesPriority =
       priorityFilter === "all" ||
@@ -148,7 +222,7 @@ export function AssignComplaints() {
 
   const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
   const assignedCount = complaints.filter((c) => c.assignedStaff).length;
-  const departments = Array.from(new Set(complaints.map((c) => c.department)));
+  const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorityColors = {
     Low: "bg-gray-200 text-gray-700 border-gray-300",
     Medium: "bg-blue-100 text-blue-800 border-blue-200",
@@ -270,10 +344,10 @@ export function AssignComplaints() {
                 <SelectValue placeholder="Filter by department" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -300,20 +374,6 @@ export function AssignComplaints() {
                   <TableHead className="text-sm">Title</TableHead>
                   <TableHead className="text-sm">Department</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
-                  <TableHead className="text-sm">
-                    <div className="flex items-center gap-1">
-                      Priority
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setPrioritySort((s) => (s === "asc" ? "desc" : "asc"))
-                        }
-                      >
-                        {prioritySort === "asc" ? "↑" : "↓"}
-                      </Button>
-                    </div>
-                  </TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assigned Staff</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
@@ -334,7 +394,7 @@ export function AssignComplaints() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {complaint.department}
+                      {complaint.category}
                     </TableCell>
                     <TableCell className="text-sm">
                       <Badge
@@ -368,14 +428,26 @@ export function AssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAssignStaff(complaint)}
-                        className="text-xs dark:hover:text-blue-400"
-                      >
-                        {complaint.assignedStaff ? "Reassign" : "Assign"}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewDetail(complaint)}
+                          className="text-xs dark:hover:text-blue-400"
+                        >
+                          View Detail
+                        </Button>
+                        {!complaint.assignedStaff && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAssignStaff(complaint)}
+                            className="text-xs dark:hover:text-blue-400"
+                          >
+                            Assign
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -410,9 +482,9 @@ export function AssignComplaints() {
 
                   <div className="space-y-2 text-sm">
                     <div>
-                      <span className="text-muted-foreground">Department:</span>
+                      <span className="text-muted-foreground">Category:</span>
                       <span className="font-medium ml-2">
-                        {complaint.department}
+                        {complaint.category}
                       </span>
                     </div>
                     <div>
@@ -441,16 +513,26 @@ export function AssignComplaints() {
                     </div>
                   </div>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAssignStaff(complaint)}
-                    className="w-full text-xs dark:hover:text-blue-400"
-                  >
-                    {complaint.assignedStaff
-                      ? "Reassign Staff"
-                      : "Assign Staff"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleViewDetail(complaint)}
+                      className="w-full text-xs dark:hover:text-blue-400"
+                    >
+                      View Detail
+                    </Button>
+                    {!complaint.assignedStaff && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAssignStaff(complaint)}
+                        className="w-full text-xs dark:hover:text-blue-400"
+                      >
+                        Assign Staff
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -465,6 +547,148 @@ export function AssignComplaints() {
         onOpenChange={setShowAssignModal}
         onAssign={handleStaffAssignment}
       />
+
+      {/* Complaint Detail Modal */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Complaint Details</DialogTitle>
+          </DialogHeader>
+          {selectedComplaint && (
+            <div className="space-y-6">
+              {/* Complaint Detail Section */}
+              <div>
+                <h2 className="font-semibold text-lg mb-2">
+                  📝 {selectedComplaint.title}
+                </h2>
+                <p className="mb-2 text-muted-foreground">
+                  {selectedComplaint.description}
+                </p>
+                {selectedComplaint.evidence && (
+                  <div className="mb-2">
+                    <span className="font-medium">📎 Evidence:</span>{" "}
+                    {typeof selectedComplaint.evidence === "string" &&
+                    selectedComplaint.evidence.match(
+                      /\.(jpg|jpeg|png|gif)$/i
+                    ) ? (
+                      <img
+                        src={selectedComplaint.evidence}
+                        alt="Evidence"
+                        className="max-h-40 mt-2 rounded"
+                      />
+                    ) : (
+                      <a
+                        href={selectedComplaint.evidence}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline"
+                      >
+                        Download Evidence
+                      </a>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-medium">📍 Status:</span>
+                  <Badge
+                    className={`text-xs ${
+                      statusColors[
+                        selectedComplaint.status as keyof typeof statusColors
+                      ]
+                    }`}
+                  >
+                    {selectedComplaint.status}
+                  </Badge>
+                </div>
+              </div>
+              {/* Complaint Info Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 p-4 rounded">
+                <div>
+                  <span className="font-medium">👨‍🎓 Student Name:</span>
+                  <span className="ml-2">{selectedComplaint.submittedBy}</span>
+                </div>
+                <div>
+                  <span className="font-medium">📚 Category:</span>
+                  <span className="ml-2">{selectedComplaint.category}</span>
+                </div>
+                <div>
+                  <span className="font-medium">🚨 Priority:</span>
+                  <span className="ml-2">
+                    {selectedComplaint.priority || "Medium"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium">🗓️ Date Submitted:</span>
+                  <span className="ml-2">
+                    {selectedComplaint.submittedDate?.toLocaleDateString?.() ||
+                      "-"}
+                  </span>
+                </div>
+              </div>
+              {/* Action Buttons */}
+              <div className="pt-2">
+                {!selectedComplaint.assignedStaff && !reassigning && (
+                  <Button onClick={() => setReassigning(true)} className="mr-2">
+                    ✅ Assign
+                  </Button>
+                )}
+                {selectedComplaint.assignedStaff && !reassigning && (
+                  <Button onClick={() => setReassigning(true)} className="mr-2">
+                    🔁 Re-Assign
+                  </Button>
+                )}
+                {reassigning && (
+                  <div className="flex flex-col sm:flex-row gap-2 items-center mt-2">
+                    <Label htmlFor="staff-select">Select Staff:</Label>
+                    <Select
+                      value={assigningStaffId}
+                      onValueChange={setAssigningStaffId}
+                    >
+                      <SelectTrigger id="staff-select" className="w-48">
+                        <SelectValue placeholder="Choose staff" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAllStaff().map((staff) => (
+                          <SelectItem key={staff.id} value={staff.id}>
+                            {staff.fullName || staff.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={() => {
+                        if (selectedComplaint && assigningStaffId) {
+                          handleStaffAssignment(
+                            selectedComplaint.id,
+                            assigningStaffId,
+                            ""
+                          );
+                          setShowDetailModal(false);
+                          setReassigning(false);
+                          setAssigningStaffId("");
+                        }
+                      }}
+                      disabled={!assigningStaffId}
+                      className="ml-2"
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setReassigning(false);
+                        setAssigningStaffId("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -21,7 +21,7 @@ import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
 import { MyAssignedComplaints } from "@/pages/MyAssignedComplaints";
 
-import { UserManagement } from "@/pages/UserManagement";
+import UserManagement from "@/pages/UserManagement";
 import { CategoryManagement } from "@/pages/CategoryManagement";
 import AllComplaints from "@/pages/AllComplaints";
 

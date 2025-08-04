@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -107,17 +115,42 @@ const mockStudents: Student[] = [
   },
 ];
 
-export function UserManagement() {
+function UserManagement() {
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [departmentFilter, setDepartmentFilter] = useState("All");
 
-  const handlePromoteToStaff = (studentId: string, studentName: string) => {
-    toast({
-      title: "Promotion Request",
-      description: `${studentName} has been promoted to staff. They will receive an email notification.`,
-    });
+  // Modal state
+  const [promoteModalOpen, setPromoteModalOpen] = useState(false);
+  const [promoteTarget, setPromoteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [selectedRole, setSelectedRole] = useState<"Staff" | "Admin" | "">("");
+
+  const openPromoteModal = (studentId: string, studentName: string) => {
+    setPromoteTarget({ id: studentId, name: studentName });
+    setSelectedRole("");
+    setPromoteModalOpen(true);
+  };
+
+  const closePromoteModal = () => {
+    setPromoteModalOpen(false);
+    setPromoteTarget(null);
+    setSelectedRole("");
+  };
+
+  const handlePromoteConfirm = () => {
+    if (promoteTarget && selectedRole) {
+      toast({
+        title: "Promotion Request",
+        description: `${
+          promoteTarget.name
+        } has been promoted to ${selectedRole.toLowerCase()}. They will receive an email notification.`,
+      });
+      closePromoteModal();
+    }
   };
 
   const handleDeactivate = (studentId: string, studentName: string) => {
@@ -175,6 +208,42 @@ export function UserManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Promote Modal */}
+      <Dialog open={promoteModalOpen} onOpenChange={setPromoteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Promote Student</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="role-select">
+                Select new role for{" "}
+                <span className="font-semibold">{promoteTarget?.name}</span>:
+              </Label>
+              <Select
+                value={selectedRole}
+                onValueChange={(v) => setSelectedRole(v as "Staff" | "Admin")}
+              >
+                <SelectTrigger id="role-select" className="mt-2 w-full">
+                  <SelectValue placeholder="Choose role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Staff">Promote to Staff</SelectItem>
+                  <SelectItem value="Admin">Promote to Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePromoteModal}>
+              Cancel
+            </Button>
+            <Button onClick={handlePromoteConfirm} disabled={!selectedRole}>
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div>
         <h1 className="text-3xl font-bold text-foreground">User Management</h1>
         <p className="text-muted-foreground">
@@ -375,7 +444,7 @@ export function UserManagement() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
-                              handlePromoteToStaff(student.id, student.name)
+                              openPromoteModal(student.id, student.name)
                             }
                             className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
                           >
@@ -477,7 +546,7 @@ export function UserManagement() {
                         variant="outline"
                         size="sm"
                         onClick={() =>
-                          handlePromoteToStaff(student.id, student.name)
+                          openPromoteModal(student.id, student.name)
                         }
                         className="flex-1 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                       >
@@ -520,3 +589,5 @@ export function UserManagement() {
     </div>
   );
 }
+
+export default UserManagement;
