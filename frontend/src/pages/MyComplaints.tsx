@@ -28,7 +28,7 @@ const mockComplaints: Complaint[] = [
     title: "Library computers are slow and outdated",
     description:
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "In Progress",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
@@ -40,7 +40,7 @@ const mockComplaints: Complaint[] = [
     title: "Cafeteria food quality concerns",
     description:
       "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    department: "Student Services",
+    category: "Student Services",
     status: "Resolved",
     submittedBy: "John Doe",
     assignedStaff: "Food Services Manager",
@@ -52,7 +52,7 @@ const mockComplaints: Complaint[] = [
     title: "Broken air conditioning in lecture hall",
     description:
       "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    department: "Infrastructure & Facilities",
+    category: "Infrastructure & Facilities",
     status: "Pending",
     submittedBy: "John Doe",
     assignedStaff: undefined,
@@ -183,7 +183,7 @@ export function MyComplaints() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 font-medium">Title</th>
-                      <th className="text-left p-3 font-medium">Department</th>
+                      <th className="text-left p-3 font-medium">Category</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">
                         Assigned Staff
@@ -290,9 +290,9 @@ export function MyComplaints() {
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
                           <span className="text-muted-foreground">
-                            department:
+                            category:
                           </span>
-                          <p className="font-medium">{complaint.department}</p>
+                          <p className="font-medium">{complaint.category}</p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Date:</span>

@@ -316,7 +316,7 @@ export function ComplaintTable({
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
-                    <TableHead>Department</TableHead>
+                    <TableHead>category</TableHead>
                     {userRole === "admin" && (
                       <TableHead>Submitted By</TableHead>
                     )}
@@ -401,7 +401,7 @@ export function ComplaintTable({
                                 size="sm"
                                 onClick={() => onFeedback(complaint)}
                               >
-                                <MessageSquare className="h-4 w-4" />
+                                <MessageSquare className="h-4 w-4 mr-1" />
                               </Button>
                             )}
                         </div>
