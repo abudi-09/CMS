@@ -136,40 +136,35 @@ const statusColors = {
 
 export function AssignComplaints() {
   const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
-  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
-  const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+  // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [assignmentFilter, setAssignmentFilter] = useState<string>("all");
+  const [assignmentFilter, setAssignmentFilter] = useState<string>("all"); // 'all' | 'assigned' | 'unassigned'
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
-  const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
-  const [reassigning, setReassigning] = useState(false);
+  const [reassigningRow, setReassigningRow] = useState<string | null>(null);
 
   const { getAllStaff } = useAuth();
 
-  const handleAssignStaff = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setShowAssignModal(true);
+  // Inline assign/re-assign button click
+  const handleAssignClick = (complaint: Complaint) => {
+    setReassigningRow(complaint.id);
+    setAssigningStaffId("");
   };
 
   const handleViewDetail = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
     setAssigningStaffId("");
-    setReassigning(false);
+    setReassigningRow(null);
   };
 
-  const handleStaffAssignment = (
-    complaintId: string,
-    staffId: string,
-    notes: string
-  ) => {
+  const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
     setComplaints((prev) =>
       prev.map((c) =>
@@ -188,36 +183,30 @@ export function AssignComplaints() {
         staff?.fullName || staff?.name
       }`,
     });
+    setReassigningRow(null);
+    setAssigningStaffId("");
   };
 
   // Filter complaints
   const filteredComplaints = complaints.filter((complaint) => {
-    let filteredComplaints = complaints.filter((complaint) => {});
-    // Sort by priority if enabled
-    filteredComplaints = filteredComplaints.sort((a, b) => {
-      const aP = priorityOrder[a.priority || "Medium"];
-      const bP = priorityOrder[b.priority || "Medium"];
-      return prioritySort === "asc" ? aP - bP : bP - aP;
-    });
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
-    // Assignment filter
     const matchesAssignment =
       assignmentFilter === "all"
         ? true
         : assignmentFilter === "assigned"
         ? !!complaint.assignedStaff
         : !complaint.assignedStaff;
-
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+    return (
+      matchesSearch && matchesStatus && matchesPriority && matchesAssignment
+    );
   });
 
   const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
@@ -287,7 +276,7 @@ export function AssignComplaints() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4 w-full">
             {/* Search input */}
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -324,17 +313,22 @@ export function AssignComplaints() {
                 <SelectItem value="Critical">Critical</SelectItem>
               </SelectContent>
             </Select>
-            {/* Sort by Priority button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setPrioritySort((s) => (s === "asc" ? "desc" : "asc"))
-              }
-              className="w-full h-10 flex items-center justify-center border rounded-md font-normal"
+            {/* Assignment Status Filter */}
+            <Select
+              value={assignmentFilter}
+              onValueChange={setAssignmentFilter}
             >
-              Sort by Priority {prioritySort === "asc" ? "↑" : "↓"}
-            </Button>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by Assignment Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Complaints</SelectItem>
+                <SelectItem value="assigned">Assigned Complaints</SelectItem>
+                <SelectItem value="unassigned">
+                  Unassigned Complaints
+                </SelectItem>
+              </SelectContent>
+            </Select>
             {/* Department dropdown */}
             <Select
               value={departmentFilter}
@@ -418,17 +412,17 @@ export function AssignComplaints() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {complaint.assignedStaff ? (
-                        <span className="text-green-600">
-                          {complaint.assignedStaff}
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                          Assigned to: {complaint.assignedStaff}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">
-                          Unassigned
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                          Not Yet Assigned
                         </span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center">
                         <Button
                           size="sm"
                           variant="outline"
@@ -437,14 +431,57 @@ export function AssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {!complaint.assignedStaff && (
+                        {reassigningRow === complaint.id ? (
+                          <>
+                            <Select
+                              value={assigningStaffId}
+                              onValueChange={setAssigningStaffId}
+                            >
+                              <SelectTrigger className="w-32 text-xs">
+                                <SelectValue placeholder="Select staff" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getAllStaff().map((staff) => (
+                                  <SelectItem key={staff.id} value={staff.id}>
+                                    {staff.fullName || staff.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="text-xs"
+                              disabled={!assigningStaffId}
+                              onClick={() =>
+                                handleStaffAssignment(
+                                  complaint.id,
+                                  assigningStaffId
+                                )
+                              }
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs"
+                              onClick={() => {
+                                setReassigningRow(null);
+                                setAssigningStaffId("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleAssignStaff(complaint)}
                             className="text-xs dark:hover:text-blue-400"
+                            onClick={() => handleAssignClick(complaint)}
                           >
-                            Assign
+                            {complaint.assignedStaff ? "Re-Assign" : "Assign"}
                           </Button>
                         )}
                       </div>
@@ -498,18 +535,15 @@ export function AssignComplaints() {
                       </Badge>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">
-                        Assigned Staff:
-                      </span>
-                      <span
-                        className={`font-medium ml-2 ${
-                          complaint.assignedStaff
-                            ? "text-green-600"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {complaint.assignedStaff || "Unassigned"}
-                      </span>
+                      {complaint.assignedStaff ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                          Assigned to: {complaint.assignedStaff}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                          Not Yet Assigned
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -522,14 +556,57 @@ export function AssignComplaints() {
                     >
                       View Detail
                     </Button>
-                    {!complaint.assignedStaff && (
+                    {reassigningRow === complaint.id ? (
+                      <>
+                        <Select
+                          value={assigningStaffId}
+                          onValueChange={setAssigningStaffId}
+                        >
+                          <SelectTrigger className="w-full text-xs">
+                            <SelectValue placeholder="Select staff" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getAllStaff().map((staff) => (
+                              <SelectItem key={staff.id} value={staff.id}>
+                                {staff.fullName || staff.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="w-full text-xs mt-1"
+                          disabled={!assigningStaffId}
+                          onClick={() =>
+                            handleStaffAssignment(
+                              complaint.id,
+                              assigningStaffId
+                            )
+                          }
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full text-xs mt-1"
+                          onClick={() => {
+                            setReassigningRow(null);
+                            setAssigningStaffId("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleAssignStaff(complaint)}
                         className="w-full text-xs dark:hover:text-blue-400"
+                        onClick={() => handleAssignClick(complaint)}
                       >
-                        Assign Staff
+                        {complaint.assignedStaff ? "Re-Assign" : "Assign"}
                       </Button>
                     )}
                   </div>
@@ -540,13 +617,7 @@ export function AssignComplaints() {
         </CardContent>
       </Card>
 
-      {/* Assign Staff Modal */}
-      <AssignStaffModal
-        complaint={selectedComplaint}
-        open={showAssignModal}
-        onOpenChange={setShowAssignModal}
-        onAssign={handleStaffAssignment}
-      />
+      {/* Assign Staff Modal removed; assignment is now inline in the table */}
 
       {/* Complaint Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
@@ -625,70 +696,12 @@ export function AssignComplaints() {
                   </span>
                 </div>
               </div>
-              {/* Action Buttons */}
-              <div className="pt-2">
-                {!selectedComplaint.assignedStaff && !reassigning && (
-                  <Button onClick={() => setReassigning(true)} className="mr-2">
-                    ✅ Assign
-                  </Button>
-                )}
-                {selectedComplaint.assignedStaff && !reassigning && (
-                  <Button onClick={() => setReassigning(true)} className="mr-2">
-                    🔁 Re-Assign
-                  </Button>
-                )}
-                {reassigning && (
-                  <div className="flex flex-col sm:flex-row gap-2 items-center mt-2">
-                    <Label htmlFor="staff-select">Select Staff:</Label>
-                    <Select
-                      value={assigningStaffId}
-                      onValueChange={setAssigningStaffId}
-                    >
-                      <SelectTrigger id="staff-select" className="w-48">
-                        <SelectValue placeholder="Choose staff" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getAllStaff().map((staff) => (
-                          <SelectItem key={staff.id} value={staff.id}>
-                            {staff.fullName || staff.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={() => {
-                        if (selectedComplaint && assigningStaffId) {
-                          handleStaffAssignment(
-                            selectedComplaint.id,
-                            assigningStaffId,
-                            ""
-                          );
-                          setShowDetailModal(false);
-                          setReassigning(false);
-                          setAssigningStaffId("");
-                        }
-                      }}
-                      disabled={!assigningStaffId}
-                      className="ml-2"
-                    >
-                      Confirm
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setReassigning(false);
-                        setAssigningStaffId("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* No action buttons below modal; all assignment actions are now side by side with View Detail in the table */}
     </div>
   );
 }

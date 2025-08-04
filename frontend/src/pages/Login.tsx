@@ -68,11 +68,11 @@ export function Login() {
           ) {
             const role = (result as any).role;
             if (role === "admin") {
-              navigate("/admin-dashboard");
+              navigate("/dashboard");
             } else if (role === "staff") {
-              navigate("/staff-dashboard");
+              navigate("/dashboard");
             } else {
-              navigate("/user-dashboard");
+              navigate("/dashboard");
             }
           } else {
             navigate("/");

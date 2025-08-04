@@ -92,7 +92,9 @@ export function StaffManagement() {
             <TableRow>
               <TableHead className="text-sm">Name</TableHead>
               <TableHead className="text-sm">Email</TableHead>
-              <TableHead className="text-sm">Department</TableHead>
+              <TableHead className="text-sm">
+                Working place / Position
+              </TableHead>
               <TableHead className="text-sm">Registration Date</TableHead>
               <TableHead className="text-sm">Status</TableHead>
               {(showActions || approvedActions || rejectedActions) && (
