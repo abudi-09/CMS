@@ -155,10 +155,10 @@ export function StaffDashboard() {
       </div>
 
       {/* Enhanced Summary Cards - Responsive grid */}
-      <div className="grid grid-cols-1 gap-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full">
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2 w-full">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+      <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
               Assigned Complaints
             </CardTitle>
             <div className="bg-blue-50 p-2 rounded-lg">
@@ -166,16 +166,18 @@ export function StaffDashboard() {
             </div>
           </CardHeader>
           <CardContent className="w-full">
-            <div className="text-2xl font-bold">{stats.assigned}</div>
+            <div className="text-xl sm:text-2xl font-bold">
+              {stats.assigned}
+            </div>
             <p className="text-xs text-muted-foreground">
               Total assigned to you
             </p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full">
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2 w-full">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
               Pending
             </CardTitle>
             <div className="bg-yellow-50 p-2 rounded-lg">
@@ -183,14 +185,14 @@ export function StaffDashboard() {
             </div>
           </CardHeader>
           <CardContent className="w-full">
-            <div className="text-2xl font-bold">{stats.pending}</div>
+            <div className="text-xl sm:text-2xl font-bold">{stats.pending}</div>
             <p className="text-xs text-muted-foreground">Awaiting action</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full">
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2 w-full">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
               In Progress
             </CardTitle>
             <div className="bg-blue-50 p-2 rounded-lg">
@@ -198,14 +200,16 @@ export function StaffDashboard() {
             </div>
           </CardHeader>
           <CardContent className="w-full">
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
+            <div className="text-xl sm:text-2xl font-bold">
+              {stats.inProgress}
+            </div>
             <p className="text-xs text-muted-foreground">Currently working</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full">
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2 w-full">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
               Resolved
             </CardTitle>
             <div className="bg-green-50 p-2 rounded-lg">
@@ -213,7 +217,9 @@ export function StaffDashboard() {
             </div>
           </CardHeader>
           <CardContent className="w-full">
-            <div className="text-2xl font-bold">{stats.resolved}</div>
+            <div className="text-xl sm:text-2xl font-bold">
+              {stats.resolved}
+            </div>
             <p className="text-xs text-muted-foreground">
               Successfully completed
             </p>
@@ -222,8 +228,8 @@ export function StaffDashboard() {
       </div>
 
       {/* My Assigned Complaints Section */}
-      <Card className="p-2 sm:p-4">
-        <CardHeader className="p-2 sm:p-4">
+      <Card className="p-1 sm:p-4">
+        <CardHeader className="p-1 sm:p-4">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <FileText className="h-5 w-5" />
             My Assigned Complaints
@@ -256,8 +262,8 @@ export function StaffDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Make table horizontally scrollable on mobile, add padding for mobile */}
-          <div className="rounded-md border overflow-x-auto p-0 sm:p-2">
+          {/* Responsive: Table on md+, cards on mobile */}
+          <div className="hidden md:block rounded-md border overflow-x-auto p-0 sm:p-2">
             <Table className="min-w-0 sm:min-w-[700px] text-xs sm:text-sm">
               <TableHeader>
                 <TableRow>
@@ -342,6 +348,72 @@ export function StaffDashboard() {
                 )}
               </TableBody>
             </Table>
+          </div>
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-4">
+            {filteredComplaints.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {searchTerm || statusFilter !== "All"
+                  ? "No complaints match your search criteria"
+                  : "No complaints assigned to you yet"}
+              </div>
+            ) : (
+              filteredComplaints.map((complaint) => (
+                <Card key={complaint.id} className="p-3">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-sm leading-tight">
+                          {complaint.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {complaint.description.substring(0, 40)}...
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-1 ml-2">
+                        <Badge
+                          className={
+                            statusColors[complaint.status] +
+                            " text-[10px] px-2 py-1"
+                          }
+                          variant="outline"
+                        >
+                          {complaint.status}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px] mt-1">
+                          {complaint.category}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">
+                        {complaint.submittedBy}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">Assigned:</span>
+                      <span>
+                        {complaint.submittedDate.toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">Updated:</span>
+                      <span>{complaint.lastUpdated.toLocaleDateString()}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStatusUpdate(complaint)}
+                      className="w-full text-xs px-2 py-1 mt-2"
+                    >
+                      <Settings className="h-4 w-4 mr-1" />
+                      Update Status
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

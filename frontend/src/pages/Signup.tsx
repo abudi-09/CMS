@@ -30,6 +30,7 @@ export function Signup() {
     password: "",
     role: "",
     department: "",
+    workingPlace: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -211,22 +212,46 @@ export function Signup() {
                 <p className="text-sm text-destructive">{errors.role}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="department">Department *</Label>
-              <Input
-                id="department"
-                type="text"
-                placeholder="Enter your department"
-                value={formData.department}
-                onChange={(e) =>
-                  handleInputChange("department", e.target.value)
-                }
-                className={errors.department ? "border-destructive" : ""}
-              />
-              {errors.department && (
-                <p className="text-sm text-destructive">{errors.department}</p>
-              )}
-            </div>
+            {formData.role === "user" && (
+              <div className="space-y-2">
+                <Label htmlFor="department">Department *</Label>
+                <Input
+                  id="department"
+                  type="text"
+                  placeholder="Enter your department"
+                  value={formData.department}
+                  onChange={(e) =>
+                    handleInputChange("department", e.target.value)
+                  }
+                  className={errors.department ? "border-destructive" : ""}
+                />
+                {errors.department && (
+                  <p className="text-sm text-destructive">
+                    {errors.department}
+                  </p>
+                )}
+              </div>
+            )}
+            {formData.role === "staff" && (
+              <div className="space-y-2">
+                <Label htmlFor="workingPlace">Working Place *</Label>
+                <Input
+                  id="workingPlace"
+                  type="text"
+                  placeholder="Enter your working place"
+                  value={formData.workingPlace}
+                  onChange={(e) =>
+                    handleInputChange("workingPlace", e.target.value)
+                  }
+                  className={errors.workingPlace ? "border-destructive" : ""}
+                />
+                {errors.workingPlace && (
+                  <p className="text-sm text-destructive">
+                    {errors.workingPlace}
+                  </p>
+                )}
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
