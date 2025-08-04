@@ -453,7 +453,7 @@ export function MyAssignedComplaints() {
                         onClick={() => handleViewComplaint(complaint)}
                         className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                       >
-                        <Eye className="h-4 w-4 mr-2" />
+                        <Eye className="h-4 w-4 " />
                         View Details
                       </Button>
                       <Button
@@ -479,7 +479,27 @@ export function MyAssignedComplaints() {
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-      />
+      >
+        {/* Approve/Reject buttons for staff, no status update logic */}
+        {selectedComplaint && (
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <Button
+              variant="success"
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => {}}
+            >
+              ✅ Approve
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {}}
+            >
+              ❌ Reject
+            </Button>
+          </div>
+        )}
+      </ComplaintDetailModal>
 
       <StatusUpdateModal
         complaint={selectedComplaint}
