@@ -42,6 +42,13 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: UserCheck, label: "Staff Management", href: "/staff-management" },
     { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
     { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
+    { icon: FileText, label: "All Complaints", href: "/all-complaints" },
+    { icon: Users, label: "User Management", href: "/user-management" },
+    {
+      icon: TrendingUp,
+      label: "Category Management",
+      href: "/category-management",
+    },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 

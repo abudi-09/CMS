@@ -42,7 +42,7 @@ const mockAllComplaints: Complaint[] = [
     title: "Library computers are slow and outdated",
     description:
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "In Progress",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
@@ -54,7 +54,7 @@ const mockAllComplaints: Complaint[] = [
     title: "Cafeteria food quality concerns",
     description:
       "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    department: "Student Services",
+    category: "Student Services",
     status: "Resolved",
     submittedBy: "Jane Smith",
     assignedStaff: "Food Services Manager",
@@ -70,7 +70,7 @@ const mockAllComplaints: Complaint[] = [
     title: "Broken air conditioning in lecture hall",
     description:
       "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    department: "Infrastructure & Facilities",
+    category: "Infrastructure & Facilities",
     status: "Pending",
     submittedBy: "Mike Johnson",
     assignedStaff: undefined,
@@ -82,7 +82,7 @@ const mockAllComplaints: Complaint[] = [
     title: "Classroom projector not working",
     description:
       "The projector in room C-305 has been malfunctioning for the past week. Teachers are unable to present slides.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "Pending",
     submittedBy: "Sarah Johnson",
     assignedStaff: "IT Support Team",
@@ -94,7 +94,7 @@ const mockAllComplaints: Complaint[] = [
     title: "Parking lot lighting issues",
     description:
       "Several lights in the main parking lot are not working, making it unsafe for students and staff during evening hours.",
-    department: "Infrastructure & Facilities",
+    category: "Infrastructure & Facilities",
     status: "Closed",
     submittedBy: "David Wilson",
     assignedStaff: "Facilities Manager",
@@ -191,7 +191,7 @@ export function AdminDashboard() {
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
     const matchesCategory =
-      categoryFilter === "all" || complaint.department === categoryFilter;
+      categoryFilter === "all" || complaint.category === categoryFilter;
     const matchesPriority =
       priorityFilter === "all" || complaint.priority === priorityFilter;
     return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
@@ -204,7 +204,7 @@ export function AdminDashboard() {
     return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
   });
 
-  const categories = Array.from(new Set(complaints.map((c) => c.department)));
+  const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorities = ["Critical", "High", "Medium", "Low"];
 
   return (

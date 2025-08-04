@@ -13,32 +13,22 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, FileText, Info, ArrowRight, Upload } from "lucide-react";
+import { CheckCircle, FileText, Info, ArrowRight } from "lucide-react";
 
-const categories = [
-  "Academic",
-  "Facility",
-  "Finance",
-  "ICT Support",
-  "Cafeteria",
-  "Others",
-];
-
-const priorities = [
-  { value: "Critical", label: "Critical", color: "bg-red-100 text-red-800" },
-  { value: "High", label: "High", color: "bg-orange-100 text-orange-800" },
-  { value: "Medium", label: "Medium", color: "bg-yellow-100 text-yellow-800" },
-  { value: "Low", label: "Low", color: "bg-green-100 text-green-800" },
+const departments = [
+  "Computer Science",
+  "Information Systems",
+  "Information Technology",
+  "Computer Systems",
 ];
 
 export function SubmitComplaint() {
   const [formData, setFormData] = useState({
     title: "",
-    category: "",
-    priority: "",
+    department: "",
     description: "",
+    priority: "Medium",
   });
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [complaintId, setComplaintId] = useState("");
@@ -46,13 +36,7 @@ export function SubmitComplaint() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (
-      !formData.title ||
-      !formData.category ||
-      !formData.priority ||
-      !formData.description
-    ) {
+    if (!formData.title || !formData.department || !formData.description) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -60,28 +44,28 @@ export function SubmitComplaint() {
       });
       return;
     }
-
     setIsSubmitting(true);
-
-    // Simulate API call
+    // TODO: Replace with real API call
     await new Promise((resolve) => setTimeout(resolve, 2000));
-
     const newComplaintId = `CMP-${Date.now().toString().slice(-6)}`;
     setComplaintId(newComplaintId);
     setSubmitted(true);
-
     toast({
       title: "Complaint Submitted Successfully",
       description: `Your complaint has been assigned ID: ${newComplaintId}`,
     });
-
     setIsSubmitting(false);
   };
+  // Reset form for submitting another complaint
 
   const handleSubmitAnother = () => {
     setSubmitted(false);
-    setFormData({ title: "", category: "", priority: "", description: "" });
-    setEvidenceFile(null);
+    setFormData({
+      title: "",
+      department: "",
+      description: "",
+      priority: "Medium",
+    });
     setComplaintId("");
   };
 
@@ -151,7 +135,7 @@ export function SubmitComplaint() {
       </div>
 
       {/* Main Form */}
-      <Card className="shadow-lg rounded-2xl bg-white dark:bg-black">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -160,65 +144,35 @@ export function SubmitComplaint() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="title">Complaint Title *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, title: e.target.value }))
-                  }
-                  placeholder="Brief summary of your complaint"
-                  required
-                  className="rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="priority">Priority *</Label>
-                <Select
-                  value={formData.priority}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, priority: value }))
-                  }
-                  required
-                >
-                  <SelectTrigger className="rounded-lg">
-                    <SelectValue placeholder="Select priority level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {priorities.map((priority) => (
-                      <SelectItem key={priority.value} value={priority.value}>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${priority.color}`}
-                          />
-                          {priority.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="title">Complaint Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, title: e.target.value }))
+                }
+                placeholder="Brief summary of your complaint"
+                required
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="category">Category *</Label>
+              <Label htmlFor="department">Select Department *</Label>
               <Select
-                value={formData.category}
+                value={formData.department}
                 onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, category: value }))
+                  setFormData((prev) => ({ ...prev, department: value }))
                 }
                 required
               >
-                <SelectTrigger className="rounded-lg">
-                  <SelectValue placeholder="Select complaint category" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -226,35 +180,24 @@ export function SubmitComplaint() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="evidence">Evidence File</Label>
-              <div className="space-y-2">
-                <Input
-                  id="evidence"
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.pdf,.docx"
-                  onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
-                  className="rounded-lg"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Optional. Upload evidence or related document (JPG, PNG, PDF,
-                  DOCX)
-                </p>
-                {evidenceFile && (
-                  <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{evidenceFile.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEvidenceFile(null)}
-                      className="ml-auto h-6 w-6 p-0"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                )}
-              </div>
+              <Label htmlFor="priority">Select Complaint Priority *</Label>
+              <Select
+                value={formData.priority}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, priority: value }))
+                }
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -269,7 +212,7 @@ export function SubmitComplaint() {
                   }))
                 }
                 placeholder="Provide detailed information about your complaint, including when it occurred, who was involved, and any steps you've already taken..."
-                className="min-h-32 rounded-lg"
+                className="min-h-32"
                 maxLength={1000}
                 required
               />

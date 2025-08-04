@@ -86,7 +86,7 @@ export function ComplaintTable({
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
     const matchesCategory =
-      categoryFilter === "all" || complaint.department === categoryFilter;
+      categoryFilter === "all" || complaint.category === categoryFilter;
     const matchesPriority =
       !showPriorityFilter ||
       priorityFilter === "all" ||
@@ -108,7 +108,7 @@ export function ComplaintTable({
     });
   }
 
-  const categories = Array.from(new Set(complaints.map((c) => c.department)));
+  const categories = Array.from(new Set(complaints.map((c) => c.category)));
 
   return (
     <Card>
@@ -219,7 +219,7 @@ export function ComplaintTable({
                           {complaint.title}
                         </h4>
                         <div className="text-xs text-muted-foreground">
-                          {complaint.department}
+                          {complaint.category}
                         </div>
                         <div className="text-xs">
                           <Badge
@@ -316,7 +316,7 @@ export function ComplaintTable({
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
-                    <TableHead>category</TableHead>
+                    <TableHead>Department</TableHead>
                     {userRole === "admin" && (
                       <TableHead>Submitted By</TableHead>
                     )}
@@ -350,7 +350,7 @@ export function ComplaintTable({
                           {complaint.priority}
                         </Badge>
                       </TableCell>
-                      <TableCell>{complaint.department}</TableCell>
+                      <TableCell>{complaint.category}</TableCell>
                       {userRole === "admin" && (
                         <TableCell>{complaint.submittedBy}</TableCell>
                       )}
@@ -401,7 +401,7 @@ export function ComplaintTable({
                                 size="sm"
                                 onClick={() => onFeedback(complaint)}
                               >
-                                <MessageSquare className="h-4 w-4 mr-1" />
+                                <MessageSquare className="h-4 w-4" />
                               </Button>
                             )}
                         </div>

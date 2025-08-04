@@ -14,7 +14,7 @@ export interface Complaint {
   id: string;
   title: string;
   description: string;
-  department: string;
+  category: string;
   status: "Pending" | "In Progress" | "Resolved" | "Closed";
   submittedBy: string;
   assignedStaff?: string;
@@ -25,6 +25,8 @@ export interface Complaint {
     rating: number;
     comment: string;
   };
+  resolutionNote?: string;
+  evidenceFile?: string; // Optional fields for feedback;
 }
 
 interface ComplaintCardProps {
@@ -101,7 +103,7 @@ export function ComplaintCard({
         </div>
 
         <div className="text-xs text-muted-foreground">
-          Department: {complaint.department}
+          Department: {complaint.category}
         </div>
 
         {showActions && (

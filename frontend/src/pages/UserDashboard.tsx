@@ -29,7 +29,7 @@ const mockComplaints: Complaint[] = [
     title: "Library computers are slow and outdated",
     description:
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     priority: "High",
     status: "In Progress",
     submittedBy: "John Doe",
@@ -42,7 +42,7 @@ const mockComplaints: Complaint[] = [
     title: "Cafeteria food quality concerns",
     description:
       "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    department: "Student Services",
+    category: "Student Services",
     priority: "Critical",
     status: "Resolved",
     submittedBy: "John Doe",
@@ -55,7 +55,7 @@ const mockComplaints: Complaint[] = [
     title: "Broken air conditioning in lecture hall",
     description:
       "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    department: "Infrastructure & Facilities",
+    category: "Infrastructure & Facilities",
     priority: "Medium",
     status: "Pending",
     submittedBy: "John Doe",

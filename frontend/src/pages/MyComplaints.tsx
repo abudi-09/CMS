@@ -102,7 +102,7 @@ export function MyComplaints() {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.department.toLowerCase().includes(searchTerm.toLowerCase());
+      complaint.category.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
@@ -183,7 +183,7 @@ export function MyComplaints() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 font-medium">Title</th>
-                      <th className="text-left p-3 font-medium">Category</th>
+                      <th className="text-left p-3 font-medium">Department</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">
                         Assigned Staff
@@ -205,9 +205,7 @@ export function MyComplaints() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <span className="text-sm">
-                            {complaint.department}
-                          </span>
+                          <span className="text-sm">{complaint.category}</span>
                         </td>
                         <td className="p-3">
                           <Badge

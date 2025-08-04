@@ -41,7 +41,7 @@ const mockStaffComplaints: Complaint[] = [
     title: "Library computers are slow and outdated",
     description:
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources for research and assignments. This is affecting productivity significantly.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "In Progress",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
@@ -53,7 +53,7 @@ const mockStaffComplaints: Complaint[] = [
     title: "Classroom projector not working",
     description:
       "The projector in room C-305 has been malfunctioning for the past week. Teachers are unable to present slides and conduct effective lectures.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "Pending",
     submittedBy: "Sarah Johnson",
     assignedStaff: "IT Support Team",
@@ -65,7 +65,7 @@ const mockStaffComplaints: Complaint[] = [
     title: "Network connectivity issues in lab",
     description:
       "The computer lab on the 3rd floor has been experiencing intermittent internet connectivity issues. Students can't access online resources for their assignments.",
-    department: "IT & Technology",
+    category: "IT & Technology",
     status: "Resolved",
     submittedBy: "Mike Wilson",
     assignedStaff: "IT Support Team",
@@ -298,7 +298,7 @@ export function StaffDashboard() {
                           variant="secondary"
                           className="text-[10px] sm:text-xs"
                         >
-                          {complaint.department}
+                          {complaint.category}
                         </Badge>
                       </TableCell>
                       <TableCell>
