@@ -94,24 +94,24 @@ export function Login() {
   return (
     <div className="min-h-screen flex bg-white dark:bg-black">
       {/* Left side - Hero Image */}
-      <div className="hidden lg:flex lg:w-1/2 relative  bg-[#272aca] dark:bg-black">
+      <div className="hidden lg:flex lg:w-1/2 relative bg-primary dark:bg-black">
         <img
           src="https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=1200&h=800&fit=crop"
           alt="University Campus"
           className="object-cover w-full h-full dark:hidden"
         />
         {/* Blue overlay for light mode, black for dark mode */}
-        <div className="absolute inset-0 bg-[#272aca] opacity-90 dark:opacity-100 dark:bg-black pointer-events-none" />
+        <div className="absolute inset-0 bg-primary opacity-90 dark:opacity-100 dark:bg-black pointer-events-none" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center text-white dark:text-[#FFD700] p-8 w-full">
-            <GraduationCap className="h-20 w-20 mx-auto mb-6 text-white dark:text-[#c4c44c]" />
-            <h1 className="text-4xl font-bold mb-4 dark:text-[#FFD700]">
+            <GraduationCap className="h-20 w-20 mx-auto mb-6 text-white dark:text-primary" />
+            <h1 className="text-4xl font-bold mb-4 text-white dark:text-foreground">
               Gondar University
             </h1>
-            <p className="text-xl mb-2 dark:text-[#FFD700]">
+            <p className="text-xl mb-2 text-white dark:text-foreground">
               Complaint Management System
             </p>
-            <p className="text-lg opacity-90 dark:text-[#FFD700]">
+            <p className="text-lg opacity-90 text-white dark:text-foreground">
               Your voice matters. Let us help you resolve your concerns.
             </p>
           </div>
@@ -168,7 +168,7 @@ export function Login() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-[#272aca] text-white hover:bg-[#1e2080] focus:bg-[#1e2080] dark:bg-[#FFD700] dark:text-black dark:hover:bg-[#E6C200] dark:focus:bg-[#E6C200] border-none shadow-md"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90 border-none shadow-md dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/80 dark:focus:bg-primary/80"
                   disabled={isLoading}
                 >
                   {isLoading && (

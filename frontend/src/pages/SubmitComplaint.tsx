@@ -151,7 +151,7 @@ export function SubmitComplaint() {
       </div>
 
       {/* Main Form */}
-      <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
+      <Card className="shadow-lg rounded-2xl bg-white dark:bg-background">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />

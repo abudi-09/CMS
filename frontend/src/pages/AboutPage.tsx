@@ -10,6 +10,7 @@ import {
   Heart,
   Lightbulb,
 } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 export default function AboutPage() {
   const statistics = [
@@ -255,6 +256,8 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   );
 }

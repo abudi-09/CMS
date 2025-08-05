@@ -479,27 +479,7 @@ export function MyAssignedComplaints() {
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-      >
-        {/* Approve/Reject buttons for staff, no status update logic */}
-        {selectedComplaint && (
-          <div className="flex flex-col sm:flex-row gap-2 pt-4">
-            <Button
-              variant="success"
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => {}}
-            >
-              ✅ Approve
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => {}}
-            >
-              ❌ Reject
-            </Button>
-          </div>
-        )}
-      </ComplaintDetailModal>
+      />
 
       <StatusUpdateModal
         complaint={selectedComplaint}

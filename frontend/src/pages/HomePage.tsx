@@ -21,6 +21,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Footer } from "@/components/Footer";
 
 export default function HomePage() {
   const statistics = [
@@ -213,6 +214,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   );
 }
