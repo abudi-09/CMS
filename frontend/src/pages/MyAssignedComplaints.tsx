@@ -30,8 +30,7 @@ import {
   Filter,
   ArrowUpDown,
 } from "lucide-react";
-import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
-import { StatusUpdateModal } from "@/components/StatusUpdateModal";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { toast } from "@/hooks/use-toast";
 
@@ -96,7 +95,6 @@ export function MyAssignedComplaints() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
   const [complaints, setComplaints] =
     useState<Complaint[]>(mockStaffComplaints);
   const [searchTerm, setSearchTerm] = useState("");
@@ -109,31 +107,16 @@ export function MyAssignedComplaints() {
     setShowDetailModal(true);
   };
 
-  const handleStatusUpdate = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setShowStatusModal(true);
-  };
-
-  const handleStatusSubmit = (
-    complaintId: string,
-    newStatus: string,
-    notes: string
-  ) => {
+  const handleUpdate = (complaintId: string, updates: Partial<Complaint>) => {
     setComplaints((prev) =>
       prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              status: newStatus as Complaint["status"],
-              lastUpdated: new Date(),
-            }
-          : c
+        c.id === complaintId ? { ...c, ...updates, lastUpdated: new Date() } : c
       )
     );
 
     toast({
-      title: "Status Updated",
-      description: `Complaint #${complaintId} has been updated to ${newStatus}`,
+      title: "Complaint Updated",
+      description: `Complaint #${complaintId} has been updated successfully`,
     });
   };
 
@@ -196,7 +179,7 @@ export function MyAssignedComplaints() {
       </div>
 
       {/* Main Content */}
-      <Card className="shadow-lg rounded-2xl bg-white dark:bg-black/80">
+      <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -263,7 +246,7 @@ export function MyAssignedComplaints() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">category</TableHead>
+                  <TableHead className="text-sm">Department</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Submitted By</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
@@ -349,15 +332,8 @@ export function MyAssignedComplaints() {
                             onClick={() => handleViewComplaint(complaint)}
                             className="hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleStatusUpdate(complaint)}
-                            className="hover:bg-primary/10 dark:hover:bg-hover-blue/10"
-                          >
-                            <Settings className="h-4 w-4" />
+                            <Eye className="h-4 w-4 mr-1" />
+                            View & Update
                           </Button>
                         </div>
                       </TableCell>
@@ -453,17 +429,8 @@ export function MyAssignedComplaints() {
                         onClick={() => handleViewComplaint(complaint)}
                         className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                       >
-                        <Eye className="h-4 w-4 " />
-                        View Details
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStatusUpdate(complaint)}
-                        className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
-                      >
-                        <Settings className="h-4 w-4 mr-2" />
-                        Update Status
+                        <Eye className="h-4 w-4 mr-2" />
+                        View & Update
                       </Button>
                     </div>
                   </div>
@@ -474,19 +441,12 @@ export function MyAssignedComplaints() {
         </CardContent>
       </Card>
 
-      {/* Modals */}
-      <ComplaintDetailModal
+      {/* Modal */}
+      <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-      />
-
-      <StatusUpdateModal
-        complaint={selectedComplaint}
-        open={showStatusModal}
-        onOpenChange={setShowStatusModal}
-        onUpdate={handleStatusSubmit}
-        userRole="staff"
+        onUpdate={handleUpdate}
       />
     </div>
   );

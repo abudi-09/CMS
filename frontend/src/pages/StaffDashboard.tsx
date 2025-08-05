@@ -29,8 +29,7 @@ import {
   Search,
   Filter,
 } from "lucide-react";
-import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
-import { StatusUpdateModal } from "@/components/StatusUpdateModal";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { toast } from "@/hooks/use-toast";
 
@@ -78,21 +77,16 @@ export function StaffDashboard() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
   const [complaints, setComplaints] =
     useState<Complaint[]>(mockStaffComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [priorityFilter, setPriorityFilter] = useState("All");
 
-  const handleViewComplaint = (complaint: Complaint) => {
+  const handleViewAndUpdate = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
-    setShowDetailModal(true);
-  };
-
-  const handleStatusUpdate = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setShowStatusModal(true);
+    setShowActionModal(true);
   };
 
   const handleStatusSubmit = (
@@ -126,14 +120,16 @@ export function StaffDashboard() {
     resolved: complaints.filter((c) => c.status === "Resolved").length,
   };
 
-  // Filter complaints based on search and status
+  // Filter complaints based on search, status, and priority
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All" || complaint.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesPriority =
+      priorityFilter === "All" || complaint.priority === priorityFilter;
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
   const statusColors = {
@@ -144,82 +140,74 @@ export function StaffDashboard() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-          Staff Dashboard
-        </h1>
+        <h1 className="text-3xl font-bold text-foreground">Staff Dashboard</h1>
         <p className="text-muted-foreground">
           Manage your assigned complaints efficiently
         </p>
       </div>
 
-      {/* Enhanced Summary Cards - Responsive grid */}
-      <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+      {/* Enhanced Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Assigned Complaints
             </CardTitle>
             <div className="bg-blue-50 p-2 rounded-lg">
               <FileText className="h-4 w-4 text-blue-600" />
             </div>
           </CardHeader>
-          <CardContent className="w-full">
-            <div className="text-xl sm:text-2xl font-bold">
-              {stats.assigned}
-            </div>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.assigned}</div>
             <p className="text-xs text-muted-foreground">
               Total assigned to you
             </p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Pending
             </CardTitle>
             <div className="bg-yellow-50 p-2 rounded-lg">
               <Clock className="h-4 w-4 text-yellow-600" />
             </div>
           </CardHeader>
-          <CardContent className="w-full">
-            <div className="text-xl sm:text-2xl font-bold">{stats.pending}</div>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pending}</div>
             <p className="text-xs text-muted-foreground">Awaiting action</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               In Progress
             </CardTitle>
             <div className="bg-blue-50 p-2 rounded-lg">
               <AlertCircle className="h-4 w-4 text-blue-600" />
             </div>
           </CardHeader>
-          <CardContent className="w-full">
-            <div className="text-xl sm:text-2xl font-bold">
-              {stats.inProgress}
-            </div>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.inProgress}</div>
             <p className="text-xs text-muted-foreground">Currently working</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow p-2 sm:p-4 w-full min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 w-full">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Resolved
             </CardTitle>
             <div className="bg-green-50 p-2 rounded-lg">
               <CheckCircle className="h-4 w-4 text-green-600" />
             </div>
           </CardHeader>
-          <CardContent className="w-full">
-            <div className="text-xl sm:text-2xl font-bold">
-              {stats.resolved}
-            </div>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.resolved}</div>
             <p className="text-xs text-muted-foreground">
               Successfully completed
             </p>
@@ -228,51 +216,66 @@ export function StaffDashboard() {
       </div>
 
       {/* My Assigned Complaints Section */}
-      <Card className="p-1 sm:p-4">
-        <CardHeader className="p-1 sm:p-4">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             My Assigned Complaints
           </CardTitle>
-          {/* Search and Filter Controls - improved for mobile */}
-          <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 pt-2 sm:pt-4">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 sm:pl-10 py-1.5 sm:py-2 text-xs sm:text-sm"
+                className="pl-10"
               />
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 min-w-0 sm:min-w-[200px] w-full sm:w-auto">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-auto text-xs sm:text-sm py-1.5 sm:py-2">
-                  <SelectValue />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex items-center gap-2 min-w-0 sm:min-w-[180px]">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Status</SelectItem>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="min-w-0 sm:min-w-[150px]">
+                  <SelectValue placeholder="Filter by Priority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Status</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Resolved">Resolved</SelectItem>
+                  <SelectItem value="All">All Priority</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Responsive: Table on md+, cards on mobile */}
-          <div className="hidden md:block rounded-md border overflow-x-auto p-0 sm:p-2">
-            <Table className="min-w-0 sm:min-w-[700px] text-xs sm:text-sm">
+          <div className="rounded-md border">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Priority</TableHead>
                   <TableHead>Submitted By</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date Assigned</TableHead>
-                  <TableHead>Last Updated</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -283,7 +286,9 @@ export function StaffDashboard() {
                       colSpan={7}
                       className="text-center py-8 text-muted-foreground"
                     >
-                      {searchTerm || statusFilter !== "All"
+                      {searchTerm ||
+                      statusFilter !== "All" ||
+                      priorityFilter !== "All"
                         ? "No complaints match your search criteria"
                         : "No complaints assigned to you yet"}
                     </TableCell>
@@ -291,56 +296,63 @@ export function StaffDashboard() {
                 ) : (
                   filteredComplaints.map((complaint) => (
                     <TableRow key={complaint.id} className="hover:bg-muted/50">
-                      <TableCell className="max-w-[120px] sm:max-w-xs">
-                        <div className="font-medium truncate text-xs sm:text-sm">
+                      <TableCell className="max-w-xs">
+                        <div className="font-medium truncate">
                           {complaint.title}
                         </div>
-                        <div className="text-xs sm:text-sm text-muted-foreground truncate">
-                          {complaint.description.substring(0, 40)}...
+                        <div className="text-sm text-muted-foreground truncate">
+                          {complaint.description.substring(0, 60)}...
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] sm:text-xs"
-                        >
+                        <Badge variant="secondary" className="text-xs">
                           {complaint.category}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 sm:gap-2">
+                        <Badge
+                          className={`text-xs ${
+                            complaint.priority === "Critical"
+                              ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                              : complaint.priority === "High"
+                              ? "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+                              : complaint.priority === "Medium"
+                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
+                              : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                          }`}
+                          variant="outline"
+                        >
+                          {complaint.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium text-xs sm:text-sm">
+                          <span className="font-medium">
                             {complaint.submittedBy}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={
-                            statusColors[complaint.status] +
-                            " text-[10px] sm:text-xs px-2 py-1"
-                          }
+                          className={statusColors[complaint.status]}
                           variant="outline"
                         >
                           {complaint.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs sm:text-sm">
+                      <TableCell className="text-muted-foreground">
                         {complaint.submittedDate.toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs sm:text-sm">
-                        {complaint.lastUpdated.toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleStatusUpdate(complaint)}
-                          className="hover:bg-primary/10 text-xs sm:text-sm px-2 py-1"
+                          onClick={() => handleViewAndUpdate(complaint)}
+                          className="hover:bg-primary/10"
                         >
                           <Settings className="h-4 w-4 mr-1" />
-                          Update Status
+                          View & Update
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -349,88 +361,21 @@ export function StaffDashboard() {
               </TableBody>
             </Table>
           </div>
-          {/* Mobile Cards */}
-          <div className="md:hidden space-y-4">
-            {filteredComplaints.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                {searchTerm || statusFilter !== "All"
-                  ? "No complaints match your search criteria"
-                  : "No complaints assigned to you yet"}
-              </div>
-            ) : (
-              filteredComplaints.map((complaint) => (
-                <Card key={complaint.id} className="p-3">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm leading-tight">
-                          {complaint.title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {complaint.description.substring(0, 40)}...
-                        </p>
-                      </div>
-                      <div className="flex flex-col gap-1 ml-2">
-                        <Badge
-                          className={
-                            statusColors[complaint.status] +
-                            " text-[10px] px-2 py-1"
-                          }
-                          variant="outline"
-                        >
-                          {complaint.status}
-                        </Badge>
-                        <Badge variant="secondary" className="text-[10px] mt-1">
-                          {complaint.category}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">
-                        {complaint.submittedBy}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Assigned:</span>
-                      <span>
-                        {complaint.submittedDate.toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Updated:</span>
-                      <span>{complaint.lastUpdated.toLocaleDateString()}</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStatusUpdate(complaint)}
-                      className="w-full text-xs px-2 py-1 mt-2"
-                    >
-                      <Settings className="h-4 w-4 mr-1" />
-                      Update Status
-                    </Button>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
         </CardContent>
       </Card>
 
-      {/* Modals */}
-      <ComplaintDetailModal
+      {/* Modal */}
+      <RoleBasedComplaintModal
         complaint={selectedComplaint}
-        open={showDetailModal}
-        onOpenChange={setShowDetailModal}
-      />
-
-      <StatusUpdateModal
-        complaint={selectedComplaint}
-        open={showStatusModal}
-        onOpenChange={setShowStatusModal}
-        onUpdate={handleStatusSubmit}
-        userRole="staff"
+        open={showActionModal}
+        onOpenChange={setShowActionModal}
+        onUpdate={(id, updates) => {
+          setComplaints((prev) =>
+            prev.map((c) =>
+              c.id === id ? { ...c, ...updates, lastUpdated: new Date() } : c
+            )
+          );
+        }}
       />
     </div>
   );

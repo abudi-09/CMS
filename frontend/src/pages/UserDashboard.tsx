@@ -18,8 +18,7 @@ import { PlusCircle, FileText, MessageSquare, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SummaryCards } from "@/components/SummaryCards";
 import { ComplaintTable } from "@/components/ComplaintTable";
-import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
-import { FeedbackModal } from "@/components/FeedbackModal";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 
 // Mock data for demonstration
@@ -70,7 +69,6 @@ export function UserDashboard() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
@@ -81,22 +79,25 @@ export function UserDashboard() {
     setShowDetailModal(true);
   };
 
-  const handleFeedback = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setShowFeedbackModal(true);
-  };
-
-  const handleFeedbackSubmit = (
-    complaintId: string,
-    feedback: { rating: number; comment: string }
-  ) => {
+  const handleUpdate = (complaintId: string, updates: Partial<Complaint>) => {
     setComplaints((prev) =>
-      prev.map((c) => (c.id === complaintId ? { ...c, feedback } : c))
+      prev.map((c) => (c.id === complaintId ? { ...c, ...updates } : c))
     );
   };
 
-  // Show only the 3 most recent complaints (after filtering/sorting in table)
-  const recentComplaints = complaints.slice(0, 3);
+  // Filter and sort complaints
+  const filteredComplaints = complaints.filter((complaint) => {
+    return priorityFilter === "all" || complaint.priority === priorityFilter;
+  });
+
+  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
+    const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+    const aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+    const bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+    return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
+  });
+
+  const recentComplaints = sortedComplaints.slice(0, 3);
 
   return (
     <div className="space-y-8">
@@ -156,39 +157,57 @@ export function UserDashboard() {
 
       {/* Recent Complaints */}
       <div>
-        <h2 className="text-xl md:text-2xl font-semibold mb-6">
-          Recent Complaints
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl md:text-2xl font-semibold">
+            Recent Complaints
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priority</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPrioritySort(prioritySort === "desc" ? "asc" : "desc")
+              }
+            >
+              Sort by Priority {prioritySort === "desc" ? "↓" : "↑"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/my-complaints")}
+            >
+              View All
+            </Button>
+          </div>
+        </div>
+
         <ComplaintTable
-          complaints={complaints}
+          complaints={recentComplaints}
           onView={handleViewComplaint}
-          onFeedback={handleFeedback}
           userRole="user"
           title="My Recent Complaints"
-          showPriorityFilter
-          priorityFilter={priorityFilter}
-          onPriorityFilterChange={setPriorityFilter}
-          showPrioritySort
-          prioritySort={prioritySort}
-          onPrioritySortChange={() =>
-            setPrioritySort(prioritySort === "desc" ? "asc" : "desc")
-          }
-          onViewAll={() => navigate("/my-complaints")}
+          actionLabel="View"
         />
       </div>
 
-      {/* Modals */}
-      <ComplaintDetailModal
+      {/* Modal */}
+      <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-      />
-
-      <FeedbackModal
-        complaint={selectedComplaint}
-        open={showFeedbackModal}
-        onOpenChange={setShowFeedbackModal}
-        onSubmit={handleFeedbackSubmit}
+        onUpdate={handleUpdate}
       />
     </div>
   );

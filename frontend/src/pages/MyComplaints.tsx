@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Eye, MessageSquare } from "lucide-react";
-import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
 
@@ -340,11 +340,14 @@ export function MyComplaints() {
       </Card>
 
       {/* Modals */}
-      <ComplaintDetailModal
-        complaint={selectedComplaint}
-        open={showDetailModal}
-        onOpenChange={setShowDetailModal}
-      />
+      {selectedComplaint && (
+        <RoleBasedComplaintModal
+          complaint={selectedComplaint}
+          open={showDetailModal}
+          onOpenChange={setShowDetailModal}
+          onUpdate={() => {}} // User view only
+        />
+      )}
 
       <FeedbackModal
         complaint={selectedComplaint}

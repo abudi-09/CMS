@@ -30,7 +30,7 @@ import {
   Flag,
   Download,
 } from "lucide-react";
-import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 
 // Mock data for all complaints
@@ -535,10 +535,11 @@ export default function AllComplaints() {
       </Card>
 
       {/* Detail Modal */}
-      <ComplaintDetailModal
+      <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
+        onUpdate={() => {}} // Admin view only
       />
     </div>
   );

@@ -183,6 +183,11 @@ export function RoleBasedComplaintModal({
 
   if (!complaint || !user) return null;
 
+  // Hardcode a value for resolutionNote for testing
+  complaint.resolutionNote =
+    complaint.resolutionNote ||
+    "This is a hardcoded staff update for testing purposes.";
+
   // Role-based View Detail button
   const showViewDetailButton =
     (user.role === "admin" || user.role === "staff") && complaint;
@@ -250,7 +255,7 @@ export function RoleBasedComplaintModal({
                   </Button>
                 </div>
               )}
-
+              {/* Staff Update visible to all users if exists */}
               {complaint.resolutionNote && (
                 <div>
                   <Label className="text-sm font-medium">Staff Update</Label>
@@ -427,7 +432,7 @@ export function RoleBasedComplaintModal({
             </>
           )}
 
-          {(user.role === "staff" || user.role === "admin") && (
+          {user.role === "staff" && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
