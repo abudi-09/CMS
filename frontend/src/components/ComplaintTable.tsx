@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Table,
   TableBody,
@@ -30,6 +30,7 @@ interface ComplaintTableProps {
   userRole?: "user" | "staff" | "admin";
   title?: string;
   actionLabel?: string;
+  priorityFilter?: string;
 }
 
 const statusColors = {
@@ -51,10 +52,21 @@ export function ComplaintTable({
   userRole = "user",
   title = "Complaints",
   actionLabel,
+  priorityFilter,
 }: ComplaintTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [localPriorityFilter, setLocalPriorityFilter] = useState<string>(
+    priorityFilter || "all"
+  );
+
+  // Sync localPriorityFilter with prop
+  React.useEffect(() => {
+    if (priorityFilter !== undefined) {
+      setLocalPriorityFilter(priorityFilter);
+    }
+  }, [priorityFilter]);
 
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
@@ -67,7 +79,11 @@ export function ComplaintTable({
     const matchesCategory =
       categoryFilter === "all" || complaint.category === categoryFilter;
 
-    return matchesSearch && matchesStatus && matchesCategory;
+    const matchesPriority =
+      localPriorityFilter === "all" ||
+      complaint.priority === localPriorityFilter;
+
+    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
   });
 
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
@@ -81,6 +97,24 @@ export function ComplaintTable({
         </CardTitle>
 
         <div className="flex flex-col sm:flex-row gap-4">
+          {/* Priority filter from outside, if provided */}
+          {priorityFilter !== undefined && (
+            <Select
+              value={localPriorityFilter}
+              onValueChange={setLocalPriorityFilter}
+            >
+              <SelectTrigger className="w-full sm:w-32">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priority</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input

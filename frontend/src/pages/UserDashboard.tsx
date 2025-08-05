@@ -177,15 +177,6 @@ export function UserDashboard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setPrioritySort(prioritySort === "desc" ? "asc" : "desc")
-              }
-            >
-              Sort by Priority {prioritySort === "desc" ? "↓" : "↑"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => navigate("/my-complaints")}
             >
               View All
