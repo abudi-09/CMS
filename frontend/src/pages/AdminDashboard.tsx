@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { SummaryCards } from "@/components/SummaryCards";
 import { ComplaintTable } from "@/components/ComplaintTable";
-import { ComplaintDetailModal } from "@/components/ComplaintDetailModal";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
@@ -286,18 +286,18 @@ export function AdminDashboard() {
 
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/feedback-review")}
+          onClick={() => navigate("/all-complaints")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
-              Feedback
+              All Complaints
             </CardTitle>
             <CardDescription>Review user feedback and ratings</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full">
-              View Feedback
+              View Complaints
             </Button>
           </CardContent>
         </Card>
@@ -327,27 +327,20 @@ export function AdminDashboard() {
       {/* Complaint Search and Filters */}
 
       <ComplaintTable
-        complaints={sortedComplaints}
+        complaints={sortedComplaints.slice(0, 3)}
         onView={handleViewComplaint}
         onStatusUpdate={handleStatusUpdate}
-        onAssign={handleAssignStaff}
         userRole="admin"
-        title="All Complaints"
-        showPriorityFilter
+        title="Recent Complaints"
         priorityFilter={priorityFilter}
-        onPriorityFilterChange={setPriorityFilter}
-        showPrioritySort
-        prioritySort={prioritySort}
-        onPrioritySortChange={() =>
-          setPrioritySort(prioritySort === "desc" ? "asc" : "desc")
-        }
+        actionLabel="View Detail"
       />
 
       {/* Modals */}
-      <ComplaintDetailModal
-        complaint={selectedComplaint}
+      <RoleBasedComplaintModal
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
+        complaint={selectedComplaint}
       />
 
       <StatusUpdateModal
@@ -356,13 +349,6 @@ export function AdminDashboard() {
         onOpenChange={setShowStatusModal}
         onUpdate={handleStatusSubmit}
         userRole="admin"
-      />
-
-      <AssignStaffModal
-        complaint={selectedComplaint}
-        open={showAssignModal}
-        onOpenChange={setShowAssignModal}
-        onAssign={handleStaffAssignment}
       />
     </div>
   );
