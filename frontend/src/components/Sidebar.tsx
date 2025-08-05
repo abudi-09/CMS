@@ -40,7 +40,7 @@ export function Sidebar({ className }: SidebarProps) {
   const adminMenuItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: UserCheck, label: "Staff Management", href: "/staff-management" },
-    { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
+
     { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
     { icon: Users, label: "User Management", href: "/user-management" },
@@ -49,6 +49,8 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Category Management",
       href: "/category-management",
     },
+    { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
+    { icon: TrendingUp, label: "Admin Analytics", href: "/admin-analytics" },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 

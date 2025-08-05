@@ -20,7 +20,7 @@ import { FeedbackReview } from "@/pages/FeedbackReview";
 import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
 import { MyAssignedComplaints } from "@/pages/MyAssignedComplaints";
-
+import AdminAnalytics from "@/pages/AdminAnalytics";
 import UserManagement from "@/pages/UserManagement";
 import { CategoryManagement } from "@/pages/CategoryManagement";
 import AllComplaints from "@/pages/AllComplaints";
@@ -76,6 +76,7 @@ function AppContent() {
                   path="/category-management"
                   element={<CategoryManagement />}
                 />
+                <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<NotFound />} />
