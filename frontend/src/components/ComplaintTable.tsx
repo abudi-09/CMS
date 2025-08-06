@@ -61,10 +61,8 @@ export function ComplaintTable({
     useState<string>(priorityFilter);
 
   // Sync localPriorityFilter with prop
-  const [escalatedFilter, setEscalatedFilter] = useState<string>("all");
   // Removed the effect to sync localPriorityFilter with prop
 
-  const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -80,19 +78,10 @@ export function ComplaintTable({
       localPriorityFilter === "all" ||
       complaint.priority === localPriorityFilter;
 
-    const matchesEscalated =
-      escalatedFilter === "all" ||
-      (escalatedFilter === "escalated" && complaint.isEscalated) ||
-      (escalatedFilter === "notEscalated" && !complaint.isEscalated);
-
-    return (
-      matchesSearch &&
-      matchesStatus &&
-      matchesCategory &&
-      matchesPriority &&
-      matchesEscalated
-    );
+    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
   });
+
+  const categories = Array.from(new Set(complaints.map((c) => c.category)));
 
   return (
     <Card>
@@ -103,16 +92,6 @@ export function ComplaintTable({
         </CardTitle>
 
         <div className="flex flex-col sm:flex-row gap-4">
-          <Select value={escalatedFilter} onValueChange={setEscalatedFilter}>
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Escalation" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Complaints</SelectItem>
-              <SelectItem value="escalated">Escalated</SelectItem>
-              <SelectItem value="notEscalated">Not Escalated</SelectItem>
-            </SelectContent>
-          </Select>
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -180,15 +159,7 @@ export function ComplaintTable({
             {/* Mobile Card Layout */}
             <div className="md:hidden space-y-4">
               {filteredComplaints.map((complaint) => (
-                <Card key={complaint.id} className="p-4 relative">
-                  {complaint.isEscalated && (
-                    <span
-                      title="Escalated"
-                      className="text-red-500 text-lg absolute right-2 top-2"
-                    >
-                      &#x1F53A;
-                    </span>
-                  )}
+                <Card key={complaint.id} className="p-4">
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1 flex-1">
@@ -228,7 +199,11 @@ export function ComplaintTable({
 
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">
-                        {complaint.submittedDate.toLocaleDateString()}
+                        {complaint.submittedDate
+                          ? new Date(
+                              complaint.submittedDate
+                            ).toLocaleDateString()
+                          : ""}
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -282,16 +257,6 @@ export function ComplaintTable({
                 <TableBody>
                   {filteredComplaints.map((complaint) => (
                     <TableRow key={complaint.id}>
-                      <TableCell>
-                        {complaint.isEscalated && (
-                          <span
-                            title="Escalated"
-                            className="text-red-500 text-lg"
-                          >
-                            &#x1F53A;
-                          </span>
-                        )}
-                      </TableCell>
                       <TableCell className="font-medium">
                         #{complaint.id}
                       </TableCell>
@@ -313,7 +278,11 @@ export function ComplaintTable({
                         </TableCell>
                       )}
                       <TableCell>
-                        {complaint.submittedDate.toLocaleDateString()}
+                        {complaint.submittedDate
+                          ? new Date(
+                              complaint.submittedDate
+                            ).toLocaleDateString()
+                          : ""}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">

@@ -308,7 +308,9 @@ export function RoleBasedComplaintModal({
                 <div className="flex items-center gap-2 mt-1">
                   <Calendar className="h-4 w-4" />
                   <span className="text-sm">
-                    {complaint.submittedDate.toLocaleDateString()}
+                    {complaint.submittedDate
+                      ? new Date(complaint.submittedDate).toLocaleDateString()
+                      : ""}
                   </span>
                 </div>
               </div>
@@ -335,7 +337,9 @@ export function RoleBasedComplaintModal({
                   <div className="flex items-center gap-2 mt-1">
                     <Clock className="h-4 w-4" />
                     <span className="text-sm">
-                      {complaint.lastUpdated.toLocaleDateString()}
+                      {complaint.lastUpdated
+                        ? new Date(complaint.lastUpdated).toLocaleDateString()
+                        : ""}
                     </span>
                   </div>
                 </div>
