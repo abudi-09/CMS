@@ -49,6 +49,7 @@ export const getMyComplaints = async (req, res) => {
       lastUpdated: c.updatedAt,
       assignedTo: c.assignedTo?.name || null,
       feedback: c.status === "Resolved" ? c.feedback || null : null,
+      isEscalated: c.isEscalated || false,
     }));
 
     res.status(200).json(formatted);
@@ -64,7 +65,20 @@ export const getAllComplaints = async (req, res) => {
     const complaints = await Complaint.find()
       .populate("submittedBy", "name")
       .populate("assignedTo", "name");
-    res.status(200).json(complaints);
+    const formatted = complaints.map((c) => ({
+      id: c._id,
+      title: c.title,
+      status: c.status,
+      department: c.department,
+      category: c.category,
+      submittedDate: c.createdAt,
+      lastUpdated: c.updatedAt,
+      assignedTo: c.assignedTo?.name || null,
+      submittedBy: c.submittedBy?.name || null,
+      feedback: c.status === "Resolved" ? c.feedback || null : null,
+      isEscalated: c.isEscalated || false,
+    }));
+    res.status(200).json(formatted);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch all complaints" });
   }
@@ -90,6 +104,7 @@ export const assignComplaint = async (req, res) => {
 
     complaint.assignedTo = staffId;
     complaint.status = "In Progress";
+    complaint.assignedAt = new Date();
 
     // Optional: Add reassignment history here if needed
     await complaint.save();
@@ -162,6 +177,7 @@ export const getAssignedComplaints = async (req, res) => {
       },
       shortDescription: c.shortDescription,
       fullDescription: c.description,
+      isEscalated: c.isEscalated || false,
     }));
 
     res.status(200).json(formatted);

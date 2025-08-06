@@ -1,0 +1,22 @@
+{
+  "complaintDetails": "የቅሬታ ዝርዝር",
+  "complaintInfo": "የቅሬታ መረጃ",
+  "submissionInfo": "የላኩት መረጃ",
+  "timeline": "የቅሬታ ታሪክ",
+  "submitted": "ተላከ",
+  "assigned": "ተመድቧል",
+  "inProgress": "በሂደት ላይ",
+  "resolved": "ተፈትሯል",
+  "student": "ተማሪ",
+  "admin": "አስተዳዳሪ",
+  "staff": "ሰራተኛ",
+  "assignedTo": "ለ{{staff}} ተመድቧል",
+  "submittedBy": "ቅሬታ በተማሪ ተላክቷል።",
+  "assignedDesc": "ለ{{staff}} ተመድቧል",
+  "inProgressDesc": "ሰራተኛ ቅሬታውን ጀመረ።",
+  "resolvedDesc": "ቅሬታው ተፈትሯል።",
+  "rateExperience": "ልምድዎን ደረጃ ይስጡ (1-5)",
+  "commentsOptional": "አስተያየት (አማራጭ)",
+  "submitFeedback": "አስተያየት ያስገቡ",
+  "yourFeedback": "የእርስዎ አስተያየት"
+}

@@ -12,6 +12,7 @@ import statsRoutes from "./routes/stats.routes.js";
 import verifyRoutes from "./routes/verifyRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import feedbackRoutes from "./routes/feedback.routes.js";
+import { checkEscalations } from "./utils/escalation.js";
 const app = express();
 app.use(corsMiddleware);
 app.use(express.json());
@@ -27,4 +28,8 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   connectMongoDB();
+  // Run escalation check every hour
+  setInterval(() => {
+    checkEscalations();
+  }, 60 * 60 * 1000);
 });

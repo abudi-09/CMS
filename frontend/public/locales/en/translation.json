@@ -1,0 +1,22 @@
+{
+  "complaintDetails": "Complaint Details",
+  "complaintInfo": "Complaint Information",
+  "submissionInfo": "Submission Information",
+  "timeline": "Complaint Timeline",
+  "submitted": "Submitted",
+  "assigned": "Assigned",
+  "inProgress": "In Progress",
+  "resolved": "Resolved",
+  "student": "Student",
+  "admin": "Admin",
+  "staff": "Staff",
+  "assignedTo": "Assigned to {{staff}}",
+  "submittedBy": "Complaint submitted by student.",
+  "assignedDesc": "Assigned to {{staff}}",
+  "inProgressDesc": "Staff started working on the complaint.",
+  "resolvedDesc": "Complaint marked as resolved.",
+  "rateExperience": "Rate your experience (1-5 stars)",
+  "commentsOptional": "Comments (Optional)",
+  "submitFeedback": "Submit Feedback",
+  "yourFeedback": "Your Feedback"
+}

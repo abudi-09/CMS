@@ -38,6 +38,18 @@ const complaintSchema = new mongoose.Schema(
       enum: ["Low", "Medium", "High", "Critical"],
       default: "Medium",
     },
+    isEscalated: {
+      type: Boolean,
+      default: false,
+    },
+    escalatedOn: {
+      type: Date,
+      default: null,
+    },
+    assignedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

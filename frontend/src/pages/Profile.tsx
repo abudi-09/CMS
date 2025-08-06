@@ -248,14 +248,14 @@ export function Profile() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col items-center text-center space-y-4">
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage
-                      src={profileData.avatar}
-                      alt={profileData.name}
-                    />
-                    <AvatarFallback className="text-lg">
-                      {getInitials(profileData.name)}
-                    </AvatarFallback>
+                  <Avatar className="h-24 w-24 bg-muted">
+                    {user?.role === "admin" ? (
+                      <Shield className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    ) : user?.role === "staff" ? (
+                      <UserCheck className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    ) : (
+                      <User className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    )}
                   </Avatar>
 
                   <div>

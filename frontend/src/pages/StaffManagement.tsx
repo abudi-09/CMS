@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,15 +19,25 @@ import { toast } from "@/hooks/use-toast";
 export function StaffManagement() {
   const { pendingStaff, approveStaff, rejectStaff, getAllStaff } = useAuth();
 
+  const [searchTerm, setSearchTerm] = useState("");
   const allStaff = getAllStaff();
+  // Filter staff by search term
+  const filteredStaff = allStaff.filter((s) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (s.fullName || s.name || "").toLowerCase().includes(term) ||
+      (s.email || "").toLowerCase().includes(term) ||
+      (s.department || "").toLowerCase().includes(term)
+    );
+  });
   // Normalize status to string and lowercase for filtering
-  const approvedStaff = allStaff.filter(
+  const approvedStaff = filteredStaff.filter(
     (s) => (s.status || "").toLowerCase() === "approved"
   );
-  const rejectedStaff = allStaff.filter(
+  const rejectedStaff = filteredStaff.filter(
     (s) => (s.status || "").toLowerCase() === "rejected"
   );
-  const pendingStaffList = allStaff.filter(
+  const pendingStaffList = filteredStaff.filter(
     (s) => (s.status || "").toLowerCase() === "pending"
   );
 
@@ -462,6 +473,15 @@ export function StaffManagement() {
           <CardTitle>Staff Directory</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Search Bar inside Staff Directory */}
+          <div className="max-w-md mb-4">
+            <Input
+              placeholder="Search staff by name, email, or department..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
           <Tabs defaultValue="pending" className="w-full">
             <TabsList>
               <TabsTrigger value="pending">

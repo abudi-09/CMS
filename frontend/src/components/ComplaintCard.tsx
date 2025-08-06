@@ -27,6 +27,7 @@ export interface Complaint {
   };
   resolutionNote?: string;
   evidenceFile?: string; // Optional fields for feedback;
+  isEscalated?: boolean; // Indicates if the complaint is escalated
 }
 
 interface ComplaintCardProps {
@@ -69,6 +70,11 @@ export function ComplaintCard({
           <div className="space-y-1">
             <CardTitle className="text-lg line-clamp-1">
               {complaint.title}
+              {complaint.isEscalated && (
+                <span title="Escalated" className="ml-2 text-red-500 text-lg">
+                  &#x1F53A;
+                </span>
+              )}
             </CardTitle>
             <div className="text-sm text-muted-foreground">#{complaint.id}</div>
           </div>

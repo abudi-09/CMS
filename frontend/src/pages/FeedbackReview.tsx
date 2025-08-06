@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -18,59 +18,81 @@ import {
 } from "@/components/ui/select";
 import { Star, MessageSquare, Filter, TrendingUp } from "lucide-react";
 import { Complaint } from "@/components/ComplaintCard";
-import { getAllFeedbackApi } from "@/lib/feedbackApi";
 
-// ...existing code...
-
-type Feedback = {
-  _id: string;
-  complaintId: string;
-  user: string;
-  assignedStaff: string;
-  rating: number;
-  comment: string;
-  submittedDate: string;
-  category: string;
-  title: string;
-};
+// Mock feedback data
+const mockFeedbackData = [
+  {
+    id: "CMP-002",
+    title: "Cafeteria food quality concerns",
+    user: "Jane Smith",
+    assignedStaff: "Food Services Manager",
+    rating: 4,
+    comment:
+      "Issue was resolved quickly and effectively. The food quality has improved significantly.",
+    submittedDate: new Date("2024-01-20"),
+    category: "Student Services",
+  },
+  {
+    id: "CMP-005",
+    title: "Parking lot lighting issues",
+    user: "David Wilson",
+    assignedStaff: "Facilities Manager",
+    rating: 5,
+    comment:
+      "Excellent work! All lights were replaced quickly and the parking area is much safer now.",
+    submittedDate: new Date("2024-01-18"),
+    category: "Infrastructure & Facilities",
+  },
+  {
+    id: "CMP-007",
+    title: "Wi-Fi connectivity problems",
+    user: "Alice Brown",
+    assignedStaff: "IT Support Team",
+    rating: 3,
+    comment:
+      "Problem was fixed but took longer than expected. Communication could be better.",
+    submittedDate: new Date("2024-01-22"),
+    category: "IT & Technology",
+  },
+  {
+    id: "CMP-008",
+    title: "Broken chair in lecture hall",
+    user: "Bob Johnson",
+    assignedStaff: "Facilities Manager",
+    rating: 5,
+    comment:
+      "Chair was replaced the same day. Very impressed with the quick response.",
+    submittedDate: new Date("2024-01-24"),
+    category: "Infrastructure & Facilities",
+  },
+];
 
 export function FeedbackReview() {
-  const [feedbackData, setFeedbackData] = useState<Feedback[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [ratingFilter, setRatingFilter] = useState<string>("all");
 
-  useEffect(() => {
-    setLoading(true);
-    getAllFeedbackApi()
-      .then((data) => {
-        setFeedbackData(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || "Failed to fetch feedback");
-        setLoading(false);
-      });
-  }, []);
-
-  const filteredFeedback = feedbackData.filter((feedback) => {
+  const filteredFeedback = mockFeedbackData.filter((feedback) => {
     const matchesStaff =
       staffFilter === "all" || feedback.assignedStaff === staffFilter;
     const matchesRating =
-      ratingFilter === "all" || feedback.rating.toString() === ratingFilter;
+      ratingFilter === "all" ||
+      (ratingFilter === "5" && feedback.rating === 5) ||
+      (ratingFilter === "4+" && feedback.rating >= 4) ||
+      (ratingFilter === "3+" && feedback.rating >= 3) ||
+      (ratingFilter === "2+" && feedback.rating >= 2) ||
+      (ratingFilter === "1+" && feedback.rating >= 1);
     return matchesStaff && matchesRating;
   });
 
   const uniqueStaff = Array.from(
-    new Set(feedbackData.map((f) => f.assignedStaff))
+    new Set(mockFeedbackData.map((f) => f.assignedStaff))
   );
+
   const averageRating =
-    feedbackData.length > 0
-      ? feedbackData.reduce((sum, f) => sum + f.rating, 0) / feedbackData.length
-      : 0;
-  const totalFeedback = feedbackData.length;
-  const positiveRating = feedbackData.filter((f) => f.rating >= 4).length;
+    mockFeedbackData.reduce((sum, f) => sum + f.rating, 0) /
+    mockFeedbackData.length;
+  const totalFeedback = mockFeedbackData.length;
+  const positiveRating = mockFeedbackData.filter((f) => f.rating >= 4).length;
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -88,23 +110,6 @@ export function FeedbackReview() {
     if (rating >= 3) return "bg-yellow-100 text-yellow-800";
     return "bg-red-100 text-red-800";
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <span className="text-lg text-muted-foreground">
-          Loading feedback...
-        </span>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <span className="text-lg text-red-500">{error}</span>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -175,10 +180,7 @@ export function FeedbackReview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalFeedback > 0
-                ? Math.round((positiveRating / totalFeedback) * 100)
-                : 0}
-              %
+              {Math.round((positiveRating / totalFeedback) * 100)}%
             </div>
             <p className="text-xs text-muted-foreground">User satisfaction</p>
           </CardContent>
@@ -192,6 +194,7 @@ export function FeedbackReview() {
             <Filter className="h-5 w-5" />
             User Feedback
           </CardTitle>
+
           <div className="flex gap-4">
             <Select value={staffFilter} onValueChange={setStaffFilter}>
               <SelectTrigger className="w-48">
@@ -206,21 +209,23 @@ export function FeedbackReview() {
                 ))}
               </SelectContent>
             </Select>
+
             <Select value={ratingFilter} onValueChange={setRatingFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Rating" />
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by Rating" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Ratings</SelectItem>
                 <SelectItem value="5">5 Stars</SelectItem>
-                <SelectItem value="4">4 Stars</SelectItem>
-                <SelectItem value="3">3 Stars</SelectItem>
-                <SelectItem value="2">2 Stars</SelectItem>
-                <SelectItem value="1">1 Star</SelectItem>
+                <SelectItem value="4+">4 Stars & Up</SelectItem>
+                <SelectItem value="3+">3 Stars & Up</SelectItem>
+                <SelectItem value="2+">2 Stars & Up</SelectItem>
+                <SelectItem value="1+">1 Star & Up</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </CardHeader>
+
         <CardContent>
           {/* Desktop Table */}
           <div className="hidden md:block rounded-md border overflow-x-auto">
@@ -250,14 +255,14 @@ export function FeedbackReview() {
                 ) : (
                   filteredFeedback.map((feedback) => (
                     <TableRow
-                      key={feedback._id}
+                      key={feedback.id}
                       className="dark:hover:bg-accent/10"
                     >
                       <TableCell className="text-sm">
                         <div>
                           <div className="font-medium">{feedback.title}</div>
                           <div className="text-xs text-muted-foreground">
-                            #{feedback.complaintId}
+                            #{feedback.id}
                           </div>
                         </div>
                       </TableCell>
@@ -282,7 +287,7 @@ export function FeedbackReview() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {new Date(feedback.submittedDate).toLocaleDateString()}
+                        {feedback.submittedDate.toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         <div className="max-w-xs">
@@ -295,6 +300,7 @@ export function FeedbackReview() {
               </TableBody>
             </Table>
           </div>
+
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {filteredFeedback.length === 0 ? (
@@ -303,7 +309,7 @@ export function FeedbackReview() {
               </div>
             ) : (
               filteredFeedback.map((feedback) => (
-                <Card key={feedback._id} className="p-4">
+                <Card key={feedback.id} className="p-4">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -311,7 +317,7 @@ export function FeedbackReview() {
                           {feedback.title}
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                          #{feedback.complaintId}
+                          #{feedback.id}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           By: {feedback.user}
@@ -321,6 +327,7 @@ export function FeedbackReview() {
                         {renderStars(feedback.rating)}
                       </div>
                     </div>
+
                     <div className="space-y-2 text-sm">
                       <div>
                         <span className="text-muted-foreground">
@@ -333,15 +340,15 @@ export function FeedbackReview() {
                       <div>
                         <span className="text-muted-foreground">Date:</span>
                         <span className="font-medium ml-2">
-                          {new Date(
-                            feedback.submittedDate
-                          ).toLocaleDateString()}
+                          {feedback.submittedDate.toLocaleDateString()}
                         </span>
                       </div>
                     </div>
+
                     <div className="bg-muted/50 p-3 rounded-lg">
                       <p className="text-sm italic">"{feedback.comment}"</p>
                     </div>
+
                     <Badge
                       className={`text-xs ${getRatingColor(
                         feedback.rating

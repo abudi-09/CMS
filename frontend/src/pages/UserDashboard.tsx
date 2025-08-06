@@ -20,6 +20,8 @@ import { SummaryCards } from "@/components/SummaryCards";
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
+import { useEffect } from "react";
+import { getMyComplaintsApi } from "@/lib/api";
 
 // Mock data for demonstration
 const mockComplaints: Complaint[] = [
@@ -69,10 +71,16 @@ export function UserDashboard() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    getMyComplaintsApi()
+      .then((data) => setComplaints(data))
+      .catch((err) => console.error("Failed to fetch complaints", err));
+  }, []);
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);

@@ -440,17 +440,19 @@ function UserManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              openPromoteModal(student.id, student.name)
-                            }
-                            className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                          >
-                            <UserPlus className="h-4 w-4 mr-1" />
-                            Promote
-                          </Button>
+                          {student.status === "Active" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                openPromoteModal(student.id, student.name)
+                              }
+                              className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            >
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              Promote
+                            </Button>
+                          )}
                           {student.status === "Active" ? (
                             <Button
                               variant="outline"

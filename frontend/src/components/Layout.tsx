@@ -2,6 +2,13 @@ import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   LogOut,
   Menu,
   GraduationCap,
@@ -15,6 +22,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/Sidebar";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
 
@@ -56,42 +64,74 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
+            <LanguageSwitcher />
             <NotificationDropdown />
             <ThemeToggle />
 
-            <div className="hidden sm:block text-right">
-              <div className="text-sm font-medium">{user?.name}</div>
-              <div className="text-xs text-muted-foreground capitalize">
-                {user?.role}
-              </div>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/profile")}
-              className="hidden sm:flex"
-            >
-              <User className="h-4 w-4" />
-            </Button>
-
-            <Avatar
-              className="cursor-pointer sm:hidden"
-              onClick={() => navigate("/profile")}
-            >
-              <AvatarFallback>
-                {user?.name
-                  ?.split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-
-            <Button variant="ghost" size="sm" onClick={logout}>
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">Logout</span>
-            </Button>
+            {/* Profile Dropdown Menu */}
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Avatar className="h-8 w-8">
+                      <User className="h-4 w-4 text-muted-foreground absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      <AvatarFallback>
+                        {user?.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[180px]">
+                  <div className="px-3 py-2">
+                    <div className="font-medium text-sm">
+                      {user.fullName || user.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground capitalize">
+                      {user.role}
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (user.role === "admin") navigate("/dashboard");
+                      else if (user.role === "staff") navigate("/dashboard");
+                      else navigate("/dashboard");
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <span className="mr-2">🏠</span> Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (user.role === "admin") navigate("/profile");
+                      else if (user.role === "staff") navigate("/profile");
+                      else navigate("/profile");
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <span className="mr-2">👤</span> Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      logout();
+                      navigate("/login");
+                    }}
+                    className="cursor-pointer text-red-600 dark:text-red-400"
+                  >
+                    <span className="mr-2">🚪</span> Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       </header>

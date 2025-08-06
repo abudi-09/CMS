@@ -26,16 +26,10 @@ import {
 } from "@/components/ui/table";
 import { Search, UserPlus } from "lucide-react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Label } from "@/components/ui/label";
 import { Complaint as BaseComplaint } from "@/components/ComplaintCard";
-import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 type Complaint = BaseComplaint & {
   evidence?: string;
   status: "Pending" | "In Progress" | "Resolved" | "Closed" | "Delayed";
@@ -619,88 +613,14 @@ export function AssignComplaints() {
 
       {/* Assign Staff Modal removed; assignment is now inline in the table */}
 
-      {/* Complaint Detail Modal */}
-      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Complaint Details</DialogTitle>
-          </DialogHeader>
-          {selectedComplaint && (
-            <div className="space-y-6">
-              {/* Complaint Detail Section */}
-              <div>
-                <h2 className="font-semibold text-lg mb-2">
-                  📝 {selectedComplaint.title}
-                </h2>
-                <p className="mb-2 text-muted-foreground">
-                  {selectedComplaint.description}
-                </p>
-                {selectedComplaint.evidence && (
-                  <div className="mb-2">
-                    <span className="font-medium">📎 Evidence:</span>{" "}
-                    {typeof selectedComplaint.evidence === "string" &&
-                    selectedComplaint.evidence.match(
-                      /\.(jpg|jpeg|png|gif)$/i
-                    ) ? (
-                      <img
-                        src={selectedComplaint.evidence}
-                        alt="Evidence"
-                        className="max-h-40 mt-2 rounded"
-                      />
-                    ) : (
-                      <a
-                        href={selectedComplaint.evidence}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 underline"
-                      >
-                        Download Evidence
-                      </a>
-                    )}
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-medium">📍 Status:</span>
-                  <Badge
-                    className={`text-xs ${
-                      statusColors[
-                        selectedComplaint.status as keyof typeof statusColors
-                      ]
-                    }`}
-                  >
-                    {selectedComplaint.status}
-                  </Badge>
-                </div>
-              </div>
-              {/* Complaint Info Section */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 p-4 rounded">
-                <div>
-                  <span className="font-medium">👨‍🎓 Student Name:</span>
-                  <span className="ml-2">{selectedComplaint.submittedBy}</span>
-                </div>
-                <div>
-                  <span className="font-medium">📚 Category:</span>
-                  <span className="ml-2">{selectedComplaint.category}</span>
-                </div>
-                <div>
-                  <span className="font-medium">🚨 Priority:</span>
-                  <span className="ml-2">
-                    {selectedComplaint.priority || "Medium"}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium">🗓️ Date Submitted:</span>
-                  <span className="ml-2">
-                    {selectedComplaint.submittedDate?.toLocaleDateString?.() ||
-                      "-"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
+      {/* Role-based Complaint Modal for View Detail */}
+      {selectedComplaint && (
+        <RoleBasedComplaintModal
+          complaint={selectedComplaint}
+          open={showDetailModal}
+          onOpenChange={setShowDetailModal}
+        />
+      )}
       {/* No action buttons below modal; all assignment actions are now side by side with View Detail in the table */}
     </div>
   );
