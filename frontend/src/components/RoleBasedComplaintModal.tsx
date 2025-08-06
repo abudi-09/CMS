@@ -35,6 +35,7 @@ interface RoleBasedComplaintModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate?: (complaintId: string, updates: Partial<Complaint>) => void;
+  children?: React.ReactNode;
 }
 
 export function RoleBasedComplaintModal({
@@ -42,6 +43,7 @@ export function RoleBasedComplaintModal({
   open,
   onOpenChange,
   onUpdate,
+  children,
 }: RoleBasedComplaintModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
