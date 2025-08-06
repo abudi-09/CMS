@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, UserPlus } from "lucide-react";
-import { AssignStaffModal } from "@/components/AssignStaffModal";
+
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Complaint as BaseComplaint } from "@/components/ComplaintCard";
-
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 type Complaint = BaseComplaint & {
   evidence?: string;
   status: "Pending" | "In Progress" | "Resolved" | "Closed" | "Delayed";
