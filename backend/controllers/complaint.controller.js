@@ -1,4 +1,5 @@
 import Complaint from "../models/complaint.model.js";
+import ActivityLog from "../models/activityLog.model.js";
 import User from "../models/user.model.js";
 
 // 1. User submits complaint
@@ -14,6 +15,15 @@ export const createComplaint = async (req, res) => {
     });
 
     await complaint.save();
+    // Log activity
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Complaint Submitted",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { title, department },
+    });
     res.status(201).json({ message: "Complaint submitted", complaint });
   } catch (err) {
     res.status(500).json({ error: "Failed to submit complaint" });
@@ -109,6 +119,18 @@ export const assignComplaint = async (req, res) => {
     // Optional: Add reassignment history here if needed
     await complaint.save();
 
+    // Log activity
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: wasPreviouslyAssigned
+        ? "Complaint Reassigned"
+        : "Complaint Assigned",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { staffId },
+    });
+
     const message = wasPreviouslyAssigned
       ? "Complaint reassigned successfully"
       : "Complaint assigned successfully";
@@ -145,6 +167,16 @@ export const updateComplaintStatus = async (req, res) => {
 
     complaint.status = status;
     await complaint.save();
+
+    // Log activity
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: `Status Updated to ${status}`,
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { description },
+    });
 
     res.status(200).json({ message: "Status updated", complaint });
   } catch (err) {
@@ -208,6 +240,16 @@ export const giveFeedback = async (req, res) => {
 
     complaint.feedback = { rating, comment };
     await complaint.save();
+
+    // Log activity
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Feedback Given",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { rating, comment },
+    });
 
     res.status(200).json({ message: "Feedback submitted", complaint });
   } catch (err) {

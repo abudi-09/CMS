@@ -8,7 +8,11 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  List,
 } from "lucide-react";
+import { useState } from "react";
+import { ActivityLogTable } from "@/components/ActivityLogTable";
+import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
 
 export interface Complaint {
   id: string;
@@ -62,9 +66,36 @@ export function ComplaintCard({
   userRole = "user",
 }: ComplaintCardProps) {
   const StatusIcon = statusIcons[complaint.status];
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logs, setLogs] = useState([]);
+
+  const handleViewLogs = async () => {
+    setShowLogModal(true);
+    try {
+      const data = await getActivityLogsForComplaint(complaint.id);
+      setLogs(data);
+    } catch (err) {
+      setLogs([]);
+    }
+  };
 
   return (
     <Card className="hover:shadow-md transition-shadow">
+      {/* Activity Log Modal */}
+      {showLogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              onClick={() => setShowLogModal(false)}
+            >
+              ✖
+            </button>
+            <h3 className="text-lg font-semibold mb-4">Activity Log</h3>
+            <ActivityLogTable logs={logs} />
+          </div>
+        </div>
+      )}
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
@@ -114,6 +145,14 @@ export function ComplaintCard({
 
         {showActions && (
           <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleViewLogs}
+              title="View Activity Log"
+            >
+              <List className="h-4 w-4 mr-1" /> Activity Log
+            </Button>
             <Button
               variant="outline"
               size="sm"

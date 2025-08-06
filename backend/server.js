@@ -12,6 +12,7 @@ import statsRoutes from "./routes/stats.routes.js";
 import verifyRoutes from "./routes/verifyRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import feedbackRoutes from "./routes/feedback.routes.js";
+import activityLogRoutes from "./routes/activityLog.routes.js";
 import { checkEscalations } from "./utils/escalation.js";
 const app = express();
 app.use(corsMiddleware);
@@ -24,6 +25,7 @@ app.use("/api/stats", statsRoutes);
 app.use("/api", verifyRoutes);
 app.use("/api", profileRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/activity-logs", activityLogRoutes);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
