@@ -54,16 +54,63 @@ export function ComplaintTable({
   actionLabel,
   priorityFilter = "all", // Set default value for priorityFilter
 }: ComplaintTableProps) {
+  // Mock data for user dashboard (for development/testing)
+  const mockComplaints: Complaint[] = [
+    {
+      id: "C1001",
+      title: "WiFi not working in hostel",
+      description: "The WiFi has been down for 2 days in Block A.",
+      category: "IT",
+      priority: "High",
+      status: "Pending",
+      submittedBy: "John Doe",
+      assignedStaff: "Staff A",
+      submittedDate: new Date(Date.now() - 86400000 * 2),
+      lastUpdated: new Date(Date.now() - 86400000),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: null,
+    },
+    {
+      id: "C1002",
+      title: "Mess food quality issue",
+      description: "Food served in mess is not fresh.",
+      category: "Food",
+      priority: "Medium",
+      status: "In Progress",
+      submittedBy: "Jane Smith",
+      assignedStaff: "Staff B",
+      submittedDate: new Date(Date.now() - 86400000 * 3),
+      lastUpdated: new Date(Date.now() - 86400000 * 2),
+      isEscalated: true,
+      evidenceFile: "",
+      feedback: null,
+    },
+    {
+      id: "C1003",
+      title: "Library AC not working",
+      description: "AC in library is broken since last week.",
+      category: "Facilities",
+      priority: "Critical",
+      status: "Resolved",
+      submittedBy: "Alice Brown",
+      assignedStaff: "Staff C",
+      submittedDate: new Date(Date.now() - 86400000 * 7),
+      lastUpdated: new Date(Date.now() - 86400000 * 1),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: { rating: 4, comment: "Resolved quickly, thanks!" },
+    },
+  ];
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [localPriorityFilter, setLocalPriorityFilter] =
     useState<string>(priorityFilter);
 
-  // Sync localPriorityFilter with prop
-  // Removed the effect to sync localPriorityFilter with prop
-
-  const filteredComplaints = complaints.filter((complaint) => {
+  // Use mock data for user dashboard, otherwise use provided complaints
+  const complaintsData = userRole === "user" ? mockComplaints : complaints;
+  const filteredComplaints = complaintsData.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
