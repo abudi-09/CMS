@@ -315,6 +315,37 @@ export function RoleBasedComplaintModal({
                 </div>
               </div>
 
+              {complaint.deadline && (
+                <div>
+                  <Label className="text-sm text-muted-foreground">
+                    Deadline
+                  </Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    {(() => {
+                      const deadlineDate = new Date(complaint.deadline);
+                      const now = new Date();
+                      const isOverdue =
+                        now > deadlineDate &&
+                        !["Resolved", "Closed"].includes(complaint.status);
+                      return (
+                        <span
+                          className={`text-sm font-semibold ${
+                            isOverdue ? "text-red-600" : "text-blue-600"
+                          }`}
+                        >
+                          {deadlineDate.toLocaleDateString()}
+                          {isOverdue && (
+                            <span className="ml-2 px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs font-bold">
+                              Overdue
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
               {isAssigned && (
                 <div>
                   <Label className="text-sm text-muted-foreground">

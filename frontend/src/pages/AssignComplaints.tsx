@@ -33,12 +33,59 @@ import { Complaint as BaseComplaint } from "@/components/ComplaintCard";
 type Complaint = BaseComplaint & {
   evidence?: string;
   status: "Pending" | "In Progress" | "Resolved" | "Closed" | "Delayed";
+  deadline?: Date;
 };
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
 // Mock complaints data
+// Mock complaints for easy understanding (clearly marked as mock/test)
 const mockComplaints: Complaint[] = [
+  {
+    id: "MOCK-001",
+    title: "[MOCK] Urgent: Water Leakage in Main Hall",
+    description:
+      "This is a mock complaint for testing assignment and deadline features.",
+    category: "Infrastructure & Facilities",
+    status: "Pending",
+    submittedBy: "Test User 1",
+    assignedStaff: "Test Staff A",
+    submittedDate: new Date("2024-08-01"),
+    lastUpdated: new Date("2024-08-02"),
+    evidence: "https://via.placeholder.com/80.png",
+    deadline: new Date("2024-08-10"),
+    priority: "Critical",
+  },
+  {
+    id: "MOCK-002",
+    title: "[MOCK] IT: Printer Not Working in Admin Office",
+    description:
+      "This is a mock complaint for testing staff assignment and overdue logic.",
+    category: "IT & Technology",
+    status: "In Progress",
+    submittedBy: "Test User 2",
+    assignedStaff: "Test Staff B",
+    submittedDate: new Date("2024-07-25"),
+    lastUpdated: new Date("2024-07-26"),
+    evidence: "https://via.placeholder.com/90.png",
+    deadline: new Date("2024-07-30"),
+    priority: "High",
+  },
+  {
+    id: "MOCK-003",
+    title: "[MOCK] Cafeteria: Food Quality Issue",
+    description:
+      "This is a mock complaint for testing filtering and UI display.",
+    category: "Cafeteria",
+    status: "Resolved",
+    submittedBy: "Test User 3",
+    assignedStaff: "Test Staff C",
+    submittedDate: new Date("2024-07-10"),
+    lastUpdated: new Date("2024-07-12"),
+    evidence: "https://via.placeholder.com/100.png",
+    deadline: new Date("2024-07-15"),
+    priority: "Medium",
+  },
   {
     id: "CMP-001",
     title: "Library computers are slow and outdated",
@@ -129,6 +176,8 @@ const statusColors = {
 };
 
 export function AssignComplaints() {
+  // State for deadline during assignment
+  const [assigningDeadline, setAssigningDeadline] = useState<string>("");
   const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -136,6 +185,7 @@ export function AssignComplaints() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [assignmentFilter, setAssignmentFilter] = useState<string>("all"); // 'all' | 'assigned' | 'unassigned'
+  const [overdueFilter, setOverdueFilter] = useState<string>("all"); // 'all' | 'overdue' | 'notOverdue'
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -158,6 +208,8 @@ export function AssignComplaints() {
     setReassigningRow(null);
   };
 
+  // Assign staff and deadline to a complaint
+  // This function updates the complaint with the selected staff and deadline
   const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
     setComplaints((prev) =>
@@ -165,8 +217,11 @@ export function AssignComplaints() {
         c.id === complaintId
           ? {
               ...c,
-              assignedStaff: staff?.fullName || staff?.name || "Unknown",
-              lastUpdated: new Date(),
+              assignedStaff: staff?.fullName || staff?.name || "Unknown", // Assign staff name
+              lastUpdated: new Date(), // Update last modified date
+              deadline: assigningDeadline
+                ? new Date(assigningDeadline) // Assign deadline from date picker
+                : undefined,
             }
           : c
       )
@@ -175,12 +230,17 @@ export function AssignComplaints() {
       title: "Staff Assigned",
       description: `Complaint has been assigned to ${
         staff?.fullName || staff?.name
+      }${
+        assigningDeadline
+          ? ` with deadline ${new Date(assigningDeadline).toLocaleDateString()}`
+          : ""
       }`,
     });
+    // Reset assignment UI state
     setReassigningRow(null);
     setAssigningStaffId("");
+    setAssigningDeadline("");
   };
-
   // Filter complaints
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
@@ -198,11 +258,29 @@ export function AssignComplaints() {
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
+    const now = new Date();
+    const isOverdue =
+      complaint.deadline &&
+      complaint.status !== "Resolved" &&
+      complaint.status !== "Closed" &&
+      now > complaint.deadline;
+    const matchesOverdue =
+      overdueFilter === "all"
+        ? true
+        : overdueFilter === "overdue"
+        ? isOverdue
+        : !isOverdue;
     return (
-      matchesSearch && matchesStatus && matchesPriority && matchesAssignment
+      matchesSearch &&
+      matchesStatus &&
+      matchesPriority &&
+      matchesAssignment &&
+      matchesOverdue
     );
   });
 
+  // Move these inside the AssignComplaints function, after complaints state is declared
+  // Move these inside the AssignComplaints function, after complaints state is declared
   const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
   const assignedCount = complaints.filter((c) => c.assignedStaff).length;
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
@@ -323,21 +401,15 @@ export function AssignComplaints() {
                 </SelectItem>
               </SelectContent>
             </Select>
-            {/* Department dropdown */}
-            <Select
-              value={departmentFilter}
-              onValueChange={setDepartmentFilter}
-            >
+            {/* Overdue filter dropdown */}
+            <Select value={overdueFilter} onValueChange={setOverdueFilter}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter by department" />
+                <SelectValue placeholder="Filter by overdue" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">Delay complaints</SelectItem>
+                <SelectItem value="overdue">Overdue Only</SelectItem>
+                <SelectItem value="notOverdue">Not Overdue Only</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -371,14 +443,31 @@ export function AssignComplaints() {
                 {filteredComplaints.map((complaint) => (
                   <TableRow
                     key={complaint.id}
-                    className="dark:hover:bg-accent/10"
+                    className={`dark:hover:bg-accent/10 ${
+                      complaint.id.startsWith("MOCK-")
+                        ? "bg-yellow-50 border-l-4 border-yellow-400"
+                        : ""
+                    }`}
                   >
                     <TableCell className="font-medium text-sm">
                       <div>
-                        <div className="font-semibold">{complaint.title}</div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {complaint.title}
+                          {complaint.id.startsWith("MOCK-") && (
+                            <Badge className="bg-yellow-400 text-white text-xs">
+                              Mock/Test
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           Submitted by {complaint.submittedBy}
                         </div>
+                        {complaint.id.startsWith("MOCK-") && (
+                          <div className="text-xs text-yellow-700 mt-1">
+                            This is a mock/test complaint for UI and feature
+                            demonstration.
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
@@ -442,11 +531,21 @@ export function AssignComplaints() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {/* Deadline Picker */}
+                            <Input
+                              type="date"
+                              className="w-32 text-xs"
+                              value={assigningDeadline}
+                              onChange={(e) =>
+                                setAssigningDeadline(e.target.value)
+                              }
+                              required
+                            />
                             <Button
                               size="sm"
                               variant="default"
                               className="text-xs"
-                              disabled={!assigningStaffId}
+                              disabled={!assigningStaffId || !assigningDeadline}
                               onClick={() =>
                                 handleStaffAssignment(
                                   complaint.id,
@@ -489,16 +588,34 @@ export function AssignComplaints() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {filteredComplaints.map((complaint) => (
-              <Card key={complaint.id} className="p-4">
+              <Card
+                key={complaint.id}
+                className={`p-4 ${
+                  complaint.id.startsWith("MOCK-")
+                    ? "bg-yellow-50 border-l-4 border-yellow-400"
+                    : ""
+                }`}
+              >
                 <div className="space-y-3">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-sm leading-tight">
+                      <h3 className="font-semibold text-sm leading-tight flex items-center gap-2">
                         {complaint.title}
+                        {complaint.id.startsWith("MOCK-") && (
+                          <Badge className="bg-yellow-400 text-white text-xs">
+                            Mock/Test
+                          </Badge>
+                        )}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1">
                         Submitted by {complaint.submittedBy}
                       </p>
+                      {complaint.id.startsWith("MOCK-") && (
+                        <div className="text-xs text-yellow-700 mt-1">
+                          This is a mock/test complaint for UI and feature
+                          demonstration.
+                        </div>
+                      )}
                     </div>
                     <Badge
                       className={`ml-2 text-xs ${
@@ -588,10 +705,13 @@ export function AssignComplaints() {
                           onClick={() => {
                             setReassigningRow(null);
                             setAssigningStaffId("");
+                            setAssigningDeadline("");
                           }}
                         >
                           Cancel
                         </Button>
+                        If the deadline passes and the complaint is not
+                        resolved, mark it as "Overdue" in red.
                       </>
                     ) : (
                       <Button
@@ -619,6 +739,7 @@ export function AssignComplaints() {
           complaint={selectedComplaint}
           open={showDetailModal}
           onOpenChange={setShowDetailModal}
+          // Pass deadline to modal as prop
         />
       )}
       {/* No action buttons below modal; all assignment actions are now side by side with View Detail in the table */}

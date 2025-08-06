@@ -80,6 +80,63 @@ const mockStaffData: StaffMember[] = [
     averageRating: 4.2,
     successRate: 82.8,
     avgResolutionTime: 36
+  },
+  // Additional mock staff
+  {
+    id: "5",
+    name: "Priya Patel",
+    email: "priya.patel@university.edu",
+    department: "Library Services",
+    workPlace: "Main Library",
+    totalAssigned: 22,
+    resolved: 20,
+    pending: 1,
+    inProgress: 1,
+    averageRating: 4.7,
+    successRate: 90.9,
+    avgResolutionTime: 15
+  },
+  {
+    id: "6",
+    name: "Ahmed Al-Farsi",
+    email: "ahmed.alfarsi@university.edu",
+    department: "Security",
+    workPlace: "Security Office",
+    totalAssigned: 33,
+    resolved: 30,
+    pending: 2,
+    inProgress: 1,
+    averageRating: 4.3,
+    successRate: 87.5,
+    avgResolutionTime: 22
+  },
+  {
+    id: "7",
+    name: "Maria Gomez",
+    email: "maria.gomez@university.edu",
+    department: "Cafeteria",
+    workPlace: "Dining Hall",
+    totalAssigned: 27,
+    resolved: 25,
+    pending: 1,
+    inProgress: 1,
+    averageRating: 4.1,
+    successRate: 92.6,
+    avgResolutionTime: 19
+  },
+  {
+    id: "8",
+    name: "John Smith",
+    email: "john.smith@university.edu",
+    department: "Transport",
+    workPlace: "Transport Office",
+    totalAssigned: 18,
+    resolved: 15,
+    pending: 2,
+    inProgress: 1,
+    averageRating: 3.9,
+    successRate: 83.3,
+    avgResolutionTime: 28
   }
 ];
 

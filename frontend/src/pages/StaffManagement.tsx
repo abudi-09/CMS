@@ -1,4 +1,12 @@
 import { useState } from "react";
+import { useRef } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +24,22 @@ import { UserCheck, UserX, Clock, Users, Mail, Building } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
+interface StaffMember {
+  id: string;
+  fullName?: string;
+  name?: string;
+  email: string;
+  department?: string;
+  registeredDate?: string | Date;
+  status: string;
+}
+
 export function StaffManagement() {
+  // Confirmation dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<null | (() => void)>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [confirmWarning, setConfirmWarning] = useState("");
   const { pendingStaff, approveStaff, rejectStaff, getAllStaff } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -41,47 +64,84 @@ export function StaffManagement() {
     (s) => (s.status || "").toLowerCase() === "pending"
   );
 
+  // Confirmation dialog wrapper
+  function showConfirm(action: () => void, text: string, warning: string = "") {
+    setConfirmAction(() => action);
+    setConfirmText(text);
+    setConfirmWarning(warning);
+    setConfirmOpen(true);
+  }
+
   const handleApprove = (staffId: string, staffName: string) => {
-    approveStaff(staffId);
-    toast({
-      title: "Staff Approved",
-      description: `${staffName} has been approved and can now access the system.`,
-    });
+    showConfirm(
+      () => {
+        approveStaff(staffId);
+        toast({
+          title: "Staff Approved",
+          description: `${staffName} has been approved and can now access the system.`,
+        });
+      },
+      `Approve ${staffName}?`,
+      "This action will grant access to the system."
+    );
   };
 
   const handleReject = (staffId: string, staffName: string) => {
-    rejectStaff(staffId);
-    toast({
-      title: "Staff Rejected",
-      description: `${staffName}'s application has been rejected.`,
-      variant: "destructive",
-    });
+    showConfirm(
+      () => {
+        rejectStaff(staffId);
+        toast({
+          title: "Staff Rejected",
+          description: `${staffName}'s application has been rejected.`,
+          variant: "destructive",
+        });
+      },
+      `Reject ${staffName}?`,
+      "This action is irreversible. The staff member will not be able to access the system."
+    );
   };
 
-  // Helper action handlers
   const handlePromote = (staffId: string, staffName: string) => {
-    // TODO: Implement promote logic (e.g., call promoteStaff)
-    toast({
-      title: "Staff Promoted",
-      description: `${staffName} has been promoted to admin.`,
-    });
+    showConfirm(
+      () => {
+        // TODO: Implement promote logic (e.g., call promoteStaff)
+        toast({
+          title: "Staff Promoted",
+          description: `${staffName} has been promoted to admin.`,
+        });
+      },
+      `Promote ${staffName} to admin?`,
+      "This action will grant admin privileges."
+    );
   };
 
   const handleDeactivate = (staffId: string, staffName: string) => {
-    // TODO: Implement deactivate logic (e.g., call deactivateStaff)
-    toast({
-      title: "Staff Deactivated",
-      description: `${staffName} has been deactivated and can no longer access the system.`,
-      variant: "destructive",
-    });
+    showConfirm(
+      () => {
+        // TODO: Implement deactivate logic (e.g., call deactivateStaff)
+        toast({
+          title: "Staff Deactivated",
+          description: `${staffName} has been deactivated and can no longer access the system.`,
+          variant: "destructive",
+        });
+      },
+      `Deactivate ${staffName}?`,
+      "This action is irreversible. The staff member will lose access."
+    );
   };
 
   const handleActivate = (staffId: string, staffName: string) => {
-    // TODO: Implement activate logic (e.g., call activateStaff)
-    toast({
-      title: "Staff Activated",
-      description: `${staffName} has been re-activated and can now access the system.`,
-    });
+    showConfirm(
+      () => {
+        // TODO: Implement activate logic (e.g., call activateStaff)
+        toast({
+          title: "Staff Activated",
+          description: `${staffName} has been activated and can now access the system.`,
+        });
+      },
+      `Activate ${staffName}?`,
+      "This action will restore access to the system."
+    );
   };
 
   const StaffTable = ({
@@ -90,7 +150,7 @@ export function StaffManagement() {
     approvedActions = false,
     rejectedActions = false,
   }: {
-    staff: any[];
+    staff: StaffMember[];
     showActions?: boolean;
     approvedActions?: boolean;
     rejectedActions?: boolean;
@@ -395,6 +455,31 @@ export function StaffManagement() {
 
   return (
     <div className="space-y-8">
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmText}</DialogTitle>
+          </DialogHeader>
+          {confirmWarning && (
+            <div className="text-sm text-red-600 mb-2">{confirmWarning}</div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setConfirmOpen(false);
+                if (confirmAction) confirmAction();
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div>
         <h1 className="text-3xl font-bold">Staff Management</h1>
         <p className="text-muted-foreground">
@@ -496,15 +581,33 @@ export function StaffManagement() {
             </TabsList>
 
             <TabsContent value="pending" className="mt-6">
-              <StaffTable staff={pendingStaffList} showActions={true} />
+              <StaffTable
+                staff={pendingStaffList.map((s) => ({
+                  ...s,
+                  status: s.status ?? "",
+                }))}
+                showActions={true}
+              />
             </TabsContent>
 
             <TabsContent value="approved" className="mt-6">
-              <StaffTable staff={approvedStaff} approvedActions={true} />
+              <StaffTable
+                staff={approvedStaff.map((s) => ({
+                  ...s,
+                  status: s.status ?? "",
+                }))}
+                approvedActions={true}
+              />
             </TabsContent>
 
             <TabsContent value="rejected" className="mt-6">
-              <StaffTable staff={rejectedStaff} rejectedActions={true} />
+              <StaffTable
+                staff={rejectedStaff.map((s) => ({
+                  ...s,
+                  status: s.status ?? "",
+                }))}
+                rejectedActions={true}
+              />
             </TabsContent>
           </Tabs>
         </CardContent>
