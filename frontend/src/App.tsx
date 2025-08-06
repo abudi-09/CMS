@@ -16,6 +16,8 @@ import { AdminDashboard } from "@/pages/AdminDashboard";
 import HomePage from "./pages/HomePage";
 import AboutPage from "./pages/AboutPage";
 import HelpPage from "./pages/HelpPage";
+import CalendarView from "@/pages/CalendarView";
+import StaffPerformance from "@/pages/StaffPerformance";
 import { SubmitComplaint } from "@/pages/SubmitComplaint";
 import { MyComplaints } from "@/pages/MyComplaints";
 import { StaffManagement } from "@/pages/StaffManagement";
@@ -79,6 +81,11 @@ function AppContent() {
                   path="/category-management"
                   element={<CategoryManagement />}
                 />
+                <Route
+                  path="/staff-performance"
+                  element={<StaffPerformance />}
+                />
+                <Route path="/calendar-view" element={<CalendarView />} />
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
                 <Route path="/profile" element={<Profile />} />

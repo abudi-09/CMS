@@ -6,7 +6,7 @@ export interface ActivityLog {
   user: { name: string; email: string };
   role: string;
   timestamp: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 const actionIcons: Record<string, React.ReactNode> = {

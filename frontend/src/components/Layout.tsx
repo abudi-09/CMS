@@ -64,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            <LanguageSwitcher />
+            {/* <LanguageSwitcher /> removed */}
             <NotificationDropdown />
             <ThemeToggle />
 

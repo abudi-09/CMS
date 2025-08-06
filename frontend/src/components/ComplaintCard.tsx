@@ -22,7 +22,9 @@ export interface Complaint {
   status: "Pending" | "In Progress" | "Resolved" | "Closed";
   submittedBy: string;
   assignedStaff?: string;
+  assignedDate?: Date;
   submittedDate: Date;
+  deadline?: Date;
   lastUpdated: Date;
   priority?: "Low" | "Medium" | "High" | "Critical";
   feedback?: {

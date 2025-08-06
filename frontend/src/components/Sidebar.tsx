@@ -10,6 +10,8 @@ import {
   TrendingUp,
   UserCheck,
   UserPlus,
+  GraduationCap,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -34,6 +36,8 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: FileText, label: "My Assigned", href: "/my-assigned" },
     { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
+    { icon: Calendar, label: "Calendar View", href: "/calendar-view" }, // Removed due to missing export
+
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
@@ -51,6 +55,12 @@ export function Sidebar({ className }: SidebarProps) {
     },
     { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
     { icon: TrendingUp, label: "Admin Analytics", href: "/admin-analytics" },
+    { icon: Calendar, label: "Calendar View", href: "/calendar-view" }, // Removed due to missing export
+    {
+      icon: GraduationCap,
+      label: "Staff Performance",
+      href: "/staff-performance",
+    },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 

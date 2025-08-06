@@ -3,6 +3,35 @@ import User from "../models/user.model.js";
 
 // Get all logs for a complaint
 export const getLogsForComplaint = async (req, res) => {
+  // Hardcoded example for understanding
+  if (req.query.example === "true") {
+    return res.status(200).json([
+      {
+        _id: "log1",
+        action: "Complaint Submitted",
+        user: { name: "John Doe", email: "john@example.com" },
+        role: "user",
+        timestamp: new Date().toISOString(),
+        details: { complaintId: req.params.id },
+      },
+      {
+        _id: "log2",
+        action: "Status Updated to In Progress",
+        user: { name: "IT Support Team", email: "it@example.com" },
+        role: "staff",
+        timestamp: new Date().toISOString(),
+        details: { status: "In Progress" },
+      },
+      {
+        _id: "log3",
+        action: "Feedback Given",
+        user: { name: "Sarah Johnson", email: "sarah@example.com" },
+        role: "user",
+        timestamp: new Date().toISOString(),
+        details: { rating: 5, comment: "Great job!" },
+      },
+    ]);
+  }
   try {
     const complaintId = req.params.id;
     const logs = await ActivityLog.find({ complaint: complaintId })

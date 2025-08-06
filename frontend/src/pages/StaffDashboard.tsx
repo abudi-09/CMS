@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ActivityLogTable } from "@/components/ActivityLogTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +84,92 @@ export function StaffDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
+  // Activity Log modal state
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logComplaintId, setLogComplaintId] = useState<string | null>(null);
+  const [logs, setLogs] = useState([]);
+
+  // Hardcoded mock audit log data for each complaint
+  type AuditLog = {
+    _id: string;
+    action: string;
+    user: { name: string; email: string };
+    role: string;
+    timestamp: string;
+    details: Record<string, unknown>;
+  };
+
+  const mockAuditLogs: Record<string, AuditLog[]> = {
+    "CMP-001": [
+      {
+        _id: "log1",
+        action: "Complaint Submitted",
+        user: { name: "John Doe", email: "john@example.com" },
+        role: "user",
+        timestamp: new Date("2024-01-15T09:00:00Z").toISOString(),
+        details: { complaintId: "CMP-001" },
+      },
+      {
+        _id: "log2",
+        action: "Status Updated to In Progress",
+        user: { name: "IT Support Team", email: "it@example.com" },
+        role: "staff",
+        timestamp: new Date("2024-01-16T10:00:00Z").toISOString(),
+        details: { status: "In Progress" },
+      },
+      {
+        _id: "log3",
+        action: "Feedback Given",
+        user: { name: "Sarah Johnson", email: "sarah@example.com" },
+        role: "user",
+        timestamp: new Date("2024-01-18T12:00:00Z").toISOString(),
+        details: { rating: 5, comment: "Great job!" },
+      },
+    ],
+    "CMP-004": [
+      {
+        _id: "log4",
+        action: "Complaint Submitted",
+        user: { name: "Sarah Johnson", email: "sarah@example.com" },
+        role: "user",
+        timestamp: new Date("2024-01-20T08:30:00Z").toISOString(),
+        details: { complaintId: "CMP-004" },
+      },
+      {
+        _id: "log5",
+        action: "Status Updated to Pending",
+        user: { name: "IT Support Team", email: "it@example.com" },
+        role: "staff",
+        timestamp: new Date("2024-01-20T09:00:00Z").toISOString(),
+        details: { status: "Pending" },
+      },
+    ],
+    "CMP-006": [
+      {
+        _id: "log6",
+        action: "Complaint Submitted",
+        user: { name: "Mike Wilson", email: "mike@example.com" },
+        role: "user",
+        timestamp: new Date("2024-01-12T11:00:00Z").toISOString(),
+        details: { complaintId: "CMP-006" },
+      },
+      {
+        _id: "log7",
+        action: "Status Updated to Resolved",
+        user: { name: "IT Support Team", email: "it@example.com" },
+        role: "staff",
+        timestamp: new Date("2024-01-19T14:00:00Z").toISOString(),
+        details: { status: "Resolved" },
+      },
+    ],
+  };
+
+  const handleViewLogs = (complaintId: string) => {
+    setShowLogModal(true);
+    setLogComplaintId(complaintId);
+    // For demo, show mock logs for the selected complaint
+    setLogs(mockAuditLogs[complaintId] || []);
+  };
 
   const handleViewAndUpdate = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -344,7 +431,8 @@ export function StaffDashboard() {
                       <TableCell className="text-muted-foreground">
                         {complaint.submittedDate.toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right flex gap-2 justify-end">
+                        {/* Removed Activity Log button. Activity log will be handled in View & Update modal. */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -364,7 +452,7 @@ export function StaffDashboard() {
         </CardContent>
       </Card>
 
-      {/* Modal */}
+      {/* Complaint Action Modal */}
       <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={showActionModal}
@@ -376,7 +464,33 @@ export function StaffDashboard() {
             )
           );
         }}
-      />
+      >
+        {/* Activity Log Table integrated into modal */}
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-4">Activity Log</h3>
+          <ActivityLogTable
+            logs={
+              selectedComplaint ? mockAuditLogs[selectedComplaint.id] || [] : []
+            }
+          />
+        </div>
+      </RoleBasedComplaintModal>
+
+      {/* Activity Log Modal */}
+      {showLogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              onClick={() => setShowLogModal(false)}
+            >
+              ✖
+            </button>
+            <h3 className="text-lg font-semibold mb-4">Activity Log</h3>
+            {logComplaintId && <ActivityLogTable logs={logs} />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
