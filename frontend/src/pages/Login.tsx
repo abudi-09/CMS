@@ -66,7 +66,8 @@ export function Login() {
             result &&
             "role" in result
           ) {
-            const role = (result as any).role;
+            type UserResult = { role: string };
+            const role = (result as UserResult).role;
             if (role === "admin") {
               navigate("/dashboard");
             } else if (role === "staff") {
@@ -123,7 +124,7 @@ export function Login() {
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:hidden">
             <GraduationCap className="h-16 w-16 mx-auto mb-4 text-primary" />
-            <h1 className="text-3xl font-bold">Gondar University</h1>
+            <h1 className="text-3xl font-bold"> University Of Gondar </h1>
             <p className="text-muted-foreground">Complaint Management System</p>
           </div>
 

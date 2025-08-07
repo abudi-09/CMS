@@ -19,7 +19,14 @@ export interface Complaint {
   title: string;
   description: string;
   category: string;
-  status: "Pending" | "In Progress" | "Resolved" | "Closed";
+  status:
+    | "Unassigned"
+    | "Assigned"
+    | "In Progress"
+    | "Resolved"
+    | "Closed"
+    | "Overdue"
+    | "Pending";
   submittedBy: string;
   assignedStaff?: string;
   assignedDate?: Date;

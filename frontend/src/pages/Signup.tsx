@@ -78,11 +78,19 @@ export function Signup() {
         });
         navigate("/login");
       }
-    } catch (error: any) {
+    } catch (error) {
+      let message = "An error occurred during signup. Please try again.";
+      if (
+        error &&
+        typeof error === "object" &&
+        "message" in error &&
+        typeof (error as { message?: unknown }).message === "string"
+      ) {
+        message = (error as { message: string }).message;
+      }
       toast({
         title: "Signup Failed",
-        description:
-          error.message || "An error occurred during signup. Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {

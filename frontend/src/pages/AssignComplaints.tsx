@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useComplaints } from "@/context/ComplaintContext";
 import {
   Card,
   CardContent,
@@ -30,14 +29,16 @@ import { Search, UserPlus } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Label } from "@/components/ui/label";
-import { Complaint as BaseComplaint } from "@/components/ComplaintCard";
-type Complaint = BaseComplaint & {
-  evidence?: string;
-  status: "Pending" | "In Progress" | "Resolved" | "Closed" | "Delayed";
-  deadline?: Date;
-};
+import { Complaint as BaseComplaint } from "@/context/ComplaintContext";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { useComplaints } from "@/context/ComplaintContext";
+
+type Complaint = BaseComplaint & {
+  evidence?: string;
+  deadline?: Date;
+  priority?: "Low" | "Medium" | "High" | "Critical";
+};
 
 // Mock complaints data
 // Mock complaints for easy understanding (clearly marked as mock/test)
@@ -93,6 +94,7 @@ const mockComplaints: Complaint[] = [
     description:
       "The computers in the main library are extremely slow and need upgrading.",
     category: "IT & Technology",
+    priority: "Medium",
     status: "In Progress",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
@@ -106,6 +108,7 @@ const mockComplaints: Complaint[] = [
     description:
       "The Wi-Fi in Dorm A has been down for three days, affecting all students.",
     category: "IT & Technology",
+    priority: "Medium",
     status: "Resolved",
     submittedBy: "Alice Smith",
     assignedStaff: "Network Team",
@@ -119,6 +122,7 @@ const mockComplaints: Complaint[] = [
     description:
       "The air conditioning in lecture hall B-204 has been broken for over a week.",
     category: "Infrastructure & Facilities",
+    priority: "Medium",
     status: "Pending",
     submittedBy: "Mike Johnson",
     assignedStaff: undefined,
@@ -133,6 +137,7 @@ const mockComplaints: Complaint[] = [
     description:
       "The projector in room C-305 has been malfunctioning for the past week.",
     category: "IT & Technology",
+    priority: "Medium",
     status: "Pending",
     submittedBy: "Sarah Johnson",
     assignedStaff: undefined,
@@ -146,6 +151,7 @@ const mockComplaints: Complaint[] = [
     description:
       "The food served in the cafeteria is often cold and lacks variety.",
     category: "Cafeteria",
+    priority: "Medium",
     status: "In Progress",
     submittedBy: "Emily Brown",
     assignedStaff: undefined,
@@ -159,6 +165,7 @@ const mockComplaints: Complaint[] = [
     description:
       "The elevator in Dorm B has been out of service for two weeks.",
     category: "Infrastructure & Facilities",
+    priority: "Medium",
     status: "In Progress",
     submittedBy: "David Lee",
     assignedStaff: "Maintenance Team",
@@ -179,7 +186,10 @@ const statusColors = {
 export function AssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
-  const { complaints, updateComplaint } = useComplaints();
+  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const { complaints: globalComplaints, updateComplaint } = useComplaints();
+  // Merge local mock/test complaints and global user complaints for display
+  const allComplaints = [...complaints, ...globalComplaints];
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,12 +223,31 @@ export function AssignComplaints() {
   // This function updates the complaint with the selected staff and deadline
   const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    updateComplaint(complaintId, {
-      assignedStaff: staff?.fullName || staff?.name || "Unknown",
-      lastUpdated: new Date(),
-      deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
-      status: "Assigned",
-    });
+    // If the complaint is in local mock data, update local state; otherwise, update global
+    if (complaints.some((c) => c.id === complaintId)) {
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === complaintId
+            ? {
+                ...c,
+                assignedStaff: staff?.fullName || staff?.name || "Unknown",
+                lastUpdated: new Date(),
+                deadline: assigningDeadline
+                  ? new Date(assigningDeadline)
+                  : undefined,
+                status: "In Progress",
+              }
+            : c
+        )
+      );
+    } else {
+      updateComplaint(complaintId, {
+        assignedStaff: staff?.fullName || staff?.name || "Unknown",
+        lastUpdated: new Date(),
+        deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
+        status: "Assigned",
+      });
+    }
     toast({
       title: "Staff Assigned",
       description: `Complaint has been assigned to ${
@@ -234,28 +263,48 @@ export function AssignComplaints() {
     setAssigningDeadline("");
   };
   // Filter complaints
-  // Only show complaints with status 'Unassigned' for assignment
-  const filteredComplaints = complaints.filter((complaint) => {
-    if (complaint.status !== "Unassigned") return false;
+  const filteredComplaints = allComplaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" || complaint.status === statusFilter;
+    const matchesAssignment =
+      assignmentFilter === "all"
+        ? true
+        : assignmentFilter === "assigned"
+        ? !!complaint.assignedStaff
+        : !complaint.assignedStaff;
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
-    return matchesSearch && matchesPriority;
+    const now = new Date();
+    const isOverdue =
+      complaint.deadline &&
+      complaint.status !== "Resolved" &&
+      complaint.status !== "Closed" &&
+      now > complaint.deadline;
+    const matchesOverdue =
+      overdueFilter === "all"
+        ? true
+        : overdueFilter === "overdue"
+        ? isOverdue
+        : !isOverdue;
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesPriority &&
+      matchesAssignment &&
+      matchesOverdue
+    );
   });
 
   // Move these inside the AssignComplaints function, after complaints state is declared
   // Move these inside the AssignComplaints function, after complaints state is declared
-  const unassignedCount = complaints.filter(
-    (c) => c.status === "Unassigned"
-  ).length;
-  const assignedCount = complaints.filter(
-    (c) => c.status !== "Unassigned"
-  ).length;
-  const categories = Array.from(new Set(complaints.map((c) => c.category)));
+  const unassignedCount = allComplaints.filter((c) => !c.assignedStaff).length;
+  const assignedCount = allComplaints.filter((c) => c.assignedStaff).length;
+  const categories = Array.from(new Set(allComplaints.map((c) => c.category)));
   const priorityColors = {
     Low: "bg-gray-200 text-gray-700 border-gray-300",
     Medium: "bg-blue-100 text-blue-800 border-blue-200",
@@ -282,7 +331,7 @@ export function AssignComplaints() {
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{complaints.length}</div>
+            <div className="text-2xl font-bold">{allComplaints.length}</div>
           </CardContent>
         </Card>
 
@@ -404,7 +453,7 @@ export function AssignComplaints() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Department</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assigned Staff</TableHead>

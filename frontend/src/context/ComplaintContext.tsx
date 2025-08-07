@@ -14,13 +14,14 @@ export interface Complaint {
   title: string;
   description: string;
   category: string;
-  priority: string;
+  priority?: "Low" | "Medium" | "High" | "Critical";
   status: ComplaintStatus;
   submittedBy: string;
   assignedStaff?: string;
   submittedDate: Date;
   lastUpdated: Date;
   evidenceFileName?: string;
+  deadline?: Date;
 }
 
 interface ComplaintContextType {
