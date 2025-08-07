@@ -29,6 +29,7 @@ import {
   User,
   Flag,
   Download,
+  ArrowUpDown,
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
@@ -140,6 +141,8 @@ export default function AllComplaints() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  // Priority sort state: 'asc' | 'desc'
+  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -155,7 +158,7 @@ export default function AllComplaints() {
   };
 
   // Filter complaints
-  const filteredComplaints = complaints.filter((complaint) => {
+  let filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -169,6 +172,21 @@ export default function AllComplaints() {
 
     return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
   });
+  // Always sort by priority (toggle asc/desc)
+  const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+  filteredComplaints = [...filteredComplaints].sort((a, b) => {
+    const aValue =
+      priorityOrder[(a.priority || "Medium") as keyof typeof priorityOrder] ||
+      0;
+    const bValue =
+      priorityOrder[(b.priority || "Medium") as keyof typeof priorityOrder] ||
+      0;
+    return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
+  });
+
+  const handleSortByPriority = () => {
+    setPrioritySort(prioritySort === "desc" ? "asc" : "desc");
+  };
 
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
 
@@ -295,6 +313,16 @@ export default function AllComplaints() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
+              {/* Priority Sort Button */}
+              <Button
+                variant="outline"
+                onClick={handleSortByPriority}
+                className="min-w-0 sm:min-w-[140px] rounded-lg hover:bg-muted"
+              >
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                Sort Priority (
+                {prioritySort === "desc" ? "High → Low" : "Low → High"})
+              </Button>
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <Select

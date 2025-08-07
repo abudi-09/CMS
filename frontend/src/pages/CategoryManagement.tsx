@@ -216,15 +216,6 @@ function CategoryManagement() {
   };
 
   const handleDeleteCategory = (categoryId: string, categoryName: string) => {
-    const category = categories.find((cat) => cat.id === categoryId);
-    if (category && category.complaintsCount > 0) {
-      toast({
-        title: "Cannot Delete",
-        description: `${categoryName} has ${category.complaintsCount} complaints. Please reassign or resolve them first.`,
-        variant: "destructive",
-      });
-      return;
-    }
     setCategories((prev) => prev.filter((cat) => cat.id !== categoryId));
     toast({
       title: "Category Deleted",
@@ -239,10 +230,24 @@ function CategoryManagement() {
 
   const handleConfirmDelete = () => {
     if (pendingDeleteCategory) {
-      handleDeleteCategory(
-        pendingDeleteCategory.id,
-        pendingDeleteCategory.name
-      );
+      if (
+        pendingDeleteCategory.status === "Inactive" &&
+        pendingDeleteCategory.complaintsCount === 0
+      ) {
+        handleDeleteCategory(
+          pendingDeleteCategory.id,
+          pendingDeleteCategory.name
+        );
+      } else {
+        toast({
+          title: "Cannot Delete",
+          description:
+            pendingDeleteCategory.status !== "Inactive"
+              ? `Category must be inactive to delete.`
+              : `Category has complaints. Please reassign or resolve them first.`,
+          variant: "destructive",
+        });
+      }
     }
     setDeleteDialogOpen(false);
     setPendingDeleteCategory(null);
@@ -554,8 +559,15 @@ function CategoryManagement() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDeleteClick(category)}
-                        disabled={category.complaintsCount > 0}
-                        className="flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 disabled:opacity-50"
+                        disabled={
+                          category.status === "Active" ||
+                          category.complaintsCount > 0
+                        }
+                        className={`flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 disabled:opacity-50${
+                          category.status === "Active"
+                            ? " cursor-not-allowed"
+                            : ""
+                        }`}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Delete
@@ -631,8 +643,9 @@ function CategoryManagement() {
           setDeleteDialogOpen(false);
           setPendingDeleteCategory(null);
         }}
-        onOpenChange={function (open: boolean): void {
-          throw new Error("Function not implemented.");
+        onOpenChange={(open: boolean) => {
+          setDeleteDialogOpen(open);
+          if (!open) setPendingDeleteCategory(null);
         }}
       >
         {pendingDeleteCategory

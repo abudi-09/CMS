@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useComplaints } from "@/context/ComplaintContext";
 import {
   Card,
   CardContent,
@@ -23,64 +24,15 @@ import { Complaint } from "@/components/ComplaintCard";
 import { useEffect } from "react";
 import { getMyComplaintsApi } from "@/lib/api";
 
-// Mock data for demonstration
-const mockComplaints: Complaint[] = [
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    category: "IT & Technology",
-    priority: "High",
-    status: "In Progress",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-  },
-  {
-    id: "CMP-002",
-    title: "Cafeteria food quality concerns",
-    description:
-      "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    category: "Student Services",
-    priority: "Critical",
-    status: "Resolved",
-    submittedBy: "John Doe",
-    assignedStaff: "Food Services Manager",
-    submittedDate: new Date("2024-01-10"),
-    lastUpdated: new Date("2024-01-20"),
-  },
-  {
-    id: "CMP-003",
-    title: "Broken air conditioning in lecture hall",
-    description:
-      "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    category: "Infrastructure & Facilities",
-    priority: "Medium",
-    status: "Pending",
-    submittedBy: "John Doe",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-22"),
-  },
-];
-
 export function UserDashboard() {
+  const { complaints, updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   const navigate = useNavigate();
-
-  useEffect(() => {
-    getMyComplaintsApi()
-      .then((data) => setComplaints(data))
-      .catch((err) => console.error("Failed to fetch complaints", err));
-  }, []);
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -88,23 +40,23 @@ export function UserDashboard() {
   };
 
   const handleUpdate = (complaintId: string, updates: Partial<Complaint>) => {
-    setComplaints((prev) =>
-      prev.map((c) => (c.id === complaintId ? { ...c, ...updates } : c))
-    );
+    updateComplaint(complaintId, updates);
   };
 
-  // Filter and sort complaints
-  const filteredComplaints = complaints.filter((complaint) => {
+  // Filter and sort complaints (only those submitted by the current user)
+  // TODO: Replace 'Current User' with real user context if available
+  const myComplaints = complaints.filter(
+    (c) => c.submittedBy === "Current User"
+  );
+  const filteredComplaints = myComplaints.filter((complaint) => {
     return priorityFilter === "all" || complaint.priority === priorityFilter;
   });
-
   const sortedComplaints = [...filteredComplaints].sort((a, b) => {
     const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
     const aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
     const bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
     return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
   });
-
   const recentComplaints = sortedComplaints.slice(0, 3);
 
   return (
@@ -117,7 +69,7 @@ export function UserDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <SummaryCards complaints={complaints} userRole="user" />
+      <SummaryCards complaints={myComplaints} userRole="user" />
 
       {/* Quick Actions */}
       <div className="grid gap-4 sm:grid-cols-2">

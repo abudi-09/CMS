@@ -1,4 +1,7 @@
 import { useState } from "react";
+// Update the path below if your ComplaintContext file is in a different location
+import { useComplaints } from "@/context/ComplaintContext";
+import { useCategories } from "@/context/CategoryContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,14 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, FileText, Info, ArrowRight, Upload } from "lucide-react";
 
-const categories = [
-  "Academic",
-  "Facility",
-  "Finance",
-  "ICT Support",
-  "Cafeteria",
-  "Others",
-];
+// Categories now come from context
 
 const priorities = [
   { value: "Critical", label: "Critical", color: "bg-red-100 text-red-800" },
@@ -32,6 +28,8 @@ const priorities = [
 ];
 
 export function SubmitComplaint() {
+  const { addComplaint } = useComplaints();
+  const { categories } = useCategories();
   const [formData, setFormData] = useState({
     title: "",
     category: "",
@@ -46,7 +44,6 @@ export function SubmitComplaint() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (
       !formData.title ||
       !formData.category ||
@@ -60,21 +57,23 @@ export function SubmitComplaint() {
       });
       return;
     }
-
     setIsSubmitting(true);
-
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Add complaint to global state
+    addComplaint({
+      ...formData,
+      submittedBy: "Current User", // Replace with real user if available
+      evidenceFileName: evidenceFile?.name,
+    });
+    // Generate a fake complaint ID for UI feedback
     const newComplaintId = `CMP-${Date.now().toString().slice(-6)}`;
     setComplaintId(newComplaintId);
     setSubmitted(true);
-
     toast({
       title: "Complaint Submitted Successfully",
       description: `Your complaint has been assigned ID: ${newComplaintId}`,
     });
-
     setIsSubmitting(false);
   };
 

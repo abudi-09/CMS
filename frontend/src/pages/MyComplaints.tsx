@@ -66,7 +66,7 @@ const mockComplaints: Complaint[] = [
 
 const statusColors = {
   Pending: "bg-warning/10 text-warning border-warning/20",
-  "In Progress": "bg-info/10 text-info border-info/20",
+  InProgress: "bg-info/10 text-info border-info/20",
   Resolved: "bg-success/10 text-success border-success/20",
   Closed: "bg-muted/10 text-muted-foreground border-muted/20",
 };
@@ -75,6 +75,7 @@ export function MyComplaints() {
   const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -100,7 +101,7 @@ export function MyComplaints() {
     );
   };
 
-  // Filter complaints based on search and status
+  // Filter complaints based on search, status, and priority
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -110,7 +111,10 @@ export function MyComplaints() {
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const matchesPriority =
+      priorityFilter === "all" || complaint.priority === priorityFilter;
+
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
   return (
@@ -134,7 +138,7 @@ export function MyComplaints() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -151,10 +155,35 @@ export function MyComplaints() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Resolved">Resolved</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
+                <SelectItem value="Pending">
+                  <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-2 align-middle"></span>
+                  Pending
+                </SelectItem>
+                <SelectItem value="In Progress">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-2 align-middle"></span>
+                  In Progress
+                </SelectItem>
+                <SelectItem value="Resolved">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 align-middle"></span>
+                  Resolved
+                </SelectItem>
+                <SelectItem value="Closed">
+                  <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2 align-middle"></span>
+                  Closed
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
               </SelectContent>
             </Select>
           </div>

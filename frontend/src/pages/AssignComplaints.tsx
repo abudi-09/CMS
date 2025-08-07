@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useComplaints } from "@/context/ComplaintContext";
 import {
   Card,
   CardContent,
@@ -178,7 +179,7 @@ const statusColors = {
 export function AssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const { complaints, updateComplaint } = useComplaints();
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -212,20 +213,12 @@ export function AssignComplaints() {
   // This function updates the complaint with the selected staff and deadline
   const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              assignedStaff: staff?.fullName || staff?.name || "Unknown", // Assign staff name
-              lastUpdated: new Date(), // Update last modified date
-              deadline: assigningDeadline
-                ? new Date(assigningDeadline) // Assign deadline from date picker
-                : undefined,
-            }
-          : c
-      )
-    );
+    updateComplaint(complaintId, {
+      assignedStaff: staff?.fullName || staff?.name || "Unknown",
+      lastUpdated: new Date(),
+      deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
+      status: "Assigned",
+    });
     toast({
       title: "Staff Assigned",
       description: `Complaint has been assigned to ${
@@ -236,53 +229,32 @@ export function AssignComplaints() {
           : ""
       }`,
     });
-    // Reset assignment UI state
     setReassigningRow(null);
     setAssigningStaffId("");
     setAssigningDeadline("");
   };
   // Filter complaints
+  // Only show complaints with status 'Unassigned' for assignment
   const filteredComplaints = complaints.filter((complaint) => {
+    if (complaint.status !== "Unassigned") return false;
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || complaint.status === statusFilter;
-    const matchesAssignment =
-      assignmentFilter === "all"
-        ? true
-        : assignmentFilter === "assigned"
-        ? !!complaint.assignedStaff
-        : !complaint.assignedStaff;
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
-    const now = new Date();
-    const isOverdue =
-      complaint.deadline &&
-      complaint.status !== "Resolved" &&
-      complaint.status !== "Closed" &&
-      now > complaint.deadline;
-    const matchesOverdue =
-      overdueFilter === "all"
-        ? true
-        : overdueFilter === "overdue"
-        ? isOverdue
-        : !isOverdue;
-    return (
-      matchesSearch &&
-      matchesStatus &&
-      matchesPriority &&
-      matchesAssignment &&
-      matchesOverdue
-    );
+    return matchesSearch && matchesPriority;
   });
 
   // Move these inside the AssignComplaints function, after complaints state is declared
   // Move these inside the AssignComplaints function, after complaints state is declared
-  const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
-  const assignedCount = complaints.filter((c) => c.assignedStaff).length;
+  const unassignedCount = complaints.filter(
+    (c) => c.status === "Unassigned"
+  ).length;
+  const assignedCount = complaints.filter(
+    (c) => c.status !== "Unassigned"
+  ).length;
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorityColors = {
     Low: "bg-gray-200 text-gray-700 border-gray-300",
@@ -432,7 +404,7 @@ export function AssignComplaints() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">Department</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assigned Staff</TableHead>

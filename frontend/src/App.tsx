@@ -36,6 +36,8 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
 import NotFound from "./pages/NotFound";
+import { ComplaintProvider } from "@/context/ComplaintContext";
+import { CategoryProvider } from "@/context/CategoryContext";
 
 const queryClient = new QueryClient();
 
@@ -116,9 +118,13 @@ const App = () => (
           <Toaster />
           <Sonner />
           <AuthProvider>
-            <BrowserRouter>
-              <AppContent />
-            </BrowserRouter>
+            <ComplaintProvider>
+              <CategoryProvider>
+                <BrowserRouter>
+                  <AppContent />
+                </BrowserRouter>
+              </CategoryProvider>
+            </ComplaintProvider>
           </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>
