@@ -59,7 +59,7 @@ export function Footer() {
               </a>
             </li>
             <li>
-              <a href="/privacy-policy" className="hover:underline">
+              <a href="/privacy" className="hover:underline">
                 Privacy Policy
               </a>
             </li>

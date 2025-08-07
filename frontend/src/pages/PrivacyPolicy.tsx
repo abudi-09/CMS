@@ -12,6 +12,7 @@ import {
   Phone,
   Bell,
 } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 export default function PrivacyPolicy() {
   return (
@@ -321,6 +322,8 @@ export default function PrivacyPolicy() {
           </Card>
         </div>
       </div>
+      {/* Add Footer at the bottom */}
+      <Footer />
     </div>
   );
 }

@@ -43,6 +43,54 @@ const statusColors = {
   Closed: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
 };
 
+const mockComplaints: Complaint[] = [
+  {
+    id: "C1001",
+    title: "Leaking faucet in restroom",
+    description: "The faucet in the main restroom is leaking.",
+    category: "Facilities",
+    priority: "High",
+    status: "Pending",
+    submittedBy: "John Doe",
+    assignedStaff: "Staff A",
+    submittedDate: new Date(Date.now() - 86400000 * 2),
+    lastUpdated: new Date(Date.now() - 86400000 * 1),
+    isEscalated: false,
+    evidenceFile: "",
+    feedback: null,
+  },
+  {
+    id: "C1002",
+    title: "WiFi not working",
+    description: "WiFi is down in the library area.",
+    category: "IT",
+    priority: "Medium",
+    status: "In Progress",
+    submittedBy: "Jane Smith",
+    assignedStaff: "Staff B",
+    submittedDate: new Date(Date.now() - 86400000 * 3),
+    lastUpdated: new Date(Date.now() - 86400000 * 2),
+    isEscalated: true,
+    evidenceFile: "",
+    feedback: null,
+  },
+  {
+    id: "C1003",
+    title: "Library AC not working",
+    description: "AC in library is broken since last week.",
+    category: "Facilities",
+    priority: "Critical",
+    status: "Resolved",
+    submittedBy: "Alice Brown",
+    assignedStaff: "Staff C",
+    submittedDate: new Date(Date.now() - 86400000 * 7),
+    lastUpdated: new Date(Date.now() - 86400000 * 1),
+    isEscalated: false,
+    evidenceFile: "",
+    feedback: { rating: 4, comment: "Resolved quickly, thanks!" },
+  },
+];
+
 export function ComplaintTable({
   complaints,
   onView,
@@ -54,54 +102,6 @@ export function ComplaintTable({
   actionLabel,
   priorityFilter = "all", // Set default value for priorityFilter
 }: ComplaintTableProps) {
-  // Mock data for user dashboard (for development/testing)
-  const mockComplaints: Complaint[] = [
-    {
-      id: "C1001",
-      title: "WiFi not working in hostel",
-      description: "The WiFi has been down for 2 days in Block A.",
-      category: "IT",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "John Doe",
-      assignedStaff: "Staff A",
-      submittedDate: new Date(Date.now() - 86400000 * 2),
-      lastUpdated: new Date(Date.now() - 86400000),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: null,
-    },
-    {
-      id: "C1002",
-      title: "Mess food quality issue",
-      description: "Food served in mess is not fresh.",
-      category: "Food",
-      priority: "Medium",
-      status: "In Progress",
-      submittedBy: "Jane Smith",
-      assignedStaff: "Staff B",
-      submittedDate: new Date(Date.now() - 86400000 * 3),
-      lastUpdated: new Date(Date.now() - 86400000 * 2),
-      isEscalated: true,
-      evidenceFile: "",
-      feedback: null,
-    },
-    {
-      id: "C1003",
-      title: "Library AC not working",
-      description: "AC in library is broken since last week.",
-      category: "Facilities",
-      priority: "Critical",
-      status: "Resolved",
-      submittedBy: "Alice Brown",
-      assignedStaff: "Staff C",
-      submittedDate: new Date(Date.now() - 86400000 * 7),
-      lastUpdated: new Date(Date.now() - 86400000 * 1),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 4, comment: "Resolved quickly, thanks!" },
-    },
-  ];
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -291,6 +291,7 @@ export function ComplaintTable({
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Category</TableHead>
+                    <TableHead>Priority</TableHead>
                     {userRole === "admin" && (
                       <TableHead>Submitted By</TableHead>
                     )}
@@ -316,6 +317,21 @@ export function ComplaintTable({
                         </Badge>
                       </TableCell>
                       <TableCell>{complaint.category}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                            complaint.priority === "Critical"
+                              ? "bg-red-100 text-red-800"
+                              : complaint.priority === "High"
+                              ? "bg-orange-100 text-orange-800"
+                              : complaint.priority === "Medium"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {complaint.priority}
+                        </Badge>
+                      </TableCell>
                       {userRole === "admin" && (
                         <TableCell>{complaint.submittedBy}</TableCell>
                       )}

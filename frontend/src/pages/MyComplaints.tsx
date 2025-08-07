@@ -30,6 +30,7 @@ const mockComplaints: Complaint[] = [
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
     category: "IT & Technology",
     status: "In Progress",
+    priority: "High",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-15"),
@@ -42,6 +43,7 @@ const mockComplaints: Complaint[] = [
       "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
     category: "Student Services",
     status: "Resolved",
+    priority: "Critical",
     submittedBy: "John Doe",
     assignedStaff: "Food Services Manager",
     submittedDate: new Date("2024-01-10"),
@@ -54,6 +56,7 @@ const mockComplaints: Complaint[] = [
       "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
     category: "Infrastructure & Facilities",
     status: "Pending",
+    priority: "Medium",
     submittedBy: "John Doe",
     assignedStaff: undefined,
     submittedDate: new Date("2024-01-22"),
@@ -184,6 +187,7 @@ export function MyComplaints() {
                     <tr className="border-b">
                       <th className="text-left p-3 font-medium">Title</th>
                       <th className="text-left p-3 font-medium">Department</th>
+                      <th className="text-left p-3 font-medium">Priority</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">
                         Assigned Staff
@@ -206,6 +210,21 @@ export function MyComplaints() {
                         </td>
                         <td className="p-3">
                           <span className="text-sm">{complaint.category}</span>
+                        </td>
+                        <td className="p-3">
+                          <Badge
+                            className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                              complaint.priority === "Critical"
+                                ? "bg-red-100 text-red-800"
+                                : complaint.priority === "High"
+                                ? "bg-orange-100 text-orange-800"
+                                : complaint.priority === "Medium"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {complaint.priority}
+                          </Badge>
                         </td>
                         <td className="p-3">
                           <Badge
@@ -273,16 +292,31 @@ export function MyComplaints() {
                             ID: {complaint.id}
                           </p>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={`ml-2 text-xs ${
-                            statusColors[
-                              complaint.status as keyof typeof statusColors
-                            ]
-                          }`}
-                        >
-                          {complaint.status}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge
+                            className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                              complaint.priority === "Critical"
+                                ? "bg-red-100 text-red-800"
+                                : complaint.priority === "High"
+                                ? "bg-orange-100 text-orange-800"
+                                : complaint.priority === "Medium"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {complaint.priority}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`ml-2 text-xs ${
+                              statusColors[
+                                complaint.status as keyof typeof statusColors
+                              ]
+                            }`}
+                          >
+                            {complaint.status}
+                          </Badge>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-sm">

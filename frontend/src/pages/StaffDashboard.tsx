@@ -43,10 +43,12 @@ const mockStaffComplaints: Complaint[] = [
       "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources for research and assignments. This is affecting productivity significantly.",
     category: "IT & Technology",
     status: "In Progress",
+    priority: "High",
     submittedBy: "John Doe",
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-15"),
     lastUpdated: new Date("2024-01-18"),
+    deadline: new Date("2024-01-25"),
   },
   {
     id: "CMP-004",
@@ -55,10 +57,12 @@ const mockStaffComplaints: Complaint[] = [
       "The projector in room C-305 has been malfunctioning for the past week. Teachers are unable to present slides and conduct effective lectures.",
     category: "IT & Technology",
     status: "Pending",
+    priority: "Critical",
     submittedBy: "Sarah Johnson",
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-20"),
     lastUpdated: new Date("2024-01-20"),
+    deadline: new Date("2024-01-28"),
   },
   {
     id: "CMP-006",
@@ -67,10 +71,12 @@ const mockStaffComplaints: Complaint[] = [
       "The computer lab on the 3rd floor has been experiencing intermittent internet connectivity issues. Students can't access online resources for their assignments.",
     category: "IT & Technology",
     status: "Resolved",
+    priority: "Medium",
     submittedBy: "Mike Wilson",
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-12"),
     lastUpdated: new Date("2024-01-19"),
+    deadline: new Date("2024-01-20"),
   },
 ];
 
@@ -221,7 +227,7 @@ export function StaffDashboard() {
 
   const statusColors = {
     Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    "In Progress": "bg-blue-100 text-blue-800 border-blue-200",
+    InProgress: "bg-blue-100 text-blue-800 border-blue-200",
     Resolved: "bg-green-100 text-green-800 border-green-200",
     Closed: "bg-gray-100 text-gray-800 border-gray-200",
   };
@@ -363,6 +369,7 @@ export function StaffDashboard() {
                   <TableHead>Submitted By</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date Assigned</TableHead>
+                  <TableHead>Deadline</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -431,8 +438,12 @@ export function StaffDashboard() {
                       <TableCell className="text-muted-foreground">
                         {complaint.submittedDate.toLocaleDateString()}
                       </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {complaint.deadline
+                          ? complaint.deadline.toLocaleDateString()
+                          : "-"}
+                      </TableCell>
                       <TableCell className="text-right flex gap-2 justify-end">
-                        {/* Removed Activity Log button. Activity log will be handled in View & Update modal. */}
                         <Button
                           variant="outline"
                           size="sm"

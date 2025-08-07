@@ -13,6 +13,7 @@ import {
   Phone,
   Mail,
 } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 export default function TermsOfService() {
   return (
@@ -331,6 +332,8 @@ export default function TermsOfService() {
           </CardContent>
         </Card>
       </div>
+      {/* Add Footer at the bottom */}
+      <Footer />
     </div>
   );
 }

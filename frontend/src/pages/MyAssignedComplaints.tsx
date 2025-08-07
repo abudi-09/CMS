@@ -48,6 +48,7 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-15"),
     lastUpdated: new Date("2024-01-18"),
+    deadline: new Date("2024-01-25"),
   },
   {
     id: "CMP-004",
@@ -61,6 +62,7 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-20"),
     lastUpdated: new Date("2024-01-20"),
+    deadline: new Date("2024-01-28"),
   },
   {
     id: "CMP-006",
@@ -74,6 +76,7 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-12"),
     lastUpdated: new Date("2024-01-19"),
+    deadline: new Date("2024-01-20"),
   },
   {
     id: "CMP-008",
@@ -87,6 +90,7 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "Food Services Manager",
     submittedDate: new Date("2024-01-22"),
     lastUpdated: new Date("2024-01-23"),
+    deadline: new Date("2024-01-30"),
   },
 ];
 
@@ -251,6 +255,7 @@ export function MyAssignedComplaints() {
                   <TableHead className="text-sm">Submitted By</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Date Assigned</TableHead>
+                  <TableHead className="text-sm">Deadline</TableHead>
                   <TableHead className="text-sm">Last Updated</TableHead>
                   <TableHead className="text-right text-sm">Action</TableHead>
                 </TableRow>
@@ -320,6 +325,11 @@ export function MyAssignedComplaints() {
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {complaint.submittedDate.toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {complaint.deadline
+                          ? complaint.deadline.toLocaleDateString()
+                          : "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {complaint.lastUpdated.toLocaleDateString()}
@@ -412,6 +422,14 @@ export function MyAssignedComplaints() {
                         </span>
                         <span className="font-medium ml-2">
                           {complaint.submittedDate.toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Deadline:</span>
+                        <span className="font-medium ml-2">
+                          {complaint.deadline
+                            ? complaint.deadline.toLocaleDateString()
+                            : "-"}
                         </span>
                       </div>
                     </div>
