@@ -196,6 +196,12 @@ export function Layout({ children }: LayoutProps) {
                 <h3 className="font-semibold text-foreground">Quick Links</h3>
                 <div className="space-y-2">
                   <Link
+                    to="/"
+                    className="block text-xs hover:text-primary transition-colors"
+                  >
+                    Home
+                  </Link>
+                  <Link
                     to="/about"
                     className="block text-xs hover:text-primary transition-colors"
                   >
@@ -207,18 +213,18 @@ export function Layout({ children }: LayoutProps) {
                   >
                     Help & Support
                   </Link>
-                  <a
-                    href="#"
+                  <Link
+                    to="/privacy"
                     className="block text-xs hover:text-primary transition-colors"
                   >
                     Privacy Policy
-                  </a>
-                  <a
-                    href="#"
+                  </Link>
+                  <Link
+                    to="/terms"
                     className="block text-xs hover:text-primary transition-colors"
                   >
                     Terms of Service
-                  </a>
+                  </Link>
                 </div>
               </div>
 

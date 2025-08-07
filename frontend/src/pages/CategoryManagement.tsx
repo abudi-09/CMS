@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,7 +101,7 @@ const mockCategories: Category[] = [
   },
 ];
 
-export function CategoryManagement() {
+function CategoryManagement() {
   const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -110,6 +111,9 @@ export function CategoryManagement() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeleteCategory, setPendingDeleteCategory] =
+    useState<Category | null>(null);
 
   const handleAddCategory = () => {
     if (!newCategoryName.trim()) {
@@ -213,7 +217,6 @@ export function CategoryManagement() {
 
   const handleDeleteCategory = (categoryId: string, categoryName: string) => {
     const category = categories.find((cat) => cat.id === categoryId);
-
     if (category && category.complaintsCount > 0) {
       toast({
         title: "Cannot Delete",
@@ -222,13 +225,27 @@ export function CategoryManagement() {
       });
       return;
     }
-
     setCategories((prev) => prev.filter((cat) => cat.id !== categoryId));
-
     toast({
       title: "Category Deleted",
       description: `${categoryName} has been deleted successfully`,
     });
+  };
+
+  const handleDeleteClick = (category: Category) => {
+    setPendingDeleteCategory(category);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (pendingDeleteCategory) {
+      handleDeleteCategory(
+        pendingDeleteCategory.id,
+        pendingDeleteCategory.name
+      );
+    }
+    setDeleteDialogOpen(false);
+    setPendingDeleteCategory(null);
   };
 
   const handleToggleStatus = (
@@ -536,9 +553,7 @@ export function CategoryManagement() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                          handleDeleteCategory(category.id, category.name)
-                        }
+                        onClick={() => handleDeleteClick(category)}
                         disabled={category.complaintsCount > 0}
                         className="flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 disabled:opacity-50"
                       >
@@ -605,6 +620,26 @@ export function CategoryManagement() {
           </DialogContent>
         </Dialog>
       )}
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete Category"
+        content={
+          pendingDeleteCategory
+            ? `Are you sure you want to delete the category "${pendingDeleteCategory.name}"? This action cannot be undone.`
+            : ""
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteDialogOpen(false);
+          setPendingDeleteCategory(null);
+        }}
+        variant="destructive"
+      />
     </div>
   );
 }
+
+export default CategoryManagement;

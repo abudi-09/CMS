@@ -35,9 +35,9 @@ export function Sidebar({ className }: SidebarProps) {
   const staffMenuItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: FileText, label: "My Assigned", href: "/my-assigned" },
+    { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
+    { icon: GraduationCap, label: "My Performance", href: "/my-performance" },
     { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
-    { icon: Calendar, label: "Calendar View", href: "/calendar-view" }, // Removed due to missing export
-
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 

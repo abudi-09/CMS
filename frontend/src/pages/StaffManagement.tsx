@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { useRef } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -455,31 +449,16 @@ export function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      {/* Confirmation Dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{confirmText}</DialogTitle>
-          </DialogHeader>
-          {confirmWarning && (
-            <div className="text-sm text-red-600 mb-2">{confirmWarning}</div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setConfirmOpen(false);
-                if (confirmAction) confirmAction();
-              }}
-            >
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Reusable Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={confirmText}
+        warning={confirmWarning}
+        onConfirm={() => {
+          if (confirmAction) confirmAction();
+        }}
+      />
       <div>
         <h1 className="text-3xl font-bold">Staff Management</h1>
         <p className="text-muted-foreground">

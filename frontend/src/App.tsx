@@ -27,8 +27,11 @@ import { StaffFeedback } from "@/pages/StaffFeedback";
 import { MyAssignedComplaints } from "@/pages/MyAssignedComplaints";
 import AdminAnalytics from "@/pages/AdminAnalytics";
 import UserManagement from "@/pages/UserManagement";
-import { CategoryManagement } from "@/pages/CategoryManagement";
+import CategoryManagement from "@/pages/CategoryManagement";
 import AllComplaints from "@/pages/AllComplaints";
+import MyPerformance from "@/pages/MyPerformance";
+import TermsOfService from "@/pages/TermsOfService";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -58,6 +61,8 @@ function AppContent() {
       <Route path="/" element={<HomePage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/help" element={<HelpPage />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
 
@@ -85,6 +90,8 @@ function AppContent() {
                   path="/staff-performance"
                   element={<StaffPerformance />}
                 />
+                <Route path="/my-performance" element={<MyPerformance />} />
+
                 <Route path="/calendar-view" element={<CalendarView />} />
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
