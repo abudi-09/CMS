@@ -624,11 +624,6 @@ function CategoryManagement() {
       <ConfirmDialog
         open={deleteDialogOpen}
         title="Delete Category"
-        content={
-          pendingDeleteCategory
-            ? `Are you sure you want to delete the category "${pendingDeleteCategory.name}"? This action cannot be undone.`
-            : ""
-        }
         confirmText="Delete"
         cancelText="Cancel"
         onConfirm={handleConfirmDelete}
@@ -636,8 +631,14 @@ function CategoryManagement() {
           setDeleteDialogOpen(false);
           setPendingDeleteCategory(null);
         }}
-        variant="destructive"
-      />
+        onOpenChange={function (open: boolean): void {
+          throw new Error("Function not implemented.");
+        }}
+      >
+        {pendingDeleteCategory
+          ? `Are you sure you want to delete the category "${pendingDeleteCategory.name}"? This action cannot be undone.`
+          : ""}
+      </ConfirmDialog>
     </div>
   );
 }
