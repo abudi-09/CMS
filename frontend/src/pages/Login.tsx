@@ -196,9 +196,9 @@ export function Login() {
                   Demo Credentials:
                 </p>
                 <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                  <div>Student: student@gondar.edu / password</div>
-                  <div>Staff: staff@gondar.edu / password</div>
-                  <div>Admin: admin@gondar.edu / password</div>
+                  <div>Student: student@gondar.eduu / password</div>
+                  <div>Staff: staff@gondar.eduu / password</div>
+                  <div>Admin: admin@gondar.eduu / password</div>
                 </div>
               </div>
             </CardContent>
