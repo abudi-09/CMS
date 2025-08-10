@@ -70,23 +70,30 @@ export function SubmitComplaint() {
       return;
     }
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    // Add complaint to global state
-    addComplaint({
-      ...formData,
-      submittedBy: "Current User", // Replace with real user if available
-      evidenceFileName: evidenceFile?.name,
-    });
-    // Generate a fake complaint ID for UI feedback
-    const newComplaintId = `CMP-${Date.now().toString().slice(-6)}`;
-    setComplaintId(newComplaintId);
-    setSubmitted(true);
-    toast({
-      title: "Complaint Submitted Successfully",
-      description: `Your complaint has been assigned ID: ${newComplaintId}. The admin team has been notified and will review your complaint shortly.`,
-    });
-    setIsSubmitting(false);
+    try {
+      const savedComplaint = await addComplaint({
+        ...formData,
+        submittedBy: "Current User", // Replace with real user if available
+        evidenceFileName: evidenceFile?.name,
+      });
+      setComplaintId(savedComplaint?.id || savedComplaint?._id || "");
+      setSubmitted(true);
+      toast({
+        title: "Complaint Submitted Successfully",
+        description: `Your complaint has been assigned ID: ${
+          savedComplaint?.id || savedComplaint?._id || "(ID unavailable)"
+        }. The admin team has been notified and will review your complaint shortly.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Submission Failed",
+        description:
+          "There was an error submitting your complaint. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmitAnother = () => {

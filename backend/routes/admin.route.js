@@ -1,13 +1,20 @@
 import express from "express";
+import { protectRoute, adminOnly } from "../middleware/protectRoute.js";
 import {
   getPendingStaff,
   approveStaff,
   rejectStaff,
+  deactivateStaff,
+  activateStaff,
+  getAllStaff,
 } from "../controllers/admin.controller.js";
-import { protectRoute, adminOnly } from "../middleware/protectRoute.js";
-import { getAllStaff } from "../controllers/admin.controller.js"; // Import the new controller function
 
 const router = express.Router();
+// Deactivate staff
+router.put("/deactivate/:id", protectRoute, adminOnly, deactivateStaff);
+
+// Activate staff
+router.put("/activate/:id", protectRoute, adminOnly, activateStaff);
 
 // Get all pending staff
 router.get("/pending-staff", protectRoute, adminOnly, getPendingStaff);

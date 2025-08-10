@@ -39,14 +39,22 @@ import crypto from "crypto";
 // Signup
 export const signup = async (req, res) => {
   try {
-    const { name, username, email, password, role, department } = req.body;
+    const { name, username, email, password, role, department, workingPlace } =
+      req.body;
 
     const allowedRoles = ["user", "staff"];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role selected" });
     }
-    if (!department || !department.trim()) {
-      return res.status(400).json({ error: "Department is required" });
+    if (role === "user" && (!department || !department.trim())) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for users" });
+    }
+    if (role === "staff" && (!workingPlace || !workingPlace.trim())) {
+      return res
+        .status(400)
+        .json({ error: "Working place is required for staff" });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -79,7 +87,8 @@ export const signup = async (req, res) => {
       email,
       password: hashedPassword,
       role,
-      department,
+      department: role === "user" ? department : undefined,
+      workingPlace: role === "staff" ? workingPlace : undefined,
       isVerified: false,
     });
 
@@ -132,13 +141,11 @@ export const login = async (req, res) => {
     // }
     // Block login if staff is not approved
     if (user.role === "staff" && !user.isApproved) {
-      return res
-        .status(403)
-        .json({
-          error: "pending-approval",
-          message:
-            "Please wait, your account has not been approved by the admin yet.",
-        });
+      return res.status(403).json({
+        error: "pending-approval",
+        message:
+          "Please wait, your account has not been approved by the admin yet.",
+      });
     }
 
     const isPasswordCorrect = await bcrypt.compare(
@@ -158,6 +165,7 @@ export const login = async (req, res) => {
       role: user.role,
       isApproved: user.isApproved,
       department: user.department,
+      workingPlace: user.workingPlace,
       status: user.status,
       registeredDate: user.registeredDate,
     });

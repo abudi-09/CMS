@@ -10,6 +10,8 @@ import {
   getAllStaffApi,
   getPendingStaffApi,
   getMeApi,
+  approveStaffApi,
+  rejectStaffApi,
 } from "@/lib/api";
 
 export type UserRole = "user" | "staff" | "admin";
@@ -28,13 +30,29 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<
+    | {
+        _id: string;
+        fullName?: string;
+        username?: string;
+        name?: string;
+        email: string;
+        role: UserRole;
+        department?: string;
+        isApproved?: boolean;
+      }
+    | { error: "pending-approval" }
+    | false
+  >;
   logout: () => void;
   isAuthenticated: boolean;
   isCheckingAuth: boolean;
   pendingStaff: User[];
-  approveStaff: (staffId: string) => void;
-  rejectStaff: (staffId: string) => void;
+  approveStaff: (staffId: string) => Promise<void>;
+  rejectStaff: (staffId: string) => Promise<void>;
   getAllStaff: () => User[];
 }
 
@@ -84,7 +102,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSessionAndFetchStaff();
   }, []);
 
-  const login = async (email: string, password: string): Promise<any> => {
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<
+    | {
+        _id: string;
+        fullName?: string;
+        username?: string;
+        name?: string;
+        email: string;
+        role: UserRole;
+        department?: string;
+        isApproved?: boolean;
+      }
+    | { error: "pending-approval" }
+    | false
+  > => {
     try {
       const data = await loginApi(email, password);
       setUser({
@@ -97,31 +131,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: data.isApproved ? "approved" : "pending",
       });
       return data; // Return the backend response for status checks
-    } catch (err: any) {
+    } catch (err: unknown) {
       // If backend returns a 403 for pending staff, surface the error
-      if (err.message && err.message.includes("pending admin approval")) {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "message" in err &&
+        typeof (err as { message?: string }).message === "string" &&
+        (err as { message: string }).message.includes("pending admin approval")
+      ) {
         return { error: "pending-approval" };
       }
       return false;
     }
   };
 
-  const approveStaff = (staffId: string) => {
-    setPendingStaff((prev) => prev.filter((s) => s.id !== staffId));
-    setAllStaff((prev) =>
-      prev.map((s) =>
-        s.id === staffId ? { ...s, status: "approved" as StaffStatus } : s
-      )
-    );
+  const approveStaff = async (staffId: string) => {
+    await approveStaffApi(staffId);
+    // Refetch staff data after approval
+    const [all, pending] = await Promise.all([
+      getAllStaffApi(),
+      getPendingStaffApi(),
+    ]);
+    setAllStaff(all);
+    setPendingStaff(pending);
   };
 
-  const rejectStaff = (staffId: string) => {
-    setPendingStaff((prev) => prev.filter((s) => s.id !== staffId));
-    setAllStaff((prev) =>
-      prev.map((s) =>
-        s.id === staffId ? { ...s, status: "rejected" as StaffStatus } : s
-      )
-    );
+  const rejectStaff = async (staffId: string) => {
+    await rejectStaffApi(staffId);
+    // Refetch staff data after rejection
+    const [all, pending] = await Promise.all([
+      getAllStaffApi(),
+      getPendingStaffApi(),
+    ]);
+    setAllStaff(all);
+    setPendingStaff(pending);
   };
 
   const getAllStaff = () => allStaff;
@@ -154,5 +198,5 @@ export function useAuth() {
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context;
+  return context
 }

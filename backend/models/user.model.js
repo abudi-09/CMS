@@ -32,11 +32,23 @@ const userSchema = new mongoose.Schema(
     },
     department: {
       type: String,
-      required: [true, "Please enter department"],
+      required: function () {
+        return this.role === "user";
+      },
+    },
+    workingPlace: {
+      type: String,
+      required: function () {
+        return this.role === "staff";
+      },
     },
     isVerified: {
       type: Boolean,
       default: false,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {

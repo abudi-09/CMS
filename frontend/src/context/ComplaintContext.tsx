@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { submitComplaintApi } from "../lib/api";
 
 export type ComplaintStatus =
   | "Unassigned"
@@ -49,20 +50,19 @@ export const useComplaints = () => {
 export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
 
-  const addComplaint = (
+  const addComplaint = async (
     complaint: Omit<
       Complaint,
       "id" | "status" | "submittedDate" | "lastUpdated"
     >
   ) => {
-    const newComplaint: Complaint = {
-      ...complaint,
-      id: `CMP-${Date.now().toString().slice(-6)}`,
-      status: "Pending",
-      submittedDate: new Date(),
-      lastUpdated: new Date(),
-    };
-    setComplaints((prev) => [newComplaint, ...prev]);
+    try {
+      const savedComplaint = await submitComplaintApi(complaint);
+      setComplaints((prev) => [savedComplaint, ...prev]);
+    } catch (error) {
+      // Optionally handle error (e.g., show toast)
+      console.error("Failed to submit complaint", error);
+    }
   };
 
   const updateComplaint = (id: string, updates: Partial<Complaint>) => {

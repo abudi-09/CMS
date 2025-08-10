@@ -54,8 +54,53 @@ function DashboardRouter() {
   }
 }
 
+function SplashScreen() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 to-blue-300 dark:from-gray-900 dark:to-gray-800">
+      <div className="flex flex-col items-center gap-4">
+        <img
+          src="/public/favicon.ico"
+          alt="Gondar University Logo"
+          className="w-16 h-16 mb-2"
+        />
+        <h1 className="text-3xl font-bold text-blue-900 dark:text-yellow-300">
+          Gondar University
+        </h1>
+        <p className="text-lg text-blue-800 dark:text-yellow-200">
+          Complaint Management System
+        </p>
+        <div className="mt-6 animate-spin-slow">
+          <svg
+            className="w-8 h-8 text-blue-700 dark:text-yellow-300"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8z"
+            ></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isCheckingAuth } = useAuth();
+
+  if (isCheckingAuth) {
+    return <SplashScreen />;
+  }
 
   return (
     <Routes>

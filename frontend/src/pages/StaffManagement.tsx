@@ -24,6 +24,7 @@ interface StaffMember {
   name?: string;
   email: string;
   department?: string;
+  workingPlace?: string;
   registeredDate?: string | Date;
   status: string;
 }
@@ -44,7 +45,8 @@ export function StaffManagement() {
     return (
       (s.fullName || s.name || "").toLowerCase().includes(term) ||
       (s.email || "").toLowerCase().includes(term) ||
-      (s.department || "").toLowerCase().includes(term)
+      (s.department || "").toLowerCase().includes(term) ||
+      (s.workingPlace || "").toLowerCase().includes(term)
     );
   });
   // Normalize status to string and lowercase for filtering
@@ -68,8 +70,8 @@ export function StaffManagement() {
 
   const handleApprove = (staffId: string, staffName: string) => {
     showConfirm(
-      () => {
-        approveStaff(staffId);
+      async () => {
+        await approveStaff(staffId);
         toast({
           title: "Staff Approved",
           description: `${staffName} has been approved and can now access the system.`,
@@ -82,8 +84,8 @@ export function StaffManagement() {
 
   const handleReject = (staffId: string, staffName: string) => {
     showConfirm(
-      () => {
-        rejectStaff(staffId);
+      async () => {
+        await rejectStaff(staffId);
         toast({
           title: "Staff Rejected",
           description: `${staffName}'s application has been rejected.`,
@@ -157,9 +159,7 @@ export function StaffManagement() {
             <TableRow>
               <TableHead className="text-sm">Name</TableHead>
               <TableHead className="text-sm">Email</TableHead>
-              <TableHead className="text-sm">
-                Working place / Position
-              </TableHead>
+              <TableHead className="text-sm">Working Place</TableHead>
               <TableHead className="text-sm">Registration Date</TableHead>
               <TableHead className="text-sm">Status</TableHead>
               {(showActions || approvedActions || rejectedActions) && (
@@ -194,7 +194,7 @@ export function StaffManagement() {
                   <TableCell className="text-sm">
                     <div className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-muted-foreground" />
-                      {member.department}
+                      {member.workingPlace || member.department || "-"}
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">
@@ -343,8 +343,12 @@ export function StaffManagement() {
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <Building className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-muted-foreground">Department:</span>
-                    <span className="font-medium">{member.department}</span>
+                    <span className="text-muted-foreground">
+                      Working Place:
+                    </span>
+                    <span className="font-medium">
+                      {member.workingPlace || member.department || "-"}
+                    </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Registered:</span>
