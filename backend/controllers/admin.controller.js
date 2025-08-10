@@ -1,4 +1,35 @@
 import User from "../models/user.model.js";
+// Deactivate staff member
+export const deactivateStaff = async (req, res) => {
+  try {
+    const staffId = req.params.id;
+    const staff = await User.findOne({ _id: staffId, role: "staff" });
+    if (!staff) {
+      return res.status(404).json({ error: "Staff not found" });
+    }
+    staff.isActive = false;
+    await staff.save();
+    res.status(200).json({ message: "Staff deactivated successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to deactivate staff" });
+  }
+};
+
+// Activate staff member
+export const activateStaff = async (req, res) => {
+  try {
+    const staffId = req.params.id;
+    const staff = await User.findOne({ _id: staffId, role: "staff" });
+    if (!staff) {
+      return res.status(404).json({ error: "Staff not found" });
+    }
+    staff.isActive = true;
+    await staff.save();
+    res.status(200).json({ message: "Staff activated successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to activate staff" });
+  }
+};
 
 // Get all pending staff registrations
 export const getPendingStaff = async (req, res) => {
@@ -8,8 +39,10 @@ export const getPendingStaff = async (req, res) => {
       isApproved: false,
       isRejected: { $ne: true },
     });
+    console.log("[DEBUG] Pending staff found:", pendingStaff);
     res.status(200).json(pendingStaff);
   } catch (error) {
+    console.error("[DEBUG] Error fetching pending staff:", error);
     res.status(500).json({ error: "Failed to fetch pending staff" });
   }
 };

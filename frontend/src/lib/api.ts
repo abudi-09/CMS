@@ -1,3 +1,26 @@
+// Approve staff (admin)
+export async function approveStaffApi(staffId: string) {
+  const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to approve staff");
+  return data;
+}
+
+// Reject staff (admin)
+export async function rejectStaffApi(staffId: string) {
+  const res = await fetch(`${API_BASE}/admin/reject/${staffId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reject staff");
+  return data;
+}
 // Get current user (session persistence)
 export async function getMeApi() {
   const res = await fetch(`${API_BASE}/auth/me`, {
@@ -85,4 +108,15 @@ export async function getMyComplaintsApi() {
   return data.complaints || data;
 }
 
-// Add more API functions as needed
+// Submit a new complaint
+export async function submitComplaintApi(complaint: any) {
+  const res = await fetch(`${API_BASE}/complaints/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(complaint),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to submit complaint");
+  return data.complaint || data;
+}
