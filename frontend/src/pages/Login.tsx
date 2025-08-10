@@ -15,16 +15,26 @@ import { Loader2, GraduationCap } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
+function validateEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailTouched(true);
+    setPasswordTouched(true);
+    if (!validateEmail(email) || password.length < 4) return;
     setIsLoading(true);
     setError("");
 
@@ -142,23 +152,52 @@ export function Login() {
                   <Input
                     id="email"
                     type="email"
+                    aria-label="Email address"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setEmailTouched(true)}
                     placeholder="your.email@gondar.edu"
                     required
+                    autoComplete="username"
                   />
+                  {emailTouched && !validateEmail(email) && (
+                    <span className="text-xs text-red-500">
+                      Enter a valid email address.
+                    </span>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      aria-label="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onBlur={() => setPasswordTouched(true)}
+                      placeholder="Enter your password"
+                      required
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"
+                      onClick={() => setShowPassword((v) => !v)}
+                      tabIndex={0}
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  {passwordTouched && password.length < 4 && (
+                    <span className="text-xs text-red-500">
+                      Password must be at least 4 characters.
+                    </span>
+                  )}
                 </div>
 
                 {error && (
@@ -170,7 +209,10 @@ export function Login() {
                 <Button
                   type="submit"
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90 border-none shadow-md dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/80 dark:focus:bg-primary/80"
-                  disabled={isLoading}
+                  disabled={
+                    isLoading || !validateEmail(email) || password.length < 4
+                  }
+                  aria-label="Sign in"
                 >
                   {isLoading && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
