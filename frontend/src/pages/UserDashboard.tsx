@@ -72,47 +72,48 @@ export function UserDashboard() {
       <SummaryCards complaints={myComplaints} userRole="user" />
 
       {/* Quick Actions */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <PlusCircle className="h-5 w-5" />
-              Submit Complaint
-            </CardTitle>
-            <CardDescription>
-              Report an issue or concern quickly
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              className="w-full hover:bg-primary/90 dark:hover:bg-hover-blue"
-              onClick={() => navigate("/submit-complaint")}
-            >
-              Submit New Complaint
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="h-5 w-5" />
-              View Complaints
-            </CardTitle>
-            <CardDescription>
-              Track status of all your complaints
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              variant="outline"
-              className="w-full hover:bg-muted dark:hover:bg-hover-blue/10"
-              onClick={() => navigate("/my-complaints")}
-            >
-              My Complaints
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="w-full overflow-x-auto pb-2">
+        <div className="flex gap-4 min-w-[340px] sm:grid sm:grid-cols-2 sm:gap-6">
+          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <PlusCircle className="h-5 w-5" />
+                Submit Complaint
+              </CardTitle>
+              <CardDescription>
+                Report an issue or concern quickly
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full hover:bg-primary/90 dark:hover:bg-hover-blue"
+                onClick={() => navigate("/submit-complaint")}
+              >
+                Submit New Complaint
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5" />
+                View Complaints
+              </CardTitle>
+              <CardDescription>
+                Track status of all your complaints
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="outline"
+                className="w-full hover:bg-muted dark:hover:bg-hover-blue/10"
+                onClick={() => navigate("/my-complaints")}
+              >
+                My Complaints
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Recent Complaints */}
@@ -126,19 +127,23 @@ export function UserDashboard() {
               variant="outline"
               size="sm"
               onClick={() => navigate("/my-complaints")}
+              aria-label="View all complaints"
             >
               View All
             </Button>
           </div>
         </div>
-
-        <ComplaintTable
-          complaints={recentComplaints}
-          onView={handleViewComplaint}
-          userRole="user"
-          title="My Recent Complaints"
-          actionLabel="View"
-        />
+        <div className="w-full overflow-x-auto">
+          <div className="min-w-[700px] block w-full max-w-full">
+            <ComplaintTable
+              complaints={recentComplaints}
+              onView={handleViewComplaint}
+              userRole="user"
+              title="My Recent Complaints"
+              actionLabel="View"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Modal */}

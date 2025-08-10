@@ -242,70 +242,69 @@ export function StaffDashboard() {
       </div>
 
       {/* Enhanced Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Assigned Complaints
-            </CardTitle>
-            <div className="bg-blue-50 p-2 rounded-lg">
-              <FileText className="h-4 w-4 text-blue-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.assigned}</div>
-            <p className="text-xs text-muted-foreground">
-              Total assigned to you
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending
-            </CardTitle>
-            <div className="bg-yellow-50 p-2 rounded-lg">
-              <Clock className="h-4 w-4 text-yellow-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-            <p className="text-xs text-muted-foreground">Awaiting action</p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              In Progress
-            </CardTitle>
-            <div className="bg-blue-50 p-2 rounded-lg">
-              <AlertCircle className="h-4 w-4 text-blue-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
-            <p className="text-xs text-muted-foreground">Currently working</p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Resolved
-            </CardTitle>
-            <div className="bg-green-50 p-2 rounded-lg">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.resolved}</div>
-            <p className="text-xs text-muted-foreground">
-              Successfully completed
-            </p>
-          </CardContent>
-        </Card>
+      <div className="w-full overflow-x-auto pb-2">
+        <div className="flex gap-4 min-w-[340px] sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
+          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Assigned Complaints
+              </CardTitle>
+              <div className="bg-blue-50 p-2 rounded-lg">
+                <FileText className="h-4 w-4 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.assigned}</div>
+              <p className="text-xs text-muted-foreground">
+                Total assigned to you
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Pending
+              </CardTitle>
+              <div className="bg-yellow-50 p-2 rounded-lg">
+                <Clock className="h-4 w-4 text-yellow-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.pending}</div>
+              <p className="text-xs text-muted-foreground">Awaiting action</p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                In Progress
+              </CardTitle>
+              <div className="bg-blue-50 p-2 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.inProgress}</div>
+              <p className="text-xs text-muted-foreground">Currently working</p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Resolved
+              </CardTitle>
+              <div className="bg-green-50 p-2 rounded-lg">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.resolved}</div>
+              <p className="text-xs text-muted-foreground">
+                Successfully completed
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* My Assigned Complaints Section */}
@@ -358,27 +357,30 @@ export function StaffDashboard() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
+        <CardContent className="p-2 sm:p-4">
+          <div className="rounded-md border w-full overflow-x-auto block">
+            <Table className="block w-full min-w-max max-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Submitted By</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date Assigned</TableHead>
-                  <TableHead>Deadline</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead scope="col">Title</TableHead>
+                  <TableHead scope="col">Category</TableHead>
+                  <TableHead scope="col">Priority</TableHead>
+                  <TableHead scope="col">Submitted By</TableHead>
+                  <TableHead scope="col">Status</TableHead>
+                  <TableHead scope="col">Date Assigned</TableHead>
+                  <TableHead scope="col">Deadline</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredComplaints.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-8 text-muted-foreground"
+                      aria-live="polite"
                     >
                       {searchTerm ||
                       statusFilter !== "All" ||
@@ -391,15 +393,26 @@ export function StaffDashboard() {
                   filteredComplaints.map((complaint) => (
                     <TableRow key={complaint.id} className="hover:bg-muted/50">
                       <TableCell className="max-w-xs">
-                        <div className="font-medium truncate">
+                        <div
+                          className="font-medium truncate"
+                          title={complaint.title}
+                        >
                           {complaint.title}
                         </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {complaint.description.substring(0, 60)}...
+                        <div
+                          className="text-sm text-muted-foreground truncate"
+                          title={complaint.description}
+                        >
+                          {complaint.description.substring(0, 60)}
+                          {complaint.description.length > 60 ? "..." : ""}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs"
+                          title={complaint.category}
+                        >
                           {complaint.category}
                         </Badge>
                       </TableCell>
@@ -415,14 +428,21 @@ export function StaffDashboard() {
                               : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
                           }`}
                           variant="outline"
+                          title={complaint.priority}
                         >
                           {complaint.priority}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
+                          <User
+                            className="h-4 w-4 text-muted-foreground"
+                            aria-label="Submitted By"
+                          />
+                          <span
+                            className="font-medium"
+                            title={complaint.submittedBy}
+                          >
                             {complaint.submittedBy}
                           </span>
                         </div>
@@ -431,6 +451,7 @@ export function StaffDashboard() {
                         <Badge
                           className={statusColors[complaint.status]}
                           variant="outline"
+                          title={complaint.status}
                         >
                           {complaint.status}
                         </Badge>
@@ -449,6 +470,8 @@ export function StaffDashboard() {
                           size="sm"
                           onClick={() => handleViewAndUpdate(complaint)}
                           className="hover:bg-primary/10"
+                          aria-label={`View and update complaint ${complaint.title}`}
+                          title="View and update complaint"
                         >
                           <Settings className="h-4 w-4 mr-1" />
                           View & Update
@@ -489,11 +512,18 @@ export function StaffDashboard() {
 
       {/* Activity Log Modal */}
       {showLogModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Activity Log Modal"
+        >
           <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative">
             <button
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary"
               onClick={() => setShowLogModal(false)}
+              aria-label="Close activity log modal"
+              title="Close"
             >
               ✖
             </button>

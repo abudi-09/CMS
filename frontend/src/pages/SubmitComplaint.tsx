@@ -36,6 +36,12 @@ export function SubmitComplaint() {
     priority: "",
     description: "",
   });
+  const [touched, setTouched] = useState({
+    title: false,
+    category: false,
+    priority: false,
+    description: false,
+  });
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -44,6 +50,12 @@ export function SubmitComplaint() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTouched({
+      title: true,
+      category: true,
+      priority: true,
+      description: true,
+    });
     if (
       !formData.title ||
       !formData.category ||
@@ -158,29 +170,44 @@ export function SubmitComplaint() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6"
+            autoComplete="off"
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="title">Complaint Title *</Label>
                 <Input
                   id="title"
+                  aria-label="Complaint Title"
                   value={formData.title}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, title: e.target.value }))
                   }
+                  onBlur={() =>
+                    setTouched((prev) => ({ ...prev, title: true }))
+                  }
                   placeholder="Brief summary of your complaint"
                   required
                   className="rounded-lg"
+                  autoComplete="off"
                 />
+                {touched.title && !formData.title && (
+                  <span className="text-xs text-red-600">
+                    Title is required.
+                  </span>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority *</Label>
                 <Select
                   value={formData.priority}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, priority: value }))
-                  }
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, priority: value }));
+                    setTouched((prev) => ({ ...prev, priority: true }));
+                  }}
                   required
                 >
                   <SelectTrigger className="rounded-lg">
@@ -199,6 +226,11 @@ export function SubmitComplaint() {
                     ))}
                   </SelectContent>
                 </Select>
+                {touched.priority && !formData.priority && (
+                  <span className="text-xs text-red-600">
+                    Priority is required.
+                  </span>
+                )}
               </div>
             </div>
 
@@ -206,9 +238,10 @@ export function SubmitComplaint() {
               <Label htmlFor="category">Category *</Label>
               <Select
                 value={formData.category}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, category: value }))
-                }
+                onValueChange={(value) => {
+                  setFormData((prev) => ({ ...prev, category: value }));
+                  setTouched((prev) => ({ ...prev, category: true }));
+                }}
                 required
               >
                 <SelectTrigger className="rounded-lg">
@@ -222,6 +255,11 @@ export function SubmitComplaint() {
                   ))}
                 </SelectContent>
               </Select>
+              {touched.category && !formData.category && (
+                <span className="text-xs text-red-600">
+                  Category is required.
+                </span>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -260,6 +298,7 @@ export function SubmitComplaint() {
               <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
+                aria-label="Complaint Description"
                 value={formData.description}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -267,21 +306,37 @@ export function SubmitComplaint() {
                     description: e.target.value,
                   }))
                 }
+                onBlur={() =>
+                  setTouched((prev) => ({ ...prev, description: true }))
+                }
                 placeholder="Provide detailed information about your complaint, including when it occurred, who was involved, and any steps you've already taken..."
                 className="min-h-32 rounded-lg"
                 maxLength={1000}
                 required
+                autoComplete="off"
               />
               <div className="text-xs text-muted-foreground text-right">
                 {formData.description.length}/1000 characters
               </div>
+              {touched.description && !formData.description && (
+                <span className="text-xs text-red-600">
+                  Description is required.
+                </span>
+              )}
             </div>
 
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting ||
+                !formData.title ||
+                !formData.category ||
+                !formData.priority ||
+                !formData.description
+              }
               size="lg"
+              aria-label="Submit Complaint"
             >
               {isSubmitting ? (
                 "Submitting Complaint..."
