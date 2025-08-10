@@ -1,3 +1,19 @@
+// Assign or reassign a complaint to staff (admin)
+export async function assignComplaintApi(
+  complaintId: string,
+  staffId: string,
+  deadline?: string
+) {
+  const res = await fetch(`${API_BASE}/complaints/assign/${complaintId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ staffId, deadline }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to assign complaint");
+  return data.complaint || data;
+}
 // Approve staff (admin)
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {
@@ -109,7 +125,16 @@ export async function getMyComplaintsApi() {
 }
 
 // Submit a new complaint
-export async function submitComplaintApi(complaint: any) {
+// Define the Complaint type according to your application's requirements
+export interface Complaint {
+  title: string;
+  description: string;
+  department: string;
+  // Add additional known fields here if needed, or remove the index signature for stricter typing
+  // [key: string]: unknown; // Uncomment and use 'unknown' if you must allow extra fields
+}
+
+export async function submitComplaintApi(complaint: Complaint) {
   const res = await fetch(`${API_BASE}/complaints/submit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -46,7 +46,7 @@ export function StaffManagement() {
       (s.fullName || s.name || "").toLowerCase().includes(term) ||
       (s.email || "").toLowerCase().includes(term) ||
       (s.department || "").toLowerCase().includes(term) ||
-      (s.workingPlace || "").toLowerCase().includes(term)
+      ((s as StaffMember).workingPlace || "").toLowerCase().includes(term)
     );
   });
   // Normalize status to string and lowercase for filtering

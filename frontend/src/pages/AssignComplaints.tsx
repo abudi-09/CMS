@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -33,6 +33,10 @@ import { Complaint as BaseComplaint } from "@/context/ComplaintContext";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useComplaints } from "@/context/ComplaintContext";
+import { assignComplaintApi } from "@/lib/api";
+import { useEffect } from "react";
+import { useState as useReactState } from "react";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 type Complaint = BaseComplaint & {
   evidence?: string;
@@ -187,10 +191,34 @@ export function AssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
   // Remove local mock/test complaints from main display; only show real/global complaints
-  const { complaints: globalComplaints, updateComplaint } = useComplaints();
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
-  // Only show global (user-submitted) complaints for assignment
-  const allComplaints = globalComplaints;
+  const { updateComplaint } = useComplaints();
+  const [complaints, setComplaints] = useReactState<Complaint[]>([]);
+  // Fetch all complaints from backend for admin
+  const fetchAllComplaints = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/complaints/all`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch complaints");
+      setComplaints(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load complaints from server.",
+        variant: "destructive",
+      });
+    }
+  }, [setComplaints]);
+  useEffect(() => {
+    fetchAllComplaints();
+    const interval = setInterval(fetchAllComplaints, 10000); // Poll every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchAllComplaints]);
+  // Only show real complaints (not mock)
+  const allComplaints = complaints;
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -222,46 +250,50 @@ export function AssignComplaints() {
 
   // Assign staff and deadline to a complaint
   // This function updates the complaint with the selected staff and deadline
-  const handleStaffAssignment = (complaintId: string, staffId: string) => {
+  const handleStaffAssignment = async (
+    complaintId: string,
+    staffId: string
+  ) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    // If the complaint is in local mock data, update local state; otherwise, update global
-    if (complaints.some((c) => c.id === complaintId)) {
-      setComplaints((prev) =>
-        prev.map((c) =>
-          c.id === complaintId
-            ? {
-                ...c,
-                assignedStaff: staff?.fullName || staff?.name || "Unknown",
-                lastUpdated: new Date(),
-                deadline: assigningDeadline
-                  ? new Date(assigningDeadline)
-                  : undefined,
-                status: "In Progress",
-              }
-            : c
-        )
+    try {
+      // Call backend API to assign complaint
+      const updatedComplaint = await assignComplaintApi(
+        complaintId,
+        staffId,
+        assigningDeadline || undefined
       );
-    } else {
+      // Update global state
       updateComplaint(complaintId, {
         assignedStaff: staff?.fullName || staff?.name || "Unknown",
         lastUpdated: new Date(),
         deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
-        status: "Assigned",
+        status: updatedComplaint.status || "Assigned",
       });
+      // Refresh complaints list after assignment
+      fetchAllComplaints();
+      toast({
+        title: "Staff Assigned",
+        description: `Complaint has been assigned to ${
+          staff?.fullName || staff?.name
+        }${
+          assigningDeadline
+            ? ` with deadline ${new Date(
+                assigningDeadline
+              ).toLocaleDateString()}`
+            : ""
+        }`,
+      });
+    } catch (error) {
+      toast({
+        title: "Assignment Failed",
+        description: "Could not assign staff. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setReassigningRow(null);
+      setAssigningStaffId("");
+      setAssigningDeadline("");
     }
-    toast({
-      title: "Staff Assigned",
-      description: `Complaint has been assigned to ${
-        staff?.fullName || staff?.name
-      }${
-        assigningDeadline
-          ? ` with deadline ${new Date(assigningDeadline).toLocaleDateString()}`
-          : ""
-      }`,
-    });
-    setReassigningRow(null);
-    setAssigningStaffId("");
-    setAssigningDeadline("");
   };
   // Filter complaints
   const filteredComplaints = allComplaints.filter((complaint) => {
@@ -454,7 +486,7 @@ export function AssignComplaints() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">Department</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assigned Staff</TableHead>

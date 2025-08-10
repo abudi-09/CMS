@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 // Update the path below if your ComplaintContext file is in a different location
 import { useComplaints } from "@/context/ComplaintContext";
-import { useCategories } from "@/context/CategoryContext";
+import { CategoryContext } from "@/context/CategoryContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,7 @@ const priorities = [
 
 export function SubmitComplaint() {
   const { addComplaint } = useComplaints();
-  const { categories } = useCategories();
+  const { categories } = useContext(CategoryContext);
   const [formData, setFormData] = useState({
     title: "",
     category: "",
@@ -71,17 +71,28 @@ export function SubmitComplaint() {
     }
     setIsSubmitting(true);
     try {
+      let evidenceFileString = "";
+      if (evidenceFile) {
+        // Convert file to base64 string (or use URL.createObjectURL if only for preview)
+        evidenceFileString = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(evidenceFile);
+        });
+      }
       const savedComplaint = await addComplaint({
         ...formData,
+        priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
         submittedBy: "Current User", // Replace with real user if available
-        evidenceFileName: evidenceFile?.name,
+        evidenceFile: evidenceFileString,
       });
-      setComplaintId(savedComplaint?.id || savedComplaint?._id || "");
+      setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);
       toast({
         title: "Complaint Submitted Successfully",
         description: `Your complaint has been assigned ID: ${
-          savedComplaint?.id || savedComplaint?._id || "(ID unavailable)"
+          savedComplaint?.id || "(ID unavailable)"
         }. The admin team has been notified and will review your complaint shortly.`,
       });
     } catch (error) {

@@ -1,20 +1,15 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useState, ReactNode } from "react";
 
 interface CategoryContextType {
   categories: string[];
   addCategory: (category: string) => void;
 }
 
-const CategoryContext = createContext<CategoryContextType | undefined>(
+export const CategoryContext = createContext<CategoryContextType | undefined>(
   undefined
 );
 
-export const useCategories = () => {
-  const ctx = useContext(CategoryContext);
-  if (!ctx)
-    throw new Error("useCategories must be used within CategoryProvider");
-  return ctx;
-};
+// useCategories hook moved to a separate file for Fast Refresh compatibility.
 
 export const CategoryProvider = ({ children }: { children: ReactNode }) => {
   const [categories, setCategories] = useState<string[]>([

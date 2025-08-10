@@ -1,40 +1,17 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { useState, ReactNode, useContext, createContext } from "react";
 import { submitComplaintApi } from "../lib/api";
+import { Complaint } from "../components/ComplaintCard";
 
-export type ComplaintStatus =
-  | "Unassigned"
-  | "Assigned"
-  | "In Progress"
-  | "Resolved"
-  | "Closed"
-  | "Overdue"
-  | "Pending";
-
-export interface Complaint {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  priority?: "Low" | "Medium" | "High" | "Critical";
-  status: ComplaintStatus;
-  submittedBy: string;
-  assignedStaff?: string;
-  submittedDate: Date;
-  lastUpdated: Date;
-  evidenceFileName?: string;
-  deadline?: Date;
-}
-
-interface ComplaintContextType {
+type ComplaintContextType = {
   complaints: Complaint[];
   addComplaint: (
     complaint: Omit<
       Complaint,
       "id" | "status" | "submittedDate" | "lastUpdated"
     >
-  ) => void;
+  ) => Promise<Complaint>;
   updateComplaint: (id: string, updates: Partial<Complaint>) => void;
-}
+};
 
 const ComplaintContext = createContext<ComplaintContextType | undefined>(
   undefined
@@ -57,14 +34,20 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
     >
   ) => {
     try {
-      const savedComplaint = await submitComplaintApi(complaint);
+      // Ensure the complaint has all required fields for the API
+      const savedComplaint = await submitComplaintApi({
+        ...complaint,
+        department: complaint.category, // Map category to department for backend
+        // Optionally add default values for omitted fields if needed
+      });
       setComplaints((prev) => [savedComplaint, ...prev]);
+      return savedComplaint;
     } catch (error) {
       // Optionally handle error (e.g., show toast)
       console.error("Failed to submit complaint", error);
+      throw error;
     }
   };
-
   const updateComplaint = (id: string, updates: Partial<Complaint>) => {
     setComplaints((prev) =>
       prev.map((c) =>
@@ -81,3 +64,4 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
     </ComplaintContext.Provider>
   );
 };
+export type { Complaint };
