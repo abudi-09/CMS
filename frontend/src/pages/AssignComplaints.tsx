@@ -186,10 +186,11 @@ const statusColors = {
 export function AssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  // Remove local mock/test complaints from main display; only show real/global complaints
   const { complaints: globalComplaints, updateComplaint } = useComplaints();
-  // Merge local mock/test complaints and global user complaints for display
-  const allComplaints = [...complaints, ...globalComplaints];
+  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  // Only show global (user-submitted) complaints for assignment
+  const allComplaints = globalComplaints;
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");

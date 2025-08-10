@@ -84,7 +84,7 @@ export function SubmitComplaint() {
     setSubmitted(true);
     toast({
       title: "Complaint Submitted Successfully",
-      description: `Your complaint has been assigned ID: ${newComplaintId}`,
+      description: `Your complaint has been assigned ID: ${newComplaintId}. The admin team has been notified and will review your complaint shortly.`,
     });
     setIsSubmitting(false);
   };
@@ -116,6 +116,9 @@ export function SubmitComplaint() {
               <p className="text-2xl font-mono font-bold text-primary">
                 {complaintId}
               </p>
+              <p className="text-xs text-green-700 mt-2">
+                This complaint is now visible to the admin team for review.
+              </p>
             </div>
 
             <Alert>
@@ -124,8 +127,8 @@ export function SubmitComplaint() {
                 <strong>What happens next:</strong>
                 <ul className="mt-2 space-y-1 text-sm">
                   <li>
-                    • Your complaint will be reviewed by our team within 24
-                    hours
+                    • Your complaint is now visible to the admin team and will
+                    be reviewed within 24 hours
                   </li>
                   <li>• A staff member will be assigned to handle your case</li>
                   <li>• You'll receive email updates as the status changes</li>

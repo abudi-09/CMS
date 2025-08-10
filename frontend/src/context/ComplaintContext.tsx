@@ -58,7 +58,7 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
     const newComplaint: Complaint = {
       ...complaint,
       id: `CMP-${Date.now().toString().slice(-6)}`,
-      status: "Unassigned",
+      status: "Pending",
       submittedDate: new Date(),
       lastUpdated: new Date(),
     };

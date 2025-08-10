@@ -31,95 +31,19 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
+import { useComplaints } from "@/context/ComplaintContext";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
-// Mock data for admin - showing all complaints
-const mockAllComplaints: Complaint[] = [
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    category: "IT & Technology",
-    status: "In Progress",
-    priority: "High",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-  },
-  {
-    id: "CMP-002",
-    title: "Cafeteria food quality concerns",
-    description:
-      "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    category: "Student Services",
-    status: "Resolved",
-    priority: "Critical",
-    submittedBy: "Jane Smith",
-    assignedStaff: "Food Services Manager",
-    submittedDate: new Date("2024-01-10"),
-    lastUpdated: new Date("2024-01-20"),
-    feedback: {
-      rating: 4,
-      comment: "Issue was resolved quickly and effectively.",
-    },
-  },
-  {
-    id: "CMP-003",
-    title: "Broken air conditioning in lecture hall",
-    description:
-      "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    category: "Infrastructure & Facilities",
-    status: "Pending",
-    priority: "Medium",
-    submittedBy: "Mike Johnson",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-22"),
-  },
-  {
-    id: "CMP-004",
-    title: "Classroom projector not working",
-    description:
-      "The projector in room C-305 has been malfunctioning for the past week. Teachers are unable to present slides.",
-    category: "IT & Technology",
-    status: "Pending",
-    priority: "High",
-    submittedBy: "Sarah Johnson",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-20"),
-    lastUpdated: new Date("2024-01-20"),
-  },
-  {
-    id: "CMP-005",
-    title: "Parking lot lighting issues",
-    description:
-      "Several lights in the main parking lot are not working, making it unsafe for students and staff during evening hours.",
-    category: "Infrastructure & Facilities",
-    status: "Closed",
-    priority: "Low",
-    submittedBy: "David Wilson",
-    assignedStaff: "Facilities Manager",
-    submittedDate: new Date("2024-01-08"),
-    lastUpdated: new Date("2024-01-18"),
-    feedback: {
-      rating: 5,
-      comment: "Excellent work! All lights were replaced quickly.",
-    },
-  },
-];
-
 export function AdminDashboard() {
+  const { complaints, updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [complaints, setComplaints] = useState<Complaint[]>(mockAllComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -144,17 +68,10 @@ export function AdminDashboard() {
     newStatus: string,
     notes: string
   ) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              status: newStatus as Complaint["status"],
-              lastUpdated: new Date(),
-            }
-          : c
-      )
-    );
+    updateComplaint(complaintId, {
+      status: newStatus as Complaint["status"],
+      lastUpdated: new Date(),
+    });
   };
 
   const handleAssignStaff = (complaint: Complaint) => {
@@ -168,17 +85,10 @@ export function AdminDashboard() {
     notes: string
   ) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              assignedStaff: staff?.fullName || staff?.name || "Unknown",
-              lastUpdated: new Date(),
-            }
-          : c
-      )
-    );
+    updateComplaint(complaintId, {
+      assignedStaff: staff?.fullName || staff?.name || "Unknown",
+      lastUpdated: new Date(),
+    });
     toast({
       title: "Staff Assigned",
       description: `Complaint has been assigned to ${
