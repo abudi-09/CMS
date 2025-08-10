@@ -31,80 +31,34 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
-import { Complaint } from "@/components/ComplaintCard";
-import { toast } from "@/hooks/use-toast";
 
-// Mock data for staff - showing only assigned complaints with new fields
-const mockStaffComplaints: Complaint[] = [
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources for research and assignments. This is affecting productivity significantly.",
-    category: "IT Department",
-    status: "In Progress",
-    priority: "High",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-    deadline: new Date("2024-01-25"),
-  },
-  {
-    id: "CMP-004",
-    title: "Classroom projector not working",
-    description:
-      "The projector in room C-305 has been malfunctioning for the past week. Teachers are unable to present slides and conduct effective lectures.",
-    category: "IT Department",
-    status: "Pending",
-    priority: "Critical",
-    submittedBy: "Sarah Johnson",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-20"),
-    lastUpdated: new Date("2024-01-20"),
-    deadline: new Date("2024-01-28"),
-  },
-  {
-    id: "CMP-006",
-    title: "Network connectivity issues in lab",
-    description:
-      "The computer lab on the 3rd floor has been experiencing intermittent internet connectivity issues. Students can't access online resources for their assignments.",
-    category: "IT Department",
-    status: "Resolved",
-    priority: "Medium",
-    submittedBy: "Mike Wilson",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-12"),
-    lastUpdated: new Date("2024-01-19"),
-    deadline: new Date("2024-01-20"),
-  },
-  {
-    id: "CMP-008",
-    title: "Cafeteria hygiene concerns",
-    description:
-      "Several students have reported hygiene issues in the main cafeteria including dirty tables and food serving areas.",
-    category: "Food Services",
-    status: "In Progress",
-    priority: "Low",
-    submittedBy: "Emma Davis",
-    assignedStaff: "Food Services Manager",
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-23"),
-    deadline: new Date("2024-01-30"),
-  },
-];
+import { useComplaints } from "@/context/ComplaintContext";
+import { useAuth } from "@/components/auth/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import React from "react";
+
+// Import the Complaint type from the context to ensure type compatibility
+import type { Complaint } from "@/context/ComplaintContext";
 
 export function MyAssignedComplaints() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [complaints, setComplaints] =
-    useState<Complaint[]>(mockStaffComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const { complaints, updateComplaint } = useComplaints();
+  const { user } = useAuth();
+
+  // Only show complaints assigned to the current staff user
+  const myAssignedComplaints = complaints.filter(
+    (c) =>
+      c.assignedStaff &&
+      user &&
+      (c.assignedStaff === user.fullName || c.assignedStaff === user.name)
+  );
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -112,12 +66,7 @@ export function MyAssignedComplaints() {
   };
 
   const handleUpdate = (complaintId: string, updates: Partial<Complaint>) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId ? { ...c, ...updates, lastUpdated: new Date() } : c
-      )
-    );
-
+    updateComplaint(complaintId, updates);
     toast({
       title: "Complaint Updated",
       description: `Complaint #${complaintId} has been updated successfully`,
@@ -126,31 +75,33 @@ export function MyAssignedComplaints() {
 
   const handleSortByPriority = () => {
     const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-
-    const sorted = [...complaints].sort((a, b) => {
+    const sorted = [...myAssignedComplaints].sort((a, b) => {
       const orderA =
         priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
       const orderB =
         priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-
       return sortOrder === "desc" ? orderB - orderA : orderA - orderB;
     });
-
-    setComplaints(sorted);
+    // This just sorts for display, not state, so we can use a local variable
     setSortOrder(sortOrder === "desc" ? "asc" : "desc");
+    setFiltered(sorted);
   };
 
   // Filter complaints based on search, status, and priority
-  const filteredComplaints = complaints.filter((complaint) => {
-    const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All" || complaint.status === statusFilter;
-    const matchesPriority =
-      priorityFilter === "All" || complaint.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
+  const [filtered, setFiltered] = useState(myAssignedComplaints);
+  React.useEffect(() => {
+    const filteredComplaints = myAssignedComplaints.filter((complaint) => {
+      const matchesSearch =
+        complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        statusFilter === "All" || complaint.status === statusFilter;
+      const matchesPriority =
+        priorityFilter === "All" || complaint.priority === priorityFilter;
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+    setFiltered(filteredComplaints);
+  }, [myAssignedComplaints, searchTerm, statusFilter, priorityFilter]);
 
   const statusColors = {
     Pending:
@@ -187,7 +138,7 @@ export function MyAssignedComplaints() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Assigned Complaints ({filteredComplaints.length})
+            Assigned Complaints ({filtered.length})
           </CardTitle>
 
           {/* Search and Filter Controls */}
@@ -261,7 +212,7 @@ export function MyAssignedComplaints() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredComplaints.length === 0 ? (
+                {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
@@ -275,7 +226,7 @@ export function MyAssignedComplaints() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredComplaints.map((complaint) => (
+                  filtered.map((complaint) => (
                     <TableRow
                       key={complaint.id}
                       className="hover:bg-muted/50 dark:hover:bg-accent/10"
@@ -356,7 +307,7 @@ export function MyAssignedComplaints() {
 
           {/* Mobile Cards */}
           <div className="lg:hidden space-y-4">
-            {filteredComplaints.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {searchTerm ||
                 statusFilter !== "All" ||
@@ -365,7 +316,7 @@ export function MyAssignedComplaints() {
                   : "No complaints assigned to you yet"}
               </div>
             ) : (
-              filteredComplaints.map((complaint) => (
+              filtered.map((complaint) => (
                 <Card key={complaint.id} className="p-4 shadow-md rounded-2xl">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
