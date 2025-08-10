@@ -5,10 +5,10 @@ import User from "../models/user.model.js";
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
   try {
-    const { title, department, description, priority } = req.body;
+    const { title, category, description, priority } = req.body;
     const complaint = new Complaint({
       title,
-      department,
+      category,
       description,
       priority: priority || "Medium",
       submittedBy: req.user._id,
@@ -22,7 +22,7 @@ export const createComplaint = async (req, res) => {
       action: "Complaint Submitted",
       complaint: complaint._id,
       timestamp: new Date(),
-      details: { title, department },
+      details: { title, category },
     });
     res.status(201).json({ message: "Complaint submitted", complaint });
   } catch (err) {

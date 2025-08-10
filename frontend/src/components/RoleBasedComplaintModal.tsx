@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getComplaintApi } from "@/lib/getComplaintApi";
 import {
   Dialog,
   DialogContent,
@@ -45,21 +46,70 @@ export function RoleBasedComplaintModal({
   onUpdate,
   children,
 }: RoleBasedComplaintModalProps) {
+  // Local state for live backend complaint
+  const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(
+    complaint
+  );
+  // Helper for type-safe user display
+  function getUserDisplay(user: unknown): string {
+    if (!user) return "Unknown";
+    if (typeof user === "string") return user;
+    if (typeof user === "object" && user !== null) {
+      // @ts-expect-error: user may be an object with name/email, but TS can't infer this from unknown
+      return user.name || user.email || "Unknown";
+    }
+    return "Unknown";
+  }
+  const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [staffUpdate, setStaffUpdate] = useState("");
   const [feedback, setFeedback] = useState({ rating: 0, comment: "" });
   const [isLoading, setIsLoading] = useState(false);
+  // Helper for type-safe staff display
+  function getStaffDisplay(staff: unknown): string {
+    if (!staff) return "Unassigned";
+    if (typeof staff === "string") return staff;
+    if (typeof staff === "object" && staff !== null) {
+      // @ts-expect-error: staff may be an object with name/email, but TS can't infer this from unknown
+      return staff.name || staff.email || "Assigned";
+    }
+    return "Assigned";
+  }
+
+  // Fetch latest complaint from backend when modal opens or complaint changes
+  useEffect(() => {
+    let ignore = false;
+    async function fetchComplaint() {
+      if (open && complaint?.id) {
+        setLoading(true);
+        try {
+          const data = await getComplaintApi(complaint.id);
+          if (!ignore) setLiveComplaint(data);
+        } catch (e) {
+          if (!ignore) setLiveComplaint(complaint); // fallback
+        } finally {
+          if (!ignore) setLoading(false);
+        }
+      } else {
+        setLiveComplaint(complaint);
+      }
+    }
+    fetchComplaint();
+    return () => {
+      ignore = true;
+    };
+  }, [open, complaint]);
 
   useEffect(() => {
-    if (complaint && complaint.feedback) {
-      setFeedback(complaint.feedback);
+    if (liveComplaint && liveComplaint.feedback) {
+      setFeedback(liveComplaint.feedback);
     } else {
       setFeedback({ rating: 0, comment: "" });
     }
     setStaffUpdate("");
-  }, [complaint]);
+  }, [liveComplaint]);
 
   const handleApprove = async () => {
     if (!complaint) return;
@@ -183,18 +233,16 @@ export function RoleBasedComplaintModal({
     }
   };
 
-  if (!complaint || !user) return null;
+  if (!liveComplaint || !user) return null;
 
   // Hardcode a value for resolutionNote for testing
-  complaint.resolutionNote =
-    complaint.resolutionNote ||
-    "This is a hardcoded staff update for testing purposes.";
+  // Remove hardcoded test value
 
   // Role-based View Detail button
   const showViewDetailButton =
-    (user.role === "admin" || user.role === "staff") && complaint;
+    (user.role === "admin" || user.role === "staff") && liveComplaint;
 
-  const isAssigned = !!complaint.assignedStaff;
+  const isAssigned = !!liveComplaint.assignedStaff;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,61 +253,73 @@ export function RoleBasedComplaintModal({
             Complaint Details
           </DialogTitle>
         </DialogHeader>
-
-        {/* Complaint Information Section (always shown) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Complaint Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h3 className="text-xl font-semibold mb-3">{complaint.title}</h3>
-              <div className="flex gap-2 mb-4">
-                <Badge
-                  variant="outline"
-                  className={getPriorityColor(complaint.priority || "")}
-                >
-                  <Flag className="h-3 w-3 mr-1" />
-                  {complaint.priority}
-                </Badge>
-                {isAssigned && (
-                  <Badge
-                    variant="outline"
-                    className={getStatusColor(complaint.status)}
-                  >
-                    {complaint.status}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Description</Label>
-              <div className="mt-1 p-3 bg-muted/50 rounded-lg text-sm">
-                {complaint.description}
-              </div>
-            </div>
-
-            {complaint.evidenceFile && (
-              <div>
-                <Label className="text-sm font-medium">Evidence</Label>
-                <Button variant="outline" size="sm" className="mt-1 w-full">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Evidence File
-                </Button>
-              </div>
-            )}
-            {/* Staff Update visible to all users if exists, but only if assigned */}
-            {isAssigned && complaint.resolutionNote && (
-              <div>
-                <Label className="text-sm font-medium">Staff Update</Label>
-                <div className="mt-1 p-3 bg-info/5 border border-info/20 rounded-lg text-sm">
-                  {complaint.resolutionNote}
+        {loading ? (
+          <div className="p-8 text-center text-lg">
+            Loading complaint details...
+          </div>
+        ) : (
+          <>
+            {/* Complaint Information Section (always shown) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Complaint Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold mb-3">
+                    {liveComplaint.title}
+                  </h3>
+                  <div className="flex gap-2 mb-4">
+                    <Badge
+                      variant="outline"
+                      className={getPriorityColor(liveComplaint.priority || "")}
+                    >
+                      <Flag className="h-3 w-3 mr-1" />
+                      {liveComplaint.priority}
+                    </Badge>
+                    {isAssigned && (
+                      <Badge
+                        variant="outline"
+                        className={getStatusColor(liveComplaint.status)}
+                      >
+                        {liveComplaint.status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
+                <div>
+                  <Label className="text-sm font-medium">Description</Label>
+                  <div className="mt-1 p-3 bg-muted/50 rounded-lg text-sm">
+                    {liveComplaint.description}
+                  </div>
+                </div>
+
+                {liveComplaint.evidenceFile && (
+                  <div>
+                    <Label className="text-sm font-medium">Evidence</Label>
+                    <Button variant="outline" size="sm" className="mt-1 w-full">
+                      <Download className="h-4 w-4" />
+                      Download Evidence File
+                    </Button>
+                  </div>
+                )}
+                {/* Staff Update visible to all users if exists, but only if assigned */}
+                {isAssigned && liveComplaint.resolutionNote && (
+                  <div>
+                    <Label className="text-sm font-medium">Staff Update</Label>
+                    <div className="mt-1 p-3 bg-info/5 border border-info/20 rounded-lg text-sm">
+                      {liveComplaint.resolutionNote}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Submission Information Section (always shown) */}
+            {/* ...existing code, replace all complaint. with liveComplaint. ... */}
+          </>
+        )}
 
         {/* Submission Information Section (always shown) */}
         <Card>
@@ -274,7 +334,9 @@ export function RoleBasedComplaintModal({
                 </Label>
                 <div className="flex items-center gap-2 mt-1">
                   <User className="h-4 w-4" />
-                  <span className="font-medium">{complaint.submittedBy}</span>
+                  <span className="font-medium">
+                    {getUserDisplay(liveComplaint.submittedBy)}
+                  </span>
                 </div>
               </div>
 
@@ -283,7 +345,7 @@ export function RoleBasedComplaintModal({
                   Category
                 </Label>
                 <Badge variant="secondary" className="mt-1">
-                  {complaint.category}
+                  {liveComplaint.category}
                 </Badge>
               </div>
 
@@ -294,10 +356,10 @@ export function RoleBasedComplaintModal({
                 <Badge
                   variant="outline"
                   className={`mt-1 ${getPriorityColor(
-                    complaint.priority || ""
+                    liveComplaint.priority || ""
                   )}`}
                 >
-                  {complaint.priority}
+                  {liveComplaint.priority}
                 </Badge>
               </div>
 
@@ -308,25 +370,27 @@ export function RoleBasedComplaintModal({
                 <div className="flex items-center gap-2 mt-1">
                   <Calendar className="h-4 w-4" />
                   <span className="text-sm">
-                    {complaint.submittedDate
-                      ? new Date(complaint.submittedDate).toLocaleDateString()
+                    {liveComplaint.submittedDate
+                      ? new Date(
+                          liveComplaint.submittedDate
+                        ).toLocaleDateString()
                       : ""}
                   </span>
                 </div>
               </div>
 
-              {complaint.deadline && (
+              {liveComplaint.deadline && (
                 <div>
                   <Label className="text-sm text-muted-foreground">
                     Deadline
                   </Label>
                   <div className="flex items-center gap-2 mt-1">
                     {(() => {
-                      const deadlineDate = new Date(complaint.deadline);
+                      const deadlineDate = new Date(liveComplaint.deadline);
                       const now = new Date();
                       const isOverdue =
                         now > deadlineDate &&
-                        !["Resolved", "Closed"].includes(complaint.status);
+                        !["Resolved", "Closed"].includes(liveComplaint.status);
                       return (
                         <span
                           className={`text-sm font-semibold ${
@@ -354,7 +418,7 @@ export function RoleBasedComplaintModal({
                   <div className="flex items-center gap-2 mt-1">
                     <UserCheck className="h-4 w-4" />
                     <span className="text-sm">
-                      {complaint.assignedStaff || "Unassigned"}
+                      {getStaffDisplay(liveComplaint.assignedStaff)}
                     </span>
                   </div>
                 </div>
@@ -368,8 +432,10 @@ export function RoleBasedComplaintModal({
                   <div className="flex items-center gap-2 mt-1">
                     <Clock className="h-4 w-4" />
                     <span className="text-sm">
-                      {complaint.lastUpdated
-                        ? new Date(complaint.lastUpdated).toLocaleDateString()
+                      {liveComplaint.lastUpdated
+                        ? new Date(
+                            liveComplaint.lastUpdated
+                          ).toLocaleDateString()
                         : ""}
                     </span>
                   </div>
@@ -403,7 +469,9 @@ export function RoleBasedComplaintModal({
                   role: "admin",
                   icon: <UserCheck className="h-4 w-4" />,
                   time: complaint.assignedDate || complaint.submittedDate,
-                  desc: `Assigned to ${complaint.assignedStaff}`,
+                  desc: `Assigned to ${getStaffDisplay(
+                    complaint.assignedStaff
+                  )}`,
                 },
                 isAssigned &&
                   complaint.status === "In Progress" && {

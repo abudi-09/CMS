@@ -44,140 +44,8 @@ type Complaint = BaseComplaint & {
   priority?: "Low" | "Medium" | "High" | "Critical";
 };
 
-// Mock complaints data
-// Mock complaints for easy understanding (clearly marked as mock/test)
-const mockComplaints: Complaint[] = [
-  {
-    id: "MOCK-001",
-    title: "[MOCK] Urgent: Water Leakage in Main Hall",
-    description:
-      "This is a mock complaint for testing assignment and deadline features.",
-    category: "Infrastructure & Facilities",
-    status: "Pending",
-    submittedBy: "Test User 1",
-    assignedStaff: "Test Staff A",
-    submittedDate: new Date("2024-08-01"),
-    lastUpdated: new Date("2024-08-02"),
-    evidence: "https://via.placeholder.com/80.png",
-    deadline: new Date("2024-08-10"),
-    priority: "Critical",
-  },
-  {
-    id: "MOCK-002",
-    title: "[MOCK] IT: Printer Not Working in Admin Office",
-    description:
-      "This is a mock complaint for testing staff assignment and overdue logic.",
-    category: "IT & Technology",
-    status: "In Progress",
-    submittedBy: "Test User 2",
-    assignedStaff: "Test Staff B",
-    submittedDate: new Date("2024-07-25"),
-    lastUpdated: new Date("2024-07-26"),
-    evidence: "https://via.placeholder.com/90.png",
-    deadline: new Date("2024-07-30"),
-    priority: "High",
-  },
-  {
-    id: "MOCK-003",
-    title: "[MOCK] Cafeteria: Food Quality Issue",
-    description:
-      "This is a mock complaint for testing filtering and UI display.",
-    category: "Cafeteria",
-    status: "Resolved",
-    submittedBy: "Test User 3",
-    assignedStaff: "Test Staff C",
-    submittedDate: new Date("2024-07-10"),
-    lastUpdated: new Date("2024-07-12"),
-    evidence: "https://via.placeholder.com/100.png",
-    deadline: new Date("2024-07-15"),
-    priority: "Medium",
-  },
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading.",
-    category: "IT & Technology",
-    priority: "Medium",
-    status: "In Progress",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-    evidence: "https://via.placeholder.com/150.jpg",
-  },
-  {
-    id: "CMP-002",
-    title: "Wi-Fi not working in dormitory",
-    description:
-      "The Wi-Fi in Dorm A has been down for three days, affecting all students.",
-    category: "IT & Technology",
-    priority: "Medium",
-    status: "Resolved",
-    submittedBy: "Alice Smith",
-    assignedStaff: "Network Team",
-    submittedDate: new Date("2024-01-10"),
-    lastUpdated: new Date("2024-01-12"),
-    evidence: "https://via.placeholder.com/120.jpg",
-  },
-  {
-    id: "CMP-003",
-    title: "Broken air conditioning in lecture hall",
-    description:
-      "The air conditioning in lecture hall B-204 has been broken for over a week.",
-    category: "Infrastructure & Facilities",
-    priority: "Medium",
-    status: "Pending",
-    submittedBy: "Mike Johnson",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-22"),
-    evidence:
-      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-  },
-  {
-    id: "CMP-004",
-    title: "Classroom projector not working",
-    description:
-      "The projector in room C-305 has been malfunctioning for the past week.",
-    category: "IT & Technology",
-    priority: "Medium",
-    status: "Pending",
-    submittedBy: "Sarah Johnson",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-20"),
-    lastUpdated: new Date("2024-01-20"),
-    evidence: "https://via.placeholder.com/100.png",
-  },
-  {
-    id: "CMP-005",
-    title: "Cafeteria food quality issue",
-    description:
-      "The food served in the cafeteria is often cold and lacks variety.",
-    category: "Cafeteria",
-    priority: "Medium",
-    status: "In Progress",
-    submittedBy: "Emily Brown",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-18"),
-    lastUpdated: new Date("2024-01-19"),
-    evidence: "https://via.placeholder.com/140.jpg",
-  },
-  {
-    id: "CMP-006",
-    title: "Elevator not working in dorm B",
-    description:
-      "The elevator in Dorm B has been out of service for two weeks.",
-    category: "Infrastructure & Facilities",
-    priority: "Medium",
-    status: "In Progress",
-    submittedBy: "David Lee",
-    assignedStaff: "Maintenance Team",
-    submittedDate: new Date("2024-01-05"),
-    lastUpdated: new Date("2024-01-10"),
-    evidence: "https://via.placeholder.com/160.jpg",
-  },
-];
+// ...existing code...
+// ...existing code...
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
@@ -212,11 +80,14 @@ export function AssignComplaints() {
       });
     }
   }, [setComplaints]);
+  // Polling control
+  const [pollingPaused, setPollingPaused] = useState(false);
   useEffect(() => {
+    if (pollingPaused) return;
     fetchAllComplaints();
     const interval = setInterval(fetchAllComplaints, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
-  }, [fetchAllComplaints]);
+  }, [fetchAllComplaints, pollingPaused]);
   // Only show real complaints (not mock)
   const allComplaints = complaints;
   // Remove priority sort
@@ -262,15 +133,34 @@ export function AssignComplaints() {
         staffId,
         assigningDeadline || undefined
       );
-      // Update global state
+      // Update local complaints state for instant UI feedback
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === complaintId
+            ? {
+                ...c,
+                assignedStaff: staff?.fullName || staff?.name || "Unknown",
+                lastUpdated: new Date(),
+                deadline: assigningDeadline
+                  ? new Date(assigningDeadline)
+                  : undefined,
+                status: updatedComplaint.status || "Assigned",
+              }
+            : c
+        )
+      );
+      // Update global state if needed
       updateComplaint(complaintId, {
         assignedStaff: staff?.fullName || staff?.name || "Unknown",
         lastUpdated: new Date(),
         deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
         status: updatedComplaint.status || "Assigned",
       });
-      // Refresh complaints list after assignment
-      fetchAllComplaints();
+      // Refresh complaints list after assignment (sync with backend)
+      // Pause polling for 3 seconds to allow backend to update
+      setPollingPaused(true);
+      await fetchAllComplaints();
+      setTimeout(() => setPollingPaused(false), 3000);
       toast({
         title: "Staff Assigned",
         description: `Complaint has been assigned to ${
@@ -548,7 +438,8 @@ export function AssignComplaints() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {complaint.assignedStaff ? (
+                      {complaint.assignedStaff &&
+                      complaint.assignedStaff !== "Not Yet Assigned" ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
                           Assigned to: {complaint.assignedStaff}
                         </span>
@@ -628,7 +519,10 @@ export function AssignComplaints() {
                             className="text-xs dark:hover:text-blue-400"
                             onClick={() => handleAssignClick(complaint)}
                           >
-                            {complaint.assignedStaff ? "Re-Assign" : "Assign"}
+                            {complaint.assignedStaff &&
+                            complaint.assignedStaff !== "Not Yet Assigned"
+                              ? "Re-Assign"
+                              : "Assign"}
                           </Button>
                         )}
                       </div>
@@ -774,7 +668,10 @@ export function AssignComplaints() {
                         className="w-full text-xs dark:hover:text-blue-400"
                         onClick={() => handleAssignClick(complaint)}
                       >
-                        {complaint.assignedStaff ? "Re-Assign" : "Assign"}
+                        {complaint.assignedStaff &&
+                        complaint.assignedStaff !== "Not Yet Assigned"
+                          ? "Re-Assign"
+                          : "Assign"}
                       </Button>
                     )}
                   </div>

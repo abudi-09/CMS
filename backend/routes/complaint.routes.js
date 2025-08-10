@@ -1,4 +1,5 @@
 import express from "express";
+
 import {
   createComplaint,
   getMyComplaints,
@@ -9,6 +10,7 @@ import {
   getAllFeedback,
   getAssignedComplaints,
 } from "../controllers/complaint.controller.js";
+import { getComplaint } from "../controllers/getComplaint.js";
 import {
   protectRoute,
   adminOnly,
@@ -30,5 +32,8 @@ router.get("/feedback/all", protectRoute, adminOnly, getAllFeedback);
 // STAFF
 router.put("/update-status/:id", protectRoute, updateComplaintStatus);
 router.get("/assigned", protectRoute, staffOnly, getAssignedComplaints);
+
+// GET single complaint by ID (must be last)
+router.get("/:id", protectRoute, getComplaint);
 
 export default router;

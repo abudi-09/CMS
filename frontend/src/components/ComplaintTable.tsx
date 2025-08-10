@@ -109,6 +109,17 @@ export function ComplaintTable({
     useState<string>(priorityFilter);
 
   // Use mock data for user dashboard, otherwise use provided complaints
+  // Type guard for staff object
+  type Staff = { name?: string; email?: string };
+  const getStaffDisplay = (staff: unknown) => {
+    if (!staff) return "Not Assigned Yet";
+    if (typeof staff === "string") return staff;
+    if (typeof staff === "object" && staff !== null) {
+      const s = staff as Staff;
+      return s.name || s.email || "Assigned";
+    }
+    return "Assigned";
+  };
   const complaintsData = userRole === "user" ? mockComplaints : complaints;
   const filteredComplaints = complaintsData.filter((complaint) => {
     const matchesSearch =
@@ -238,7 +249,7 @@ export function ComplaintTable({
                         {(userRole === "staff" || userRole === "admin") && (
                           <div className="text-xs text-muted-foreground">
                             <span className="font-medium">Assigned:</span>{" "}
-                            {complaint.assignedStaff || "Unassigned"}
+                            {getStaffDisplay(complaint.assignedStaff)}
                           </div>
                         )}
                       </div>
@@ -337,7 +348,7 @@ export function ComplaintTable({
                       )}
                       {(userRole === "staff" || userRole === "admin") && (
                         <TableCell>
-                          {complaint.assignedStaff || "Unassigned"}
+                          {getStaffDisplay(complaint.assignedStaff)}
                         </TableCell>
                       )}
                       <TableCell>
@@ -377,6 +388,12 @@ export function ComplaintTable({
                               onClick={() => onAssign(complaint)}
                             >
                               <Settings className="h-4 w-4" />
+                              <span className="ml-1">
+                                {getStaffDisplay(complaint.assignedStaff) !==
+                                "Not Assigned Yet"
+                                  ? "Reassign"
+                                  : "Assign"}
+                              </span>
                             </Button>
                           )}
                         </div>

@@ -17,6 +17,9 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, FileText, Info, ArrowRight, Upload } from "lucide-react";
+import { useState as useReactState } from "react";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
+import { getComplaintApi } from "@/lib/getComplaintApi";
 
 // Categories now come from context
 
@@ -46,6 +49,8 @@ export function SubmitComplaint() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [complaintId, setComplaintId] = useState("");
+  const [showDetailModal, setShowDetailModal] = useReactState(false);
+  const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,7 +169,30 @@ export function SubmitComplaint() {
               <Button onClick={() => (window.location.href = "/my-complaints")}>
                 View My Complaints
               </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  setShowDetailModal(true);
+                  if (complaintId) {
+                    try {
+                      const data = await getComplaintApi(complaintId);
+                      setDetailComplaint(data);
+                    } catch {
+                      setDetailComplaint(null);
+                    }
+                  }
+                }}
+              >
+                View Details
+              </Button>
             </div>
+            {showDetailModal && detailComplaint && (
+              <RoleBasedComplaintModal
+                complaint={detailComplaint}
+                open={showDetailModal}
+                onOpenChange={setShowDetailModal}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
