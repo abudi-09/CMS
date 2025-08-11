@@ -34,7 +34,8 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { toast } from "@/hooks/use-toast";
 
-// Mock data for staff - showing only assigned complaints
+// Mock data for staff - showing only assigned complaints (mix of overdue and not overdue)
+const today = new Date();
 const mockStaffComplaints: Complaint[] = [
   {
     id: "CMP-001",
@@ -48,7 +49,7 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-15"),
     lastUpdated: new Date("2024-01-18"),
-    deadline: new Date("2024-01-25"),
+    deadline: new Date(today.getTime() - 2 * 86400000), // overdue
   },
   {
     id: "CMP-004",
@@ -62,7 +63,7 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-20"),
     lastUpdated: new Date("2024-01-20"),
-    deadline: new Date("2024-01-28"),
+    deadline: new Date(today.getTime() + 2 * 86400000), // not overdue
   },
   {
     id: "CMP-006",
@@ -76,7 +77,33 @@ const mockStaffComplaints: Complaint[] = [
     assignedStaff: "IT Support Team",
     submittedDate: new Date("2024-01-12"),
     lastUpdated: new Date("2024-01-19"),
-    deadline: new Date("2024-01-20"),
+    deadline: new Date(today.getTime() - 1 * 86400000), // overdue
+  },
+  {
+    id: "CMP-007",
+    title: "Elevator malfunction",
+    description: "Elevator in Admin Block is stuck on 2nd floor.",
+    category: "Facilities",
+    status: "Pending",
+    priority: "High",
+    submittedBy: "Linda Green",
+    assignedStaff: "Facilities Team",
+    submittedDate: new Date("2024-01-22"),
+    lastUpdated: new Date("2024-01-23"),
+    deadline: new Date(today.getTime() + 5 * 86400000), // not overdue
+  },
+  {
+    id: "CMP-008",
+    title: "Printer out of service",
+    description: "Printer in Lab 5 is out of service.",
+    category: "IT & Technology",
+    status: "Pending",
+    priority: "Low",
+    submittedBy: "Tom Hardy",
+    assignedStaff: "IT Support Team",
+    submittedDate: new Date("2024-01-25"),
+    lastUpdated: new Date("2024-01-26"),
+    deadline: new Date(today.getTime() + 7 * 86400000), // not overdue
   },
 ];
 
@@ -213,7 +240,24 @@ export function StaffDashboard() {
     resolved: complaints.filter((c) => c.status === "Resolved").length,
   };
 
-  // Filter complaints based on search, status, and priority
+  // Overdue filter state
+  const [overdueFilter, setOverdueFilter] = useState("All");
+
+  // Helper: check if complaint is overdue
+  const isOverdue = (complaint: Complaint) => {
+    if (!complaint.deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(complaint.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return (
+      deadline < today &&
+      complaint.status !== "Closed" &&
+      complaint.status !== "Resolved"
+    );
+  };
+
+  // Filter complaints based on search, status, priority, and overdue
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -222,7 +266,13 @@ export function StaffDashboard() {
       statusFilter === "All" || complaint.status === statusFilter;
     const matchesPriority =
       priorityFilter === "All" || complaint.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+    const matchesOverdue =
+      overdueFilter === "All"
+        ? true
+        : overdueFilter === "Overdue"
+        ? isOverdue(complaint)
+        : !isOverdue(complaint);
+    return matchesSearch && matchesStatus && matchesPriority && matchesOverdue;
   });
 
   const statusColors = {
@@ -354,6 +404,18 @@ export function StaffDashboard() {
                   <SelectItem value="Low">Low</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Overdue Filter */}
+              <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+                <SelectTrigger className="min-w-0 sm:min-w-[140px]">
+                  <SelectValue placeholder="Overdue" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="Overdue">Overdue</SelectItem>
+                  <SelectItem value="NotOverdue">Not Overdue</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -369,6 +431,7 @@ export function StaffDashboard() {
                   <TableHead scope="col">Status</TableHead>
                   <TableHead scope="col">Date Assigned</TableHead>
                   <TableHead scope="col">Deadline</TableHead>
+                  <TableHead scope="col">Overdue</TableHead>
                   <TableHead scope="col" className="text-right">
                     Action
                   </TableHead>
@@ -463,6 +526,23 @@ export function StaffDashboard() {
                         {complaint.deadline
                           ? complaint.deadline.toLocaleDateString()
                           : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {isOverdue(complaint) ? (
+                          <Badge
+                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                            variant="outline"
+                          >
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge
+                            className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                            variant="outline"
+                          >
+                            Not Overdue
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right flex gap-2 justify-end">
                         <Button

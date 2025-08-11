@@ -1,3 +1,5 @@
+// For demo/testing: import mockComplaint
+import { mockComplaint } from "@/components/RoleBasedComplaintModal";
 import { useState, useCallback } from "react";
 import {
   Card,
@@ -58,51 +60,165 @@ const statusColors = {
 export function AssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
-  // Remove local mock/test complaints from main display; only show real/global complaints
-  const { updateComplaint } = useComplaints();
-  const [complaints, setComplaints] = useReactState<Complaint[]>([]);
-  // Fetch all complaints from backend for admin
-  const fetchAllComplaints = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/complaints/all`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-      let data: Complaint[] = await res.json();
-      if (!res.ok) {
-        const errorMsg =
-          typeof data === "object" &&
-          data !== null &&
-          "error" in data &&
-          typeof (data as { error?: string }).error === "string"
-            ? (data as { error: string }).error
-            : "Failed to fetch complaints";
-        throw new Error(errorMsg);
-      }
-      // Map backend 'assignedTo' to frontend 'assignedStaff' for UI consistency
-      data = data.map((c: Complaint) => ({
-        ...c,
-        assignedStaff: (c as { assignedTo?: string }).assignedTo,
-      }));
-      setComplaints(data);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load complaints from server.",
-        variant: "destructive",
-      });
-    }
-  }, [setComplaints]);
-  // Polling control
-  const [pollingPaused, setPollingPaused] = useState(false);
-  useEffect(() => {
-    if (pollingPaused) return;
-    fetchAllComplaints();
-    const interval = setInterval(fetchAllComplaints, 10000); // Poll every 10 seconds
-    return () => clearInterval(interval);
-  }, [fetchAllComplaints, pollingPaused]);
-  // Only show real complaints (not mock)
+  // Diverse mock complaints for demo/testing
+  // At least half of complaints are overdue (deadline in the past)
+  const now = new Date();
+  const demoComplaints: Complaint[] = [
+    {
+      id: "ADM-001",
+      title: "Library computers are slow and outdated",
+      description:
+        "The computers in the main library are extremely slow and need upgrading.",
+      category: "Academic",
+      priority: "High",
+      status: "In Progress",
+      submittedBy: "John Doe",
+      assignedStaff: "IT Support Team",
+      submittedDate: new Date("2024-01-15"),
+      lastUpdated: new Date("2024-01-18"),
+      evidence: "library_computer_issues.pdf",
+      resolutionNote: "Working on upgrading the hardware.",
+      deadline: new Date(now.getTime() - 3 * 86400000), // overdue
+    },
+    {
+      id: "ADM-002",
+      title: "Cafeteria food quality concerns",
+      description:
+        "The food quality in the main cafeteria has declined significantly.",
+      category: "Cafeteria",
+      priority: "Critical",
+      status: "Resolved",
+      submittedBy: "Jane Smith",
+      assignedStaff: "Food Services Manager",
+      submittedDate: new Date("2024-01-10"),
+      lastUpdated: new Date("2024-01-20"),
+      feedback: {
+        rating: 4,
+        comment: "Issue was resolved quickly and effectively.",
+      },
+      resolutionNote:
+        "Improved food handling procedures and conducted staff training.",
+      deadline: new Date(now.getTime() + 5 * 86400000), // not overdue
+    },
+    {
+      id: "ADM-003",
+      title: "Broken air conditioning in lecture hall",
+      description:
+        "The air conditioning in lecture hall B-204 has been broken for over a week.",
+      category: "Facility",
+      priority: "Medium",
+      status: "Pending",
+      submittedBy: "Mike Johnson",
+      assignedStaff: "Facilities Team",
+      submittedDate: new Date("2024-01-22"),
+      lastUpdated: new Date("2024-01-22"),
+      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
+    },
+    {
+      id: "ADM-004",
+      title: "Parking lot lighting issues",
+      description:
+        "Several lights in the main parking lot are not working, making it unsafe.",
+      category: "Facility",
+      priority: "Medium",
+      status: "Closed",
+      submittedBy: "David Wilson",
+      assignedStaff: "Facilities Manager",
+      submittedDate: new Date("2024-01-08"),
+      lastUpdated: new Date("2024-01-18"),
+      feedback: {
+        rating: 5,
+        comment: "Excellent work! All lights were replaced quickly.",
+      },
+      resolutionNote:
+        "All parking lot lights have been replaced with LED fixtures.",
+      deadline: new Date(now.getTime() + 7 * 86400000), // not overdue
+    },
+    {
+      id: "ADM-005",
+      title: "Exam schedule not published",
+      description:
+        "The final exam schedule for 2nd year students is overdue and not yet published.",
+      category: "Academic",
+      priority: "Critical",
+      status: "Pending",
+      submittedBy: "Paul Green",
+      assignedStaff: "Academic Office",
+      submittedDate: new Date("2024-01-01"),
+      lastUpdated: new Date("2024-01-20"),
+      resolutionNote: "Awaiting department response.",
+      deadline: new Date(now.getTime() - 5 * 86400000), // overdue
+    },
+    {
+      id: "ADM-006",
+      title: "Unassigned complaint test",
+      description: "This complaint has not yet been assigned to any staff.",
+      category: "General",
+      priority: "Medium",
+      status: "Unassigned",
+      submittedBy: "Test User",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-12"),
+      lastUpdated: new Date("2024-01-12"),
+      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
+    },
+    {
+      id: "ADM-007",
+      title: "Edge case: No description",
+      description: "",
+      category: "Other",
+      priority: "Low",
+      status: "Pending",
+      submittedBy: "Edge Case",
+      assignedStaff: "Support",
+      submittedDate: new Date("2024-01-18"),
+      lastUpdated: new Date("2024-01-18"),
+      deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
+    },
+    {
+      id: "ADM-008",
+      title: "Edge case: No assigned staff, no feedback",
+      description: "Complaint submitted but not yet processed.",
+      category: "General",
+      priority: "Medium",
+      status: "Pending",
+      submittedBy: "Edge Case 2",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-19"),
+      lastUpdated: new Date("2024-01-19"),
+      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
+    },
+    {
+      id: "ADM-009",
+      title: "Elevator malfunction",
+      description: "Elevator in Admin Block is stuck on 2nd floor.",
+      category: "Facilities",
+      priority: "High",
+      status: "Pending",
+      submittedBy: "Linda Green",
+      assignedStaff: "Facilities Team",
+      submittedDate: new Date("2024-01-22"),
+      lastUpdated: new Date("2024-01-23"),
+      deadline: new Date(now.getTime() - 4 * 86400000), // overdue
+    },
+    {
+      id: "ADM-010",
+      title: "Printer out of service",
+      description: "Printer in Lab 5 is out of service.",
+      category: "IT & Technology",
+      priority: "Low",
+      status: "Pending",
+      submittedBy: "Tom Hardy",
+      assignedStaff: "IT Support Team",
+      submittedDate: new Date("2024-01-25"),
+      lastUpdated: new Date("2024-01-26"),
+      deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
+    },
+  ];
+  const [complaints, setComplaints] =
+    useReactState<Complaint[]>(demoComplaints);
+  // Backend fetch and polling removed for demo/testing. Only mock data is shown.
+
   const allComplaints = complaints;
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -164,7 +280,7 @@ export function AssignComplaints() {
         )
       );
       // Update global state if needed
-      updateComplaint(complaintId, {
+      updatedComplaint(complaintId, {
         assignedStaff: staff?.fullName || staff?.name || "Unknown",
         lastUpdated: new Date(),
         deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
@@ -173,7 +289,6 @@ export function AssignComplaints() {
       // Refresh complaints list after assignment (sync with backend)
       // Pause polling for 3 seconds to allow backend to update
       setPollingPaused(true);
-      await fetchAllComplaints();
       setTimeout(() => setPollingPaused(false), 3000);
       toast({
         title: "Staff Assigned",
@@ -200,13 +315,30 @@ export function AssignComplaints() {
     }
   };
   // Filter complaints
+  // Helper: check if complaint is overdue
+  const isOverdue = (complaint: Complaint) => {
+    if (!complaint.deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(complaint.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return (
+      deadline < today &&
+      complaint.status !== "Closed" &&
+      complaint.status !== "Resolved"
+    );
+  };
+
   const filteredComplaints = allComplaints.filter((complaint) => {
+    // Exclude resolved complaints
+    if (complaint.status === "Resolved") return false;
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
+    // Remove 'Unassigned' from status filter logic
     const matchesStatus =
-      statusFilter === "all" || complaint.status === statusFilter;
+      statusFilter === "all" || (complaint.status === statusFilter && complaint.status !== "Unassigned");
     const matchesAssignment =
       assignmentFilter === "all"
         ? true
@@ -216,18 +348,12 @@ export function AssignComplaints() {
     const matchesPriority =
       priorityFilter === "all" ||
       (complaint.priority || "Medium") === priorityFilter;
-    const now = new Date();
-    const isOverdue =
-      complaint.deadline &&
-      complaint.status !== "Resolved" &&
-      complaint.status !== "Closed" &&
-      now > complaint.deadline;
     const matchesOverdue =
       overdueFilter === "all"
         ? true
         : overdueFilter === "overdue"
-        ? isOverdue
-        : !isOverdue;
+        ? isOverdue(complaint)
+        : !isOverdue(complaint);
     return (
       matchesSearch &&
       matchesStatus &&
@@ -326,7 +452,6 @@ export function AssignComplaints() {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Resolved">Resolved</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
               </SelectContent>
             </Select>
@@ -394,6 +519,7 @@ export function AssignComplaints() {
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assigned Staff</TableHead>
+                  <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -441,15 +567,17 @@ export function AssignComplaints() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        className={`text-xs ${
-                          statusColors[
-                            complaint.status as keyof typeof statusColors
-                          ]
-                        }`}
-                      >
-                        {complaint.status}
-                      </Badge>
+                      {complaint.status !== "Unassigned" && (
+                        <Badge
+                          className={`text-xs ${
+                            statusColors[
+                              complaint.status as keyof typeof statusColors
+                            ]
+                          }`}
+                        >
+                          {complaint.status}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">
                       {complaint.assignedStaff &&
@@ -461,6 +589,23 @@ export function AssignComplaints() {
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
                           Not Yet Assigned
                         </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isOverdue(complaint) ? (
+                        <Badge
+                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                          variant="outline"
+                        >
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge
+                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                          variant="outline"
+                        >
+                          Not Overdue
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -579,15 +724,17 @@ export function AssignComplaints() {
                         </div>
                       )}
                     </div>
-                    <Badge
-                      className={`ml-2 text-xs ${
-                        statusColors[
-                          complaint.status as keyof typeof statusColors
-                        ]
-                      }`}
-                    >
-                      {complaint.status}
-                    </Badge>
+                    {complaint.status !== "Unassigned" && (
+                      <Badge
+                        className={`ml-2 text-xs ${
+                          statusColors[
+                            complaint.status as keyof typeof statusColors
+                          ]
+                        }`}
+                      >
+                        {complaint.status}
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="space-y-2 text-sm">
@@ -616,6 +763,24 @@ export function AssignComplaints() {
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
                           Not Yet Assigned
                         </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Overdue:</span>
+                      {isOverdue(complaint) ? (
+                        <Badge
+                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs ml-2"
+                          variant="outline"
+                        >
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge
+                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs ml-2"
+                          variant="outline"
+                        >
+                          Not Overdue
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -710,4 +875,7 @@ export function AssignComplaints() {
       {/* No action buttons below modal; all assignment actions are now side by side with View Detail in the table */}
     </div>
   );
+}
+function setPollingPaused(arg0: boolean) {
+  throw new Error("Function not implemented.");
 }

@@ -1,3 +1,5 @@
+// For demo/testing: import mockComplaint
+import { mockComplaint as baseMockComplaint } from "@/components/RoleBasedComplaintModal";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,100 @@ import React from "react";
 import type { Complaint } from "@/context/ComplaintContext";
 
 export function MyAssignedComplaints() {
+  // MOCK DATA ENABLED BY DEFAULT
+  const { user } = useAuth();
+  // Generate multiple mock complaints for demo
+  // Demo data: mix of overdue and not overdue (expanded)
+  const priorities: Complaint["priority"][] = [
+    "High",
+    "Critical",
+    "Medium",
+    "High",
+    "Low",
+    "Medium",
+    "Critical",
+    "Low",
+    "High",
+    "Medium",
+  ];
+  // Set deadlines: some in the past (overdue), some in the future (not overdue)
+  const deadlines = [
+    new Date(Date.now() - 2 * 86400000), // overdue
+    new Date(Date.now() + 2 * 86400000), // not overdue
+    new Date(Date.now() - 1 * 86400000), // overdue
+    new Date(Date.now() + 5 * 86400000), // not overdue
+    new Date(Date.now() - 3 * 86400000), // overdue
+    new Date(Date.now() + 7 * 86400000), // not overdue
+    new Date(Date.now() + 10 * 86400000), // not overdue
+    new Date(Date.now() + 1 * 86400000), // not overdue
+    new Date(Date.now() + 3 * 86400000), // not overdue
+    new Date(Date.now() + 15 * 86400000), // not overdue
+  ];
+  const titles = [
+    "WiFi not working in hostel",
+    "Broken AC in Lecture Hall",
+    "Projector not working",
+    "Cafeteria food quality",
+    "Library computers slow",
+    "Leaking roof in dorm",
+    "Elevator malfunction",
+    "Printer out of service",
+    "Noisy construction",
+    "Lights flickering in corridor",
+  ];
+  const descriptions = [
+    "The WiFi in hostel block B has been down for 3 days.",
+    "The air conditioning in Hall A-101 is broken.",
+    "Projector in Room 204 is not turning on.",
+    "Food quality in cafeteria has declined.",
+    "Library computers are extremely slow.",
+    "There is a leak in the roof of Dorm 3.",
+    "Elevator in Admin Block is stuck on 2nd floor.",
+    "Printer in Lab 5 is out of service.",
+    "Construction noise near library is disruptive.",
+    "Corridor lights are flickering intermittently.",
+  ];
+  const statuses: Complaint["status"][] = [
+    "Pending",
+    "In Progress",
+    "Resolved",
+    "Pending",
+    "Closed",
+    "Pending",
+    "Pending",
+    "Pending",
+    "In Progress",
+    "Pending",
+  ];
+  const submitters = [
+    "John Doe",
+    "Alice Smith",
+    "Bob Johnson",
+    "Mary Lee",
+    "Chris Evans",
+    "Sara Kim",
+    "David Park",
+    "Linda Green",
+    "Tom Hardy",
+    "Priya Patel",
+  ];
+  const demoComplaints = Array.from({ length: 10 }).map((_, i) => ({
+    ...baseMockComplaint,
+    id: `mock${i + 1}`,
+    title: titles[i],
+    description: descriptions[i],
+    priority: priorities[i],
+    status: statuses[i],
+    assignedStaff: user
+      ? user.fullName || user.name
+      : baseMockComplaint.assignedStaff,
+    submittedBy: submitters[i],
+    submittedDate: new Date(Date.now() - (i + 1) * 86400000),
+    assignedDate: new Date(Date.now() - (i + 1) * 86400000),
+    lastUpdated: new Date(Date.now() - i * 43200000),
+    deadline: deadlines[i],
+  }));
+  const [complaints] = useState<Complaint[]>(demoComplaints);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -48,9 +144,9 @@ export function MyAssignedComplaints() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
+  const [overdueFilter, setOverdueFilter] = useState("All"); // New filter
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const { complaints, updateComplaint } = useComplaints();
-  const { user } = useAuth();
+  const { updateComplaint } = useComplaints();
 
   // Only show complaints assigned to the current staff user
   const myAssignedComplaints = complaints.filter(
@@ -87,7 +183,7 @@ export function MyAssignedComplaints() {
     setFiltered(sorted);
   };
 
-  // Filter complaints based on search, status, and priority
+  // Filter complaints based on search, status, priority, and overdue
   const [filtered, setFiltered] = useState(myAssignedComplaints);
   React.useEffect(() => {
     const filteredComplaints = myAssignedComplaints.filter((complaint) => {
@@ -98,10 +194,24 @@ export function MyAssignedComplaints() {
         statusFilter === "All" || complaint.status === statusFilter;
       const matchesPriority =
         priorityFilter === "All" || complaint.priority === priorityFilter;
-      return matchesSearch && matchesStatus && matchesPriority;
+      const matchesOverdue =
+        overdueFilter === "All"
+          ? true
+          : overdueFilter === "Overdue"
+          ? isOverdue(complaint)
+          : !isOverdue(complaint);
+      return (
+        matchesSearch && matchesStatus && matchesPriority && matchesOverdue
+      );
     });
     setFiltered(filteredComplaints);
-  }, [myAssignedComplaints, searchTerm, statusFilter, priorityFilter]);
+  }, [
+    myAssignedComplaints,
+    searchTerm,
+    statusFilter,
+    priorityFilter,
+    overdueFilter,
+  ]);
 
   const statusColors = {
     Pending:
@@ -120,6 +230,21 @@ export function MyAssignedComplaints() {
     Medium:
       "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
     Low: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
+  };
+
+  // Helper: check if complaint is overdue
+  const isOverdue = (complaint: Complaint) => {
+    if (!complaint.deadline) return false;
+    const today = new Date();
+    // Remove time for accurate comparison
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(complaint.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return (
+      deadline < today &&
+      complaint.status !== "Closed" &&
+      complaint.status !== "Resolved"
+    );
   };
 
   return (
@@ -182,6 +307,18 @@ export function MyAssignedComplaints() {
                 </SelectContent>
               </Select>
 
+              {/* Overdue Filter */}
+              <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+                <SelectTrigger className="min-w-0 sm:min-w-[140px] rounded-lg">
+                  <SelectValue placeholder="Overdue" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="Overdue">Overdue</SelectItem>
+                  <SelectItem value="NotOverdue">Not Overdue</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Button
                 variant="outline"
                 onClick={handleSortByPriority}
@@ -196,15 +333,23 @@ export function MyAssignedComplaints() {
 
         <CardContent>
           {/* Desktop Table */}
-          <div className="hidden lg:block rounded-md border overflow-x-auto">
-            <Table>
+          <div className="hidden lg:block rounded-md border overflow-x-auto bg-transparent">
+            <Table className="bg-transparent">
+              <style>{`
+                .my-assigned-table tr,
+                .my-assigned-table th,
+                .my-assigned-table td {
+                  background: transparent !important;
+                }
+              `}</style>
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">Department</TableHead>
+                  <TableHead className="text-sm">category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Submitted By</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">Date Assigned</TableHead>
                   <TableHead className="text-sm">Deadline</TableHead>
                   <TableHead className="text-sm">Last Updated</TableHead>
@@ -215,7 +360,7 @@ export function MyAssignedComplaints() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center py-8 text-muted-foreground"
                     >
                       {searchTerm ||
@@ -273,6 +418,23 @@ export function MyAssignedComplaints() {
                         >
                           {complaint.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {isOverdue(complaint) ? (
+                          <Badge
+                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                            variant="outline"
+                          >
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge
+                            className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                            variant="outline"
+                          >
+                            Not Overdue
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {complaint.submittedDate.toLocaleDateString()}
@@ -347,6 +509,14 @@ export function MyAssignedComplaints() {
                         >
                           {complaint.status}
                         </Badge>
+                        {isOverdue(complaint) && (
+                          <Badge
+                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                            variant="outline"
+                          >
+                            Overdue
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
@@ -382,6 +552,24 @@ export function MyAssignedComplaints() {
                             ? complaint.deadline.toLocaleDateString()
                             : "-"}
                         </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Overdue:</span>
+                        {isOverdue(complaint) ? (
+                          <Badge
+                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs ml-2"
+                            variant="outline"
+                          >
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge
+                            className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs ml-2"
+                            variant="outline"
+                          >
+                            Not Overdue
+                          </Badge>
+                        )}
                       </div>
                     </div>
 

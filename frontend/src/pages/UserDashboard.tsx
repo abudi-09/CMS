@@ -1,3 +1,5 @@
+// For demo/testing: import mockComplaint
+import { mockComplaint as baseMockComplaint } from "@/components/RoleBasedComplaintModal";
 import { useState } from "react";
 import { useComplaints } from "@/context/ComplaintContext";
 import {
@@ -25,12 +27,105 @@ import { useEffect } from "react";
 import { getMyComplaintsApi } from "@/lib/api";
 
 export function UserDashboard() {
-  const { complaints, updateComplaint } = useComplaints();
+  // MOCK DATA ENABLED BY DEFAULT
+  // Overdue: complaints 1, 3, 6; Not overdue: 2, 4, 5
+  const now = new Date();
+  const demoComplaints = [
+    {
+      ...baseMockComplaint,
+      id: "user-mock1",
+      title: "WiFi not working in hostel",
+      description: "The WiFi in hostel block B has been down for 3 days.",
+      priority: "High",
+      status: "Pending",
+      assignedStaff: "Jane Staff",
+      submittedBy: "Current User",
+      submittedDate: new Date(now.getTime() - 2 * 86400000),
+      assignedDate: new Date(now.getTime() - 2 * 86400000),
+      lastUpdated: new Date(now.getTime() - 1 * 43200000),
+      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
+    },
+    {
+      ...baseMockComplaint,
+      id: "user-mock2",
+      title: "Broken AC in Lecture Hall",
+      description: "The air conditioning in Hall A-101 is broken.",
+      priority: "Critical",
+      status: "In Progress",
+      assignedStaff: "Mike Tech",
+      submittedBy: "Current User",
+      submittedDate: new Date(now.getTime() - 3 * 86400000),
+      assignedDate: new Date(now.getTime() - 3 * 86400000),
+      lastUpdated: new Date(now.getTime() - 2 * 43200000),
+      deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
+    },
+    {
+      ...baseMockComplaint,
+      id: "user-mock3",
+      title: "Projector not working",
+      description: "Projector in Room 204 is not turning on.",
+      priority: "Medium",
+      status: "Resolved",
+      assignedStaff: "Sarah Fixit",
+      submittedBy: "Current User",
+      submittedDate: new Date(now.getTime() - 4 * 86400000),
+      assignedDate: new Date(now.getTime() - 4 * 86400000),
+      lastUpdated: new Date(now.getTime() - 3 * 43200000),
+      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
+    },
+    {
+      ...baseMockComplaint,
+      id: "user-mock4",
+      title: "Cafeteria food quality",
+      description: "Food quality in cafeteria has declined.",
+      priority: "High",
+      status: "Pending",
+      assignedStaff: "Chef Tony",
+      submittedBy: "Current User",
+      submittedDate: new Date(now.getTime() - 1 * 86400000),
+      assignedDate: new Date(now.getTime() - 1 * 86400000),
+      lastUpdated: new Date(now.getTime() - 1 * 43200000),
+      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
+    },
+    {
+      ...baseMockComplaint,
+      id: "user-mock5",
+      title: "Library computers slow",
+      description: "Library computers are extremely slow.",
+      priority: "Low",
+      status: "Closed",
+      assignedStaff: "Libby Tech",
+      submittedBy: "Current User",
+      submittedDate: new Date(now.getTime() - 5 * 86400000),
+      assignedDate: new Date(now.getTime() - 5 * 86400000),
+      lastUpdated: new Date(now.getTime() - 4 * 43200000),
+      deadline: new Date(now.getTime() + 1 * 86400000), // not overdue
+    },
+    {
+      ...baseMockComplaint,
+      id: "user-mock6",
+      title: "Leaking roof in dorm",
+      description: "There is a leak in the roof of Dorm 3.",
+      priority: "Medium",
+      status: "Pending",
+      assignedStaff: "Maintenance Bob",
+      submittedBy: "Current User",
+      submittedDate: new Date(now.getTime() - 6 * 86400000),
+      assignedDate: new Date(now.getTime() - 6 * 86400000),
+      lastUpdated: new Date(now.getTime() - 5 * 43200000),
+      deadline: new Date(now.getTime() - 3 * 86400000), // overdue
+    },
+  ];
+  const complaints = demoComplaints;
+  const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [overdueFilter, setOverdueFilter] = useState<
+    "all" | "overdue" | "notOverdue"
+  >("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   const navigate = useNavigate();
 
@@ -43,13 +138,37 @@ export function UserDashboard() {
     updateComplaint(complaintId, updates);
   };
 
-  // Filter and sort complaints (only those submitted by the current user)
-  // TODO: Replace 'Current User' with real user context if available
-  const myComplaints = complaints.filter(
-    (c) => c.submittedBy === "Current User"
-  );
+
+  const myComplaints = complaints
+    .filter((c) => c.submittedBy === "Current User")
+    .map((c) => ({
+      ...c,
+      status: c.status as
+        | "Unassigned"
+        | "Assigned"
+        | "In Progress"
+        | "Resolved"
+        | "Closed"
+        | "Overdue"
+        | "Pending",
+      priority: c.priority as "High" | "Critical" | "Medium" | "Low",
+    }));
+  function isOverdue(complaint: Complaint) {
+    if (!complaint.deadline) return false;
+    return (
+      new Date(complaint.deadline) < now &&
+      complaint.status !== "Resolved" &&
+      complaint.status !== "Closed"
+    );
+  }
   const filteredComplaints = myComplaints.filter((complaint) => {
-    return priorityFilter === "all" || complaint.priority === priorityFilter;
+    const matchesPriority =
+      priorityFilter === "all" || complaint.priority === priorityFilter;
+    const matchesOverdue =
+      overdueFilter === "all" ||
+      (overdueFilter === "overdue" && isOverdue(complaint)) ||
+      (overdueFilter === "notOverdue" && !isOverdue(complaint));
+    return matchesPriority && matchesOverdue;
   });
   const sortedComplaints = [...filteredComplaints].sort((a, b) => {
     const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
@@ -131,6 +250,28 @@ export function UserDashboard() {
             >
               View All
             </Button>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Overdue" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="notOverdue">Not Overdue</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className="w-full overflow-x-auto">
@@ -141,6 +282,8 @@ export function UserDashboard() {
               userRole="user"
               title="My Recent Complaints"
               actionLabel="View"
+              showOverdueColumn
+              isOverdueFn={isOverdue}
             />
           </div>
         </div>

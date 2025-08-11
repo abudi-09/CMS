@@ -1,3 +1,23 @@
+// MOCK DATA FOR DEVELOPMENT/TESTING ONLY
+// Remove or comment out before deploying to production
+export const mockComplaint = {
+  id: "mock123",
+  title: "WiFi not working in hostel",
+  description: "The WiFi in hostel block B has been down for 3 days.",
+  category: "Infrastructure",
+  priority: "High",
+  status: "Pending" as const,
+  submittedBy: "John Doe",
+  submittedDate: new Date(),
+  assignedStaff: "Jane Staff",
+  assignedDate: new Date(Date.now() - 86400000), // 1 day ago
+  lastUpdated: new Date(),
+  deadline: new Date(Date.now() + 3 * 86400000), // 3 days from now
+  evidenceFile: null,
+  resolutionNote: "Checked the router, awaiting replacement part.",
+  feedback: { rating: 4, comment: "Staff responded quickly." },
+};
+
 import { useState, useEffect } from "react";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 import {
@@ -47,6 +67,8 @@ export function RoleBasedComplaintModal({
   children,
 }: RoleBasedComplaintModalProps) {
   // Local state for live backend complaint
+  // For development, you can use mockComplaint as the initial value:
+  // const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(mockComplaint);
   const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(
     complaint
   );
@@ -239,9 +261,19 @@ export function RoleBasedComplaintModal({
   const showViewDetailButton =
     (user.role === "admin" || user.role === "staff") && liveComplaint;
 
-  const isAssigned = !!liveComplaint.assignedStaff;
+  // Log the complaint object for debugging
+  console.log("RoleBasedComplaintModal liveComplaint:", liveComplaint);
 
-  // Build timeline steps from liveComplaint (fixes JSX syntax error)
+  // Robust check for assignment: true if assignedStaff is a non-empty string or a non-null object
+  const isAssigned = !!(
+    liveComplaint.assignedStaff &&
+    ((typeof liveComplaint.assignedStaff === "string" &&
+      liveComplaint.assignedStaff.trim() !== "") ||
+      (typeof liveComplaint.assignedStaff === "object" &&
+        liveComplaint.assignedStaff !== null))
+  );
+
+  // Build timeline steps robustly: always show 'Assigned' if assignedStaff is present
   const timelineSteps = [
     {
       label: "Submitted",
@@ -250,7 +282,7 @@ export function RoleBasedComplaintModal({
       time: liveComplaint.submittedDate,
       desc: "Complaint submitted by student.",
     },
-    ...(isAssigned
+    ...(liveComplaint.assignedStaff
       ? [
           {
             label: "Assigned",
@@ -259,28 +291,28 @@ export function RoleBasedComplaintModal({
             time: liveComplaint.assignedDate || liveComplaint.submittedDate,
             desc: `Assigned to ${getStaffDisplay(liveComplaint.assignedStaff)}`,
           },
-          ...(liveComplaint.status === "In Progress"
-            ? [
-                {
-                  label: "In Progress",
-                  role: "staff",
-                  icon: <Settings className="h-4 w-4" />,
-                  time: liveComplaint.lastUpdated,
-                  desc: "Staff started working on the complaint.",
-                },
-              ]
-            : []),
-          ...(liveComplaint.status === "Resolved"
-            ? [
-                {
-                  label: "Resolved",
-                  role: "staff",
-                  icon: <CheckCircle className="h-4 w-4 text-success" />,
-                  time: liveComplaint.lastUpdated,
-                  desc: "Complaint marked as resolved.",
-                },
-              ]
-            : []),
+        ]
+      : []),
+    ...(liveComplaint.status === "In Progress"
+      ? [
+          {
+            label: "In Progress",
+            role: "staff",
+            icon: <Settings className="h-4 w-4" />,
+            time: liveComplaint.lastUpdated,
+            desc: "Staff started working on the complaint.",
+          },
+        ]
+      : []),
+    ...(liveComplaint.status === "Resolved"
+      ? [
+          {
+            label: "Resolved",
+            role: "staff",
+            icon: <CheckCircle className="h-4 w-4 text-success" />,
+            time: liveComplaint.lastUpdated,
+            desc: "Complaint marked as resolved.",
+          },
         ]
       : []),
   ];
@@ -295,8 +327,15 @@ export function RoleBasedComplaintModal({
           </DialogTitle>
         </DialogHeader>
         {loading ? (
-          <div className="p-8 text-center text-lg">
-            Loading complaint details...
+          <div className="p-8 text-center flex flex-col items-center justify-center">
+            <span className="relative inline-block h-12 w-12">
+              <span className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></span>
+              <span className="absolute inset-2 rounded-full border-2 border-muted animate-pulse"></span>
+              <span className="absolute inset-4 rounded-full bg-primary/20"></span>
+            </span>
+            <div className="mt-4 text-lg font-semibold text-primary">
+              Loading complaint details...
+            </div>
           </div>
         ) : (
           <>
@@ -519,16 +558,13 @@ export function RoleBasedComplaintModal({
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {step.time instanceof Date
-                        ? step.time.toLocaleString()
-                        : String(step.time)}
+                      {step.time ? new Date(step.time).toLocaleString() : ""}
                     </div>
                     <div className="text-sm mt-1">{step.desc}</div>
                   </div>
                 </div>
               ))}
             </div>
-            // ...existing code...
           </CardContent>
         </Card>
 

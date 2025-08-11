@@ -21,48 +21,8 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
 
-// Mock data - replace with real data
-const mockComplaints: Complaint[] = [
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources.",
-    category: "IT & Technology",
-    status: "In Progress",
-    priority: "High",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-  },
-  {
-    id: "CMP-002",
-    title: "Cafeteria food quality concerns",
-    description:
-      "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    category: "Student Services",
-    status: "Resolved",
-    priority: "Critical",
-    submittedBy: "John Doe",
-    assignedStaff: "Food Services Manager",
-    submittedDate: new Date("2024-01-10"),
-    lastUpdated: new Date("2024-01-20"),
-  },
-  {
-    id: "CMP-003",
-    title: "Broken air conditioning in lecture hall",
-    description:
-      "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    category: "Infrastructure & Facilities",
-    status: "Pending",
-    priority: "Medium",
-    submittedBy: "John Doe",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-22"),
-  },
-];
+// For demo/testing: import mockComplaint
+import { mockComplaint as baseMockComplaint } from "@/components/RoleBasedComplaintModal";
 
 const statusColors = {
   Pending: "bg-warning/10 text-warning border-warning/20",
@@ -72,7 +32,57 @@ const statusColors = {
 };
 
 export function MyComplaints() {
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  // MOCK DATA ENABLED BY DEFAULT
+  const demoComplaints = Array.from({ length: 6 }).map((_, i) => ({
+    ...baseMockComplaint,
+    id: `my-mock${i + 1}`,
+    title: [
+      "WiFi not working in hostel",
+      "Broken AC in Lecture Hall",
+      "Projector not working",
+      "Cafeteria food quality",
+      "Library computers slow",
+      "Leaking roof in dorm",
+    ][i],
+    description: [
+      "The WiFi in hostel block B has been down for 3 days.",
+      "The air conditioning in Hall A-101 is broken.",
+      "Projector in Room 204 is not turning on.",
+      "Food quality in cafeteria has declined.",
+      "Library computers are extremely slow.",
+      "There is a leak in the roof of Dorm 3.",
+    ][i],
+    priority: ["High", "Critical", "Medium", "High", "Low", "Medium"][i],
+    status: [
+      "Pending",
+      "In Progress",
+      "Resolved",
+      "Pending",
+      "Closed",
+      "Pending",
+    ][i] as
+      | "Pending"
+      | "In Progress"
+      | "Resolved"
+      | "Closed"
+      | "Unassigned"
+      | "Assigned"
+      | "Overdue",
+    assignedStaff: [
+      "Jane Staff",
+      "Mike Tech",
+      "Sarah Fixit",
+      "Chef Tony",
+      "Libby Tech",
+      "Maintenance Bob",
+    ][i],
+    submittedBy: "John Doe",
+    submittedDate: new Date(Date.now() - (i + 1) * 86400000),
+    assignedDate: new Date(Date.now() - (i + 1) * 86400000),
+    lastUpdated: new Date(Date.now() - i * 43200000),
+    deadline: new Date(Date.now() + (i + 2) * 86400000),
+  }));
+  const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");

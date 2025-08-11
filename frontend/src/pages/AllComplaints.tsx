@@ -34,8 +34,79 @@ import {
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 
-// Mock data for all complaints
+// Mock data for all complaints (half overdue, half not overdue)
+const now = new Date();
 const mockAllComplaints: Complaint[] = [
+  {
+    id: "CMP-007",
+    title: "Dormitory maintenance request",
+    description:
+      "The door lock in Dorm 5, Room 12 is broken and needs urgent repair.",
+    category: "Facility",
+    priority: "Low",
+    status: "Closed",
+    submittedBy: "Lily Adams",
+    assignedStaff: "Maintenance Team",
+    submittedDate: new Date("2024-01-05"),
+    lastUpdated: new Date("2024-01-10"),
+    resolutionNote: "Lock replaced and tested.",
+    feedback: { rating: 5, comment: "Quick and professional!" },
+    deadline: new Date(now.getTime() - 2 * 86400000), // overdue
+  },
+  {
+    id: "CMP-008",
+    title: "Exam schedule not published",
+    description:
+      "The final exam schedule for 2nd year students is overdue and not yet published.",
+    category: "Academic",
+    priority: "Critical",
+    status: "Overdue",
+    submittedBy: "Paul Green",
+    assignedStaff: "Academic Office",
+    submittedDate: new Date("2024-01-01"),
+    lastUpdated: new Date("2024-01-20"),
+    resolutionNote: "Awaiting department response.",
+    deadline: new Date(now.getTime() - 5 * 86400000), // overdue
+  },
+  {
+    id: "CMP-009",
+    title: "Unassigned complaint test",
+    description: "This complaint has not yet been assigned to any staff.",
+    category: "General",
+    priority: "Medium",
+    status: "Unassigned",
+    submittedBy: "Test User",
+    assignedStaff: undefined,
+    submittedDate: new Date("2024-01-12"),
+    lastUpdated: new Date("2024-01-12"),
+    deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
+  },
+  {
+    id: "CMP-010",
+    title: "Edge case: No description",
+    description: "",
+    category: "Other",
+    priority: "Low",
+    status: "Pending",
+    submittedBy: "Edge Case",
+    assignedStaff: "Support",
+    submittedDate: new Date("2024-01-18"),
+    lastUpdated: new Date("2024-01-18"),
+    deadline: new Date(now.getTime() + 7 * 86400000), // not overdue
+  },
+  {
+    id: "CMP-011",
+    title: "Edge case: No assigned staff, no feedback",
+    description: "Complaint submitted but not yet processed.",
+    category: "General",
+    priority: "Medium",
+    status: "Pending",
+    submittedBy: "Edge Case 2",
+    assignedStaff: undefined,
+    submittedDate: new Date("2024-01-19"),
+    lastUpdated: new Date("2024-01-19"),
+    deadline: new Date(now.getTime() - 1 * 86400000), // overdue
+  },
   {
     id: "CMP-001",
     title: "Library computers are slow and outdated",
@@ -50,6 +121,7 @@ const mockAllComplaints: Complaint[] = [
     lastUpdated: new Date("2024-01-18"),
     evidenceFile: "library_computer_issues.pdf",
     resolutionNote: "Working on upgrading the hardware.",
+    deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
   },
   {
     id: "CMP-002",
@@ -69,6 +141,7 @@ const mockAllComplaints: Complaint[] = [
     },
     resolutionNote:
       "Improved food handling procedures and conducted staff training.",
+    deadline: new Date(now.getTime() + 5 * 86400000), // not overdue
   },
   {
     id: "CMP-003",
@@ -82,6 +155,7 @@ const mockAllComplaints: Complaint[] = [
     assignedStaff: "Facilities Team",
     submittedDate: new Date("2024-01-22"),
     lastUpdated: new Date("2024-01-22"),
+    deadline: new Date(now.getTime() - 4 * 86400000), // overdue
   },
   {
     id: "CMP-004",
@@ -96,6 +170,7 @@ const mockAllComplaints: Complaint[] = [
     submittedDate: new Date("2024-01-20"),
     lastUpdated: new Date("2024-01-23"),
     resolutionNote: "Investigating network infrastructure issues.",
+    deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
   },
   {
     id: "CMP-005",
@@ -115,6 +190,7 @@ const mockAllComplaints: Complaint[] = [
     },
     resolutionNote:
       "All parking lot lights have been replaced with LED fixtures.",
+    deadline: new Date(now.getTime() - 6 * 86400000), // overdue
   },
   {
     id: "CMP-006",
@@ -128,6 +204,7 @@ const mockAllComplaints: Complaint[] = [
     assignedStaff: "Finance Office",
     submittedDate: new Date("2024-01-25"),
     lastUpdated: new Date("2024-01-25"),
+    deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
   },
 ];
 
@@ -143,6 +220,8 @@ export default function AllComplaints() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   // Priority sort state: 'asc' | 'desc'
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
+  // Overdue filter state
+  const [overdueFilter, setOverdueFilter] = useState("All");
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -157,6 +236,20 @@ export default function AllComplaints() {
     resolved: complaints.filter((c) => c.status === "Resolved").length,
   };
 
+  // Helper: check if complaint is overdue
+  const isOverdue = (complaint: Complaint) => {
+    if (!("deadline" in complaint) || !complaint.deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(complaint.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return (
+      deadline < today &&
+      complaint.status !== "Closed" &&
+      complaint.status !== "Resolved"
+    );
+  };
+
   // Filter complaints
   let filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
@@ -169,8 +262,20 @@ export default function AllComplaints() {
       categoryFilter === "All" || complaint.category === categoryFilter;
     const matchesPriority =
       priorityFilter === "All" || complaint.priority === priorityFilter;
+    const matchesOverdue =
+      overdueFilter === "All"
+        ? true
+        : overdueFilter === "Overdue"
+        ? isOverdue(complaint)
+        : !isOverdue(complaint);
 
-    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesCategory &&
+      matchesPriority &&
+      matchesOverdue
+    );
   });
   // Always sort by priority (toggle asc/desc)
   const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
@@ -292,275 +397,300 @@ export default function AllComplaints() {
         </Card>
       </div>
 
-      {/* Complaints Table Section */}
-      <Card>
+      {/* Search & Filter Controls */}
+      <Card className="mb-4">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Complaints Database ({filteredComplaints.length})
+            <Search className="h-5 w-5" />
+            Search & Filter
           </CardTitle>
-
-          {/* Search and Filters */}
-          <div className="space-y-4">
-            <div className="relative">
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2 sm:gap-4 w-full">
+            {/* Search input */}
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by title, description, or student name..."
+                placeholder="Search by title, department, or submitter..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 w-full"
               />
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              {/* Priority Sort Button */}
-              <Button
-                variant="outline"
-                onClick={handleSortByPriority}
-                className="min-w-0 sm:min-w-[140px] rounded-lg hover:bg-muted"
-              >
-                <ArrowUpDown className="h-4 w-4 mr-2" />
-                Sort Priority (
-                {prioritySort === "desc" ? "High → Low" : "Low → High"})
-              </Button>
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select
-                  value={categoryFilter}
-                  onValueChange={setCategoryFilter}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All Categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Priority</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Status</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Resolved">Resolved</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          {/* Desktop Table */}
-          <div className="hidden lg:block rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date Submitted</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredComplaints.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {searchTerm ||
-                      statusFilter !== "All" ||
-                      categoryFilter !== "All" ||
-                      priorityFilter !== "All"
-                        ? "No complaints match your search criteria"
-                        : "No complaints found"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredComplaints.map((complaint) => (
-                    <TableRow key={complaint.id} className="hover:bg-muted/50">
-                      <TableCell className="max-w-xs">
-                        <div className="font-medium truncate">
-                          {complaint.title}
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          #{complaint.id}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {complaint.submittedBy}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">
-                          {complaint.category}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`text-xs ${getPriorityColor(
-                            complaint.priority
-                          )}`}
-                          variant="outline"
-                        >
-                          <Flag className="h-3 w-3 mr-1" />
-                          {complaint.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`text-xs ${getStatusColor(
-                            complaint.status
-                          )}`}
-                          variant="outline"
-                        >
-                          {complaint.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {complaint.submittedDate.toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {complaint.assignedStaff || "Unassigned"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewComplaint(complaint)}
-                          className="hover:bg-primary/10"
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="lg:hidden space-y-4">
-            {filteredComplaints.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                {searchTerm ||
-                statusFilter !== "All" ||
-                categoryFilter !== "All" ||
-                priorityFilter !== "All"
-                  ? "No complaints match your search criteria"
-                  : "No complaints found"}
-              </div>
-            ) : (
-              filteredComplaints.map((complaint) => (
-                <Card key={complaint.id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-sm">
-                          {complaint.title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          #{complaint.id}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 ml-2">
-                        <Badge
-                          className={`text-xs ${getPriorityColor(
-                            complaint.priority
-                          )}`}
-                          variant="outline"
-                        >
-                          {complaint.priority}
-                        </Badge>
-                        <Badge
-                          className={`text-xs ${getStatusColor(
-                            complaint.status
-                          )}`}
-                          variant="outline"
-                        >
-                          {complaint.status}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Student:</span>
-                        <span className="font-medium ml-2">
-                          {complaint.submittedBy}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Category:</span>
-                        <span className="font-medium ml-2">
-                          {complaint.category}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">
-                          Assigned To:
-                        </span>
-                        <span className="font-medium ml-2">
-                          {complaint.assignedStaff || "Unassigned"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Date:</span>
-                        <span className="font-medium ml-2">
-                          {complaint.submittedDate.toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewComplaint(complaint)}
-                      className="w-full hover:bg-primary/10"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
-                  </div>
-                </Card>
-              ))
-            )}
+            {/* Status dropdown */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Status</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Resolved">Resolved</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* Priority dropdown */}
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Priorities</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* Category dropdown */}
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Categories</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Overdue filter dropdown */}
+            <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by overdue" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All</SelectItem>
+                <SelectItem value="Overdue">Overdue Only</SelectItem>
+                <SelectItem value="NotOverdue">Not Overdue Only</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
+
+      <CardContent>
+        {/* Desktop Table */}
+        <div className="hidden lg:block rounded-md border overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Student Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Overdue</TableHead>
+                <TableHead>Date Submitted</TableHead>
+                <TableHead>Assigned To</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredComplaints.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={8}
+                    className="text-center py-8 text-muted-foreground"
+                  >
+                    {searchTerm ||
+                    statusFilter !== "All" ||
+                    categoryFilter !== "All" ||
+                    priorityFilter !== "All"
+                      ? "No complaints match your search criteria"
+                      : "No complaints found"}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredComplaints.map((complaint) => (
+                  <TableRow key={complaint.id} className="hover:bg-muted/50">
+                    <TableCell className="max-w-xs">
+                      <div className="font-medium truncate">
+                        {complaint.title}
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        #{complaint.id}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">
+                          {complaint.submittedBy}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">
+                        {complaint.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`text-xs ${getPriorityColor(
+                          complaint.priority
+                        )}`}
+                        variant="outline"
+                      >
+                        <Flag className="h-3 w-3 mr-1" />
+                        {complaint.priority}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`text-xs ${getStatusColor(
+                          complaint.status
+                        )}`}
+                        variant="outline"
+                      >
+                        {complaint.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {isOverdue(complaint) ? (
+                        <Badge
+                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                          variant="outline"
+                        >
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge
+                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                          variant="outline"
+                        >
+                          Not Overdue
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {complaint.submittedDate.toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.assignedStaff || "Unassigned"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewComplaint(complaint)}
+                        className="hover:bg-primary/10"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Details
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="lg:hidden space-y-4">
+          {filteredComplaints.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchTerm ||
+              statusFilter !== "All" ||
+              categoryFilter !== "All" ||
+              priorityFilter !== "All"
+                ? "No complaints match your search criteria"
+                : "No complaints found"}
+            </div>
+          ) : (
+            filteredComplaints.map((complaint) => (
+              <Card key={complaint.id} className="p-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-sm">{complaint.title}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        #{complaint.id}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 ml-2">
+                      <Badge
+                        className={`text-xs ${getPriorityColor(
+                          complaint.priority
+                        )}`}
+                        variant="outline"
+                      >
+                        {complaint.priority}
+                      </Badge>
+                      <Badge
+                        className={`text-xs ${getStatusColor(
+                          complaint.status
+                        )}`}
+                        variant="outline"
+                      >
+                        {complaint.status}
+                      </Badge>
+                      {isOverdue(complaint) ? (
+                        <Badge
+                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                          variant="outline"
+                        >
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge
+                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                          variant="outline"
+                        >
+                          Not Overdue
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Student:</span>
+                      <span className="font-medium ml-2">
+                        {complaint.submittedBy}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Category:</span>
+                      <span className="font-medium ml-2">
+                        {complaint.category}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        Assigned To:
+                      </span>
+                      <span className="font-medium ml-2">
+                        {complaint.assignedStaff || "Unassigned"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Date:</span>
+                      <span className="font-medium ml-2">
+                        {complaint.submittedDate.toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleViewComplaint(complaint)}
+                    className="w-full hover:bg-primary/10"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </Button>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </CardContent>
 
       {/* Detail Modal */}
       <RoleBasedComplaintModal

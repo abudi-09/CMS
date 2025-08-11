@@ -1,3 +1,5 @@
+// For demo/testing: import mockComplaint
+import { mockComplaint } from "@/components/RoleBasedComplaintModal";
 import { useState } from "react";
 import {
   Card,
@@ -37,7 +39,15 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
 export function AdminDashboard() {
-  const { complaints, updateComplaint } = useComplaints();
+  // MOCK DATA ENABLED BY DEFAULT
+  // Ensure status is cast to the correct Complaint["status"] type
+  const complaints = [
+    {
+      ...mockComplaint,
+      status: mockComplaint.status as Complaint["status"],
+    },
+  ];
+  const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
