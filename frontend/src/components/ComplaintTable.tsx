@@ -30,7 +30,9 @@ interface ComplaintTableProps {
   userRole?: "user" | "staff" | "admin";
   title?: string;
   actionLabel?: string;
-  priorityFilter?: string; // Add this line
+  priorityFilter?: string;
+  showOverdueColumn?: boolean;
+  isOverdueFn?: (complaint: Complaint) => boolean;
 }
 
 const statusColors = {
@@ -100,7 +102,9 @@ export function ComplaintTable({
   userRole = "user",
   title = "Complaints",
   actionLabel,
-  priorityFilter = "all", // Set default value for priorityFilter
+  priorityFilter = "all",
+  showOverdueColumn = false,
+  isOverdueFn,
 }: ComplaintTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -230,6 +234,19 @@ export function ComplaintTable({
                         <div className="text-xs text-muted-foreground">
                           {complaint.category}
                         </div>
+                        {showOverdueColumn && isOverdueFn && (
+                          <div className="text-xs mt-1">
+                            {isOverdueFn(complaint) ? (
+                              <Badge className="bg-red-100 text-red-800">
+                                Overdue
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-green-100 text-green-800">
+                                On Time
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <Badge
                         className={`${statusColors[complaint.status]} text-xs`}
@@ -303,6 +320,7 @@ export function ComplaintTable({
                     <TableHead>Status</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Priority</TableHead>
+                    {showOverdueColumn && <TableHead>Overdue</TableHead>}
                     {userRole === "admin" && (
                       <TableHead>Submitted By</TableHead>
                     )}
@@ -343,6 +361,19 @@ export function ComplaintTable({
                           {complaint.priority}
                         </Badge>
                       </TableCell>
+                      {showOverdueColumn && isOverdueFn && (
+                        <TableCell>
+                          {isOverdueFn(complaint) ? (
+                            <Badge className="bg-red-100 text-red-800">
+                              Overdue
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-green-100 text-green-800">
+                              On Time
+                            </Badge>
+                          )}
+                        </TableCell>
+                      )}
                       {userRole === "admin" && (
                         <TableCell>{complaint.submittedBy}</TableCell>
                       )}
