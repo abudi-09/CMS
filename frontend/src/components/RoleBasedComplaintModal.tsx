@@ -235,14 +235,55 @@ export function RoleBasedComplaintModal({
 
   if (!liveComplaint || !user) return null;
 
-  // Hardcode a value for resolutionNote for testing
-  // Remove hardcoded test value
-
   // Role-based View Detail button
   const showViewDetailButton =
     (user.role === "admin" || user.role === "staff") && liveComplaint;
 
   const isAssigned = !!liveComplaint.assignedStaff;
+
+  // Build timeline steps from liveComplaint (fixes JSX syntax error)
+  const timelineSteps = [
+    {
+      label: "Submitted",
+      role: "student",
+      icon: <User className="h-4 w-4" />,
+      time: liveComplaint.submittedDate,
+      desc: "Complaint submitted by student.",
+    },
+    ...(isAssigned
+      ? [
+          {
+            label: "Assigned",
+            role: "admin",
+            icon: <UserCheck className="h-4 w-4" />,
+            time: liveComplaint.assignedDate || liveComplaint.submittedDate,
+            desc: `Assigned to ${getStaffDisplay(liveComplaint.assignedStaff)}`,
+          },
+          ...(liveComplaint.status === "In Progress"
+            ? [
+                {
+                  label: "In Progress",
+                  role: "staff",
+                  icon: <Settings className="h-4 w-4" />,
+                  time: liveComplaint.lastUpdated,
+                  desc: "Staff started working on the complaint.",
+                },
+              ]
+            : []),
+          ...(liveComplaint.status === "Resolved"
+            ? [
+                {
+                  label: "Resolved",
+                  role: "staff",
+                  icon: <CheckCircle className="h-4 w-4 text-success" />,
+                  time: liveComplaint.lastUpdated,
+                  desc: "Complaint marked as resolved.",
+                },
+              ]
+            : []),
+        ]
+      : []),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -455,73 +496,39 @@ export function RoleBasedComplaintModal({
           </CardHeader>
           <CardContent>
             <div className="relative pl-6 border-l-2 border-muted-foreground/20 space-y-8">
-              {/* Timeline steps - mock or real data */}
-              {[
-                {
-                  label: "Submitted",
-                  role: "student",
-                  icon: <User className="h-4 w-4" />,
-                  time: complaint.submittedDate,
-                  desc: "Complaint submitted by student.",
-                },
-                isAssigned && {
-                  label: "Assigned",
-                  role: "admin",
-                  icon: <UserCheck className="h-4 w-4" />,
-                  time: complaint.assignedDate || complaint.submittedDate,
-                  desc: `Assigned to ${getStaffDisplay(
-                    complaint.assignedStaff
-                  )}`,
-                },
-                isAssigned &&
-                  complaint.status === "In Progress" && {
-                    label: "In Progress",
-                    role: "staff",
-                    icon: <Settings className="h-4 w-4" />,
-                    time: complaint.lastUpdated,
-                    desc: "Staff started working on the complaint.",
-                  },
-                isAssigned &&
-                  complaint.status === "Resolved" && {
-                    label: "Resolved",
-                    role: "staff",
-                    icon: <CheckCircle className="h-4 w-4 text-success" />,
-                    time: complaint.lastUpdated,
-                    desc: "Complaint marked as resolved.",
-                  },
-              ]
-                .filter(Boolean)
-                .map((step, idx, arr) => (
-                  <div
-                    key={step.label}
-                    className="flex items-start gap-4 relative"
-                  >
-                    <div className="absolute -left-6 top-0">
-                      <div
-                        className={`rounded-full bg-background border-2 border-primary flex items-center justify-center w-7 h-7 ${
-                          idx === arr.length - 1 ? "border-success" : ""
-                        }`}
-                      >
-                        {step.icon}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{step.label}</span>
-                        <Badge variant="outline" className="capitalize">
-                          {step.role}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {step.time instanceof Date
-                          ? step.time.toLocaleString()
-                          : String(step.time)}
-                      </div>
-                      <div className="text-sm mt-1">{step.desc}</div>
+              {/* Timeline steps - always use liveComplaint for latest backend state */}
+              {timelineSteps.map((step, idx, arr) => (
+                <div
+                  key={step.label}
+                  className="flex items-start gap-4 relative"
+                >
+                  <div className="absolute -left-6 top-0">
+                    <div
+                      className={`rounded-full bg-background border-2 border-primary flex items-center justify-center w-7 h-7 ${
+                        idx === arr.length - 1 ? "border-success" : ""
+                      }`}
+                    >
+                      {step.icon}
                     </div>
                   </div>
-                ))}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{step.label}</span>
+                      <Badge variant="outline" className="capitalize">
+                        {step.role}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {step.time instanceof Date
+                        ? step.time.toLocaleString()
+                        : String(step.time)}
+                    </div>
+                    <div className="text-sm mt-1">{step.desc}</div>
+                  </div>
+                </div>
+              ))}
             </div>
+            // ...existing code...
           </CardContent>
         </Card>
 

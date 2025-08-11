@@ -69,8 +69,22 @@ export function AssignComplaints() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch complaints");
+      let data: Complaint[] = await res.json();
+      if (!res.ok) {
+        const errorMsg =
+          typeof data === "object" &&
+          data !== null &&
+          "error" in data &&
+          typeof (data as { error?: string }).error === "string"
+            ? (data as { error: string }).error
+            : "Failed to fetch complaints";
+        throw new Error(errorMsg);
+      }
+      // Map backend 'assignedTo' to frontend 'assignedStaff' for UI consistency
+      data = data.map((c: Complaint) => ({
+        ...c,
+        assignedStaff: (c as { assignedTo?: string }).assignedTo,
+      }));
       setComplaints(data);
     } catch (error) {
       toast({
