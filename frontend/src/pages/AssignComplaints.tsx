@@ -40,10 +40,33 @@ import { useEffect } from "react";
 import { useState as useReactState } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
-type Complaint = BaseComplaint & {
-  evidence?: string;
+type Complaint = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  department?: string;
+  status:
+    | "Unassigned"
+    | "Assigned"
+    | "In Progress"
+    | "Resolved"
+    | "Closed"
+    | "Overdue"
+    | "Pending";
+  submittedBy: string;
+  assignedStaff?: string;
+  assignedDate?: Date;
+  submittedDate: Date;
   deadline?: Date;
+  lastUpdated: Date;
   priority?: "Low" | "Medium" | "High" | "Critical";
+  evidence?: string;
+  resolutionNote?: string;
+  feedback?: {
+    rating: number;
+    comment: string;
+  };
 };
 
 const statusColors = {
@@ -67,10 +90,11 @@ export function AssignComplaints() {
       description:
         "The computers in the main library are extremely slow and need upgrading.",
       category: "Academic",
+      department: "IT",
       priority: "High",
-      status: "In Progress",
+      status: "Pending",
       submittedBy: "John Doe",
-      assignedStaff: "IT Support Team",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-15"),
       lastUpdated: new Date("2024-01-18"),
       evidence: "library_computer_issues.pdf",
@@ -86,7 +110,7 @@ export function AssignComplaints() {
       priority: "Critical",
       status: "Resolved",
       submittedBy: "Jane Smith",
-      assignedStaff: "Food Services Manager",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-10"),
       lastUpdated: new Date("2024-01-20"),
       feedback: {
@@ -106,7 +130,7 @@ export function AssignComplaints() {
       priority: "Medium",
       status: "Pending",
       submittedBy: "Mike Johnson",
-      assignedStaff: "Facilities Team",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-22"),
       lastUpdated: new Date("2024-01-22"),
       deadline: new Date(now.getTime() - 1 * 86400000), // overdue
@@ -120,7 +144,7 @@ export function AssignComplaints() {
       priority: "Medium",
       status: "Closed",
       submittedBy: "David Wilson",
-      assignedStaff: "Facilities Manager",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-08"),
       lastUpdated: new Date("2024-01-18"),
       feedback: {
@@ -140,7 +164,7 @@ export function AssignComplaints() {
       priority: "Critical",
       status: "Pending",
       submittedBy: "Paul Green",
-      assignedStaff: "Academic Office",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-01"),
       lastUpdated: new Date("2024-01-20"),
       resolutionNote: "Awaiting department response.",
@@ -167,7 +191,7 @@ export function AssignComplaints() {
       priority: "Low",
       status: "Pending",
       submittedBy: "Edge Case",
-      assignedStaff: "Support",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-18"),
       lastUpdated: new Date("2024-01-18"),
       deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
@@ -193,7 +217,7 @@ export function AssignComplaints() {
       priority: "High",
       status: "Pending",
       submittedBy: "Linda Green",
-      assignedStaff: "Facilities Team",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-22"),
       lastUpdated: new Date("2024-01-23"),
       deadline: new Date(now.getTime() - 4 * 86400000), // overdue
@@ -206,14 +230,165 @@ export function AssignComplaints() {
       priority: "Low",
       status: "Pending",
       submittedBy: "Tom Hardy",
-      assignedStaff: "IT Support Team",
+      assignedStaff: undefined,
       submittedDate: new Date("2024-01-25"),
       lastUpdated: new Date("2024-01-26"),
       deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
     },
+    {
+      id: "ADM-011",
+      title: "WiFi connectivity issues in dorms",
+      description: "Students in Dorm A and B report frequent WiFi outages.",
+      category: "IT & Technology",
+      department: "IT",
+      priority: "High",
+      status: "Unassigned",
+      submittedBy: "Alice Brown",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-27"),
+      lastUpdated: new Date("2024-01-27"),
+      deadline: new Date(now.getTime() + 2 * 86400000),
+    },
+    {
+      id: "ADM-012",
+      title: "Broken chairs in classroom C-101",
+      description: "Several chairs are broken and unsafe for use.",
+      category: "Facility",
+      department: "Maintenance",
+      priority: "Medium",
+      status: "Unassigned",
+      submittedBy: "Bob Lee",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-28"),
+      lastUpdated: new Date("2024-01-28"),
+      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
+    },
+    {
+      id: "ADM-013",
+      title: "Late bus service",
+      description: "Campus bus service is consistently late in the mornings.",
+      category: "Transport",
+      department: "Transport",
+      priority: "Low",
+      status: "Unassigned",
+      submittedBy: "Chris Evans",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-29"),
+      lastUpdated: new Date("2024-01-29"),
+      deadline: new Date(now.getTime() + 4 * 86400000),
+    },
+    {
+      id: "ADM-014",
+      title: "Noisy construction near library",
+      description:
+        "Ongoing construction is disturbing students in the library.",
+      category: "Facility",
+      department: "Construction",
+      priority: "Medium",
+      status: "Unassigned",
+      submittedBy: "Dana White",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-30"),
+      lastUpdated: new Date("2024-01-30"),
+      deadline: new Date(now.getTime() + 6 * 86400000),
+    },
+    {
+      id: "ADM-015",
+      title: "Cafeteria menu lacks vegetarian options",
+      description:
+        "Vegetarian students request more options in the cafeteria menu.",
+      category: "Cafeteria",
+      department: "Cafeteria",
+      priority: "High",
+      status: "Unassigned",
+      submittedBy: "Eve Adams",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-31"),
+      lastUpdated: new Date("2024-01-31"),
+      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
+    },
+    {
+      id: "ADM-016",
+      title: "Exam results delayed",
+      description:
+        "Final exam results for 3rd year students are not published yet.",
+      category: "Academic",
+      department: "Exams",
+      priority: "Critical",
+      status: "Unassigned",
+      submittedBy: "Frank Miller",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-02-01"),
+      lastUpdated: new Date("2024-02-01"),
+      deadline: new Date(now.getTime() - 3 * 86400000), // overdue
+    },
+    {
+      id: "ADM-017",
+      title: "Sports equipment missing",
+      description:
+        "Several footballs and rackets are missing from the sports room.",
+      category: "Sports",
+      department: "Sports",
+      priority: "Medium",
+      status: "Unassigned",
+      submittedBy: "Grace Hopper",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-02-02"),
+      lastUpdated: new Date("2024-02-02"),
+      deadline: new Date(now.getTime() + 5 * 86400000),
+    },
+    {
+      id: "ADM-018",
+      title: "Water leakage in hostel bathrooms",
+      description: "Hostel B bathrooms have water leakage issues.",
+      category: "Facility",
+      department: "Maintenance",
+      priority: "High",
+      status: "Unassigned",
+      submittedBy: "Henry Ford",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-02-03"),
+      lastUpdated: new Date("2024-02-03"),
+      deadline: new Date(now.getTime() + 1 * 86400000),
+    },
+    {
+      id: "ADM-019",
+      title: "Unhygienic restrooms",
+      description: "Restrooms in Block D are not cleaned regularly.",
+      category: "Facility",
+      department: "Cleaning",
+      priority: "Critical",
+      status: "Unassigned",
+      submittedBy: "Ivy Clark",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-02-04"),
+      lastUpdated: new Date("2024-02-04"),
+      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
+    },
+    {
+      id: "ADM-020",
+      title: "No hand sanitizer in classrooms",
+      description: "Hand sanitizer dispensers are empty in most classrooms.",
+      category: "Facility",
+      department: "Health & Safety",
+      priority: "Low",
+      status: "Unassigned",
+      submittedBy: "Jack Black",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-02-05"),
+      lastUpdated: new Date("2024-02-05"),
+      deadline: new Date(now.getTime() + 3 * 86400000),
+    },
   ];
-  const [complaints, setComplaints] =
-    useReactState<Complaint[]>(demoComplaints);
+  // Ensure all complaints have a department value and status 'Pending'
+  const demoComplaintsWithDept = demoComplaints.map((c) => ({
+    ...c,
+    department: c.department || "General",
+    status: "Pending" as Complaint["status"],
+  }));
+  const [complaints, setComplaints] = useReactState<Complaint[]>(
+    demoComplaintsWithDept
+  );
   // Backend fetch and polling removed for demo/testing. Only mock data is shown.
 
   const allComplaints = complaints;
@@ -222,7 +397,6 @@ export function AssignComplaints() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [assignmentFilter, setAssignmentFilter] = useState<string>("all"); // 'all' | 'assigned' | 'unassigned'
   const [overdueFilter, setOverdueFilter] = useState<string>("all"); // 'all' | 'overdue' | 'notOverdue'
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
@@ -326,40 +500,9 @@ export function AssignComplaints() {
     );
   };
 
-  const filteredComplaints = allComplaints.filter((complaint) => {
-    // Exclude resolved complaints
-    if (complaint.status === "Resolved") return false;
-    const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    // Remove 'Unassigned' from status filter logic
-    const matchesStatus =
-      statusFilter === "all" ||
-      (complaint.status === statusFilter && complaint.status !== "Unassigned");
-    const matchesAssignment =
-      assignmentFilter === "all"
-        ? true
-        : assignmentFilter === "assigned"
-        ? !!complaint.assignedStaff
-        : !complaint.assignedStaff;
-    const matchesPriority =
-      priorityFilter === "all" ||
-      (complaint.priority || "Medium") === priorityFilter;
-    const matchesOverdue =
-      overdueFilter === "all"
-        ? true
-        : overdueFilter === "overdue"
-        ? isOverdue(complaint)
-        : !isOverdue(complaint);
-    return (
-      matchesSearch &&
-      matchesStatus &&
-      matchesPriority &&
-      matchesAssignment &&
-      matchesOverdue
-    );
-  });
+  const filteredComplaints = complaints.filter(
+    (complaint) => !complaint.assignedStaff
+  );
 
   // Move these inside the AssignComplaints function, after complaints state is declared
   // Move these inside the AssignComplaints function, after complaints state is declared
@@ -464,22 +607,6 @@ export function AssignComplaints() {
                 <SelectItem value="Medium">Medium</SelectItem>
                 <SelectItem value="High">High</SelectItem>
                 <SelectItem value="Critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-            {/* Assignment Status Filter */}
-            <Select
-              value={assignmentFilter}
-              onValueChange={setAssignmentFilter}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter by Assignment Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Complaints</SelectItem>
-                <SelectItem value="assigned">Assigned Complaints</SelectItem>
-                <SelectItem value="unassigned">
-                  Unassigned Complaints
-                </SelectItem>
               </SelectContent>
             </Select>
             {/* Overdue filter dropdown */}
@@ -594,48 +721,72 @@ export function AssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {!complaint.assignedStaff && (
-                          <>
-                            <Select
-                              value={assigningStaffId}
-                              onValueChange={setAssigningStaffId}
-                            >
-                              <SelectTrigger className="w-32 text-xs">
-                                <SelectValue placeholder="Select dean" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {getAllStaff().map((staff) => (
-                                  <SelectItem key={staff.id} value={staff.id}>
-                                    {staff.fullName || staff.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              type="date"
-                              className="w-32 text-xs"
-                              value={assigningDeadline}
-                              onChange={(e) =>
-                                setAssigningDeadline(e.target.value)
-                              }
-                              required
-                            />
+                        {!complaint.assignedStaff &&
+                          (reassigningRow === complaint.id ? (
+                            <>
+                              <Select
+                                value={assigningStaffId}
+                                onValueChange={setAssigningStaffId}
+                              >
+                                <SelectTrigger className="w-32 text-xs">
+                                  <SelectValue placeholder="Select dean" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getAllStaff().map((staff) => (
+                                    <SelectItem key={staff.id} value={staff.id}>
+                                      {staff.fullName || staff.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="date"
+                                className="w-32 text-xs"
+                                value={assigningDeadline}
+                                onChange={(e) =>
+                                  setAssigningDeadline(e.target.value)
+                                }
+                                required
+                              />
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="text-xs"
+                                disabled={
+                                  !assigningStaffId || !assigningDeadline
+                                }
+                                onClick={() =>
+                                  handleStaffAssignment(
+                                    complaint.id,
+                                    assigningStaffId
+                                  )
+                                }
+                              >
+                                Confirm
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs"
+                                onClick={() => {
+                                  setReassigningRow(null);
+                                  setAssigningStaffId("");
+                                  setAssigningDeadline("");
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
                             <Button
                               size="sm"
-                              variant="default"
-                              className="text-xs"
-                              disabled={!assigningStaffId || !assigningDeadline}
-                              onClick={() =>
-                                handleStaffAssignment(
-                                  complaint.id,
-                                  assigningStaffId
-                                )
-                              }
+                              variant="outline"
+                              className="text-xs dark:hover:text-blue-400"
+                              onClick={() => handleAssignClick(complaint)}
                             >
                               Assign
                             </Button>
-                          </>
-                        )}
+                          ))}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -643,7 +794,6 @@ export function AssignComplaints() {
               </TableBody>
             </Table>
           </div>
-
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {filteredComplaints.map((complaint) => (
@@ -691,6 +841,7 @@ export function AssignComplaints() {
 
                   <div className="space-y-2 text-sm">
                     <div>
+                      <span className="text-muted-foreground">Category:</span>
                       <span className="text-muted-foreground">Category:</span>
                       <span className="font-medium ml-2">
                         {complaint.category}
@@ -753,7 +904,7 @@ export function AssignComplaints() {
                           onValueChange={setAssigningStaffId}
                         >
                           <SelectTrigger className="w-full text-xs">
-                            <SelectValue placeholder="Select staff" />
+                            <SelectValue placeholder="Select dean" />
                           </SelectTrigger>
                           <SelectContent>
                             {getAllStaff().map((staff) => (

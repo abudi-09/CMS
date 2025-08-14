@@ -150,10 +150,10 @@ export function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-orange-800">
               <Clock className="h-5 w-5" />
-              Pending Staff Approvals
+              Pending dean Approvals
             </CardTitle>
             <CardDescription className="text-orange-700">
-              {pendingStaff.length} staff member
+              {pendingStaff.length} dean member
               {pendingStaff.length > 1 ? "s" : ""} waiting for approval
             </CardDescription>
           </CardHeader>

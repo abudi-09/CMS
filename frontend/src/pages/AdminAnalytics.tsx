@@ -67,46 +67,43 @@ const monthlyTrendData = [
   { month: "Jun", submitted: 67, resolved: 62 },
 ];
 
-const staffPerformance = [
+// Department performance mock data
+const departmentPerformance = [
   {
-    id: "1",
-    name: "Dr. Sarah Johnson",
-    department: "IT Support",
-    totalAssigned: 45,
-    resolved: 42,
-    pending: 2,
-    inProgress: 1,
-    successRate: 93.3,
-  },
-  {
-    id: "2",
-    name: "Prof. Michael Chen",
-    department: "Academic Affairs",
-    totalAssigned: 38,
-    resolved: 35,
-    pending: 1,
-    inProgress: 2,
-    successRate: 92.1,
-  },
-  {
-    id: "3",
-    name: "Ms. Emily Davis",
-    department: "Facility Management",
-    totalAssigned: 32,
-    resolved: 28,
+    department: "Computer Science",
+    staff: ["Dr. Sarah Johnson", "Dr. Alan Turing"],
+    totalAssigned: 60,
+    resolved: 55,
     pending: 3,
-    inProgress: 1,
-    successRate: 87.5,
+    inProgress: 2,
+    successRate: 91.7,
   },
   {
-    id: "4",
-    name: "Mr. James Wilson",
-    department: "Finance Office",
-    totalAssigned: 25,
-    resolved: 21,
+    department: "IT",
+    staff: ["Ms. Emily Davis", "Mr. Steve Jobs"],
+    totalAssigned: 50,
+    resolved: 47,
+    pending: 2,
+    inProgress: 1,
+    successRate: 94.0,
+  },
+  {
+    department: "Information System",
+    staff: ["Prof. Michael Chen", "Ms. Ada Lovelace"],
+    totalAssigned: 40,
+    resolved: 36,
     pending: 2,
     inProgress: 2,
-    successRate: 84.0,
+    successRate: 90.0,
+  },
+  {
+    department: "Information Science",
+    staff: ["Mr. James Wilson", "Ms. Grace Hopper"],
+    totalAssigned: 35,
+    resolved: 30,
+    pending: 3,
+    inProgress: 2,
+    successRate: 85.7,
   },
 ];
 
@@ -114,14 +111,6 @@ const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
 export default function AdminAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
-  const [sortBy, setSortBy] = useState("successRate");
-
-  const sortedStaff = [...staffPerformance].sort((a, b) => {
-    if (sortBy === "successRate") return b.successRate - a.successRate;
-    if (sortBy === "resolved") return b.resolved - a.resolved;
-    if (sortBy === "totalAssigned") return b.totalAssigned - a.totalAssigned;
-    return 0;
-  });
 
   return (
     <div className="space-y-6 p-6">
@@ -325,67 +314,39 @@ export default function AdminAnalytics() {
         </Card>
       </div>
 
-      {/* Staff Performance */}
+      {/* Department Performance */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Staff Performance Overview
+              Department Performance Overview
             </CardTitle>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="successRate">Success Rate</SelectItem>
-                <SelectItem value="resolved">Resolved Count</SelectItem>
-                <SelectItem value="totalAssigned">Total Assigned</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {sortedStaff.map((staff, index) => (
+            {departmentPerformance.map((dept, index) => (
               <div
-                key={staff.id}
+                key={dept.department}
                 className="flex items-center justify-between p-4 border rounded-lg"
               >
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
-                    {index < 3 ? (
-                      <Award
-                        className={`h-4 w-4 ${
-                          index === 0
-                            ? "text-yellow-500"
-                            : index === 1
-                            ? "text-gray-400"
-                            : "text-orange-500"
-                        }`}
-                      />
-                    ) : (
-                      <span className="text-sm font-medium">{index + 1}</span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{staff.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {staff.department}
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="font-semibold">{dept.department}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Staff: {dept.staff.join(", ")}
+                  </p>
                 </div>
-
                 <div className="flex items-center gap-6">
                   <div className="text-center">
                     <div className="text-lg font-bold">
-                      {staff.totalAssigned}
+                      {dept.totalAssigned}
                     </div>
                     <div className="text-xs text-muted-foreground">Total</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-success">
-                      {staff.resolved}
+                      {dept.resolved}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Resolved
@@ -393,13 +354,13 @@ export default function AdminAnalytics() {
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-warning">
-                      {staff.pending}
+                      {dept.pending}
                     </div>
                     <div className="text-xs text-muted-foreground">Pending</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-info">
-                      {staff.inProgress}
+                      {dept.inProgress}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       In Progress
@@ -408,14 +369,14 @@ export default function AdminAnalytics() {
                   <Badge
                     variant="outline"
                     className={`${
-                      staff.successRate >= 90
+                      dept.successRate >= 90
                         ? "border-success text-success"
-                        : staff.successRate >= 80
+                        : dept.successRate >= 80
                         ? "border-warning text-warning"
                         : "border-destructive text-destructive"
                     }`}
                   >
-                    {staff.successRate.toFixed(1)}%
+                    {dept.successRate.toFixed(1)}%
                   </Badge>
                 </div>
               </div>

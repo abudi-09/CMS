@@ -43,7 +43,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   const adminMenuItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard" },
-    { icon: UserCheck, label: "Staff Management", href: "/staff-management" },
+    { icon: UserCheck, label: "Dean Management", href: "/staff-management" },
 
     { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
