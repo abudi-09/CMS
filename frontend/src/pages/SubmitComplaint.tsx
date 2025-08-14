@@ -52,6 +52,9 @@ export function SubmitComplaint() {
   const [showDetailModal, setShowDetailModal] = useReactState(false);
   const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
+  const [submitAnonymously, setSubmitAnonymously] = useState(false);
+  // If you have user context, import/use it here
+  // Example: const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +92,8 @@ export function SubmitComplaint() {
       const savedComplaint = await addComplaint({
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
-        submittedBy: "Current User", // Replace with real user if available
+        submittedBy: submitAnonymously ? "Anonymous" : "Current User", // Replace with real user if available
+        // Removed 'name' property as it is not part of the Complaint type
         evidenceFile: evidenceFileString,
       });
       setComplaintId(savedComplaint?.id || "");
@@ -224,6 +228,21 @@ export function SubmitComplaint() {
             className="space-y-6"
             autoComplete="off"
           >
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                id="anonymous"
+                checked={submitAnonymously}
+                onChange={() => setSubmitAnonymously((prev) => !prev)}
+                className="accent-blue-600 w-5 h-5"
+              />
+              <label
+                htmlFor="anonymous"
+                className="text-sm md:text-base font-medium select-none"
+              >
+                Submit Anonymously
+              </label>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="title">Complaint Title *</Label>
