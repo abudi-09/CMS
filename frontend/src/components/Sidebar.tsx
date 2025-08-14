@@ -47,7 +47,7 @@ export function Sidebar({ className }: SidebarProps) {
 
     { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
-    { icon: Users, label: "User Management", href: "/user-management" },
+
     {
       icon: TrendingUp,
       label: "Category Management",

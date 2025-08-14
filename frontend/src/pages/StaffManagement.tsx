@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -10,204 +12,251 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Mail, Building } from "lucide-react";
+import { UserCheck, UserX, Clock, Users, Mail, Building } from "lucide-react";
 
-interface DeanMember {
+type Dean = {
   id: string;
-  fullName?: string;
-  name?: string;
+  name: string;
   email: string;
-  department?: string;
-  office?: string;
-  registeredDate?: string | Date;
+  department: string;
+  office: string;
+  registeredDate: Date;
   status: string;
-}
+};
 
-const mockDeans: DeanMember[] = [
+const mockDeans: Dean[] = [
   {
     id: "dean1",
-    fullName: "Dr. Alice Carter",
-    email: "alice.carter@university.edu",
+    name: "Dr. Alice Carter",
+    email: "alice@university.edu",
     department: "Engineering",
     office: "Eng-101",
-    registeredDate: "2023-01-10",
-    status: "active",
+    registeredDate: new Date("2023-09-01"),
+    status: "pending",
   },
   {
     id: "dean2",
-    fullName: "Dr. Bob Lee",
-    email: "bob.lee@university.edu",
+    name: "Dr. Bob Lee",
+    email: "bob@university.edu",
     department: "Science",
     office: "Sci-201",
-    registeredDate: "2022-09-15",
-    status: "active",
+    registeredDate: new Date("2023-08-15"),
+    status: "approved",
   },
   {
     id: "dean3",
-    fullName: "Dr. Carol Smith",
-    email: "carol.smith@university.edu",
+    name: "Dr. Carol Smith",
+    email: "carol@university.edu",
     department: "Business",
     office: "Bus-301",
-    registeredDate: "2021-05-20",
-    status: "inactive",
+    registeredDate: new Date("2023-07-10"),
+    status: "rejected",
   },
   {
     id: "dean4",
-    fullName: "Dr. David Kim",
-    email: "david.kim@university.edu",
+    name: "Dr. David Kim",
+    email: "david@university.edu",
     department: "Arts",
     office: "Arts-401",
-    registeredDate: "2020-11-05",
-    status: "active",
+    registeredDate: new Date("2023-09-10"),
+    status: "approved",
+  },
+  {
+    id: "dean5",
+    name: "Dr. Emily Turner",
+    email: "emily@university.edu",
+    department: "Law",
+    office: "Law-501",
+    registeredDate: new Date("2023-06-20"),
+    status: "pending",
+  },
+  {
+    id: "dean6",
+    name: "Dr. Frank Miller",
+    email: "frank@university.edu",
+    department: "Medicine",
+    office: "Med-601",
+    registeredDate: new Date("2023-05-05"),
+    status: "approved",
   },
 ];
 
-export function DeanManagement() {
+export default function DeanManagement() {
   const [searchTerm, setSearchTerm] = useState("");
-  const allDeans = mockDeans;
-  // Filter deans by search term
-  const filteredDeans = allDeans.filter((d) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      (d.fullName || d.name || "").toLowerCase().includes(term) ||
-      (d.email || "").toLowerCase().includes(term) ||
-      (d.department || "").toLowerCase().includes(term) ||
-      (d.office || "").toLowerCase().includes(term)
+  const [tab, setTab] = useState("approved");
+  const [deans, setDeans] = useState(mockDeans);
+
+  const filteredDeans = deans.filter(
+    (d) =>
+      d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      d.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const approvedDeans = filteredDeans.filter((d) => d.status === "approved");
+  const pendingDeans = filteredDeans.filter((d) => d.status === "pending");
+  const rejectedDeans = filteredDeans.filter((d) => d.status === "rejected");
+
+  const handleApprove = (id: string) => {
+    setDeans((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, status: "approved" } : d))
     );
-  });
+  };
+  const handleReject = (id: string) => {
+    setDeans((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, status: "rejected" } : d))
+    );
+  };
+  const handleDeactivate = (id: string) => {
+    setDeans((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, status: "deactivated" } : d))
+    );
+  };
+
+  const DeanTable = ({
+    data,
+    actions,
+  }: {
+    data: Dean[];
+    actions: (d: Dean) => JSX.Element;
+  }) => (
+    <div className="rounded-md border overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Office</TableHead>
+            <TableHead>Department</TableHead>
+            <TableHead>Registration Date</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={7}
+                className="text-center py-8 text-muted-foreground"
+              >
+                No deans found
+              </TableCell>
+            </TableRow>
+          ) : (
+            data.map((d) => (
+              <TableRow key={d.id}>
+                <TableCell>{d.name}</TableCell>
+                <TableCell>{d.email}</TableCell>
+                <TableCell>{d.office}</TableCell>
+                <TableCell>{d.department}</TableCell>
+                <TableCell>{d.registeredDate.toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Badge
+                    className={
+                      d.status === "approved"
+                        ? "bg-green-100 text-green-800"
+                        : d.status === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }
+                  >
+                    {d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">{actions(d)}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Dean Management</h1>
-        <p className="text-muted-foreground">
-          Directory and status of all deans
-        </p>
+        <h1 className="text-2xl md:text-3xl font-bold">Dean Management</h1>
+        <p className="text-muted-foreground">Manage deans in your university</p>
       </div>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active Deans
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {filteredDeans.filter((d) => d.status === "active").length}
-            </div>
-            <p className="text-xs text-muted-foreground">Currently serving</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Inactive Deans
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {filteredDeans.filter((d) => d.status === "inactive").length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Not currently serving
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Deans
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredDeans.length}</div>
-            <p className="text-xs text-muted-foreground">
-              All registered deans
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      {/* Dean Directory Table */}
-      <Card>
+      <Card className="mb-4">
         <CardHeader>
           <CardTitle>Dean Directory</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="max-w-md mb-4">
+          <div className="flex flex-wrap gap-2 mt-4">
             <Input
-              placeholder="Search dean by name, email, department, or office..."
+              placeholder="Search by name or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full"
+              className="w-full max-w-md text-base md:text-lg py-2 md:py-3 px-4 transition-all"
             />
           </div>
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-sm">Name</TableHead>
-                  <TableHead className="text-sm">Email</TableHead>
-                  <TableHead className="text-sm">Department</TableHead>
-                  <TableHead className="text-sm">Office</TableHead>
-                  <TableHead className="text-sm">Registration Date</TableHead>
-                  <TableHead className="text-sm">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDeans.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-center py-8 text-muted-foreground"
+        </CardHeader>
+        <CardContent>
+          <Tabs value={tab} onValueChange={setTab} className="w-full">
+            <TabsList>
+              <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="approved">Approved</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected</TabsTrigger>
+            </TabsList>
+            <TabsContent value="approved">
+              <DeanTable
+                data={approvedDeans}
+                actions={(d) => (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeactivate(d.id)}
+                      className="text-red-600 hover:text-red-700"
                     >
-                      No deans found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredDeans.map((dean) => (
-                    <TableRow key={dean.id} className="dark:hover:bg-accent/10">
-                      <TableCell className="font-medium text-sm">
-                        {dean.fullName || dean.name}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          {dean.email}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {dean.department}
-                      </TableCell>
-                      <TableCell className="text-sm">{dean.office}</TableCell>
-                      <TableCell className="text-sm">
-                        {dean.registeredDate
-                          ? typeof dean.registeredDate === "string"
-                            ? dean.registeredDate
-                            : new Date(dean.registeredDate).toLocaleDateString()
-                          : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            dean.status === "active"
-                              ? "bg-green-100 text-green-800 text-xs"
-                              : "bg-gray-100 text-gray-800 text-xs"
-                          }
-                        >
-                          {dean.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                      <UserX className="h-4 w-4" /> Deactivate
+                    </Button>
+                  </>
                 )}
-              </TableBody>
-            </Table>
-          </div>
+              />
+            </TabsContent>
+            <TabsContent value="pending">
+              <DeanTable
+                data={pendingDeans}
+                actions={(d) => (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleApprove(d.id)}
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      <UserCheck className="h-4 w-4" /> Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReject(d.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <UserX className="h-4 w-4" /> Reject
+                    </Button>
+                  </>
+                )}
+              />
+            </TabsContent>
+            <TabsContent value="rejected">
+              <DeanTable
+                data={rejectedDeans}
+                actions={(d) => (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleApprove(d.id)}
+                    className="text-green-600 hover:text-green-700"
+                  >
+                    <UserCheck className="h-4 w-4" /> Re-approve
+                  </Button>
+                )}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
   );
 }
-
-export default DeanManagement;

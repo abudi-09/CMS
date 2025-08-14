@@ -46,9 +46,6 @@ type Complaint = BaseComplaint & {
   priority?: "Low" | "Medium" | "High" | "Critical";
 };
 
-// ...existing code...
-// ...existing code...
-
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
   "In Progress": "bg-blue-100 text-blue-800",
@@ -338,7 +335,8 @@ export function AssignComplaints() {
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
     // Remove 'Unassigned' from status filter logic
     const matchesStatus =
-      statusFilter === "all" || (complaint.status === statusFilter && complaint.status !== "Unassigned");
+      statusFilter === "all" ||
+      (complaint.status === statusFilter && complaint.status !== "Unassigned");
     const matchesAssignment =
       assignmentFilter === "all"
         ? true
@@ -516,46 +514,25 @@ export function AssignComplaints() {
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
                   <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Department</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
-                  <TableHead className="text-sm">Assigned Staff</TableHead>
+                  <TableHead className="text-sm">Assigned Dean</TableHead>
                   <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredComplaints.map((complaint) => (
-                  <TableRow
-                    key={complaint.id}
-                    className={`dark:hover:bg-accent/10 ${
-                      complaint.id.startsWith("MOCK-")
-                        ? "bg-yellow-50 border-l-4 border-yellow-400"
-                        : ""
-                    }`}
-                  >
+                  <TableRow key={complaint.id}>
                     <TableCell className="font-medium text-sm">
-                      <div>
-                        <div className="font-semibold flex items-center gap-2">
-                          {complaint.title}
-                          {complaint.id.startsWith("MOCK-") && (
-                            <Badge className="bg-yellow-400 text-white text-xs">
-                              Mock/Test
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Submitted by {complaint.submittedBy}
-                        </div>
-                        {complaint.id.startsWith("MOCK-") && (
-                          <div className="text-xs text-yellow-700 mt-1">
-                            This is a mock/test complaint for UI and feature
-                            demonstration.
-                          </div>
-                        )}
-                      </div>
+                      {complaint.title}
                     </TableCell>
                     <TableCell className="text-sm">
                       {complaint.category}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.department || "-"}
                     </TableCell>
                     <TableCell className="text-sm">
                       <Badge
@@ -580,8 +557,7 @@ export function AssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {complaint.assignedStaff &&
-                      complaint.assignedStaff !== "Not Yet Assigned" ? (
+                      {complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
                           Assigned to: {complaint.assignedStaff}
                         </span>
@@ -618,14 +594,14 @@ export function AssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {reassigningRow === complaint.id ? (
+                        {!complaint.assignedStaff && (
                           <>
                             <Select
                               value={assigningStaffId}
                               onValueChange={setAssigningStaffId}
                             >
                               <SelectTrigger className="w-32 text-xs">
-                                <SelectValue placeholder="Select staff" />
+                                <SelectValue placeholder="Select dean" />
                               </SelectTrigger>
                               <SelectContent>
                                 {getAllStaff().map((staff) => (
@@ -635,7 +611,6 @@ export function AssignComplaints() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            {/* Deadline Picker */}
                             <Input
                               type="date"
                               className="w-32 text-xs"
@@ -657,32 +632,9 @@ export function AssignComplaints() {
                                 )
                               }
                             >
-                              Confirm
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs"
-                              onClick={() => {
-                                setReassigningRow(null);
-                                setAssigningStaffId("");
-                              }}
-                            >
-                              Cancel
+                              Assign
                             </Button>
                           </>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs dark:hover:text-blue-400"
-                            onClick={() => handleAssignClick(complaint)}
-                          >
-                            {complaint.assignedStaff &&
-                            complaint.assignedStaff !== "Not Yet Assigned"
-                              ? "Re-Assign"
-                              : "Assign"}
-                          </Button>
                         )}
                       </div>
                     </TableCell>
