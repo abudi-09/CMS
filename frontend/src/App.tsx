@@ -16,6 +16,7 @@ import { AdminDashboard } from "@/pages/AdminDashboard";
 import { DeanDashboard } from "@/pages/DeanDashboard";
 import DeanUserManagement from "@/pages/DeanUserManagement";
 import DeanStaffManagement from "@/pages/DeanStaffManagement";
+import DeanAnalytics from "@/pages/DeanAnalytics";
 import HomePage from "./pages/HomePage";
 import AboutPage from "./pages/AboutPage";
 import HelpPage from "./pages/HelpPage";
@@ -23,7 +24,7 @@ import CalendarView from "@/pages/CalendarView";
 import StaffPerformance from "@/pages/StaffPerformance";
 import { SubmitComplaint } from "@/pages/SubmitComplaint";
 import { MyComplaints } from "@/pages/MyComplaints";
-import { StaffManagement } from "@/pages/StaffManagement";
+import StaffManagement from "@/pages/StaffManagement";
 import { FeedbackReview } from "@/pages/FeedbackReview";
 import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
@@ -35,6 +36,7 @@ import AllComplaints from "@/pages/AllComplaints";
 import MyPerformance from "@/pages/MyPerformance";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import { DeanAssignComplaints } from "@/pages/DeanAssignComplaints";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -136,10 +138,7 @@ function AppContent() {
                   path="/category-management"
                   element={<CategoryManagement />}
                 />
-                <Route
-                  path="/staff-performance"
-                  element={<StaffPerformance />}
-                />
+                {/* StaffPerformance only for dean, not admin */}
                 <Route path="/my-performance" element={<MyPerformance />} />
 
                 <Route path="/calendar-view" element={<CalendarView />} />
@@ -154,6 +153,15 @@ function AppContent() {
                 <Route
                   path="/dean-staff-management"
                   element={<DeanStaffManagement />}
+                />
+                <Route path="/dean-analytics" element={<DeanAnalytics />} />
+                <Route
+                  path="/dean-staff-performance"
+                  element={<StaffPerformance />}
+                />
+                <Route
+                  path="/dean/assign-complaints"
+                  element={<DeanAssignComplaints />}
                 />
                 <Route path="*" element={<NotFound />} />
               </Routes>

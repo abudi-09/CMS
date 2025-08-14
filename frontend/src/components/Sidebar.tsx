@@ -56,25 +56,31 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
     { icon: TrendingUp, label: "Admin Analytics", href: "/admin-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" }, // Removed due to missing export
-    {
-      icon: GraduationCap,
-      label: "Staff Performance",
-      href: "/staff-performance",
-    },
+
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
   const deanMenuItems = [
     { icon: Home, label: "Dashboard", href: "/dean-dashboard" },
     {
+      icon: UserPlus,
+      label: "Assign Complaints",
+      href: "/dean/assign-complaints",
+    },
+
+    {
       icon: UserCheck,
       label: "Staff Management",
       href: "/dean-staff-management",
     },
     { icon: Users, label: "User Management", href: "/dean-user-management" },
-
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
-
+    { icon: TrendingUp, label: "Dean Analytics", href: "/dean-analytics" },
+    {
+      icon: GraduationCap,
+      label: "Staff Performance",
+      href: "/dean-staff-performance",
+    },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
