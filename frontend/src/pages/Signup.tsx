@@ -299,6 +299,7 @@ export function Signup() {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="dean">Dean</SelectItem>
                 </SelectContent>
               </Select>
               {touched.role && errors.role && (
