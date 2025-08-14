@@ -13,10 +13,13 @@ export const CategoryContext = createContext<CategoryContextType | undefined>(
 
 export const CategoryProvider = ({ children }: { children: ReactNode }) => {
   const [categories, setCategories] = useState<string[]>([
-    "IT & Technology",
-    "Student Services",
-    "Infrastructure & Facilities",
-    "Academics",
+    "Grade Issue",
+    "Disciplinary Issue",
+    "Teacher Missed Class",
+    "Dorm Issue",
+    "Library Closed",
+    "Café Issue",
+    "Change Mid and Final Exam Date",
     "Other",
   ]);
 

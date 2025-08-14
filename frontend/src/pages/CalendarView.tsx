@@ -223,6 +223,7 @@ export default function CalendarView({
   );
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Only show assigned complaints for staff, all for admin
   const filteredComplaints = mockComplaints.filter((complaint) => {
@@ -230,9 +231,11 @@ export default function CalendarView({
       statusFilter === "all" || complaint.status === statusFilter;
     const matchesPriority =
       priorityFilter === "all" || complaint.priority === priorityFilter;
+    const matchesCategory =
+      categoryFilter === "all" || complaint.category === categoryFilter;
     const matchesRole =
       role === "admin" ? true : complaint.assignedStaff === staffName;
-    return matchesStatus && matchesPriority && matchesRole;
+    return matchesStatus && matchesPriority && matchesCategory && matchesRole;
   });
 
   const getComplaintsForDate = (date: Date) => {
@@ -338,6 +341,26 @@ export default function CalendarView({
                       <SelectItem value="Urgent">Urgent</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select
+                    value={categoryFilter}
+                    onValueChange={setCategoryFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="IT Services">IT Services</SelectItem>
+                      <SelectItem value="Facilities">Facilities</SelectItem>
+                      <SelectItem value="Academic Affairs">
+                        Academic Affairs
+                      </SelectItem>
+                      <SelectItem value="Student Services">
+                        Student Services
+                      </SelectItem>
+                      <SelectItem value="Cafeteria">Cafeteria</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </>
               )}
             </div>
@@ -413,7 +436,7 @@ export default function CalendarView({
                         <div
                           className={`p-3 border-l-4 cursor-pointer hover:bg-accent/50 transition-colors ${
                             isOverdue
-                              ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
+                              ? "border-red-500 bg-red-50 dark:bg-red-900/10"
                               : priorityColors[complaint.priority || "Low"]
                           }`}
                         >
@@ -423,11 +446,15 @@ export default function CalendarView({
                                 {complaint.title}
                               </p>
                               {isOverdue && (
-                                <Badge className="bg-red-500 text-white text-xs">Overdue</Badge>
+                                <Badge className="bg-red-500 text-white text-xs">
+                                  Overdue
+                                </Badge>
                               )}
                             </div>
                             <Badge
-                              className={`${statusColors[complaint.status]} text-xs ml-2`}
+                              className={`${
+                                statusColors[complaint.status]
+                              } text-xs ml-2`}
                             >
                               {complaint.status}
                             </Badge>
@@ -439,7 +466,8 @@ export default function CalendarView({
                             <span>{complaint.priority}</span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Assigned to: {complaint.assignedStaff || "Unassigned"}
+                            Assigned to:{" "}
+                            {complaint.assignedStaff || "Unassigned"}
                           </p>
                         </div>
                       </DialogTrigger>
@@ -474,16 +502,26 @@ export default function CalendarView({
                               <p className="text-sm">{complaint.category}</p>
                             </div>
                             <div>
-                              <p className="text-sm font-medium">Assigned Staff</p>
-                              <p className="text-sm">{complaint.assignedStaff || "Unassigned"}</p>
+                              <p className="text-sm font-medium">
+                                Assigned Staff
+                              </p>
+                              <p className="text-sm">
+                                {complaint.assignedStaff || "Unassigned"}
+                              </p>
                             </div>
                             <div>
                               <p className="text-sm font-medium">Submitted</p>
-                              <p className="text-sm">{format(complaint.submittedDate, "MMM d, yyyy")}</p>
+                              <p className="text-sm">
+                                {format(complaint.submittedDate, "MMM d, yyyy")}
+                              </p>
                             </div>
                             <div>
                               <p className="text-sm font-medium">Deadline</p>
-                              <p className="text-sm">{complaint.deadline ? format(complaint.deadline, "MMM d, yyyy") : "Not set"}</p>
+                              <p className="text-sm">
+                                {complaint.deadline
+                                  ? format(complaint.deadline, "MMM d, yyyy")
+                                  : "Not set"}
+                              </p>
                             </div>
                           </div>
                         </div>

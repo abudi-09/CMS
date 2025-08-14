@@ -82,6 +82,8 @@ export function Login() {
               navigate("/dashboard");
             } else if (role === "staff") {
               navigate("/dashboard");
+            } else if (role === "dean") {
+              navigate("/dean-dashboard");
             } else {
               navigate("/dashboard");
             }

@@ -42,14 +42,17 @@ export const signup = async (req, res) => {
     const { name, username, email, password, role, department, workingPlace } =
       req.body;
 
-    const allowedRoles = ["user", "staff"];
+    const allowedRoles = ["user", "staff", "dean"];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role selected" });
     }
-    if (role === "user" && (!department || !department.trim())) {
+    if (
+      (role === "user" || role === "dean") &&
+      (!department || !department.trim())
+    ) {
       return res
         .status(400)
-        .json({ error: "Department is required for users" });
+        .json({ error: "Department is required for users and deans" });
     }
     if (role === "staff" && (!workingPlace || !workingPlace.trim())) {
       return res
@@ -87,7 +90,7 @@ export const signup = async (req, res) => {
       email,
       password: hashedPassword,
       role,
-      department: role === "user" ? department : undefined,
+      department: role === "user" || role === "dean" ? department : undefined,
       workingPlace: role === "staff" ? workingPlace : undefined,
       isVerified: false,
     });
@@ -115,7 +118,9 @@ export const signup = async (req, res) => {
 
     res.status(201).json({
       message:
-        "Registration successful. Please check your email to verify your account.",
+        role === "dean"
+          ? "Dean registration successful. Please check your email to verify your account."
+          : "Registration successful. Please check your email to verify your account.",
     });
   } catch (error) {
     console.log("Error in signup controller", error.message);

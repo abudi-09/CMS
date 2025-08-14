@@ -66,6 +66,8 @@ export function Signup() {
       newErrors.department = "Department is required";
     if (formData.role === "staff" && !formData.workingPlace.trim())
       newErrors.workingPlace = "Working place is required";
+    if (formData.role === "dean" && !formData.department.trim())
+      newErrors.department = "Department or Working Place is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -88,6 +90,13 @@ export function Signup() {
         setTimeout(() => {
           navigate("/login");
         }, 3000);
+      } else if (formData.role.toLowerCase() === "dean") {
+        toast({
+          title: "Account Created Successfully",
+          description:
+            "Dean account created. Please check your email to verify your account.",
+        });
+        navigate("/login");
       } else {
         toast({
           title: "Account Created Successfully",
@@ -352,6 +361,33 @@ export function Signup() {
                 {touched.workingPlace && errors.workingPlace && (
                   <p className="text-sm text-destructive">
                     {errors.workingPlace}
+                  </p>
+                )}
+              </div>
+            )}
+            {formData.role === "dean" && (
+              <div className="space-y-2">
+                <Label htmlFor="department">
+                  Department or Working Place *
+                </Label>
+                <Input
+                  id="department"
+                  type="text"
+                  aria-label="Department or Working Place"
+                  autoComplete="organization"
+                  placeholder="Enter your department or working place"
+                  value={formData.department}
+                  onChange={(e) =>
+                    handleInputChange("department", e.target.value)
+                  }
+                  onBlur={() =>
+                    setTouched((prev) => ({ ...prev, department: true }))
+                  }
+                  className={errors.department ? "border-destructive" : ""}
+                />
+                {touched.department && errors.department && (
+                  <p className="text-sm text-destructive">
+                    {errors.department}
                   </p>
                 )}
               </div>

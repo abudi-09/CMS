@@ -520,48 +520,50 @@ export function Profile() {
               </Card>
             </div>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Statistics</CardTitle>
-                <CardDescription>Your activity summary</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      {user?.role === "admin"
-                        ? "Total Staff"
-                        : "Total Complaints"}
-                    </p>
-                    <p className="text-lg font-semibold">
-                      {user?.role === "admin"
-                        ? "8"
-                        : performanceData.totalComplaints}
-                    </p>
-                  </div>
+            user?.role !== "dean" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Account Statistics</CardTitle>
+                  <CardDescription>Your activity summary</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {user?.role === "admin"
+                          ? "Total Staff"
+                          : "Total Complaints"}
+                      </p>
+                      <p className="text-lg font-semibold">
+                        {user?.role === "admin"
+                          ? "8"
+                          : performanceData.totalComplaints}
+                      </p>
+                    </div>
 
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Resolved</p>
-                    <p className="text-lg font-semibold text-green-600">
-                      {performanceData.resolved}
-                    </p>
-                  </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">Resolved</p>
+                      <p className="text-lg font-semibold text-green-600">
+                        {performanceData.resolved}
+                      </p>
+                    </div>
 
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      {user?.role === "admin"
-                        ? "System Uptime"
-                        : "Success Rate"}
-                    </p>
-                    <p className="text-lg font-semibold text-green-600">
-                      {user?.role === "admin"
-                        ? "99.9%"
-                        : `${performanceData.resolutionRate}%`}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {user?.role === "admin"
+                          ? "System Uptime"
+                          : "Success Rate"}
+                      </p>
+                      <p className="text-lg font-semibold text-green-600">
+                        {user?.role === "admin"
+                          ? "99.9%"
+                          : `${performanceData.resolutionRate}%`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )
           )}
         </TabsContent>
 

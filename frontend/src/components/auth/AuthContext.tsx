@@ -14,7 +14,7 @@ import {
   rejectStaffApi,
 } from "@/lib/api";
 
-export type UserRole = "user" | "staff" | "admin";
+export type UserRole = "user" | "staff" | "admin" | "dean";
 export type StaffStatus = "pending" | "approved" | "rejected";
 
 interface User {
@@ -198,5 +198,5 @@ export function useAuth() {
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
+  return context;
 }

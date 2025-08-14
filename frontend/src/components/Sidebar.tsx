@@ -64,15 +64,26 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
+  const deanMenuItems = [
+    { icon: Home, label: "Dashboard", href: "/dean-dashboard" },
+    {
+      icon: UserCheck,
+      label: "Staff Management",
+      href: "/dean-staff-management",
+    },
+    { icon: Users, label: "User Management", href: "/dean-user-management" },
+
+    { icon: FileText, label: "All Complaints", href: "/all-complaints" },
+
+    { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
+    { icon: Settings, label: "Profile", href: "/profile" },
+  ];
+
   const getMenuItems = () => {
-    switch (user?.role) {
-      case "staff":
-        return staffMenuItems;
-      case "admin":
-        return adminMenuItems;
-      default:
-        return userMenuItems;
-    }
+    if (user?.role === "dean") return deanMenuItems;
+    if (user?.role === "admin") return adminMenuItems;
+    if (user?.role === "staff") return staffMenuItems;
+    return userMenuItems;
   };
 
   const menuItems = getMenuItems();
@@ -81,7 +92,9 @@ export function Sidebar({ className }: SidebarProps) {
     <div className={cn("flex flex-col h-full p-4", className)}>
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-2">
-          {user?.role === "admin"
+          {user?.role === "dean"
+            ? "Dean Dashboard"
+            : user?.role === "admin"
             ? "Admin Panel"
             : user?.role === "staff"
             ? "Staff Portal"
