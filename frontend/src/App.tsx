@@ -13,6 +13,9 @@ import { Signup } from "@/pages/Signup";
 import { UserDashboard } from "@/pages/UserDashboard";
 import { StaffDashboard } from "@/pages/StaffDashboard";
 import { AdminDashboard } from "@/pages/AdminDashboard";
+import { DeanDashboard } from "@/pages/DeanDashboard";
+import DeanUserManagement from "@/pages/DeanUserManagement";
+import DeanStaffManagement from "@/pages/DeanStaffManagement";
 import HomePage from "./pages/HomePage";
 import AboutPage from "./pages/AboutPage";
 import HelpPage from "./pages/HelpPage";
@@ -143,6 +146,15 @@ function AppContent() {
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/dean-dashboard" element={<DeanDashboard />} />
+                <Route
+                  path="/dean-user-management"
+                  element={<DeanUserManagement />}
+                />
+                <Route
+                  path="/dean-staff-management"
+                  element={<DeanStaffManagement />}
+                />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>
