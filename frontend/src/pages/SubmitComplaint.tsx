@@ -1,4 +1,51 @@
 import { useState, useContext } from "react";
+// Role-based categories
+const roleCategories = {
+  staff: [
+    "Teacher Missed Class",
+    "Lab / Equipment Issue",
+    "Dormitory / Hostel Issue",
+    "Cafeteria Issue",
+    "Assignment / Coursework Issue",
+  ],
+  hod: [
+    "Major Grade / Exam Issue",
+    "Staff Misconduct",
+    "Department Resource Issue",
+    "Curriculum / Schedule Issue",
+  ],
+  dean: [
+    "College Facility Issue",
+    "Campus-wide Infrastructure Issue",
+    "College Policy / Administration Issue",
+    "Department Conflicts",
+  ],
+  admin: [
+    "College Portal Issue",
+    "System Errors / Technical Failures",
+    "Feedback & Reports Management",
+  ],
+};
+
+// Mock recipients
+const mockStaff = [
+  { id: "1", fullName: "John Doe", department: "Computer Science" },
+  { id: "2", fullName: "Jane Smith", department: "IT" },
+  { id: "3", fullName: "Alice Johnson", department: "Information System" },
+  { id: "4", fullName: "Bob Brown", department: "Computer System" },
+];
+const mockHoD = [
+  { id: "5", fullName: "Dr. Alan Turing", department: "Computer Science" },
+  { id: "6", fullName: "Dr. Grace Hopper", department: "IT" },
+  { id: "7", fullName: "Dr. Ada Lovelace", department: "Information System" },
+  { id: "8", fullName: "Dr. Donald Knuth", department: "Computer System" },
+];
+const mockDean = [
+  { id: "9", fullName: "Prof. Tim Berners-Lee", department: "All Departments" },
+];
+const mockAdmin = [
+  { id: "10", fullName: "System Admin", department: "Administration" },
+];
 // Update the path below if your ComplaintContext file is in a different location
 import { useComplaints } from "@/context/ComplaintContext";
 import { CategoryContext } from "@/context/CategoryContext";
@@ -40,13 +87,19 @@ export function SubmitComplaint() {
     category: "",
     priority: "",
     description: "",
-    staff: "",
+    role: "", // staff | hod | dean | admin
+    recipient: "", // staffId, hodId, deanId, adminId
+    deadline: "",
+    anonymous: false,
   });
   const [touched, setTouched] = useState({
     title: false,
     category: false,
     priority: false,
     description: false,
+    role: false,
+    recipient: false,
+    deadline: false,
   });
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,8 +108,7 @@ export function SubmitComplaint() {
   const [showDetailModal, setShowDetailModal] = useReactState(false);
   const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
-  const [submitAnonymously, setSubmitAnonymously] = useState(false);
-  const [submitTo, setSubmitTo] = useState("staff"); // 'staff' or 'dean'
+  // Remove old submitTo, use formData.role
   // If you have user context, import/use it here
   // Example: const { user } = useAuth();
 
@@ -67,6 +119,9 @@ export function SubmitComplaint() {
       category: true,
       priority: true,
       description: true,
+      role: touched.role,
+      recipient: touched.recipient,
+      deadline: touched.deadline,
     });
     if (
       !formData.title ||
@@ -95,7 +150,7 @@ export function SubmitComplaint() {
       }
       let submittedTo = "";
       let status = "";
-      if (submitTo === "staff") {
+      if (submitted === "staff") {
         submittedTo = `Staff (${user?.department || "Unknown Department"})`;
         status = "Submitted to Staff";
       } else {
@@ -105,12 +160,13 @@ export function SubmitComplaint() {
       const savedComplaint = await addComplaint({
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
-        submittedBy: submitAnonymously
+        submittedBy: formData.anonymous
           ? "Anonymous"
           : user?.username || "Current User",
         evidenceFile: evidenceFileString,
         submittedTo,
         department: user?.department || "Unknown Department",
+        deadline: formData.deadline ? new Date(formData.deadline) : undefined,
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);
@@ -230,14 +286,20 @@ export function SubmitComplaint() {
   }
 
   // Replace this with your actual staff fetching logic or context
-  function getAllStaff() {
-    // Example static data; replace with real data source
-    return [
-      { id: "1", fullName: "John Doe", department: "Computer Science" },
-      { id: "2", fullName: "Jane Smith", department: "IT" },
-      { id: "3", fullName: "Alice Johnson", department: "Information System" },
-      { id: "4", fullName: "Bob Brown", department: "Computer System" },
-    ];
+  // Helper to get recipients by role
+  function getRecipients(role: string, department: string) {
+    switch (role) {
+      case "staff":
+        return mockStaff.filter((s) => s.department === department);
+      case "hod":
+        return mockHoD.filter((h) => h.department === department);
+      case "dean":
+        return mockDean;
+      case "admin":
+        return mockAdmin;
+      default:
+        return [];
+    }
   }
 
   // Ensure department is always one of the four for demo/testing
@@ -262,6 +324,15 @@ export function SubmitComplaint() {
           resolve your issue.
         </p>
       </div>
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-bold">Submit a Complaint</h1>
+        <p className="text-lg text-muted-foreground">
+          Please provide as much detail as possible to help us understand and resolve your issue.
+        </p>
+      </div>
 
       {/* Main Form */}
       <Card className="shadow-lg rounded-2xl bg-white dark:bg-background">
@@ -272,26 +343,22 @@ export function SubmitComplaint() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-6"
-            autoComplete="off"
-          >
+          <form className="space-y-6" autoComplete="off">
+            {/* Anonymous Submission */}
             <div className="flex items-center gap-2 mb-2">
               <input
                 type="checkbox"
                 id="anonymous"
-                checked={submitAnonymously}
-                onChange={() => setSubmitAnonymously((prev) => !prev)}
+                checked={formData.anonymous}
+                onChange={() => setFormData((prev) => ({ ...prev, anonymous: !prev.anonymous }))}
                 className="accent-blue-600 w-5 h-5"
               />
-              <label
-                htmlFor="anonymous"
-                className="text-sm md:text-base font-medium select-none"
-              >
+              <label htmlFor="anonymous" className="text-sm md:text-base font-medium select-none">
                 Submit Anonymously
               </label>
             </div>
+
+            {/* Title & Priority */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="title">Complaint Title *</Label>
@@ -299,24 +366,17 @@ export function SubmitComplaint() {
                   id="title"
                   aria-label="Complaint Title"
                   value={formData.title}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, title: e.target.value }))
-                  }
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, title: true }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                  onBlur={() => setTouched((prev) => ({ ...prev, title: true }))}
                   placeholder="Brief summary of your complaint"
                   required
                   className="rounded-lg"
                   autoComplete="off"
                 />
                 {touched.title && !formData.title && (
-                  <span className="text-xs text-red-600">
-                    Title is required.
-                  </span>
+                  <span className="text-xs text-red-600">Title is required.</span>
                 )}
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority *</Label>
                 <Select
@@ -334,9 +394,7 @@ export function SubmitComplaint() {
                     {priorities.map((priority) => (
                       <SelectItem key={priority.value} value={priority.value}>
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${priority.color}`}
-                          />
+                          <span className={`w-2 h-2 rounded-full ${priority.color}`} />
                           {priority.label}
                         </div>
                       </SelectItem>
@@ -344,41 +402,111 @@ export function SubmitComplaint() {
                   </SelectContent>
                 </Select>
                 {touched.priority && !formData.priority && (
-                  <span className="text-xs text-red-600">
-                    Priority is required.
-                  </span>
+                  <span className="text-xs text-red-600">Priority is required.</span>
                 )}
               </div>
             </div>
 
+            {/* Role Selection */}
             <div className="space-y-2">
-              <Label htmlFor="category">Category *</Label>
+              <Label htmlFor="role">Send To *</Label>
               <Select
-                value={formData.category}
+                value={formData.role}
                 onValueChange={(value) => {
-                  setFormData((prev) => ({ ...prev, category: value }));
-                  setTouched((prev) => ({ ...prev, category: true }));
+                  setFormData((prev) => ({ ...prev, role: value, category: "", recipient: "" }));
+                  setTouched((prev) => ({ ...prev, role: true }));
                 }}
                 required
               >
                 <SelectTrigger className="rounded-lg">
-                  <SelectValue placeholder="Select complaint category" />
+                  <SelectValue placeholder="Select recipient role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="staff">Staff (Your Department)</SelectItem>
+                  <SelectItem value="hod">HoD (Head of Department)</SelectItem>
+                  <SelectItem value="dean">Dean (Head of All Departments)</SelectItem>
+                  <SelectItem value="admin">Admin (System Administrator)</SelectItem>
                 </SelectContent>
               </Select>
-              {touched.category && !formData.category && (
-                <span className="text-xs text-red-600">
-                  Category is required.
-                </span>
+              {touched.role && !formData.role && (
+                <span className="text-xs text-red-600">Recipient role is required.</span>
               )}
             </div>
 
+            {/* Category Selection (filtered by role) */}
+            {formData.role && (
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, category: value }));
+                    setTouched((prev) => ({ ...prev, category: true }));
+                  }}
+                  required
+                >
+                  <SelectTrigger className="rounded-lg">
+                    <SelectValue placeholder="Select complaint category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleCategories[formData.role].map((category) => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {touched.category && !formData.category && (
+                  <span className="text-xs text-red-600">Category is required.</span>
+                )}
+              </div>
+            )}
+
+            {/* Recipient Selection (filtered by role and department) */}
+            {formData.role && (
+              <div className="space-y-2">
+                <Label htmlFor="recipient">Select Recipient *</Label>
+                <Select
+                  value={formData.recipient}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, recipient: value }));
+                    setTouched((prev) => ({ ...prev, recipient: true }));
+                  }}
+                  required
+                >
+                  <SelectTrigger className="rounded-lg">
+                    <SelectValue placeholder="Select recipient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getRecipients(formData.role, currentDepartment).map((person) => (
+                      <SelectItem key={person.id} value={person.id}>{person.fullName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {touched.recipient && !formData.recipient && (
+                  <span className="text-xs text-red-600">Recipient is required.</span>
+                )}
+              </div>
+            )}
+
+            {/* Deadline Field (only for staff/hod) */}
+            {(formData.role === "staff" || formData.role === "hod") && (
+              <div className="space-y-2">
+                <Label htmlFor="deadline">Deadline *</Label>
+                <Input
+                  id="deadline"
+                  type="date"
+                  value={formData.deadline}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, deadline: e.target.value }))}
+                  onBlur={() => setTouched((prev) => ({ ...prev, deadline: true }))}
+                  required
+                  className="rounded-lg"
+                />
+                {touched.deadline && !formData.deadline && (
+                  <span className="text-xs text-red-600">Deadline is required for staff/HoD complaints.</span>
+                )}
+              </div>
+            )}
+
+            {/* Evidence File */}
             <div className="space-y-2">
               <Label htmlFor="evidence">Evidence File</Label>
               <div className="space-y-2">
@@ -389,10 +517,7 @@ export function SubmitComplaint() {
                   onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
                   className="rounded-lg"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Optional. Upload evidence or related document (JPG, PNG, PDF,
-                  DOCX)
-                </p>
+                <p className="text-xs text-muted-foreground">Optional. Upload evidence or related document (JPG, PNG, PDF, DOCX)</p>
                 {evidenceFile && (
                   <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                     <Upload className="h-4 w-4 text-muted-foreground" />
@@ -411,34 +536,24 @@ export function SubmitComplaint() {
               </div>
             </div>
 
+            {/* Description */}
             <div className="space-y-2">
               <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
                 aria-label="Complaint Description"
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                onBlur={() =>
-                  setTouched((prev) => ({ ...prev, description: true }))
-                }
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                onBlur={() => setTouched((prev) => ({ ...prev, description: true }))}
                 placeholder="Provide detailed information about your complaint, including when it occurred, who was involved, and any steps you've already taken..."
                 className="min-h-32 rounded-lg"
                 maxLength={1000}
                 required
                 autoComplete="off"
               />
-              <div className="text-xs text-muted-foreground text-right">
-                {formData.description.length}/1000 characters
-              </div>
+              <div className="text-xs text-muted-foreground text-right">{formData.description.length}/1000 characters</div>
               {touched.description && !formData.description && (
-                <span className="text-xs text-red-600">
-                  Description is required.
-                </span>
+                <span className="text-xs text-red-600">Description is required.</span>
               )}
             </div>
 
@@ -453,56 +568,6 @@ export function SubmitComplaint() {
               />
             </div>
 
-            {/* Submit To dropdown */}
-            <div className="space-y-2">
-              <Label htmlFor="submitTo">Submit To *</Label>
-              <Select value={submitTo} onValueChange={setSubmitTo} required>
-                <SelectTrigger className="rounded-lg">
-                  <SelectValue placeholder="Select who to submit to" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="staff">
-                    Staff ({user?.department || "Your Department"})
-                  </SelectItem>
-                  <SelectItem value="dean">
-                    Dean (Head of All Departments)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Staff selection (only if Staff is selected) */}
-            {submitTo === "staff" && (
-              <div className="space-y-2">
-                <Label htmlFor="staff">
-                  Select Staff (Your Department){" "}
-                  <span className="text-xs text-muted-foreground">
-                    (Optional)
-                  </span>
-                </Label>
-                <Select
-                  value={formData.staff || ""}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, staff: value }))
-                  }
-                >
-                  <SelectTrigger className="rounded-lg">
-                    <SelectValue placeholder="Select staff member (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No Preference</SelectItem>
-                    {getAllStaff()
-                      .filter((staff) => staff.department === currentDepartment)
-                      .map((staff) => (
-                        <SelectItem key={staff.id} value={staff.id}>
-                          {staff.fullName}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             <Button
               type="submit"
               className="w-full"
@@ -511,7 +576,10 @@ export function SubmitComplaint() {
                 !formData.title ||
                 !formData.category ||
                 !formData.priority ||
-                !formData.description
+                !formData.role ||
+                !formData.recipient ||
+                !formData.description ||
+                ((formData.role === "staff" || formData.role === "hod") && !formData.deadline)
               }
               size="lg"
               aria-label="Submit Complaint"
@@ -541,27 +609,19 @@ export function SubmitComplaint() {
           <div className="grid gap-3">
             <div className="flex items-start gap-3">
               <div className="w-2 h-2 rounded-full bg-info mt-2 flex-shrink-0" />
-              <p className="text-sm">
-                Your complaint will be reviewed by our team within 24 hours
-              </p>
+              <p className="text-sm">Your complaint will be reviewed by our team within 24 hours</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-2 h-2 rounded-full bg-info mt-2 flex-shrink-0" />
-              <p className="text-sm">
-                You'll receive email updates as the status changes
-              </p>
+              <p className="text-sm">You'll receive email updates as the status changes</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-2 h-2 rounded-full bg-info mt-2 flex-shrink-0" />
-              <p className="text-sm">
-                A staff member will be assigned to handle your case
-              </p>
+              <p className="text-sm">A staff member will be assigned to handle your case</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-2 h-2 rounded-full bg-info mt-2 flex-shrink-0" />
-              <p className="text-sm">
-                You can track progress in the "My Complaints" section
-              </p>
+              <p className="text-sm">You can track progress in the "My Complaints" section</p>
             </div>
           </div>
         </CardContent>
@@ -570,9 +630,7 @@ export function SubmitComplaint() {
       {/* Tips Card */}
       <Card className="bg-warning/5 border-warning/20">
         <CardHeader>
-          <CardTitle className="text-warning">
-            💡 Tips for Effective Complaints
-          </CardTitle>
+          <CardTitle className="text-warning">💡 Tips for Effective Complaints</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
@@ -585,5 +643,3 @@ export function SubmitComplaint() {
         </CardContent>
       </Card>
     </div>
-  );
-}
