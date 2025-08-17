@@ -18,6 +18,7 @@ export type UserRole = "user" | "staff" | "admin" | "dean";
 export type StaffStatus = "pending" | "approved" | "rejected";
 
 interface User {
+  username: string;
   id: string;
   name: string;
   email: string;

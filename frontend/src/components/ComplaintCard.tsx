@@ -41,6 +41,8 @@ export interface Complaint {
   resolutionNote?: string;
   evidenceFile?: string; // Optional fields for feedback;
   isEscalated?: boolean; // Indicates if the complaint is escalated
+  submittedTo?: string; // Add this field for tracking who complaint was submitted to
+  department?: string; // Add department for routing
 }
 
 interface ComplaintCardProps {

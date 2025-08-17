@@ -45,7 +45,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: UserCheck, label: "Dean Management", href: "/staff-management" },
 
-    { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
+    // { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
 
     {

@@ -20,6 +20,7 @@ import { CheckCircle, FileText, Info, ArrowRight, Upload } from "lucide-react";
 import { useState as useReactState } from "react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { getComplaintApi } from "@/lib/getComplaintApi";
+import { useAuth } from "@/components/auth/AuthContext";
 
 // Categories now come from context
 
@@ -33,6 +34,7 @@ const priorities = [
 export function SubmitComplaint() {
   const { addComplaint } = useComplaints();
   const { categories } = useContext(CategoryContext);
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: "",
     category: "",
@@ -53,6 +55,7 @@ export function SubmitComplaint() {
   const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
   const [submitAnonymously, setSubmitAnonymously] = useState(false);
+  const [submitTo, setSubmitTo] = useState("staff"); // 'staff' or 'dean'
   // If you have user context, import/use it here
   // Example: const { user } = useAuth();
 
@@ -89,12 +92,24 @@ export function SubmitComplaint() {
           reader.readAsDataURL(evidenceFile);
         });
       }
+      let submittedTo = "";
+      let status = "";
+      if (submitTo === "staff") {
+        submittedTo = `Staff (${user?.department || "Unknown Department"})`;
+        status = "Submitted to Staff";
+      } else {
+        submittedTo = "Dean (Head of All Departments)";
+        status = "Submitted to Dean";
+      }
       const savedComplaint = await addComplaint({
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
-        submittedBy: submitAnonymously ? "Anonymous" : "Current User", // Replace with real user if available
-        // Removed 'name' property as it is not part of the Complaint type
+        submittedBy: submitAnonymously
+          ? "Anonymous"
+          : user?.username || "Current User",
         evidenceFile: evidenceFileString,
+        submittedTo,
+        department: user?.department || "Unknown Department",
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);
@@ -102,7 +117,11 @@ export function SubmitComplaint() {
         title: "Complaint Submitted Successfully",
         description: `Your complaint has been assigned ID: ${
           savedComplaint?.id || "(ID unavailable)"
-        }. The admin team has been notified and will review your complaint shortly.`,
+        }. The ${
+          submitTo === "staff"
+            ? `Staff (${user?.department || "Unknown Department"})`
+            : "Dean (Head of All Departments)"
+        } has been notified and will review your complaint shortly.`,
       });
     } catch (error) {
       toast({
@@ -391,6 +410,34 @@ export function SubmitComplaint() {
                   Description is required.
                 </span>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="submitTo">Submit To *</Label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="submitTo"
+                    value="staff"
+                    checked={submitTo === "staff"}
+                    onChange={() => setSubmitTo("staff")}
+                    className="accent-blue-600"
+                  />
+                  <span>Staff (Department Staff)</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="submitTo"
+                    value="dean"
+                    checked={submitTo === "dean"}
+                    onChange={() => setSubmitTo("dean")}
+                    className="accent-blue-600"
+                  />
+                  <span>Dean (Head of Department)</span>
+                </label>
+              </div>
             </div>
 
             <Button
