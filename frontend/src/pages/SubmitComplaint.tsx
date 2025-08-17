@@ -40,6 +40,7 @@ export function SubmitComplaint() {
     category: "",
     priority: "",
     description: "",
+    staff: "",
   });
   const [touched, setTouched] = useState({
     title: false,
@@ -137,7 +138,13 @@ export function SubmitComplaint() {
 
   const handleSubmitAnother = () => {
     setSubmitted(false);
-    setFormData({ title: "", category: "", priority: "", description: "" });
+    setFormData({
+      title: "",
+      category: "",
+      priority: "",
+      description: "",
+      staff: "",
+    });
     setEvidenceFile(null);
     setComplaintId("");
   };
@@ -220,6 +227,29 @@ export function SubmitComplaint() {
         </Card>
       </div>
     );
+  }
+
+  // Replace this with your actual staff fetching logic or context
+  function getAllStaff() {
+    // Example static data; replace with real data source
+    return [
+      { id: "1", fullName: "John Doe", department: "Computer Science" },
+      { id: "2", fullName: "Jane Smith", department: "IT" },
+      { id: "3", fullName: "Alice Johnson", department: "Information System" },
+      { id: "4", fullName: "Bob Brown", department: "Computer System" },
+    ];
+  }
+
+  // Ensure department is always one of the four for demo/testing
+  const validDepartments = [
+    "Computer Science",
+    "IT",
+    "Information System",
+    "Computer System",
+  ];
+  let currentDepartment = user?.department;
+  if (!validDepartments.includes(currentDepartment)) {
+    currentDepartment = "Computer Science";
   }
 
   return (
@@ -412,33 +442,66 @@ export function SubmitComplaint() {
               )}
             </div>
 
+            {/* Department (auto-filled, read-only) */}
+            <div className="space-y-2">
+              <Label htmlFor="department">Department</Label>
+              <Input
+                id="department"
+                value={currentDepartment}
+                readOnly
+                className="rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+              />
+            </div>
+
+            {/* Submit To dropdown */}
             <div className="space-y-2">
               <Label htmlFor="submitTo">Submit To *</Label>
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="submitTo"
-                    value="staff"
-                    checked={submitTo === "staff"}
-                    onChange={() => setSubmitTo("staff")}
-                    className="accent-blue-600"
-                  />
-                  <span>Staff (Department Staff)</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="submitTo"
-                    value="dean"
-                    checked={submitTo === "dean"}
-                    onChange={() => setSubmitTo("dean")}
-                    className="accent-blue-600"
-                  />
-                  <span>Dean (Head of Department)</span>
-                </label>
-              </div>
+              <Select value={submitTo} onValueChange={setSubmitTo} required>
+                <SelectTrigger className="rounded-lg">
+                  <SelectValue placeholder="Select who to submit to" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="staff">
+                    Staff ({user?.department || "Your Department"})
+                  </SelectItem>
+                  <SelectItem value="dean">
+                    Dean (Head of All Departments)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Staff selection (only if Staff is selected) */}
+            {submitTo === "staff" && (
+              <div className="space-y-2">
+                <Label htmlFor="staff">
+                  Select Staff (Your Department){" "}
+                  <span className="text-xs text-muted-foreground">
+                    (Optional)
+                  </span>
+                </Label>
+                <Select
+                  value={formData.staff || ""}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, staff: value }))
+                  }
+                >
+                  <SelectTrigger className="rounded-lg">
+                    <SelectValue placeholder="Select staff member (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Preference</SelectItem>
+                    {getAllStaff()
+                      .filter((staff) => staff.department === currentDepartment)
+                      .map((staff) => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          {staff.fullName}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <Button
               type="submit"
