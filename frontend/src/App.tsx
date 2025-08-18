@@ -37,6 +37,7 @@ import MyPerformance from "@/pages/MyPerformance";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { DeanAssignComplaints } from "@/pages/DeanAssignComplaints";
+import { HoDDashboard } from "@/pages/HoDDashboard";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -125,27 +126,22 @@ function AppContent() {
           element={
             <Layout>
               <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/help" element={<HelpPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
                 <Route path="/dashboard" element={<DashboardRouter />} />
-                <Route path="/submit-complaint" element={<SubmitComplaint />} />
-                <Route path="/my-complaints" element={<MyComplaints />} />
-                <Route path="/staff-management" element={<StaffManagement />} />
-                <Route path="/feedback-review" element={<FeedbackReview />} />
-                <Route path="/assign" element={<AssignComplaints />} />
-                <Route path="/staff-feedback" element={<StaffFeedback />} />
-                <Route path="/my-assigned" element={<MyAssignedComplaints />} />
-                <Route path="/user-management" element={<UserManagement />} />
-                <Route
-                  path="/category-management"
-                  element={<CategoryManagement />}
-                />
-                {/* StaffPerformance only for dean, not admin */}
+                <Route path="/user-dashboard" element={<UserDashboard />} />
+                <Route path="/staff-dashboard" element={<StaffDashboard />} />
+                <Route path="/admin-dashboard" element={<AdminDashboard />} />
+                <Route path="/dean-dashboard" element={<DeanDashboard />} />
+                <Route path="/hod-dashboard" element={<HoDDashboard />} />
                 <Route path="/my-performance" element={<MyPerformance />} />
-
                 <Route path="/calendar-view" element={<CalendarView />} />
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
                 <Route path="/profile" element={<Profile />} />
-                <Route path="/dean-dashboard" element={<DeanDashboard />} />
                 <Route
                   path="/dean-user-management"
                   element={<DeanUserManagement />}
@@ -163,6 +159,28 @@ function AppContent() {
                   path="/dean/assign-complaints"
                   element={<DeanAssignComplaints />}
                 />
+                <Route path="/submit-complaint" element={<SubmitComplaint />} />
+                <Route path="/my-complaints" element={<MyComplaints />} />
+                <Route path="/staff-management" element={<StaffManagement />} />
+                <Route path="/feedback-review" element={<FeedbackReview />} />
+                <Route path="/my-assigned" element={<MyAssignedComplaints />} />
+                <Route
+                  path="/assign-complaints"
+                  element={<AssignComplaints />}
+                />
+                <Route path="/staff-feedback" element={<StaffFeedback />} />
+                <Route path="/user-management" element={<UserManagement />} />
+
+                <Route
+                  path="/category-management"
+                  element={<CategoryManagement />}
+                />
+                <Route path="/dean-analytics" element={<DeanAnalytics />} />
+                <Route
+                  path="/dean-staff-performance"
+                  element={<StaffPerformance />}
+                />
+
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>
