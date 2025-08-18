@@ -14,7 +14,7 @@ import {
   rejectStaffApi,
 } from "@/lib/api";
 
-export type UserRole = "user" | "staff" | "admin" | "dean";
+export type UserRole = "user" | "staff" | "admin" | "dean" | "headOfDepartment";
 export type StaffStatus = "pending" | "approved" | "rejected";
 
 interface User {

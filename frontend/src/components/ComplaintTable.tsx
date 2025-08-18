@@ -27,7 +27,7 @@ interface ComplaintTableProps {
   onStatusUpdate?: (complaint: Complaint) => void;
   onFeedback?: (complaint: Complaint) => void;
   onAssign?: (complaint: Complaint) => void;
-  userRole?: "user" | "staff" | "admin";
+  userRole?: "user" | "staff" | "admin" | "headOfDepartment";
   title?: string;
   actionLabel?: string;
   priorityFilter?: string;
@@ -125,6 +125,8 @@ export function ComplaintTable({
     return "Assigned";
   };
   const complaintsData = userRole === "user" ? mockComplaints : complaints;
+  const categories = Array.from(new Set(complaintsData.map((c) => c.category)));
+  const allowedStatuses = ["Pending", "In Progress", "Resolved", "Closed"];
   const filteredComplaints = complaintsData.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,10 +142,14 @@ export function ComplaintTable({
       localPriorityFilter === "all" ||
       complaint.priority === localPriorityFilter;
 
-    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesCategory &&
+      matchesPriority &&
+      allowedStatuses.includes(complaint.status)
+    );
   });
-
-  const categories = Array.from(new Set(complaints.map((c) => c.category)));
 
   return (
     <Card>
