@@ -74,8 +74,8 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: TrendingUp, label: "Dean Analytics", href: "/dean-analytics" },
     {
       icon: GraduationCap,
-      label: "Staff Performance",
-      href: "/dean-staff-performance",
+      label: "Department Performance",
+      href: "/dean-department-performance",
     },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
     { icon: Settings, label: "Profile", href: "/profile" },
@@ -88,13 +88,14 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Assign Complaints",
       href: "/hod/assign-complaints",
     },
-    {
-      icon: UserCheck,
-      label: "Staff Management",
-      href: "/hod-staff-management",
-    },
+
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
-    { icon: Users, label: "Staff Management", href: "/staff-management" },
+    {
+      icon: GraduationCap,
+      label: "Staff Performance",
+      href: "/hod-staff-performance",
+    },
+    { icon: Users, label: "Staff Management", href: "/hod/staff-management" },
     { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
     { icon: Settings, label: "Profile", href: "/profile" },

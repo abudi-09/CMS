@@ -126,7 +126,7 @@ export default function DeanAnalytics() {
     <div className="space-y-8 p-6">
       <h1 className="text-3xl font-bold mb-2">Dean Analytics</h1>
       <p className="text-muted-foreground mb-6">
-        Analytics and statistics for your department's complaints, staff, and
+        Analytics and statistics for All department's complaints and department
         performance.
       </p>
 
@@ -142,8 +142,8 @@ export default function DeanAnalytics() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">15</span>
-            <span className="text-muted-foreground">Total Staff</span>
+            <span className="text-2xl font-bold">4</span>
+            <span className="text-muted-foreground">Total departments</span>
           </CardContent>
         </Card>
         <Card>

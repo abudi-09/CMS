@@ -321,7 +321,7 @@ export function HoDDashboard() {
         open={showStatusModal}
         onOpenChange={setShowStatusModal}
         onUpdate={handleStatusSubmit}
-        userRole="headOfDepartment"
+        userRole="headDepartment"
       />
     </div>
   );

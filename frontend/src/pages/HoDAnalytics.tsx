@@ -51,27 +51,15 @@ const priorityData = [
   { priority: "Low", count: 9, color: "#22c55e" },
 ];
 
-const statusData = [
-  { status: "Pending", count: 3 },
-  { status: "In Progress", count: 5 },
-  { status: "Resolved", count: 12 },
-  { status: "Rejected", count: 1 },
-];
+const statusData = [{ status: "Pending", count: 3 }];
 
-const monthlyTrendData = [
-  { month: "Jan", submitted: 6, resolved: 5 },
-  { month: "Feb", submitted: 7, resolved: 6 },
-  { month: "Mar", submitted: 8, resolved: 7 },
-  { month: "Apr", submitted: 9, resolved: 8 },
-  { month: "May", submitted: 10, resolved: 9 },
-  { month: "Jun", submitted: 11, resolved: 10 },
-];
-
+// Staff performance mock data for HOD
 const staffPerformance = [
   {
     id: "1",
-    name: "Mr. Alex Turner",
-    department: "IT Support",
+    name: "John Doe",
+    role: "Staff",
+    department: "Computer Science",
     totalAssigned: 10,
     resolved: 8,
     pending: 1,
@@ -80,27 +68,51 @@ const staffPerformance = [
   },
   {
     id: "2",
-    name: "Ms. Linda Green",
-    department: "Academic Affairs",
-    totalAssigned: 8,
-    resolved: 7,
-    pending: 0,
+    name: "Jane Smith",
+    role: "Staff",
+    department: "Information System",
+    totalAssigned: 12,
+    resolved: 10,
+    pending: 1,
     inProgress: 1,
-    successRate: 87.5,
+    successRate: 83.3,
   },
   {
     id: "3",
-    name: "Mr. Brian Lee",
-    department: "Facility Management",
-    totalAssigned: 6,
-    resolved: 5,
+    name: "Michael Brown",
+    role: "Staff",
+    department: "Information Science",
+    totalAssigned: 9,
+    // Staff performance mock data for HOD
+    resolved: 7,
     pending: 1,
-    inProgress: 0,
-    successRate: 83.3,
+    inProgress: 1,
+    successRate: 77.8,
+  },
+  {
+    id: "4",
+    name: "Emily Davis",
+    role: "Staff",
+    department: "Information Technology",
+    totalAssigned: 11,
+    resolved: 9,
+    pending: 1,
+    inProgress: 1,
+    successRate: 81.8,
   },
 ];
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
+
+// Monthly complaint trends mock data
+const monthlyTrendData = [
+  { month: "Jan", submitted: 5, resolved: 4 },
+  { month: "Feb", submitted: 7, resolved: 6 },
+  { month: "Mar", submitted: 6, resolved: 7 },
+  { month: "Apr", submitted: 8, resolved: 6 },
+  { month: "May", submitted: 7, resolved: 8 },
+  { month: "Jun", submitted: 9, resolved: 7 },
+];
 
 export default function HoDAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
@@ -111,7 +123,6 @@ export default function HoDAnalytics() {
     if (sortBy === "resolved") return b.resolved - a.resolved;
     return b.totalAssigned - a.totalAssigned;
   });
-
   return (
     <div className="space-y-8 p-6">
       <h1 className="text-3xl font-bold mb-2">HOD Analytics</h1>

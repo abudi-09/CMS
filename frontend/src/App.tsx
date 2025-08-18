@@ -22,6 +22,7 @@ import AboutPage from "./pages/AboutPage";
 import HelpPage from "./pages/HelpPage";
 import CalendarView from "@/pages/CalendarView";
 import StaffPerformance from "@/pages/StaffPerformance";
+import DeanDepartmentPerformance from "@/pages/DeanDepartmentPerformance";
 import { SubmitComplaint } from "@/pages/SubmitComplaint";
 import { MyComplaints } from "@/pages/MyComplaints";
 import StaffManagement from "@/pages/StaffManagement";
@@ -38,9 +39,10 @@ import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { DeanAssignComplaints } from "@/pages/DeanAssignComplaints";
 import { HoDDashboard } from "@/pages/HoDDashboard";
-import HoDAnalytics from "@/pages/HoDAnalytics";
 import AdminComplaints from "@/pages/AdminComplaints";
 import { HoDAssignComplaints } from "@/pages/HoDAssignComplaints";
+import HoDAnalytics from "@/pages/HoDAnalytics";
+import HODStaffManagement from "@/pages/HODStaffManagement";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -140,6 +142,11 @@ function AppContent() {
                 <Route path="/admin-dashboard" element={<AdminDashboard />} />
                 <Route path="/dean-dashboard" element={<DeanDashboard />} />
                 <Route path="/hod-dashboard" element={<HoDDashboard />} />
+                <Route path="/hod-analytics" element={<HoDAnalytics />} />
+                <Route
+                  path="/hod-staff-performance"
+                  element={<StaffPerformance />}
+                />
                 <Route path="/my-performance" element={<MyPerformance />} />
                 <Route path="/calendar-view" element={<CalendarView />} />
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
@@ -154,10 +161,9 @@ function AppContent() {
                   element={<DeanStaffManagement />}
                 />
                 <Route path="/dean-analytics" element={<DeanAnalytics />} />
-                <Route path="/hod-analytics" element={<HoDAnalytics />} />
                 <Route
-                  path="/dean-staff-performance"
-                  element={<StaffPerformance />}
+                  path="/dean-department-performance"
+                  element={<DeanDepartmentPerformance />}
                 />
                 <Route
                   path="/dean/assign-complaints"
@@ -182,12 +188,17 @@ function AppContent() {
                 <Route path="/admin-complaints" element={<AdminComplaints />} />
                 <Route path="/dean-analytics" element={<DeanAnalytics />} />
                 <Route
-                  path="/hod-staff-performance"
+                  path="/dean-staff-performance"
                   element={<StaffPerformance />}
                 />
                 <Route
                   path="/hod/assign-complaints"
                   element={<HoDAssignComplaints />}
+                />
+
+                <Route
+                  path="/hod/staff-management"
+                  element={<HODStaffManagement />}
                 />
 
                 <Route path="*" element={<NotFound />} />

@@ -82,15 +82,23 @@ const mockStaff: Staff[] = [
   },
 ];
 
-export default function StaffManagement() {
+export interface StaffManagementProps {
+  initialStaff?: Staff[];
+}
+
+export default function StaffManagement({
+  initialStaff,
+}: StaffManagementProps) {
+  const [staff, setStaff] = useState(initialStaff ?? mockStaff);
   const [searchTerm, setSearchTerm] = useState("");
   const [tab, setTab] = useState("approved");
-  const [staff, setStaff] = useState(mockStaff);
 
   const filteredStaff = staff.filter(
     (s) =>
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase())
+      (s.department.toLowerCase() === "information technology" ||
+        s.department.toLowerCase() === "it") &&
+      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const approvedStaff = filteredStaff.filter((s) => s.status === "approved");
