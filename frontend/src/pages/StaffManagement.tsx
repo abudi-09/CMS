@@ -13,111 +13,112 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UserCheck, UserX, Clock, Users, Mail, Building } from "lucide-react";
+import { StaffStatus } from "@/components/auth/AuthContext";
 
-type Dean = {
+type Staff = {
   id: string;
   name: string;
   email: string;
   department: string;
-  office: string;
+  position: string;
   registeredDate: Date;
   status: string;
 };
 
-const mockDeans: Dean[] = [
+const mockStaff: Staff[] = [
   {
-    id: "dean1",
-    name: "Dr. Alice Carter",
-    email: "alice@university.edu",
+    id: "staff1",
+    name: "John Doe",
+    email: "john@university.edu",
     department: "Engineering",
-    office: "Eng-101",
+    position: "Lab Technician",
     registeredDate: new Date("2023-09-01"),
     status: "pending",
   },
   {
-    id: "dean2",
-    name: "Dr. Bob Lee",
-    email: "bob@university.edu",
+    id: "staff2",
+    name: "Jane Smith",
+    email: "jane@university.edu",
     department: "Science",
-    office: "Sci-201",
+    position: "Research Assistant",
     registeredDate: new Date("2023-08-15"),
     status: "approved",
   },
   {
-    id: "dean3",
-    name: "Dr. Carol Smith",
-    email: "carol@university.edu",
+    id: "staff3",
+    name: "Mike Brown",
+    email: "mike@university.edu",
     department: "Business",
-    office: "Bus-301",
+    position: "Office Clerk",
     registeredDate: new Date("2023-07-10"),
     status: "rejected",
   },
   {
-    id: "dean4",
-    name: "Dr. David Kim",
-    email: "david@university.edu",
+    id: "staff4",
+    name: "Lisa White",
+    email: "lisa@university.edu",
     department: "Arts",
-    office: "Arts-401",
+    position: "Studio Assistant",
     registeredDate: new Date("2023-09-10"),
     status: "approved",
   },
   {
-    id: "dean5",
-    name: "Dr. Emily Turner",
-    email: "emily@university.edu",
+    id: "staff5",
+    name: "Tom Green",
+    email: "tom@university.edu",
     department: "Law",
-    office: "Law-501",
+    position: "Legal Secretary",
     registeredDate: new Date("2023-06-20"),
     status: "pending",
   },
   {
-    id: "dean6",
-    name: "Dr. Frank Miller",
-    email: "frank@university.edu",
+    id: "staff6",
+    name: "Sara Black",
+    email: "sara@university.edu",
     department: "Medicine",
-    office: "Med-601",
+    position: "Nurse",
     registeredDate: new Date("2023-05-05"),
     status: "approved",
   },
 ];
 
-export default function DeanManagement() {
+export default function StaffManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [tab, setTab] = useState("approved");
-  const [deans, setDeans] = useState(mockDeans);
+  const [staff, setStaff] = useState(mockStaff);
 
-  const filteredDeans = deans.filter(
-    (d) =>
-      d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStaff = staff.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const approvedDeans = filteredDeans.filter((d) => d.status === "approved");
-  const pendingDeans = filteredDeans.filter((d) => d.status === "pending");
-  const rejectedDeans = filteredDeans.filter((d) => d.status === "rejected");
+  const approvedStaff = filteredStaff.filter((s) => s.status === "approved");
+  const pendingStaff = filteredStaff.filter((s) => s.status === "pending");
+  const rejectedStaff = filteredStaff.filter((s) => s.status === "rejected");
 
   const handleApprove = (id: string) => {
-    setDeans((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: "approved" } : d))
+    setStaff((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s))
     );
   };
   const handleReject = (id: string) => {
-    setDeans((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: "rejected" } : d))
+    setStaff((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s))
     );
   };
   const handleDeactivate = (id: string) => {
-    setDeans((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: "deactivated" } : d))
+    setStaff((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, status: "deactivated" } : s))
     );
   };
 
-  const DeanTable = ({
+  const StaffTable = ({
     data,
     actions,
   }: {
-    data: Dean[];
-    actions: (d: Dean) => JSX.Element;
+    data: Staff[];
+    actions: (s: Staff) => JSX.Element;
   }) => (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -125,7 +126,7 @@ export default function DeanManagement() {
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
-            <TableHead>Office</TableHead>
+            <TableHead>Position</TableHead>
             <TableHead>Department</TableHead>
             <TableHead>Registration Date</TableHead>
             <TableHead>Status</TableHead>
@@ -139,31 +140,31 @@ export default function DeanManagement() {
                 colSpan={7}
                 className="text-center py-8 text-muted-foreground"
               >
-                No deans found
+                No staff found
               </TableCell>
             </TableRow>
           ) : (
-            data.map((d) => (
-              <TableRow key={d.id}>
-                <TableCell>{d.name}</TableCell>
-                <TableCell>{d.email}</TableCell>
-                <TableCell>{d.office}</TableCell>
-                <TableCell>{d.department}</TableCell>
-                <TableCell>{d.registeredDate.toLocaleDateString()}</TableCell>
+            data.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell>{s.name}</TableCell>
+                <TableCell>{s.email}</TableCell>
+                <TableCell>{s.position}</TableCell>
+                <TableCell>{s.department}</TableCell>
+                <TableCell>{s.registeredDate.toLocaleDateString()}</TableCell>
                 <TableCell>
                   <Badge
                     className={
-                      d.status === "approved"
+                      s.status === "approved"
                         ? "bg-green-100 text-green-800"
-                        : d.status === "pending"
+                        : s.status === "pending"
                         ? "bg-yellow-100 text-yellow-800"
                         : "bg-red-100 text-red-800"
                     }
                   >
-                    {d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+                    {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">{actions(d)}</TableCell>
+                <TableCell className="text-right">{actions(s)}</TableCell>
               </TableRow>
             ))
           )}
@@ -175,12 +176,12 @@ export default function DeanManagement() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Dean Management</h1>
-        <p className="text-muted-foreground">Manage deans in your university</p>
+        <h1 className="text-2xl md:text-3xl font-bold">Staff Management</h1>
+        <p className="text-muted-foreground">Manage staff in your university</p>
       </div>
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Dean Directory</CardTitle>
+          <CardTitle>Staff Directory</CardTitle>
           <div className="flex flex-wrap gap-2 mt-4">
             <Input
               placeholder="Search by name or email..."
@@ -198,14 +199,14 @@ export default function DeanManagement() {
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
             </TabsList>
             <TabsContent value="approved">
-              <DeanTable
-                data={approvedDeans}
-                actions={(d) => (
+              <StaffTable
+                data={approvedStaff}
+                actions={(s) => (
                   <>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeactivate(d.id)}
+                      onClick={() => handleDeactivate(s.id)}
                       className="text-red-600 hover:text-red-700"
                     >
                       <UserX className="h-4 w-4" /> Deactivate
@@ -215,14 +216,14 @@ export default function DeanManagement() {
               />
             </TabsContent>
             <TabsContent value="pending">
-              <DeanTable
-                data={pendingDeans}
-                actions={(d) => (
+              <StaffTable
+                data={pendingStaff}
+                actions={(s) => (
                   <>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleApprove(d.id)}
+                      onClick={() => handleApprove(s.id)}
                       className="text-green-600 hover:text-green-700"
                     >
                       <UserCheck className="h-4 w-4" /> Approve
@@ -230,7 +231,7 @@ export default function DeanManagement() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleReject(d.id)}
+                      onClick={() => handleReject(s.id)}
                       className="text-red-600 hover:text-red-700"
                     >
                       <UserX className="h-4 w-4" /> Reject
@@ -240,13 +241,13 @@ export default function DeanManagement() {
               />
             </TabsContent>
             <TabsContent value="rejected">
-              <DeanTable
-                data={rejectedDeans}
-                actions={(d) => (
+              <StaffTable
+                data={rejectedStaff}
+                actions={(s) => (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleApprove(d.id)}
+                    onClick={() => handleApprove(s.id)}
                     className="text-green-600 hover:text-green-700"
                   >
                     <UserCheck className="h-4 w-4" /> Re-approve

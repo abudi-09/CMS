@@ -36,83 +36,73 @@ import {
   Award,
 } from "lucide-react";
 
-// Mock data for charts (Dean-specific or filtered for department)
+// Mock data for charts (HOD-specific or filtered for department)
 const categoryData = [
-  { name: "IT Support", value: 12, count: 15 },
-  { name: "Academic", value: 8, count: 10 },
-  { name: "Facility", value: 6, count: 8 },
-  { name: "Finance", value: 4, count: 5 },
+  { name: "IT Support", value: 8, count: 10 },
+  { name: "Academic", value: 6, count: 8 },
+  { name: "Facility", value: 4, count: 6 },
+  { name: "Finance", value: 2, count: 3 },
 ];
 
 const priorityData = [
-  { priority: "Critical", count: 2, color: "#ef4444" },
-  { priority: "High", count: 6, color: "#f97316" },
-  { priority: "Medium", count: 10, color: "#eab308" },
-  { priority: "Low", count: 13, color: "#22c55e" },
+  { priority: "Critical", count: 1, color: "#ef4444" },
+  { priority: "High", count: 4, color: "#f97316" },
+  { priority: "Medium", count: 7, color: "#eab308" },
+  { priority: "Low", count: 9, color: "#22c55e" },
 ];
 
 const statusData = [
-  { status: "Pending", count: 5 },
-  { status: "In Progress", count: 8 },
-  { status: "Resolved", count: 18 },
-  { status: "Rejected", count: 2 },
+  { status: "Pending", count: 3 },
+  { status: "In Progress", count: 5 },
+  { status: "Resolved", count: 12 },
+  { status: "Rejected", count: 1 },
 ];
 
 const monthlyTrendData = [
-  { month: "Jan", submitted: 10, resolved: 8 },
-  { month: "Feb", submitted: 12, resolved: 10 },
-  { month: "Mar", submitted: 11, resolved: 12 },
-  { month: "Apr", submitted: 14, resolved: 11 },
-  { month: "May", submitted: 13, resolved: 14 },
-  { month: "Jun", submitted: 15, resolved: 13 },
+  { month: "Jan", submitted: 6, resolved: 5 },
+  { month: "Feb", submitted: 7, resolved: 6 },
+  { month: "Mar", submitted: 8, resolved: 7 },
+  { month: "Apr", submitted: 9, resolved: 8 },
+  { month: "May", submitted: 10, resolved: 9 },
+  { month: "Jun", submitted: 11, resolved: 10 },
 ];
 
 const staffPerformance = [
   {
     id: "1",
-    name: "Dr. Alice Carter",
-    department: "Computer Science",
-    totalAssigned: 20,
-    resolved: 18,
+    name: "Mr. Alex Turner",
+    department: "IT Support",
+    totalAssigned: 10,
+    resolved: 8,
     pending: 1,
     inProgress: 1,
-    successRate: 90.0,
+    successRate: 80.0,
   },
   {
     id: "2",
-    name: "Dr. Bob Lee",
-    department: "Information System",
-    totalAssigned: 15,
-    resolved: 13,
-    pending: 1,
+    name: "Ms. Linda Green",
+    department: "Academic Affairs",
+    totalAssigned: 8,
+    resolved: 7,
+    pending: 0,
     inProgress: 1,
-    successRate: 86.7,
+    successRate: 87.5,
   },
   {
     id: "3",
-    name: "Dr. Carol Smith",
-    department: "Information Science",
-    totalAssigned: 12,
-    resolved: 10,
+    name: "Mr. Brian Lee",
+    department: "Facility Management",
+    totalAssigned: 6,
+    resolved: 5,
     pending: 1,
-    inProgress: 1,
+    inProgress: 0,
     successRate: 83.3,
-  },
-  {
-    id: "4",
-    name: "Dr. David Kim",
-    department: "Information Technology",
-    totalAssigned: 18,
-    resolved: 16,
-    pending: 1,
-    inProgress: 1,
-    successRate: 88.9,
   },
 ];
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
-export default function DeanAnalytics() {
+export default function HoDAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
   const [sortBy, setSortBy] = useState("successRate");
 
@@ -124,7 +114,7 @@ export default function DeanAnalytics() {
 
   return (
     <div className="space-y-8 p-6">
-      <h1 className="text-3xl font-bold mb-2">Dean Analytics</h1>
+      <h1 className="text-3xl font-bold mb-2">HOD Analytics</h1>
       <p className="text-muted-foreground mb-6">
         Analytics and statistics for your department's complaints, staff, and
         performance.
@@ -135,28 +125,28 @@ export default function DeanAnalytics() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">120</span>
+            <span className="text-2xl font-bold">80</span>
             <span className="text-muted-foreground">Total Students</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">15</span>
+            <span className="text-2xl font-bold">10</span>
             <span className="text-muted-foreground">Total Staff</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <FileText className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">38</span>
+            <span className="text-2xl font-bold">22</span>
             <span className="text-muted-foreground">Total Complaints</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
-            <span className="text-2xl font-bold">28</span>
+            <span className="text-2xl font-bold">16</span>
             <span className="text-muted-foreground">Resolved Complaints</span>
           </CardContent>
         </Card>
@@ -255,10 +245,10 @@ export default function DeanAnalytics() {
         </Card>
       </div>
 
-      {/* Department Performance Table */}
+      {/* Staff Performance Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Department Performance</CardTitle>
+          <CardTitle>Staff Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

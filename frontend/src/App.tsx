@@ -38,7 +38,9 @@ import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { DeanAssignComplaints } from "@/pages/DeanAssignComplaints";
 import { HoDDashboard } from "@/pages/HoDDashboard";
+import HoDAnalytics from "@/pages/HoDAnalytics";
 import AdminComplaints from "@/pages/AdminComplaints";
+import { HoDAssignComplaints } from "@/pages/HoDAssignComplaints";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -152,6 +154,7 @@ function AppContent() {
                   element={<DeanStaffManagement />}
                 />
                 <Route path="/dean-analytics" element={<DeanAnalytics />} />
+                <Route path="/hod-analytics" element={<HoDAnalytics />} />
                 <Route
                   path="/dean-staff-performance"
                   element={<StaffPerformance />}
@@ -179,8 +182,12 @@ function AppContent() {
                 <Route path="/admin-complaints" element={<AdminComplaints />} />
                 <Route path="/dean-analytics" element={<DeanAnalytics />} />
                 <Route
-                  path="/dean-staff-performance"
+                  path="/hod-staff-performance"
                   element={<StaffPerformance />}
+                />
+                <Route
+                  path="/hod/assign-complaints"
+                  element={<HoDAssignComplaints />}
                 />
 
                 <Route path="*" element={<NotFound />} />

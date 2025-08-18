@@ -270,5 +270,194 @@ export function HoDAssignComplaints() {
     );
   };
 
-  // ...existing code for filtering, summary cards, table, and modal...
+  // Calculate summary stats
+  const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
+  const assignedCount = complaints.filter((c) => c.assignedStaff).length;
+  const priorityColors = {
+    Low: "bg-gray-200 text-gray-700 border-gray-300",
+    Medium: "bg-blue-100 text-blue-800 border-blue-200",
+    High: "bg-orange-100 text-orange-800 border-orange-200",
+    Critical: "bg-red-100 text-red-800 border-red-200 font-bold border-2",
+  };
+
+  return (
+    <div className="space-y-8">
+      <h1 className="text-3xl font-bold">Assign & Reassign Complaints (HOD)</h1>
+      <p className="text-muted-foreground">
+        Manage staff assignments for complaints in your department
+      </p>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Complaints
+            </CardTitle>
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{complaints.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Unassigned</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">
+              {unassignedCount}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Assigned</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {assignedCount}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      {/* Complaints Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Complaints</CardTitle>
+          <CardDescription>
+            {complaints.length} complaint{complaints.length !== 1 ? "s" : ""}{" "}
+            found
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-sm">Title</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Priority</TableHead>
+                  <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Assigned Staff</TableHead>
+                  <TableHead className="text-sm">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {complaints.map((complaint) => (
+                  <TableRow key={complaint.id}>
+                    <TableCell className="font-medium text-sm">
+                      {complaint.title}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.category}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <Badge
+                        className={
+                          priorityColors[complaint.priority || "Medium"]
+                        }
+                      >
+                        {complaint.priority || "Medium"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`text-xs ${
+                          statusColors[
+                            complaint.status as keyof typeof statusColors
+                          ]
+                        }`}
+                      >
+                        {complaint.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.assignedStaff ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                          Assigned to: {complaint.assignedStaff}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                          Not Yet Assigned
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {reassigningRow === complaint.id ? (
+                        <div className="flex flex-col gap-1 min-w-[180px]">
+                          <Select
+                            value={assigningStaffId}
+                            onValueChange={setAssigningStaffId}
+                          >
+                            <SelectTrigger className="w-full text-xs">
+                              <SelectValue placeholder="Select staff" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAllStaff().map((staff) => (
+                                <SelectItem key={staff.id} value={staff.id}>
+                                  {staff.fullName || staff.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="date"
+                            className="w-full text-xs"
+                            value={assigningDeadline}
+                            onChange={(e) =>
+                              setAssigningDeadline(e.target.value)
+                            }
+                            placeholder="Deadline (optional)"
+                          />
+                          <div className="flex gap-1 mt-1">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="w-full text-xs"
+                              disabled={!assigningStaffId}
+                              onClick={() =>
+                                handleStaffAssignment(
+                                  complaint.id,
+                                  assigningStaffId
+                                )
+                              }
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="w-full text-xs"
+                              onClick={() => {
+                                setReassigningRow(null);
+                                setAssigningStaffId("");
+                                setAssigningDeadline("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs dark:hover:text-blue-400"
+                          onClick={() => handleAssignClick(complaint)}
+                        >
+                          {complaint.assignedStaff ? "Reassign" : "Assign"}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

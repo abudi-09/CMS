@@ -87,8 +87,19 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
+  const hodMenuItems = [
+    { icon: Home, label: "Dashboard", href: "/hod-dashboard" },
+    { icon: UserPlus, label: "Assign Complaints", href: "/hod/assign-complaints" },
+    { icon: FileText, label: "All Complaints", href: "/all-complaints" },
+    { icon: Users, label: "Staff Management", href: "/hod-staff-management" },
+    { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
+    { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
+    { icon: Settings, label: "Profile", href: "/profile" },
+  ];
+
   const getMenuItems = () => {
     if (user?.role === "dean") return deanMenuItems;
+    if (user?.role === "headOfDepartment") return hodMenuItems;
     if (user?.role === "admin") return adminMenuItems;
     if (user?.role === "staff") return staffMenuItems;
     return userMenuItems;
@@ -102,6 +113,8 @@ export function Sidebar({ className }: SidebarProps) {
         <h2 className="text-lg font-semibold mb-2">
           {user?.role === "dean"
             ? "Dean Dashboard"
+            : user?.role === "headOfDepartment"
+            ? "HOD Dashboard"
             : user?.role === "admin"
             ? "Admin Panel"
             : user?.role === "staff"
