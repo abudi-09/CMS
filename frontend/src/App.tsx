@@ -38,6 +38,7 @@ import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { DeanAssignComplaints } from "@/pages/DeanAssignComplaints";
 import { HoDDashboard } from "@/pages/HoDDashboard";
+import AdminComplaints from "@/pages/AdminComplaints";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -175,6 +176,7 @@ function AppContent() {
                   path="/category-management"
                   element={<CategoryManagement />}
                 />
+                <Route path="/admin-complaints" element={<AdminComplaints />} />
                 <Route path="/dean-analytics" element={<DeanAnalytics />} />
                 <Route
                   path="/dean-staff-performance"

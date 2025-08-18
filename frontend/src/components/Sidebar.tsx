@@ -48,6 +48,8 @@ export function Sidebar({ className }: SidebarProps) {
     // { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
 
+    { icon: FileText, label: "Direct Complaints", href: "/admin-complaints" },
+
     {
       icon: TrendingUp,
       label: "Category Management",

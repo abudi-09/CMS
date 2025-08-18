@@ -292,17 +292,16 @@ export function ComplaintTable({
                           )}
                         </Button>
 
-                        {userRole === "staff" && onStatusUpdate && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onStatusUpdate(complaint)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                        {/* Removed assign staff member button for admin */}
+                        {(userRole === "staff" || userRole === "admin") &&
+                          onStatusUpdate && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onStatusUpdate(complaint)}
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -402,15 +401,16 @@ export function ComplaintTable({
                             )}
                           </Button>
 
-                          {userRole === "staff" && onStatusUpdate && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onStatusUpdate(complaint)}
-                            >
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                          )}
+                          {(userRole === "staff" || userRole === "admin") &&
+                            onStatusUpdate && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onStatusUpdate(complaint)}
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            )}
 
                           {userRole === "admin" && onAssign && (
                             <Button

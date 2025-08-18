@@ -714,30 +714,85 @@ export function RoleBasedComplaintModal({
               </Card>
             )}
 
-            {/* Admin view shows status logs and student feedback */}
-            {user.role === "admin" && complaint.feedback && (
+            {/* Admin view: always show status update and resolution note fields */}
+            {user.role === "admin" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Student Feedback</CardTitle>
+                  <CardTitle>Admin Actions</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-1 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-4 w-4 ${
-                          i < complaint.feedback!.rating
-                            ? "text-warning fill-current"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                    ))}
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      ({complaint.feedback.rating}/5)
-                    </span>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="mb-2">Update Status</Label>
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={liveComplaint.status}
+                      onChange={(e) =>
+                        setLiveComplaint({
+                          ...liveComplaint,
+                          status: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Resolved">Resolved</option>
+                      <option value="Closed">Closed</option>
+                    </select>
                   </div>
-                  {complaint.feedback.comment && (
-                    <p className="text-sm">{complaint.feedback.comment}</p>
+                  <div>
+                    <Label className="mb-2">Resolution Note (optional)</Label>
+                    <Textarea
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Add a description or resolution note..."
+                      value={liveComplaint.resolutionNote || ""}
+                      onChange={(e) =>
+                        setLiveComplaint({
+                          ...liveComplaint,
+                          resolutionNote: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  </div>
+                  <Button
+                    className="mt-2 w-full"
+                    disabled={isLoading}
+                    onClick={() => {
+                      if (!liveComplaint) return;
+                      setIsLoading(true);
+                      Promise.resolve(
+                        onUpdate?.(liveComplaint.id, {
+                          status: liveComplaint.status,
+                          resolutionNote: liveComplaint.resolutionNote,
+                        })
+                      ).finally(() => setIsLoading(false));
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </Button>
+                  {complaint.feedback && (
+                    <div className="mt-4">
+                      <div className="font-semibold">Student Feedback</div>
+                      <div className="flex items-center gap-1 mb-2">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i < complaint.feedback.rating
+                                ? "text-warning fill-current"
+                                : "text-muted-foreground"
+                            }`}
+                          />
+                        ))}
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          ({complaint.feedback.rating}/5)
+                        </span>
+                      </div>
+                      {complaint.feedback.comment && (
+                        <p className="text-sm">{complaint.feedback.comment}</p>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>

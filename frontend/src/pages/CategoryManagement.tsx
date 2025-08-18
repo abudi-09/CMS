@@ -37,6 +37,7 @@ interface Category {
   name: string;
   complaintsCount: number;
   status: "Active" | "Inactive";
+  role: "staff" | "hod" | "dean" | "admin";
   description?: string;
   createdDate: Date;
   lastUpdated: Date;
@@ -49,6 +50,7 @@ const mockCategories: Category[] = [
     name: "Academic",
     complaintsCount: 45,
     status: "Active",
+    role: "staff",
     description:
       "Issues related to academic activities, courses, and curriculum",
     createdDate: new Date("2023-09-01"),
@@ -59,6 +61,7 @@ const mockCategories: Category[] = [
     name: "Facility",
     complaintsCount: 32,
     status: "Active",
+    role: "staff",
     description: "Infrastructure and facility-related issues",
     createdDate: new Date("2023-09-01"),
     lastUpdated: new Date("2024-01-10"),
@@ -67,7 +70,9 @@ const mockCategories: Category[] = [
     id: "CAT-003",
     name: "Finance",
     complaintsCount: 18,
+
     status: "Active",
+    role: "staff",
     description: "Financial matters, fees, and billing issues",
     createdDate: new Date("2023-09-01"),
     lastUpdated: new Date("2024-01-20"),
@@ -78,6 +83,7 @@ const mockCategories: Category[] = [
     complaintsCount: 28,
     status: "Active",
     description: "Technology and IT-related issues",
+    role: "staff",
     createdDate: new Date("2023-09-01"),
     lastUpdated: new Date("2024-01-18"),
   },
@@ -85,6 +91,7 @@ const mockCategories: Category[] = [
     id: "CAT-005",
     name: "Cafeteria",
     complaintsCount: 12,
+    role: "hod",
     status: "Active",
     description: "Food services and cafeteria-related issues",
     createdDate: new Date("2023-09-01"),
@@ -93,6 +100,7 @@ const mockCategories: Category[] = [
   {
     id: "CAT-006",
     name: "Library Services",
+    role: "staff",
     complaintsCount: 0,
     status: "Inactive",
     description: "Library-related issues and services",
@@ -102,6 +110,12 @@ const mockCategories: Category[] = [
 ];
 
 function CategoryManagement() {
+  const [editRole, setEditRole] = useState<"staff" | "hod" | "dean" | "admin">(
+    "staff"
+  );
+  const [newCategoryRole, setNewCategoryRole] = useState<
+    "staff" | "hod" | "dean" | "admin"
+  >("staff");
   const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -144,6 +158,7 @@ function CategoryManagement() {
       name: newCategoryName,
       complaintsCount: 0,
       status: "Active",
+      role: newCategoryRole,
       description: newCategoryDescription,
       createdDate: new Date(),
       lastUpdated: new Date(),
@@ -152,6 +167,7 @@ function CategoryManagement() {
     setCategories((prev) => [...prev, newCategory]);
     setNewCategoryName("");
     setNewCategoryDescription("");
+    setNewCategoryRole("staff");
     setShowAddModal(false);
 
     toast({
@@ -164,6 +180,7 @@ function CategoryManagement() {
     setEditingCategory(category);
     setEditName(category.name);
     setEditDescription(category.description || "");
+    setEditRole(category.role);
   };
 
   const handleSaveEdit = () => {
@@ -199,6 +216,7 @@ function CategoryManagement() {
               ...cat,
               name: editName,
               description: editDescription,
+              role: editRole,
               lastUpdated: new Date(),
             }
           : cat
@@ -208,6 +226,7 @@ function CategoryManagement() {
     setEditingCategory(null);
     setEditName("");
     setEditDescription("");
+    setEditRole("staff");
 
     toast({
       title: "Category Updated",
@@ -413,6 +432,25 @@ function CategoryManagement() {
                     onChange={(e) => setNewCategoryDescription(e.target.value)}
                   />
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Role *
+                  </label>
+                  <Select
+                    value={newCategoryRole}
+                    onValueChange={setNewCategoryRole}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="staff">Staff</SelectItem>
+                      <SelectItem value="hod">HoD</SelectItem>
+                      <SelectItem value="dean">Dean</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleAddCategory} className="flex-1">
                     Add Category
@@ -423,6 +461,7 @@ function CategoryManagement() {
                       setShowAddModal(false);
                       setNewCategoryName("");
                       setNewCategoryDescription("");
+                      setNewCategoryRole("staff");
                     }}
                     className="flex-1"
                   >
@@ -612,6 +651,22 @@ function CategoryManagement() {
                   onChange={(e) => setEditDescription(e.target.value)}
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                  Role *
+                </label>
+                <Select value={editRole} onValueChange={setEditRole}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="hod">HoD</SelectItem>
+                    <SelectItem value="dean">Dean</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSaveEdit} className="flex-1">
                   Save Changes
@@ -622,6 +677,7 @@ function CategoryManagement() {
                     setEditingCategory(null);
                     setEditName("");
                     setEditDescription("");
+                    setEditRole("staff");
                   }}
                   className="flex-1"
                 >
