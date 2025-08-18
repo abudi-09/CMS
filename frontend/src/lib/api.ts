@@ -80,7 +80,11 @@ export async function signupApi(formData: {
   department: string;
 }) {
   // Map role to backend expected value
-  const role = formData.role.toLowerCase();
+  let role = formData.role;
+  // Only lowercase for staff, user, dean; keep headOfDepartment as is
+  if (["user", "staff", "dean"].includes(role)) {
+    role = role.toLowerCase();
+  }
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

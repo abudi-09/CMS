@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["user", "admin", "staff", "dean"],
+      enum: ["user", "admin", "staff", "dean", "headOfDepartment"],
       default: "user",
     },
     isApproved: {
@@ -33,9 +33,12 @@ const userSchema = new mongoose.Schema(
     department: {
       type: String,
       required: function () {
-        // Department is required for user, staff, and dean
+        // Department is required for user, staff, dean, and headOfDepartment
         return (
-          this.role === "user" || this.role === "staff" || this.role === "dean"
+          this.role === "user" ||
+          this.role === "staff" ||
+          this.role === "dean" ||
+          this.role === "headOfDepartment"
         );
       },
     },

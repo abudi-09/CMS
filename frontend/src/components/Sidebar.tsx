@@ -43,7 +43,6 @@ export function Sidebar({ className }: SidebarProps) {
 
   const adminMenuItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard" },
-    { icon: UserCheck, label: "Dean Management", href: "/staff-management" },
 
     // { icon: UserPlus, label: "Assign Complaints", href: "/assign" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
@@ -70,11 +69,6 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/dean/assign-complaints",
     },
 
-    {
-      icon: UserCheck,
-      label: "Staff Management",
-      href: "/dean-staff-management",
-    },
     { icon: Users, label: "User Management", href: "/dean-user-management" },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
     { icon: TrendingUp, label: "Dean Analytics", href: "/dean-analytics" },
@@ -89,9 +83,18 @@ export function Sidebar({ className }: SidebarProps) {
 
   const hodMenuItems = [
     { icon: Home, label: "Dashboard", href: "/hod-dashboard" },
-    { icon: UserPlus, label: "Assign Complaints", href: "/hod/assign-complaints" },
+    {
+      icon: UserPlus,
+      label: "Assign Complaints",
+      href: "/hod/assign-complaints",
+    },
+    {
+      icon: UserCheck,
+      label: "Staff Management",
+      href: "/hod-staff-management",
+    },
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
-    { icon: Users, label: "Staff Management", href: "/hod-staff-management" },
+    { icon: Users, label: "Staff Management", href: "/staff-management" },
     { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
     { icon: Settings, label: "Profile", href: "/profile" },

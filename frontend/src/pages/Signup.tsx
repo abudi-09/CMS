@@ -62,12 +62,15 @@ export function Signup() {
     )
       newErrors.confirmPassword = "Passwords do not match";
     if (!formData.role) newErrors.role = "Please select a role";
-    if (formData.role === "user" && !formData.department.trim())
+    if (
+      (formData.role === "user" ||
+        formData.role === "dean" ||
+        formData.role === "headOfDepartment") &&
+      !formData.department.trim()
+    )
       newErrors.department = "Department is required";
     if (formData.role === "staff" && !formData.workingPlace.trim())
       newErrors.workingPlace = "Working place is required";
-    if (formData.role === "dean" && !formData.department.trim())
-      newErrors.department = "Department or Working Place is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -81,7 +84,10 @@ export function Signup() {
 
     try {
       await signupApi(formData);
-      if (formData.role.toLowerCase() === "staff") {
+      if (
+        formData.role === "staff" ||
+        formData.role.toLowerCase() === "staff"
+      ) {
         toast({
           title: "Account Created Successfully",
           description:
@@ -90,11 +96,21 @@ export function Signup() {
         setTimeout(() => {
           navigate("/login");
         }, 3000);
-      } else if (formData.role.toLowerCase() === "dean") {
+      } else if (
+        formData.role === "dean" ||
+        formData.role.toLowerCase() === "dean"
+      ) {
         toast({
           title: "Account Created Successfully",
           description:
             "Dean account created. Please check your email to verify your account.",
+        });
+        navigate("/login");
+      } else if (formData.role === "headOfDepartment") {
+        toast({
+          title: "Account Created Successfully",
+          description:
+            "Head of Department account created. Please check your email to verify your account.",
         });
         navigate("/login");
       } else {
@@ -318,7 +334,8 @@ export function Signup() {
                 <p className="text-sm text-destructive">{errors.role}</p>
               )}
             </div>
-            {formData.role === "user" && (
+            {(formData.role === "user" ||
+              formData.role === "headOfDepartment") && (
               <div className="space-y-2">
                 <Label htmlFor="department">Department *</Label>
                 <Input
@@ -408,7 +425,9 @@ export function Signup() {
                 !formData.password ||
                 !formData.confirmPassword ||
                 !formData.role ||
-                (formData.role === "user" && !formData.department.trim()) ||
+                ((formData.role === "user" ||
+                  formData.role === "headOfDepartment") &&
+                  !formData.department.trim()) ||
                 (formData.role === "staff" && !formData.workingPlace.trim())
               }
               aria-label="Create account"

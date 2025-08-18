@@ -42,17 +42,17 @@ export const signup = async (req, res) => {
     const { name, username, email, password, role, department, workingPlace } =
       req.body;
 
-    const allowedRoles = ["user", "staff", "dean"];
+    const allowedRoles = ["user", "staff", "dean", "headOfDepartment"];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role selected" });
     }
     if (
-      (role === "user" || role === "dean") &&
+      (role === "user" || role === "dean" || role === "headOfDepartment") &&
       (!department || !department.trim())
     ) {
       return res
         .status(400)
-        .json({ error: "Department is required for users and deans" });
+        .json({ error: "Department is required for this role" });
     }
     if (role === "staff" && (!workingPlace || !workingPlace.trim())) {
       return res
@@ -90,7 +90,10 @@ export const signup = async (req, res) => {
       email,
       password: hashedPassword,
       role,
-      department: role === "user" || role === "dean" ? department : undefined,
+      department:
+        role === "user" || role === "dean" || role === "headOfDepartment"
+          ? department
+          : undefined,
       workingPlace: role === "staff" ? workingPlace : undefined,
       isVerified: false,
     });
