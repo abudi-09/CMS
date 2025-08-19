@@ -68,6 +68,11 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Assign Complaints",
       href: "/dean/assign-complaints",
     },
+    {
+      icon: Users,
+      label: "Department Management",
+      href: "/department-management",
+    },
 
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
     { icon: TrendingUp, label: "Dean Analytics", href: "/dean-analytics" },

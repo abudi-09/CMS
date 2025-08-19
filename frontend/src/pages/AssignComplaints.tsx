@@ -1,6 +1,4 @@
-// For demo/testing: import mockComplaint
-import { mockComplaint } from "@/components/RoleBasedComplaintModal";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -27,18 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, UserPlus } from "lucide-react";
-
-import { Dialog } from "@/components/ui/dialog";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
-import { Label } from "@/components/ui/label";
-import { Complaint as BaseComplaint } from "@/context/ComplaintContext";
+import type { Complaint as ModalComplaint } from "@/components/ComplaintCard";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { useComplaints } from "@/context/ComplaintContext";
-import { assignComplaintApi } from "@/lib/api";
-import { useEffect } from "react";
 import { useState as useReactState } from "react";
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Complaint = {
   id: string;
@@ -53,7 +45,9 @@ type Complaint = {
     | "Resolved"
     | "Closed"
     | "Overdue"
-    | "Pending";
+    | "Pending"
+    | "Accepted"
+    | "Rejected";
   submittedBy: string;
   assignedStaff?: string;
   assignedDate?: Date;
@@ -71,15 +65,20 @@ type Complaint = {
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
+  Accepted: "bg-blue-100 text-blue-800",
   "In Progress": "bg-blue-100 text-blue-800",
   Resolved: "bg-green-100 text-green-800",
   Closed: "bg-gray-100 text-gray-800",
-  Delayed: "bg-red-100 text-red-800",
+  Rejected: "bg-red-100 text-red-800",
+  Overdue: "bg-red-100 text-red-800",
 };
 
 export function AssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
+  const { getAllStaff, user } = useAuth();
+  const userName = user?.fullName || user?.name || "";
+  const role = user?.role;
   // Diverse mock complaints for demo/testing
   // At least half of complaints are overdue (deadline in the past)
   const now = new Date();
@@ -380,11 +379,10 @@ export function AssignComplaints() {
       deadline: new Date(now.getTime() + 3 * 86400000),
     },
   ];
-  // Ensure all complaints have a department value and status 'Pending'
+  // Ensure all complaints have a department value
   const demoComplaintsWithDept = demoComplaints.map((c) => ({
     ...c,
     department: c.department || "General",
-    status: "Pending" as Complaint["status"],
   }));
   const [complaints, setComplaints] = useReactState<Complaint[]>(
     demoComplaintsWithDept
@@ -395,7 +393,6 @@ export function AssignComplaints() {
   // Remove priority sort
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all"); // 'all' | 'overdue' | 'notOverdue'
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
@@ -404,8 +401,9 @@ export function AssignComplaints() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
-
-  const { getAllStaff } = useAuth();
+  const [activeTab, setActiveTab] = useState<
+    "Pending" | "Accepted" | "Rejected"
+  >("Pending");
 
   // Inline assign/re-assign button click
   const handleAssignClick = (complaint: Complaint) => {
@@ -422,69 +420,69 @@ export function AssignComplaints() {
 
   // Assign staff and deadline to a complaint
   // This function updates the complaint with the selected staff and deadline
-  const handleStaffAssignment = async (
-    complaintId: string,
-    staffId: string
-  ) => {
+  const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    try {
-      // Call backend API to assign complaint
-      const updatedComplaint = await assignComplaintApi(
-        complaintId,
-        staffId,
-        assigningDeadline || undefined
-      );
-      // Update local complaints state for instant UI feedback
-      setComplaints((prev) =>
-        prev.map((c) =>
-          c.id === complaintId
-            ? {
-                ...c,
-                assignedStaff: staff?.fullName || staff?.name || "Unknown",
-                lastUpdated: new Date(),
-                deadline: assigningDeadline
-                  ? new Date(assigningDeadline)
-                  : undefined,
-                status: updatedComplaint.status || "Assigned",
-              }
-            : c
-        )
-      );
-      // Update global state if needed
-      updatedComplaint(complaintId, {
-        assignedStaff: staff?.fullName || staff?.name || "Unknown",
-        lastUpdated: new Date(),
-        deadline: assigningDeadline ? new Date(assigningDeadline) : undefined,
-        status: updatedComplaint.status || "Assigned",
-      });
-      // Refresh complaints list after assignment (sync with backend)
-      // Pause polling for 3 seconds to allow backend to update
-      setPollingPaused(true);
-      setTimeout(() => setPollingPaused(false), 3000);
-      toast({
-        title: "Staff Assigned",
-        description: `Complaint has been assigned to ${
-          staff?.fullName || staff?.name
-        }${
-          assigningDeadline
-            ? ` with deadline ${new Date(
-                assigningDeadline
-              ).toLocaleDateString()}`
-            : ""
-        }`,
-      });
-    } catch (error) {
-      toast({
-        title: "Assignment Failed",
-        description: "Could not assign staff. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setReassigningRow(null);
-      setAssigningStaffId("");
-      setAssigningDeadline("");
-    }
+    // Local-only update for demo/testing
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
+              assignedStaff: staff?.fullName || staff?.name || "Unknown",
+              lastUpdated: new Date(),
+              deadline: assigningDeadline
+                ? new Date(assigningDeadline)
+                : c.deadline,
+              status: "Accepted",
+            }
+          : c
+      )
+    );
+    toast({
+      title: "Assigned",
+      description: `Assigned to ${staff?.fullName || staff?.name}${
+        assigningDeadline
+          ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
+          : ""
+      }`,
+    });
+    setReassigningRow(null);
+    setAssigningStaffId("");
+    setAssigningDeadline("");
   };
+
+  const handleResolve = (complaintId: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? { ...c, status: "Resolved", lastUpdated: new Date() }
+          : c
+      )
+    );
+    toast({ title: "Resolved", description: "Complaint marked as resolved." });
+  };
+
+  const handleReject = (complaintId: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? { ...c, status: "Rejected", lastUpdated: new Date() }
+          : c
+      )
+    );
+    toast({ title: "Rejected", description: "Complaint rejected." });
+  };
+
+  // Adapt local complaint shape to Modal's expected Complaint type
+  const toModalComplaint = (c: Complaint): ModalComplaint => ({
+    ...(c as unknown as ModalComplaint),
+    status:
+      c.status === "Accepted"
+        ? "In Progress"
+        : c.status === "Rejected"
+        ? "Closed"
+        : (c.status as ModalComplaint["status"]),
+  });
   // Filter complaints
   // Helper: check if complaint is overdue
   const isOverdue = (complaint: Complaint) => {
@@ -500,9 +498,38 @@ export function AssignComplaints() {
     );
   };
 
-  const filteredComplaints = complaints.filter(
-    (complaint) => !complaint.assignedStaff
-  );
+  const matchesTab = (c: Complaint) => {
+    if (activeTab === "Pending")
+      return c.status === "Pending" || c.status === "Unassigned";
+    if (activeTab === "Accepted")
+      return (
+        c.status === "Accepted" ||
+        c.status === "Assigned" ||
+        c.status === "In Progress"
+      );
+    if (activeTab === "Rejected") return c.status === "Rejected";
+    return true;
+  };
+
+  const filteredComplaints = complaints
+    .filter(matchesTab)
+    .filter((c) =>
+      [c.title, c.department, c.submittedBy]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    )
+    .filter((c) =>
+      priorityFilter === "all" ? true : c.priority === priorityFilter
+    )
+    .filter((c) =>
+      overdueFilter === "all"
+        ? true
+        : overdueFilter === "overdue"
+        ? isOverdue(c)
+        : !isOverdue(c)
+    );
 
   // Move these inside the AssignComplaints function, after complaints state is declared
   // Move these inside the AssignComplaints function, after complaints state is declared
@@ -584,18 +611,6 @@ export function AssignComplaints() {
                 className="pl-10 w-full"
               />
             </div>
-            {/* Status dropdown */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
-              </SelectContent>
-            </Select>
             {/* Priority dropdown */}
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
               <SelectTrigger className="w-full">
@@ -615,7 +630,7 @@ export function AssignComplaints() {
                 <SelectValue placeholder="Filter by overdue" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Delay complaints</SelectItem>
+                <SelectItem value="all">All complaints</SelectItem>
                 <SelectItem value="overdue">Overdue Only</SelectItem>
                 <SelectItem value="notOverdue">Not Overdue Only</SelectItem>
               </SelectContent>
@@ -627,7 +642,19 @@ export function AssignComplaints() {
       {/* Complaints Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Complaints</CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle>Complaints</CardTitle>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+            >
+              <TabsList>
+                <TabsTrigger value="Pending">Pending</TabsTrigger>
+                <TabsTrigger value="Accepted">Accepted</TabsTrigger>
+                <TabsTrigger value="Rejected">Rejected</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <CardDescription>
             {filteredComplaints.length} complaint
             {filteredComplaints.length !== 1 ? "s" : ""} found
@@ -644,7 +671,7 @@ export function AssignComplaints() {
                   <TableHead className="text-sm">Department</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
-                  <TableHead className="text-sm">Assigned Dean</TableHead>
+                  <TableHead className="text-sm">Assignee</TableHead>
                   <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
@@ -686,7 +713,7 @@ export function AssignComplaints() {
                     <TableCell className="text-sm">
                       {complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
-                          Assigned to: {complaint.assignedStaff}
+                          {complaint.assignedStaff}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
@@ -712,7 +739,7 @@ export function AssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center flex-wrap">
                         <Button
                           size="sm"
                           variant="outline"
@@ -721,72 +748,145 @@ export function AssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {!complaint.assignedStaff &&
-                          (reassigningRow === complaint.id ? (
-                            <>
-                              <Select
-                                value={assigningStaffId}
-                                onValueChange={setAssigningStaffId}
-                              >
-                                <SelectTrigger className="w-32 text-xs">
-                                  <SelectValue placeholder="Select dean" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getAllStaff().map((staff) => (
-                                    <SelectItem key={staff.id} value={staff.id}>
-                                      {staff.fullName || staff.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                type="date"
-                                className="w-32 text-xs"
-                                value={assigningDeadline}
-                                onChange={(e) =>
-                                  setAssigningDeadline(e.target.value)
-                                }
-                                required
-                              />
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="text-xs"
-                                disabled={
-                                  !assigningStaffId || !assigningDeadline
-                                }
-                                onClick={() =>
-                                  handleStaffAssignment(
-                                    complaint.id,
-                                    assigningStaffId
-                                  )
-                                }
-                              >
-                                Confirm
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs"
-                                onClick={() => {
-                                  setReassigningRow(null);
-                                  setAssigningStaffId("");
-                                  setAssigningDeadline("");
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          ) : (
+                        {/* Role-based actions */}
+                        {role === "admin" && (
+                          <>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="text-xs dark:hover:text-blue-400"
-                              onClick={() => handleAssignClick(complaint)}
+                              className="text-xs"
+                              onClick={() => handleResolve(complaint.id)}
                             >
-                              Assign
+                              Resolve
                             </Button>
-                          ))}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="text-xs"
+                              onClick={() => handleReject(complaint.id)}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {role === "staff" &&
+                          complaint.assignedStaff === userName && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => handleResolve(complaint.id)}
+                              >
+                                Resolve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="text-xs"
+                                onClick={() => handleReject(complaint.id)}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        {(role === "dean" || role === "headOfDepartment") && (
+                          <>
+                            {/* Dean/HoD can resolve or reject directly */}
+                            <Button
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => handleResolve(complaint.id)}
+                            >
+                              Resolve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="text-xs"
+                              onClick={() => handleReject(complaint.id)}
+                            >
+                              Reject
+                            </Button>
+                            {reassigningRow === complaint.id ? (
+                              <>
+                                <Select
+                                  value={assigningStaffId}
+                                  onValueChange={setAssigningStaffId}
+                                >
+                                  <SelectTrigger className="w-40 text-xs">
+                                    <SelectValue placeholder="Select assignee" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getAllStaff()
+                                      .filter((s) =>
+                                        role === "dean"
+                                          ? s.role === "headOfDepartment"
+                                          : s.role === "staff"
+                                      )
+                                      .map((staff) => (
+                                        <SelectItem
+                                          key={staff.id}
+                                          value={staff.id}
+                                        >
+                                          {staff.fullName || staff.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="date"
+                                  className="w-36 text-xs"
+                                  value={assigningDeadline}
+                                  onChange={(e) =>
+                                    setAssigningDeadline(e.target.value)
+                                  }
+                                  required
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="text-xs"
+                                  disabled={
+                                    !assigningStaffId || !assigningDeadline
+                                  }
+                                  onClick={() =>
+                                    handleStaffAssignment(
+                                      complaint.id,
+                                      assigningStaffId
+                                    )
+                                  }
+                                >
+                                  Confirm
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-xs"
+                                  onClick={() => {
+                                    setReassigningRow(null);
+                                    setAssigningStaffId("");
+                                    setAssigningDeadline("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              (!complaint.assignedStaff ||
+                                isOverdue(complaint)) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs dark:hover:text-blue-400"
+                                  onClick={() => handleAssignClick(complaint)}
+                                >
+                                  {complaint.assignedStaff
+                                    ? "Reassign"
+                                    : "Assign"}
+                                </Button>
+                              )
+                            )}
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -842,7 +942,6 @@ export function AssignComplaints() {
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Category:</span>
-                      <span className="text-muted-foreground">Category:</span>
                       <span className="font-medium ml-2">
                         {complaint.category}
                       </span>
@@ -860,7 +959,7 @@ export function AssignComplaints() {
                     <div>
                       {complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
-                          Assigned to: {complaint.assignedStaff}
+                          {complaint.assignedStaff}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
@@ -897,64 +996,136 @@ export function AssignComplaints() {
                     >
                       View Detail
                     </Button>
-                    {reassigningRow === complaint.id ? (
+                    {/* Role-based actions (mobile) */}
+                    {role === "admin" && (
                       <>
-                        <Select
-                          value={assigningStaffId}
-                          onValueChange={setAssigningStaffId}
-                        >
-                          <SelectTrigger className="w-full text-xs">
-                            <SelectValue placeholder="Select dean" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getAllStaff().map((staff) => (
-                              <SelectItem key={staff.id} value={staff.id}>
-                                {staff.fullName || staff.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                         <Button
                           size="sm"
-                          variant="default"
-                          className="w-full text-xs mt-1"
-                          disabled={!assigningStaffId}
-                          onClick={() =>
-                            handleStaffAssignment(
-                              complaint.id,
-                              assigningStaffId
-                            )
-                          }
+                          className="w-full text-xs"
+                          onClick={() => handleResolve(complaint.id)}
                         >
-                          Confirm
+                          Resolve
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="w-full text-xs mt-1"
-                          onClick={() => {
-                            setReassigningRow(null);
-                            setAssigningStaffId("");
-                            setAssigningDeadline("");
-                          }}
+                          variant="destructive"
+                          className="w-full text-xs"
+                          onClick={() => handleReject(complaint.id)}
                         >
-                          Cancel
+                          Reject
                         </Button>
-                        If the deadline passes and the complaint is not
-                        resolved, mark it as "Overdue" in red.
                       </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs dark:hover:text-blue-400"
-                        onClick={() => handleAssignClick(complaint)}
-                      >
-                        {complaint.assignedStaff &&
-                        complaint.assignedStaff !== "Not Yet Assigned"
-                          ? "Re-Assign"
-                          : "Assign"}
-                      </Button>
+                    )}
+                    {role === "staff" &&
+                      complaint.assignedStaff === userName && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="w-full text-xs"
+                            onClick={() => handleResolve(complaint.id)}
+                          >
+                            Resolve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="w-full text-xs"
+                            onClick={() => handleReject(complaint.id)}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    {(role === "dean" || role === "headOfDepartment") && (
+                      <>
+                        <Button
+                          size="sm"
+                          className="w-full text-xs"
+                          onClick={() => handleResolve(complaint.id)}
+                        >
+                          Resolve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="w-full text-xs"
+                          onClick={() => handleReject(complaint.id)}
+                        >
+                          Reject
+                        </Button>
+                        {reassigningRow === complaint.id ? (
+                          <>
+                            <Select
+                              value={assigningStaffId}
+                              onValueChange={setAssigningStaffId}
+                            >
+                              <SelectTrigger className="w-full text-xs">
+                                <SelectValue placeholder="Select assignee" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getAllStaff()
+                                  .filter((s) =>
+                                    role === "dean"
+                                      ? s.role === "headOfDepartment"
+                                      : s.role === "staff"
+                                  )
+                                  .map((staff) => (
+                                    <SelectItem key={staff.id} value={staff.id}>
+                                      {staff.fullName || staff.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="date"
+                              className="w-full text-xs mt-1"
+                              value={assigningDeadline}
+                              onChange={(e) =>
+                                setAssigningDeadline(e.target.value)
+                              }
+                              required
+                            />
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="w-full text-xs mt-1"
+                              disabled={!assigningStaffId || !assigningDeadline}
+                              onClick={() =>
+                                handleStaffAssignment(
+                                  complaint.id,
+                                  assigningStaffId
+                                )
+                              }
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="w-full text-xs mt-1"
+                              onClick={() => {
+                                setReassigningRow(null);
+                                setAssigningStaffId("");
+                                setAssigningDeadline("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          (!complaint.assignedStaff ||
+                            isOverdue(complaint)) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-xs dark:hover:text-blue-400"
+                              onClick={() => handleAssignClick(complaint)}
+                            >
+                              {complaint.assignedStaff ? "Reassign" : "Assign"}
+                            </Button>
+                          )
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -969,7 +1140,7 @@ export function AssignComplaints() {
       {/* Role-based Complaint Modal for View Detail */}
       {selectedComplaint && (
         <RoleBasedComplaintModal
-          complaint={selectedComplaint}
+          complaint={toModalComplaint(selectedComplaint)}
           open={showDetailModal}
           onOpenChange={setShowDetailModal}
           // Pass deadline to modal as prop
@@ -979,6 +1150,4 @@ export function AssignComplaints() {
     </div>
   );
 }
-function setPollingPaused(arg0: boolean) {
-  throw new Error("Function not implemented.");
-}
+// polling removed in demo mode

@@ -43,6 +43,7 @@ import AdminComplaints from "@/pages/AdminComplaints";
 import { HoDAssignComplaints } from "@/pages/HoDAssignComplaints";
 import HoDAnalytics from "@/pages/HoDAnalytics";
 import HODStaffManagement from "@/pages/HODStaffManagement";
+import DepartmentManagement from "@/pages/DepartmentManagement";
 
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
@@ -164,6 +165,10 @@ function AppContent() {
                 <Route
                   path="/dean-department-performance"
                   element={<DeanDepartmentPerformance />}
+                />
+                <Route
+                  path="/department-management"
+                  element={<DepartmentManagement />}
                 />
                 <Route
                   path="/dean/assign-complaints"

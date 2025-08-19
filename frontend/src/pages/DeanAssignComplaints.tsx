@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -28,12 +28,10 @@ import { Search, UserPlus } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { assignComplaintApi } from "@/lib/api";
 import { useState as useReactState } from "react";
 import { Complaint as ComplaintType } from "@/components/ComplaintCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Use ComplaintType for all references to Complaint
-
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
@@ -46,6 +44,8 @@ const statusColors = {
 export function DeanAssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
+  const { getAllStaff, user } = useAuth();
+  const role = user?.role;
   // Diverse mock complaints for demo/testing
   // At least half of complaints are overdue (deadline in the past)
   const now = new Date();
@@ -184,17 +184,14 @@ export function DeanAssignComplaints() {
   const [complaints, setComplaints] =
     useReactState<ComplaintType[]>(demoComplaints);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [assignmentFilter, setAssignmentFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all");
   const [selectedComplaint, setSelectedComplaint] =
     useState<ComplaintType | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
-  const auth = useAuth();
-  const getAllStaff = auth.getAllStaff;
+  const [activeTab, setActiveTab] = useState<"Pending" | "Accepted" | "Rejected">("Pending");
   const handleAssignClick = (complaint: ComplaintType) => {
     setReassigningRow(complaint.id);
     setAssigningStaffId("");
@@ -206,55 +203,50 @@ export function DeanAssignComplaints() {
     setAssigningStaffId("");
     setReassigningRow(null);
   };
-  const handleStaffAssignment = async (
+  const handleStaffAssignment = (
     complaintId: string,
     staffId: string
   ) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    try {
-      const updatedComplaint = await assignComplaintApi(
-        complaintId,
-        staffId,
-        assigningDeadline || undefined
-      );
-      setComplaints((prev) =>
-        prev.map((c) =>
-          c.id === complaintId
-            ? {
-                ...c,
-                assignedStaff: staff?.fullName || staff?.name || "Unknown",
-                lastUpdated: new Date(),
-                deadline: assigningDeadline
-                  ? new Date(assigningDeadline)
-                  : undefined,
-                status: updatedComplaint.status || "Assigned",
-              }
-            : c
-        )
-      );
-      toast({
-        title: "Staff Assigned",
-        description: `Complaint has been assigned to ${
-          staff?.fullName || staff?.name
-        }${
-          assigningDeadline
-            ? ` with deadline ${new Date(
-                assigningDeadline
-              ).toLocaleDateString()}`
-            : ""
-        }`,
-      });
-    } catch (error) {
-      toast({
-        title: "Assignment Failed",
-        description: "Could not assign staff. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setReassigningRow(null);
-      setAssigningStaffId("");
-      setAssigningDeadline("");
-    }
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
+              assignedStaff: staff?.fullName || staff?.name || "Unknown",
+              lastUpdated: new Date(),
+              deadline: assigningDeadline ? new Date(assigningDeadline) : c.deadline,
+              // Dean "accepts" -> use "In Progress" to stay within ComplaintType
+              status: c.status === "Unassigned" || c.status === "Pending" ? "In Progress" : c.status,
+            }
+          : c
+      )
+    );
+    toast({
+      title: "Assigned",
+      description: `Assigned to ${staff?.fullName || staff?.name}${
+        assigningDeadline
+          ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
+          : ""
+      }`,
+    });
+    setReassigningRow(null);
+    setAssigningStaffId("");
+    setAssigningDeadline("");
+  };
+
+  const handleResolve = (complaintId: string) => {
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === complaintId ? { ...c, status: "Resolved", lastUpdated: new Date() } : c))
+    );
+    toast({ title: "Resolved", description: "Complaint marked as resolved." });
+  };
+
+  const handleReject = (complaintId: string) => {
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === complaintId ? { ...c, status: "Closed", lastUpdated: new Date() } : c))
+    );
+    toast({ title: "Rejected", description: "Complaint rejected and closed." });
   };
 
   const isOverdue = (complaint: ComplaintType) => {
@@ -270,40 +262,29 @@ export function DeanAssignComplaints() {
     );
   };
 
-  // Ensure searchTerm is defined in the component's state above
-  // const [searchTerm, setSearchTerm] = useState("");
-  const filteredComplaints = complaints.filter((complaint) => {
-    if (complaint.status === "Resolved") return false;
-    const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" ||
-      (complaint.status === statusFilter && complaint.status !== "Unassigned");
-    const matchesAssignment =
-      assignmentFilter === "all"
-        ? true
-        : assignmentFilter === "assigned"
-        ? !!complaint.assignedStaff
-        : !complaint.assignedStaff;
-    const matchesPriority =
-      priorityFilter === "all" ||
-      (complaint.priority || "Medium") === priorityFilter;
-    const matchesOverdue =
-      overdueFilter === "all"
-        ? true
-        : overdueFilter === "overdue"
-        ? isOverdue(complaint)
-        : !isOverdue(complaint);
-    return (
-      matchesSearch &&
-      matchesStatus &&
-      matchesPriority &&
-      matchesAssignment &&
-      matchesOverdue
-    );
-  });
+  const matchesTab = (c: ComplaintType) => {
+    if (activeTab === "Pending") return c.status === "Pending" || c.status === "Unassigned";
+    if (activeTab === "Accepted") return c.status === "In Progress" || c.status === "Assigned";
+    if (activeTab === "Rejected") return c.status === "Closed";
+    return true;
+  };
+  const filteredComplaints = complaints
+    .filter(matchesTab)
+    .filter((complaint) => {
+      const matchesSearch =
+        complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPriority =
+        priorityFilter === "all" || (complaint.priority || "Medium") === priorityFilter;
+      const matchesOverdue =
+        overdueFilter === "all"
+          ? true
+          : overdueFilter === "overdue"
+          ? isOverdue(complaint)
+          : !isOverdue(complaint);
+      return matchesSearch && matchesPriority && matchesOverdue;
+    });
 
   const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
   const assignedCount = complaints.filter((c) => c.assignedStaff).length;
@@ -360,7 +341,7 @@ export function DeanAssignComplaints() {
           </CardContent>
         </Card>
       </div>
-      {/* Search & Filter */}
+  {/* Search & Filter */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -379,17 +360,6 @@ export function DeanAssignComplaints() {
                 className="pl-10 w-full"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter by priority" />
@@ -402,27 +372,12 @@ export function DeanAssignComplaints() {
                 <SelectItem value="Critical">Critical</SelectItem>
               </SelectContent>
             </Select>
-            <Select
-              value={assignmentFilter}
-              onValueChange={setAssignmentFilter}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter by Assignment Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Complaints</SelectItem>
-                <SelectItem value="assigned">Assigned Complaints</SelectItem>
-                <SelectItem value="unassigned">
-                  Unassigned Complaints
-                </SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={overdueFilter} onValueChange={setOverdueFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter by overdue" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Delay complaints</SelectItem>
+                <SelectItem value="all">All complaints</SelectItem>
                 <SelectItem value="overdue">Overdue Only</SelectItem>
                 <SelectItem value="notOverdue">Not Overdue Only</SelectItem>
               </SelectContent>
@@ -433,7 +388,16 @@ export function DeanAssignComplaints() {
       {/* Complaints Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Complaints</CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle>Complaints</CardTitle>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+              <TabsList>
+                <TabsTrigger value="Pending">Pending</TabsTrigger>
+                <TabsTrigger value="Accepted">Accepted</TabsTrigger>
+                <TabsTrigger value="Rejected">Rejected</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <CardDescription>
             {filteredComplaints.length} complaint
             {filteredComplaints.length !== 1 ? "s" : ""} found
@@ -449,7 +413,7 @@ export function DeanAssignComplaints() {
                   <TableHead className="text-sm">Category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
-                  <TableHead className="text-sm">Assigned Staff</TableHead>
+                  <TableHead className="text-sm">Assignee</TableHead>
                   <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
@@ -495,7 +459,7 @@ export function DeanAssignComplaints() {
                     <TableCell className="text-sm">
                       {complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
-                          Assigned to: {complaint.assignedStaff}
+                          {complaint.assignedStaff}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
@@ -521,7 +485,7 @@ export function DeanAssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center flex-wrap">
                         <Button
                           size="sm"
                           variant="outline"
@@ -530,30 +494,34 @@ export function DeanAssignComplaints() {
                         >
                           View Detail
                         </Button>
+                        {/* Dean can resolve/reject and assign to HoD */}
+                        <Button size="sm" className="text-xs" onClick={() => handleResolve(complaint.id)}>
+                          Resolve
+                        </Button>
+                        <Button size="sm" variant="destructive" className="text-xs" onClick={() => handleReject(complaint.id)}>
+                          Reject
+                        </Button>
                         {reassigningRow === complaint.id ? (
                           <>
-                            <Select
-                              value={assigningStaffId}
-                              onValueChange={setAssigningStaffId}
-                            >
-                              <SelectTrigger className="w-32 text-xs">
-                                <SelectValue placeholder="Select staff" />
+                            <Select value={assigningStaffId} onValueChange={setAssigningStaffId}>
+                              <SelectTrigger className="w-40 text-xs">
+                                <SelectValue placeholder="Select assignee" />
                               </SelectTrigger>
                               <SelectContent>
-                                {getAllStaff().map((staff) => (
-                                  <SelectItem key={staff.id} value={staff.id}>
-                                    {staff.fullName || staff.name}
-                                  </SelectItem>
-                                ))}
+                                {getAllStaff()
+                                  .filter((s) => s.role === "headOfDepartment")
+                                  .map((staff) => (
+                                    <SelectItem key={staff.id} value={staff.id}>
+                                      {staff.fullName || staff.name}
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                             <Input
                               type="date"
-                              className="w-32 text-xs"
+                              className="w-36 text-xs"
                               value={assigningDeadline}
-                              onChange={(e) =>
-                                setAssigningDeadline(e.target.value)
-                              }
+                              onChange={(e) => setAssigningDeadline(e.target.value)}
                               required
                             />
                             <Button
@@ -561,12 +529,7 @@ export function DeanAssignComplaints() {
                               variant="default"
                               className="text-xs"
                               disabled={!assigningStaffId || !assigningDeadline}
-                              onClick={() =>
-                                handleStaffAssignment(
-                                  complaint.id,
-                                  assigningStaffId
-                                )
-                              }
+                              onClick={() => handleStaffAssignment(complaint.id, assigningStaffId)}
                             >
                               Confirm
                             </Button>
@@ -577,20 +540,23 @@ export function DeanAssignComplaints() {
                               onClick={() => {
                                 setReassigningRow(null);
                                 setAssigningStaffId("");
+                                setAssigningDeadline("");
                               }}
                             >
                               Cancel
                             </Button>
                           </>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs dark:hover:text-blue-400"
-                            onClick={() => handleAssignClick(complaint)}
-                          >
-                            {complaint.assignedStaff ? "Re-Assign" : "Assign"}
-                          </Button>
+                          (!complaint.assignedStaff || isOverdue(complaint)) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs dark:hover:text-blue-400"
+                              onClick={() => handleAssignClick(complaint)}
+                            >
+                              {complaint.assignedStaff ? "Reassign" : "Assign"}
+                            </Button>
+                          )
                         )}
                       </div>
                     </TableCell>
@@ -681,34 +647,42 @@ export function DeanAssignComplaints() {
                     >
                       View Detail
                     </Button>
+                    {/* Dean actions on mobile */}
+                    <Button size="sm" className="w-full text-xs" onClick={() => handleResolve(complaint.id)}>
+                      Resolve
+                    </Button>
+                    <Button size="sm" variant="destructive" className="w-full text-xs" onClick={() => handleReject(complaint.id)}>
+                      Reject
+                    </Button>
                     {reassigningRow === complaint.id ? (
                       <>
-                        <Select
-                          value={assigningStaffId}
-                          onValueChange={setAssigningStaffId}
-                        >
+                        <Select value={assigningStaffId} onValueChange={setAssigningStaffId}>
                           <SelectTrigger className="w-full text-xs">
-                            <SelectValue placeholder="Select staff" />
+                            <SelectValue placeholder="Select assignee" />
                           </SelectTrigger>
                           <SelectContent>
-                            {getAllStaff().map((staff) => (
-                              <SelectItem key={staff.id} value={staff.id}>
-                                {staff.fullName || staff.name}
-                              </SelectItem>
-                            ))}
+                            {getAllStaff()
+                              .filter((s) => s.role === "headOfDepartment")
+                              .map((staff) => (
+                                <SelectItem key={staff.id} value={staff.id}>
+                                  {staff.fullName || staff.name}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
+                        <Input
+                          type="date"
+                          className="w-full text-xs mt-1"
+                          value={assigningDeadline}
+                          onChange={(e) => setAssigningDeadline(e.target.value)}
+                          required
+                        />
                         <Button
                           size="sm"
                           variant="default"
                           className="w-full text-xs mt-1"
-                          disabled={!assigningStaffId}
-                          onClick={() =>
-                            handleStaffAssignment(
-                              complaint.id,
-                              assigningStaffId
-                            )
-                          }
+                          disabled={!assigningStaffId || !assigningDeadline}
+                          onClick={() => handleStaffAssignment(complaint.id, assigningStaffId)}
                         >
                           Confirm
                         </Button>
@@ -726,14 +700,16 @@ export function DeanAssignComplaints() {
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs dark:hover:text-blue-400"
-                        onClick={() => handleAssignClick(complaint)}
-                      >
-                        {complaint.assignedStaff ? "Re-Assign" : "Assign"}
-                      </Button>
+                      (!complaint.assignedStaff || isOverdue(complaint)) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs dark:hover:text-blue-400"
+                          onClick={() => handleAssignClick(complaint)}
+                        >
+                          {complaint.assignedStaff ? "Reassign" : "Assign"}
+                        </Button>
+                      )
                     )}
                   </div>
                 </div>
