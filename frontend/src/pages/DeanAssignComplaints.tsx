@@ -239,6 +239,16 @@ export function DeanAssignComplaints() {
               ...c,
               assignedStaff: staff?.fullName || staff?.name || "Unknown",
               assignedStaffRole: "headOfDepartment",
+              assignedByRole: "dean",
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? Array.from(
+                    new Set([
+                      ...(c.assignmentPath || []),
+                      "dean",
+                      "headOfDepartment",
+                    ])
+                  )
+                : ["dean", "headOfDepartment"],
               lastUpdated: new Date(),
               deadline: assigningDeadline
                 ? new Date(assigningDeadline)

@@ -196,6 +196,25 @@ export function SubmitComplaint() {
         submittedTo = "Admin (System Administrator)";
         status = "Submitted to Admin";
       }
+      // Map UI role value to canonical role keys
+      const roleMap: Record<
+        string,
+        "staff" | "headOfDepartment" | "dean" | "admin"
+      > = {
+        staff: "staff",
+        hod: "headOfDepartment",
+        dean: "dean",
+        admin: "admin",
+      } as const;
+      const targetRole = roleMap[formData.role as keyof typeof roleMap];
+      const assignmentPath: Array<
+        "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+      > = ["student"];
+      if (targetRole === "headOfDepartment")
+        assignmentPath.push("headOfDepartment");
+      if (targetRole === "dean") assignmentPath.push("dean");
+      if (targetRole === "admin") assignmentPath.push("admin");
+
       const savedComplaint = await addComplaint({
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
@@ -205,7 +224,24 @@ export function SubmitComplaint() {
         evidenceFile: evidenceFileString,
         submittedTo,
         department: user?.department || "Unknown Department",
-        deadline: formData.deadline ? new Date(formData.deadline) : undefined,
+        // Who created the complaint (role)
+        sourceRole: "student",
+        // If sent directly to staff, assignedByRole is student; else it's whoever routes next
+        assignedByRole:
+          targetRole === "staff"
+            ? "student"
+            : targetRole === "headOfDepartment"
+            ? "headOfDepartment"
+            : targetRole === "dean"
+            ? "dean"
+            : targetRole === "admin"
+            ? "admin"
+            : undefined,
+        assignmentPath,
+        deadline:
+          formData.role === "staff" && formData.deadline
+            ? new Date(formData.deadline)
+            : undefined,
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);
@@ -525,8 +561,8 @@ export function SubmitComplaint() {
               </div>
             )}
 
-            {/* Deadline Field (only for staff/hod) */}
-            {(formData.role === "staff" || formData.role === "hod") && (
+            {/* Deadline Field (only for staff) */}
+            {formData.role === "staff" && (
               <div className="space-y-2">
                 <Label htmlFor="deadline">Deadline *</Label>
                 <Input
@@ -547,7 +583,7 @@ export function SubmitComplaint() {
                 />
                 {touched.deadline && !formData.deadline && (
                   <span className="text-xs text-red-600">
-                    Deadline is required for staff/HoD complaints.
+                    Deadline is required for staff complaints.
                   </span>
                 )}
               </div>
@@ -640,8 +676,7 @@ export function SubmitComplaint() {
                 !formData.role ||
                 !formData.recipient ||
                 !formData.description ||
-                ((formData.role === "staff" || formData.role === "hod") &&
-                  !formData.deadline)
+                (formData.role === "staff" && !formData.deadline)
               }
               size="lg"
               aria-label="Submit Complaint"

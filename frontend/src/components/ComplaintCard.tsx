@@ -28,8 +28,16 @@ export interface Complaint {
     | "Overdue"
     | "Pending";
   submittedBy: string;
+  // Who originally created/submitted the complaint (role perspective)
+  sourceRole?: "student" | "staff" | "headOfDepartment" | "dean" | "admin";
   assignedStaff?: string;
   assignedStaffRole?: "dean" | "headOfDepartment" | "staff" | "admin";
+  // Who assigned this complaint to the current assignee (role perspective)
+  assignedByRole?: "student" | "headOfDepartment" | "dean" | "admin";
+  // Trace of roles that handed-off the complaint before it reached the current assignee
+  assignmentPath?: Array<
+    "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+  >;
   assignedDate?: Date;
   submittedDate: Date;
   deadline?: Date;

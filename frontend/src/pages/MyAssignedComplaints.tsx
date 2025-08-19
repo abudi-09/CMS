@@ -33,14 +33,15 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { useComplaints } from "@/context/ComplaintContext";
+// Removed useComplaints to avoid requiring ComplaintProvider for this page's local mock state
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import React from "react";
 
 // Import the Complaint type from the context to ensure type compatibility
-import type { Complaint } from "@/context/ComplaintContext";
+import type { Complaint } from "@/components/ComplaintCard";
 
 export function MyAssignedComplaints() {
   // MOCK DATA ENABLED BY DEFAULT
@@ -120,23 +121,28 @@ export function MyAssignedComplaints() {
     "Tom Hardy",
     "Priya Patel",
   ];
-  const demoComplaints = Array.from({ length: 10 }).map((_, i) => ({
-    ...baseMockComplaint,
-    id: `mock${i + 1}`,
-    title: titles[i],
-    description: descriptions[i],
-    priority: priorities[i],
-    status: statuses[i],
-    assignedStaff: user
-      ? user.fullName || user.name
-      : baseMockComplaint.assignedStaff,
-    submittedBy: submitters[i],
-    submittedDate: new Date(Date.now() - (i + 1) * 86400000),
-    assignedDate: new Date(Date.now() - (i + 1) * 86400000),
-    lastUpdated: new Date(Date.now() - i * 43200000),
-    deadline: deadlines[i],
-  }));
-  const [complaints] = useState<Complaint[]>(demoComplaints);
+  const demoComplaints: Complaint[] = Array.from({ length: 10 }).map(
+    (_, i) => ({
+      ...baseMockComplaint,
+      id: `mock${i + 1}`,
+      title: titles[i],
+      description: descriptions[i],
+      priority: priorities[i],
+      status: statuses[i],
+      assignedStaff: user
+        ? user.fullName || user.name
+        : baseMockComplaint.assignedStaff,
+      submittedBy: submitters[i],
+      sourceRole: "student",
+      assignedByRole: "student",
+      assignmentPath: ["student", "staff"],
+      submittedDate: new Date(Date.now() - (i + 1) * 86400000),
+      assignedDate: new Date(Date.now() - (i + 1) * 86400000),
+      lastUpdated: new Date(Date.now() - i * 43200000),
+      deadline: deadlines[i],
+    })
+  );
+  const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -146,7 +152,33 @@ export function MyAssignedComplaints() {
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [overdueFilter, setOverdueFilter] = useState("All"); // New filter
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const { updateComplaint } = useComplaints();
+  // Sorting mode: default by date (newest first), or priority when toggled
+  const [sortingMode, setSortingMode] = useState<"date" | "priority">("date");
+  // Quick filter from summary cards
+  const [quickFilter, setQuickFilter] = useState<
+    "recent" | "inprogress" | "resolvedThisMonth" | "overdue" | null
+  >(null);
+  // Tabs state and handler
+  type TabKey =
+    | "All"
+    | "Pending"
+    | "In Progress"
+    | "Resolved"
+    | "Closed"
+    | "Overdue";
+  const [activeTab, setActiveTab] = useState<TabKey>("All");
+  // Track opened complaints to hide NEW badge once viewed
+  const [openedIds, setOpenedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("myAssignedOpened");
+      const arr = raw ? (JSON.parse(raw) as string[]) : [];
+      return new Set(arr);
+    } catch (e) {
+      // ignore JSON/Storage errors
+      return new Set();
+    }
+  });
+  // Local update function replacing context update for demo/mock state
 
   // Only show complaints assigned to the current staff user
   const myAssignedComplaints = complaints.filter(
@@ -159,10 +191,25 @@ export function MyAssignedComplaints() {
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
+    // Mark as opened to hide NEW badge
+    setOpenedIds((prev) => {
+      const next = new Set(prev);
+      next.add(complaint.id);
+      try {
+        localStorage.setItem("myAssignedOpened", JSON.stringify([...next]));
+      } catch (e) {
+        // ignore storage errors
+      }
+      return next;
+    });
   };
 
   const handleUpdate = (complaintId: string, updates: Partial<Complaint>) => {
-    updateComplaint(complaintId, updates);
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId ? { ...c, ...updates, lastUpdated: new Date() } : c
+      )
+    );
     toast({
       title: "Complaint Updated",
       description: `Complaint #${complaintId} has been updated successfully`,
@@ -171,22 +218,49 @@ export function MyAssignedComplaints() {
 
   const handleSortByPriority = () => {
     const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-    const sorted = [...myAssignedComplaints].sort((a, b) => {
-      const orderA =
-        priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-      const orderB =
-        priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-      return sortOrder === "desc" ? orderB - orderA : orderA - orderB;
-    });
-    // This just sorts for display, not state, so we can use a local variable
+    setSortingMode("priority");
     setSortOrder(sortOrder === "desc" ? "asc" : "desc");
-    setFiltered(sorted);
   };
 
   // Filter complaints based on search, status, priority, and overdue
   const [filtered, setFiltered] = useState(myAssignedComplaints);
+  // Helper sorts
+  const sortByAssignedDateDesc = (items: Complaint[]) => {
+    return [...items].sort((a, b) => {
+      const aDate = (a.assignedDate || a.submittedDate)?.valueOf?.() || 0;
+      const bDate = (b.assignedDate || b.submittedDate)?.valueOf?.() || 0;
+      return bDate - aDate;
+    });
+  };
+  const sortByPriority = React.useCallback(
+    (items: Complaint[]) => {
+      const priorityOrder = {
+        Critical: 4,
+        High: 3,
+        Medium: 2,
+        Low: 1,
+      } as const;
+      return [...items].sort((a, b) => {
+        const orderA =
+          priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+        const orderB =
+          priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+        return sortOrder === "desc" ? orderB - orderA : orderA - orderB;
+      });
+    },
+    [sortOrder]
+  );
+  // NEW badge helper (assigned within last 48h and not opened yet)
+  const isNew = (complaint: Complaint) => {
+    const assigned = complaint.assignedDate || complaint.submittedDate;
+    if (!assigned) return false;
+    const diffMs = Date.now() - new Date(assigned).getTime();
+    const twoDays = 48 * 60 * 60 * 1000;
+    return diffMs <= twoDays && !openedIds.has(complaint.id);
+  };
+
   React.useEffect(() => {
-    const filteredComplaints = myAssignedComplaints.filter((complaint) => {
+    let base = myAssignedComplaints.filter((complaint) => {
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -204,13 +278,43 @@ export function MyAssignedComplaints() {
         matchesSearch && matchesStatus && matchesPriority && matchesOverdue
       );
     });
-    setFiltered(filteredComplaints);
+
+    // Apply quick filters
+    if (quickFilter === "recent") {
+      base = sortByAssignedDateDesc(myAssignedComplaints).slice(0, 3);
+    } else if (quickFilter === "resolvedThisMonth") {
+      const now = new Date();
+      const m = now.getMonth();
+      const y = now.getFullYear();
+      base = base.filter((c) => {
+        const d = c.lastUpdated || c.submittedDate;
+        const dt = new Date(d);
+        return (
+          c.status === "Resolved" &&
+          dt.getMonth() === m &&
+          dt.getFullYear() === y
+        );
+      });
+    }
+
+    // Apply sorting
+    const sorted =
+      sortingMode === "priority"
+        ? sortByPriority(base)
+        : sortByAssignedDateDesc(base);
+
+    setFiltered(sorted);
   }, [
     myAssignedComplaints,
     searchTerm,
     statusFilter,
     priorityFilter,
     overdueFilter,
+    sortingMode,
+    sortOrder,
+    quickFilter,
+    openedIds,
+    sortByPriority,
   ]);
 
   const statusColors = {
@@ -232,6 +336,15 @@ export function MyAssignedComplaints() {
     Low: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
   };
 
+  // Memoize a lightweight dependency key for escalation effect
+  const escalationKey = React.useMemo(
+    () =>
+      complaints
+        .map((c) => `${c.id}|${c.deadline?.toString()}|${c.status}`)
+        .join(";"),
+    [complaints]
+  );
+
   // Helper: check if complaint is overdue
   const isOverdue = (complaint: Complaint) => {
     if (!complaint.deadline) return false;
@@ -247,6 +360,118 @@ export function MyAssignedComplaints() {
     );
   };
 
+  // Summary metrics (computed on myAssignedComplaints)
+  const recentTop3 = React.useMemo(
+    () => sortByAssignedDateDesc(myAssignedComplaints).slice(0, 3),
+    [myAssignedComplaints]
+  );
+  const inProgressCount = myAssignedComplaints.filter(
+    (c) => c.status === "In Progress"
+  ).length;
+  const resolvedThisMonthCount = React.useMemo(() => {
+    const now = new Date();
+    const m = now.getMonth();
+    const y = now.getFullYear();
+    return myAssignedComplaints.filter((c) => {
+      if (c.status !== "Resolved") return false;
+      const d = c.lastUpdated || c.submittedDate;
+      const dt = new Date(d);
+      return dt.getMonth() === m && dt.getFullYear() === y;
+    }).length;
+  }, [myAssignedComplaints]);
+  const overdueCount = myAssignedComplaints.filter((c) => isOverdue(c)).length;
+  const pendingCount = myAssignedComplaints.filter(
+    (c) => c.status === "Pending"
+  ).length;
+  const resolvedCount = myAssignedComplaints.filter(
+    (c) => c.status === "Resolved"
+  ).length;
+  const closedCount = myAssignedComplaints.filter(
+    (c) => c.status === "Closed"
+  ).length;
+
+  // Card click helpers
+  const applyRecentFilter = () => {
+    setQuickFilter("recent");
+    setSearchTerm("");
+    setStatusFilter("All");
+    setPriorityFilter("All");
+    setOverdueFilter("All");
+    setSortingMode("date");
+  };
+  const applyInProgressFilter = () => {
+    setQuickFilter(null);
+    setSearchTerm("");
+    setStatusFilter("In Progress");
+    setPriorityFilter("All");
+    setOverdueFilter("All");
+    setSortingMode("date");
+  };
+  const applyResolvedThisMonthFilter = () => {
+    setQuickFilter("resolvedThisMonth");
+    setSearchTerm("");
+    setStatusFilter("All");
+    setPriorityFilter("All");
+    setOverdueFilter("All");
+    setSortingMode("date");
+  };
+  const applyOverdueFilter = () => {
+    setQuickFilter(null);
+    setSearchTerm("");
+    setStatusFilter("All");
+    setPriorityFilter("All");
+    setOverdueFilter("Overdue");
+    setSortingMode("date");
+  };
+  const onTabChange = (v: string) => {
+    const tab = v as TabKey;
+    setActiveTab(tab);
+    setQuickFilter(null);
+    setSearchTerm("");
+    setPriorityFilter("All");
+    setSortingMode("date");
+    if (tab === "All") {
+      setStatusFilter("All");
+      setOverdueFilter("All");
+    } else if (tab === "Overdue") {
+      setStatusFilter("All");
+      setOverdueFilter("Overdue");
+    } else {
+      setStatusFilter(tab);
+      setOverdueFilter("All");
+    }
+  };
+
+  // Auto-escalate overdue items to HoD visibility on first render/filter run
+  React.useEffect(() => {
+    // Demo-only escalation: when overdue, escalate to HoD visibility so HoD can handle/reassign
+    setComplaints((prev) =>
+      prev.map((c) => {
+        const isMine =
+          c.assignedStaff &&
+          user &&
+          (c.assignedStaff === user.fullName || c.assignedStaff === user.name);
+        if (
+          isMine &&
+          isOverdue(c) &&
+          c.assignedStaffRole !== "headOfDepartment"
+        ) {
+          return {
+            ...c,
+            assignedStaffRole: "headOfDepartment",
+            assignedStaff: "Head of Department",
+            status:
+              c.status === "Resolved" || c.status === "Closed"
+                ? c.status
+                : "In Progress",
+            lastUpdated: new Date(),
+          } as Complaint;
+        }
+        return c;
+      })
+    );
+  }, [user, escalationKey]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -256,6 +481,78 @@ export function MyAssignedComplaints() {
         <p className="text-muted-foreground">
           Manage complaints assigned specifically to you
         </p>
+      </div>
+
+      {/* Tabs: filter by status */}
+      <Tabs value={activeTab} onValueChange={onTabChange}>
+        <TabsList className="flex flex-wrap gap-2">
+          <TabsTrigger value="All">
+            All ({myAssignedComplaints.length})
+          </TabsTrigger>
+          <TabsTrigger value="Pending">Pending ({pendingCount})</TabsTrigger>
+          <TabsTrigger value="In Progress">
+            In Progress ({inProgressCount})
+          </TabsTrigger>
+          <TabsTrigger value="Resolved">Resolved ({resolvedCount})</TabsTrigger>
+          <TabsTrigger value="Closed">Closed ({closedCount})</TabsTrigger>
+          <TabsTrigger value="Overdue">Overdue ({overdueCount})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card
+          onClick={applyRecentFilter}
+          className="cursor-pointer hover:shadow"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Recently Assigned
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{recentTop3.length}</div>
+            <p className="text-xs text-muted-foreground">Top 3 newest</p>
+          </CardContent>
+        </Card>
+        <Card
+          onClick={applyInProgressFilter}
+          className="cursor-pointer hover:shadow"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{inProgressCount}</div>
+            <p className="text-xs text-muted-foreground">Working now</p>
+          </CardContent>
+        </Card>
+        <Card
+          onClick={applyResolvedThisMonthFilter}
+          className="cursor-pointer hover:shadow"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Resolved This Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resolvedThisMonthCount}</div>
+            <p className="text-xs text-muted-foreground">This calendar month</p>
+          </CardContent>
+        </Card>
+        <Card
+          onClick={applyOverdueFilter}
+          className="cursor-pointer hover:shadow"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{overdueCount}</div>
+            <p className="text-xs text-muted-foreground">Past deadline</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content */}
@@ -379,6 +676,14 @@ export function MyAssignedComplaints() {
                       <TableCell className="max-w-xs">
                         <div className="font-medium truncate">
                           {complaint.title}
+                          {isNew(complaint) && (
+                            <Badge
+                              className="ml-2 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 text-[10px]"
+                              variant="outline"
+                            >
+                              NEW
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-sm text-muted-foreground truncate">
                           {complaint.description.substring(0, 60)}...
@@ -437,7 +742,9 @@ export function MyAssignedComplaints() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {complaint.submittedDate.toLocaleDateString()}
+                        {(
+                          complaint.assignedDate || complaint.submittedDate
+                        ).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {complaint.deadline
@@ -491,6 +798,14 @@ export function MyAssignedComplaints() {
                         </p>
                       </div>
                       <div className="flex gap-2 ml-2">
+                        {isNew(complaint) && (
+                          <Badge
+                            className="text-xs bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"
+                            variant="outline"
+                          >
+                            NEW
+                          </Badge>
+                        )}
                         <Badge
                           className={`text-xs ${
                             priorityColors[
@@ -542,7 +857,9 @@ export function MyAssignedComplaints() {
                           Date Assigned:
                         </span>
                         <span className="font-medium ml-2">
-                          {complaint.submittedDate.toLocaleDateString()}
+                          {(
+                            complaint.assignedDate || complaint.submittedDate
+                          ).toLocaleDateString()}
                         </span>
                       </div>
                       <div>

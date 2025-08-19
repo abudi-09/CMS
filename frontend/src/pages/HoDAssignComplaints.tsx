@@ -245,6 +245,16 @@ export function HoDAssignComplaints() {
               ...c,
               assignedStaff: staff?.fullName || staff?.name || "Unknown",
               assignedStaffRole: "staff",
+              assignedByRole: "headOfDepartment",
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? Array.from(
+                    new Set([
+                      ...(c.assignmentPath || []),
+                      "headOfDepartment",
+                      "staff",
+                    ])
+                  )
+                : ["headOfDepartment", "staff"],
               lastUpdated: new Date(),
               deadline: assigningDeadline
                 ? new Date(assigningDeadline)

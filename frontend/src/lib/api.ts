@@ -2,13 +2,19 @@
 export async function assignComplaintApi(
   complaintId: string,
   staffId: string,
-  deadline?: string
+  deadline?: string,
+  opts?: {
+    assignedByRole?: "student" | "headOfDepartment" | "dean" | "admin";
+    assignmentPath?: Array<
+      "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+    >;
+  }
 ) {
   const res = await fetch(`${API_BASE}/complaints/assign/${complaintId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ staffId, deadline }),
+    body: JSON.stringify({ staffId, deadline, ...(opts || {}) }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to assign complaint");
@@ -134,8 +140,16 @@ export interface Complaint {
   title: string;
   description: string;
   department: string;
-  // Add additional known fields here if needed, or remove the index signature for stricter typing
-  // [key: string]: unknown; // Uncomment and use 'unknown' if you must allow extra fields
+  category?: string;
+  priority?: "Low" | "Medium" | "High" | "Critical";
+  deadline?: string | Date;
+  evidenceFile?: string | null;
+  submittedTo?: string | null;
+  sourceRole?: "student" | "staff" | "dean" | "headOfDepartment" | "admin";
+  assignedByRole?: "student" | "headOfDepartment" | "dean" | "admin" | null;
+  assignmentPath?: Array<
+    "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+  >;
 }
 
 export async function submitComplaintApi(complaint: Complaint) {

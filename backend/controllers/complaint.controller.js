@@ -5,12 +5,33 @@ import User from "../models/user.model.js";
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
   try {
-    const { title, category, description, priority } = req.body;
+    const {
+      title,
+      category,
+      description,
+      priority,
+      department,
+      deadline,
+      evidenceFile,
+      submittedTo,
+      sourceRole,
+      assignedByRole,
+      assignmentPath,
+    } = req.body;
     const complaint = new Complaint({
       title,
       category,
       description,
       priority: priority || "Medium",
+      department,
+      deadline: deadline ? new Date(deadline) : null,
+      evidenceFile: evidenceFile || null,
+      submittedTo: submittedTo || null,
+      sourceRole: sourceRole || "student",
+      assignedByRole: assignedByRole || null,
+      assignmentPath: Array.isArray(assignmentPath)
+        ? assignmentPath
+        : undefined,
       submittedBy: req.user._id,
     });
 
@@ -55,9 +76,15 @@ export const getMyComplaints = async (req, res) => {
       title: c.title,
       status: c.status,
       department: c.department,
+      category: c.category,
       submittedDate: c.createdAt,
       lastUpdated: c.updatedAt,
       assignedTo: c.assignedTo?.name || null,
+      deadline: c.deadline || null,
+      sourceRole: c.sourceRole,
+      assignedByRole: c.assignedByRole,
+      assignmentPath: c.assignmentPath || [],
+      submittedTo: c.submittedTo || null,
       feedback: c.status === "Resolved" ? c.feedback || null : null,
       isEscalated: c.isEscalated || false,
     }));
@@ -85,6 +112,11 @@ export const getAllComplaints = async (req, res) => {
       lastUpdated: c.updatedAt,
       assignedTo: c.assignedTo?.name || null,
       submittedBy: c.submittedBy?.name || null,
+      deadline: c.deadline || null,
+      sourceRole: c.sourceRole,
+      assignedByRole: c.assignedByRole,
+      assignmentPath: c.assignmentPath || [],
+      submittedTo: c.submittedTo || null,
       feedback: c.status === "Resolved" ? c.feedback || null : null,
       isEscalated: c.isEscalated || false,
     }));
@@ -98,7 +130,7 @@ export const getAllComplaints = async (req, res) => {
 export const assignComplaint = async (req, res) => {
   try {
     const complaintId = req.params.id;
-    const { staffId } = req.body;
+    const { staffId, deadline, assignedByRole, assignmentPath } = req.body;
 
     const staff = await User.findById(staffId);
     if (!staff || staff.role !== "staff" || !staff.isApproved) {
@@ -115,6 +147,10 @@ export const assignComplaint = async (req, res) => {
     complaint.assignedTo = staffId;
     complaint.status = "In Progress";
     complaint.assignedAt = new Date();
+    if (deadline) complaint.deadline = new Date(deadline);
+    if (assignedByRole) complaint.assignedByRole = assignedByRole;
+    if (Array.isArray(assignmentPath))
+      complaint.assignmentPath = assignmentPath;
 
     // Optional: Add reassignment history here if needed
     await complaint.save();
@@ -210,6 +246,10 @@ export const getAssignedComplaints = async (req, res) => {
       shortDescription: c.shortDescription,
       fullDescription: c.description,
       isEscalated: c.isEscalated || false,
+      deadline: c.deadline || null,
+      sourceRole: c.sourceRole,
+      assignedByRole: c.assignedByRole,
+      assignmentPath: c.assignmentPath || [],
     }));
 
     res.status(200).json(formatted);

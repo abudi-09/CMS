@@ -11,6 +11,9 @@ const complaintSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    department: {
+      type: String,
+    },
     description: {
       type: String,
       maxlength: 10000,
@@ -24,6 +27,27 @@ const complaintSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    // Provenance fields for routing/assignment transparency
+    sourceRole: {
+      type: String,
+      enum: ["student", "staff", "dean", "headOfDepartment", "admin"],
+      default: "student",
+    },
+    assignedByRole: {
+      type: String,
+      enum: ["student", "headOfDepartment", "dean", "admin"],
+      default: null,
+    },
+    assignmentPath: [
+      {
+        type: String,
+        enum: ["student", "headOfDepartment", "dean", "admin", "staff"],
+      },
+    ],
+    submittedTo: {
+      type: String,
+      default: null,
     },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
@@ -39,6 +63,10 @@ const complaintSchema = new mongoose.Schema(
       enum: ["Low", "Medium", "High", "Critical"],
       default: "Medium",
     },
+    deadline: {
+      type: Date,
+      default: null,
+    },
     isEscalated: {
       type: Boolean,
       default: false,
@@ -49,6 +77,14 @@ const complaintSchema = new mongoose.Schema(
     },
     assignedAt: {
       type: Date,
+      default: null,
+    },
+    evidenceFile: {
+      type: String,
+      default: null,
+    },
+    resolutionNote: {
+      type: String,
       default: null,
     },
   },

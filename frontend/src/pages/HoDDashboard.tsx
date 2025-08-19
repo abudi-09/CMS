@@ -37,6 +37,14 @@ import { useComplaints } from "@/context/ComplaintContext";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function HoDDashboard() {
   // MOCK DATA ENABLED BY DEFAULT
@@ -94,6 +102,80 @@ export function HoDDashboard() {
       resolutionNote: "Replacement requested.",
       lastUpdated: new Date(),
     },
+    // Additional mock complaints to populate Recently Pending
+    {
+      id: "HODR-001",
+      title: "Printer toner out",
+      description: "Toner needs replacement on 2nd floor.",
+      category: "Facilities",
+      priority: "Medium",
+      status: "Pending",
+      submittedBy: "Samuel Tesfaye",
+      submittedDate: new Date("2025-08-19"),
+      // Unassigned: no assignedStaff/role
+      lastUpdated: new Date("2025-08-19"),
+    },
+    {
+      id: "HODR-002",
+      title: "Email not syncing",
+      description: "Staff email not syncing on mobile.",
+      category: "IT",
+      priority: "High",
+      status: "Pending",
+      submittedBy: "Meron Alemu",
+      submittedDate: new Date("2025-08-18"),
+      // Unassigned
+      lastUpdated: new Date("2025-08-18"),
+    },
+    {
+      id: "HODR-003",
+      title: "Projector bulb replacement",
+      description: "Lecture hall projector bulb burnt.",
+      category: "IT",
+      priority: "Low",
+      status: "Unassigned",
+      submittedBy: "Hailemariam Bekele",
+      submittedDate: new Date("2025-08-17"),
+      // Unassigned
+      lastUpdated: new Date("2025-08-17"),
+    },
+    {
+      id: "HODR-004",
+      title: "Lab PCs slow",
+      description: "Performance issues on lab PCs.",
+      category: "IT",
+      priority: "High",
+      status: "In Progress",
+      submittedBy: "Lab Assistant",
+      submittedDate: new Date("2025-08-16"),
+      assignedStaff: "Head of Department - IT",
+      assignedStaffRole: "headOfDepartment",
+      lastUpdated: new Date("2025-08-18"),
+    },
+    {
+      id: "HODR-005",
+      title: "Office AC maintenance",
+      description: "AC needs routine maintenance.",
+      category: "Facilities",
+      priority: "Medium",
+      status: "Closed",
+      submittedBy: "Admin Office",
+      submittedDate: new Date("2025-08-10"),
+      assignedStaff: "Maintenance Team",
+      lastUpdated: new Date("2025-08-12"),
+    },
+    {
+      id: "HODR-006",
+      title: "Network switch replacement",
+      description: "Aging switch causing intermittent outages.",
+      category: "IT",
+      priority: "Critical",
+      status: "Resolved",
+      submittedBy: "IT Support",
+      submittedDate: new Date("2025-08-08"),
+      assignedStaff: "Network Team",
+      lastUpdated: new Date("2025-08-15"),
+    },
   ];
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
@@ -108,7 +190,7 @@ export function HoDDashboard() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
 
-  const { pendingStaff, getAllStaff } = useAuth();
+  const { pendingStaff, getAllStaff, user } = useAuth();
   const navigate = useNavigate();
 
   const handleViewComplaint = (complaint: Complaint) => {
@@ -201,8 +283,89 @@ export function HoDDashboard() {
     );
   };
 
-  // Recently Pending list: like HoD Pending tab (unassigned only)
-  const recentPendingComplaints = complaints
+  // Copy of HoD Assign page Pending mocks (unassigned & Pending/Unassigned)
+  const hodAssignPendingMocks: Complaint[] = [
+    {
+      id: "HOD-001",
+      title: "Lab equipment request overdue",
+      description: "Requested equipment for lab is overdue.",
+      category: "Academic",
+      priority: "High",
+      status: "Pending",
+      submittedBy: "Dept Head",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-01-10"),
+      lastUpdated: new Date("2024-01-15"),
+      deadline: new Date(new Date().getTime() - 2 * 86400000),
+    },
+    {
+      id: "HOD-003",
+      title: "Lab safety equipment missing",
+      description: "Safety goggles and gloves missing from chemistry lab.",
+      category: "Facility",
+      priority: "Critical",
+      status: "Pending",
+      submittedBy: "Lab Assistant",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-03-10"),
+      lastUpdated: new Date("2024-03-12"),
+      deadline: new Date(new Date().getTime() - 5 * 86400000),
+    },
+    {
+      id: "HOD-005",
+      title: "Unassigned complaint test",
+      description: "This complaint has not yet been assigned to any staff.",
+      category: "General",
+      priority: "Medium",
+      status: "Unassigned",
+      submittedBy: "Test User",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-05-12"),
+      lastUpdated: new Date("2024-05-12"),
+      deadline: new Date(new Date().getTime() - 1 * 86400000),
+    },
+    {
+      id: "HOD-006",
+      title: "Departmental budget approval delayed",
+      description: "Budget approval for new equipment is overdue.",
+      category: "Finance",
+      priority: "High",
+      status: "Pending",
+      submittedBy: "Dept Admin",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-06-01"),
+      lastUpdated: new Date("2024-06-05"),
+      deadline: new Date(new Date().getTime() - 7 * 86400000),
+    },
+    {
+      id: "HOD-008",
+      title: "Edge case: No assigned staff, no feedback",
+      description: "Complaint submitted but not yet processed.",
+      category: "General",
+      priority: "Medium",
+      status: "Pending",
+      submittedBy: "Edge Case 2",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-07-19"),
+      lastUpdated: new Date("2024-07-19"),
+      deadline: new Date(new Date().getTime() + 3 * 86400000),
+    },
+  ];
+
+  // Recently Pending: top 3 by submittedDate desc from the HoD Assign mocks
+  const recentPendingComplaints = [...hodAssignPendingMocks]
+    .sort(
+      (a, b) =>
+        new Date(b.submittedDate).getTime() -
+        new Date(a.submittedDate).getTime()
+    )
+    .slice(0, 3);
+
+  // Local state pool for recent pending actions so UI updates immediately
+  const [recentPool, setRecentPool] = useState<Complaint[]>(
+    hodAssignPendingMocks
+  );
+  const visibleRecentPending = [...recentPool]
     .filter(
       (c) =>
         (c.status === "Pending" || c.status === "Unassigned") &&
@@ -215,6 +378,33 @@ export function HoDDashboard() {
         new Date(a.submittedDate).getTime()
     )
     .slice(0, 3);
+
+  const handleAccept = (id: string) => {
+    const assignee =
+      (user?.fullName as string) ||
+      (user?.name as string) ||
+      (user?.email as string) ||
+      "Head of Department";
+    setRecentPool((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: "In Progress",
+              assignedStaff: assignee,
+              assignedStaffRole: "headOfDepartment",
+              lastUpdated: new Date(),
+            }
+          : c
+      )
+    );
+  };
+
+  const handleReject = (id: string) => {
+    setRecentPool((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, status: "Closed" } : c))
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -333,19 +523,131 @@ export function HoDDashboard() {
         </Card>
       </div>
 
-      {/* Complaint Search and Filters */}
-
-      <ComplaintTable
-        complaints={recentPendingComplaints}
-        onView={handleViewComplaint}
-        onStatusUpdate={handleStatusUpdate}
-        userRole="headOfDepartment"
-        title="Recently Pending Complaints"
-        priorityFilter={priorityFilter}
-        showOverdueColumn={true}
-        isOverdueFn={isOverdue}
-        actionLabel="View Detail"
-      />
+      {/* Recently Pending (like HoD Pending tab) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recently Pending Complaints</CardTitle>
+          <CardDescription>Top 3 unassigned pending complaints</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-sm">Title</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Priority</TableHead>
+                  <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Assignee</TableHead>
+                  <TableHead className="text-sm">Overdue</TableHead>
+                  <TableHead className="text-sm">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleRecentPending.map((complaint) => (
+                  <TableRow key={complaint.id}>
+                    <TableCell className="font-medium text-sm">
+                      <div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {complaint.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Submitted by {complaint.submittedBy}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.category}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <Badge
+                        className={
+                          (complaint.priority === "Low" &&
+                            "bg-gray-200 text-gray-700 border-gray-300") ||
+                          (complaint.priority === "Medium" &&
+                            "bg-blue-100 text-blue-800 border-blue-200") ||
+                          (complaint.priority === "High" &&
+                            "bg-orange-100 text-orange-800 border-orange-200") ||
+                          (complaint.priority === "Critical" &&
+                            "bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
+                          "bg-blue-100 text-blue-800 border-blue-200"
+                        }
+                      >
+                        {complaint.priority || "Medium"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {complaint.status !== "Unassigned" && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          {complaint.status}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                        Not Yet Assigned
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {isOverdue(complaint) ? (
+                        <Badge
+                          className="bg-red-100 text-red-800 border-red-200 text-xs"
+                          variant="outline"
+                        >
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge
+                          className="bg-green-100 text-green-800 border-green-200 text-xs"
+                          variant="outline"
+                        >
+                          Not Overdue
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewComplaint(complaint)}
+                          className="text-xs"
+                        >
+                          View Detail
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="text-xs"
+                          onClick={() => handleAccept(complaint.id)}
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="text-xs"
+                          onClick={() => handleReject(complaint.id)}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => handleAssignStaff(complaint)}
+                        >
+                          Assign
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Modals */}
       <RoleBasedComplaintModal
@@ -360,6 +662,31 @@ export function HoDDashboard() {
         onOpenChange={setShowStatusModal}
         onUpdate={handleStatusSubmit}
         userRole="admin"
+      />
+      <AssignStaffModal
+        complaint={selectedComplaint}
+        open={showAssignModal}
+        onOpenChange={setShowAssignModal}
+        onAssign={(complaintId, staffId, notes) => {
+          // Update global context (optional) and local recent pool
+          handleStaffAssignment(complaintId, staffId, notes);
+          setRecentPool((prev) =>
+            prev.map((c) =>
+              c.id === complaintId
+                ? {
+                    ...c,
+                    assignedStaff:
+                      getAllStaff().find((s) => s.id === staffId)?.fullName ||
+                      getAllStaff().find((s) => s.id === staffId)?.name ||
+                      "Unknown",
+                    assignedStaffRole: "staff",
+                    status: "In Progress",
+                    lastUpdated: new Date(),
+                  }
+                : c
+            )
+          );
+        }}
       />
     </div>
   );

@@ -72,9 +72,10 @@ export function RoleBasedComplaintModal({
   const { toast } = useToast();
 
   const [staffUpdate, setStaffUpdate] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
   const [feedback, setFeedback] = useState({ rating: 0, comment: "" });
   const [isLoading, setIsLoading] = useState(false);
-  // Helper for type-safe staff display
+  // Helper  for  type-safe staff display
   function getStaffDisplay(staff: unknown): string {
     if (!staff) return "Unassigned";
     if (typeof staff === "string") return staff;
@@ -148,10 +149,22 @@ export function RoleBasedComplaintModal({
   const handleReject = async () => {
     if (!complaint) return;
 
+    if (!rejectReason.trim()) {
+      toast({
+        title: "Reason required",
+        description: "Please enter a reason for rejection.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      onUpdate?.(complaint.id, { status: "Closed" });
+      onUpdate?.(complaint.id, {
+        status: "Closed",
+        resolutionNote: `Rejected: ${rejectReason}`,
+      });
       toast({
         title: "Complaint Rejected",
         description: "Complaint has been rejected and closed",
@@ -163,6 +176,19 @@ export function RoleBasedComplaintModal({
         description: "Failed to reject complaint",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!complaint) return;
+    setIsLoading(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      onUpdate?.(complaint.id, { status: "Resolved" });
+      toast({ title: "Resolved", description: "Complaint marked resolved." });
+      onOpenChange(false);
     } finally {
       setIsLoading(false);
     }
@@ -492,6 +518,50 @@ export function RoleBasedComplaintModal({
                 </div>
               )}
 
+              {user.role === "staff" && (
+                <div className="md:col-span-2 lg:col-span-3">
+                  <Label className="text-sm text-muted-foreground">
+                    Source Summary
+                  </Label>
+                  <div className="mt-1 p-3 rounded bg-muted/50 text-sm">
+                    {(() => {
+                      const src = liveComplaint.sourceRole || "student";
+                      const assignedBy = liveComplaint.assignedByRole;
+                      const path = Array.isArray(liveComplaint.assignmentPath)
+                        ? liveComplaint.assignmentPath
+                        : [];
+                      // Case 1: Student -> Staff directly
+                      if (src === "student" && assignedBy === "student") {
+                        return "Complaint submitted directly by Student.";
+                      }
+                      // Case 2: Student -> HoD -> Staff
+                      if (
+                        src === "student" &&
+                        (assignedBy === "headOfDepartment" ||
+                          path.includes("headOfDepartment"))
+                      ) {
+                        return "Complaint submitted by Student, assigned by HoD.";
+                      }
+                      // Case 3: Student -> Dean -> HoD -> Staff
+                      if (
+                        src === "student" &&
+                        path.includes("dean") &&
+                        (assignedBy === "headOfDepartment" ||
+                          path.includes("headOfDepartment"))
+                      ) {
+                        return "Complaint submitted by Student, passed down by Dean → HoD → assigned to you.";
+                      }
+                      // Admin or other flows
+                      if (assignedBy === "admin") {
+                        return "Complaint routed by Admin and assigned to you.";
+                      }
+                      // Fallback
+                      return "Complaint routing information available.";
+                    })()}
+                  </div>
+                </div>
+              )}
+
               {isAssigned && (
                 <div>
                   <Label className="text-sm text-muted-foreground">
@@ -678,6 +748,39 @@ export function RoleBasedComplaintModal({
                       </Button>
                     </div>
                   )}
+
+                  {complaint.status === "In Progress" && (
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={handleResolve}
+                        disabled={isLoading}
+                        className="flex-1 bg-success hover:bg-success/90"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark Resolved
+                      </Button>
+                      <Button
+                        onClick={handleReject}
+                        disabled={isLoading}
+                        variant="destructive"
+                        className="flex-1"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Reject Complaint
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Rejection reason (required for reject) */}
+                  <div className="space-y-2">
+                    <Label>Rejection Reason (required to reject)</Label>
+                    <Textarea
+                      placeholder="Provide a brief reason for rejection..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
 
                   <Separator />
 

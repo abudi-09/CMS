@@ -61,6 +61,11 @@ type Complaint = {
     rating: number;
     comment: string;
   };
+  // Provenance fields for routing/assignment
+  assignedByRole?: "student" | "headOfDepartment" | "dean" | "admin";
+  assignmentPath?: Array<
+    "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+  >;
 };
 
 const statusColors = {
@@ -429,6 +434,12 @@ export function AssignComplaints() {
           ? {
               ...c,
               assignedStaff: staff?.fullName || staff?.name || "Unknown",
+              assignedByRole: "admin",
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? Array.from(
+                    new Set([...(c.assignmentPath || []), "admin", "staff"])
+                  )
+                : ["admin", "staff"],
               lastUpdated: new Date(),
               deadline: assigningDeadline
                 ? new Date(assigningDeadline)
