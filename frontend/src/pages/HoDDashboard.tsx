@@ -416,7 +416,7 @@ export function HoDDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <SummaryCards complaints={complaints} userRole="admin" />
+  <SummaryCards complaints={complaints} userRole="admin" />
 
       {/* Pending Staff Notifications */}
       {pendingStaff.length > 0 && (
@@ -458,7 +458,7 @@ export function HoDDashboard() {
       )}
 
       {/* Quick Actions */}
-      <div className="grid md:grid-cols-3 gap-6">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {/* ...existing quick action cards... */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
@@ -530,7 +530,74 @@ export function HoDDashboard() {
           <CardDescription>Top 3 unassigned pending complaints</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Mobile: stacked cards */}
+          <div className="space-y-3 md:hidden">
+            {visibleRecentPending.map((complaint) => (
+              <Card key={complaint.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-1">
+                    <div className="text-xs text-muted-foreground">#{complaint.id}</div>
+                    <div className="font-medium text-sm">{complaint.title}</div>
+                    <div className="text-xs text-muted-foreground">Category: {complaint.category}</div>
+                    {complaint.deadline && (
+                      <div className="text-xs text-muted-foreground">
+                        Deadline: {new Date(complaint.deadline).toLocaleDateString()}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 pt-1">
+                      <Badge className="text-xs bg-yellow-100 text-yellow-800">
+                        {complaint.status === "Unassigned" ? "Pending" : complaint.status}
+                      </Badge>
+                      <Badge
+                        className={
+                          (complaint.priority === "Low" &&
+                            "text-xs bg-gray-200 text-gray-700 border-gray-300") ||
+                          (complaint.priority === "Medium" &&
+                            "text-xs bg-blue-100 text-blue-800 border-blue-200") ||
+                          (complaint.priority === "High" &&
+                            "text-xs bg-orange-100 text-orange-800 border-orange-200") ||
+                          (complaint.priority === "Critical" &&
+                            "text-xs bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
+                          "text-xs bg-blue-100 text-blue-800 border-blue-200"
+                        }
+                      >
+                        {complaint.priority || "Medium"}
+                      </Badge>
+                      {isOverdue(complaint) ? (
+                        <Badge className="text-xs bg-red-100 text-red-800 border-red-200" variant="outline">
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge className="text-xs bg-green-100 text-green-800 border-green-200" variant="outline">
+                          On Time
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Assignee: <span className="font-medium">Not Yet Assigned</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button size="sm" variant="outline" className="col-span-2" onClick={() => handleViewComplaint(complaint)}>
+                    View Detail
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => handleAccept(complaint.id)} className="w-full">
+                    Accept
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleReject(complaint.id)} className="w-full">
+                    Reject
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleAssignStaff(complaint)} className="col-span-2 w-full">
+                    Assign
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop: table with horizontal scroll */}
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -548,17 +615,11 @@ export function HoDDashboard() {
                   <TableRow key={complaint.id}>
                     <TableCell className="font-medium text-sm">
                       <div>
-                        <div className="font-semibold flex items-center gap-2">
-                          {complaint.title}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Submitted by {complaint.submittedBy}
-                        </div>
+                        <div className="font-semibold flex items-center gap-2">{complaint.title}</div>
+                        <div className="text-xs text-muted-foreground">Submitted by {complaint.submittedBy}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {complaint.category}
-                    </TableCell>
+                    <TableCell className="text-sm">{complaint.category}</TableCell>
                     <TableCell className="text-sm">
                       <Badge
                         className={
@@ -578,9 +639,7 @@ export function HoDDashboard() {
                     </TableCell>
                     <TableCell>
                       {complaint.status !== "Unassigned" && (
-                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                          {complaint.status}
-                        </Badge>
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">{complaint.status}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
@@ -590,53 +649,23 @@ export function HoDDashboard() {
                     </TableCell>
                     <TableCell>
                       {isOverdue(complaint) ? (
-                        <Badge
-                          className="bg-red-100 text-red-800 border-red-200 text-xs"
-                          variant="outline"
-                        >
-                          Overdue
-                        </Badge>
+                        <Badge className="bg-red-100 text-red-800 border-red-200 text-xs" variant="outline">Overdue</Badge>
                       ) : (
-                        <Badge
-                          className="bg-green-100 text-green-800 border-green-200 text-xs"
-                          variant="outline"
-                        >
-                          Not Overdue
-                        </Badge>
+                        <Badge className="bg-green-100 text-green-800 border-green-200 text-xs" variant="outline">Not Overdue</Badge>
                       )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2 items-center flex-wrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewComplaint(complaint)}
-                          className="text-xs"
-                        >
+                        <Button size="sm" variant="outline" onClick={() => handleViewComplaint(complaint)} className="text-xs">
                           View Detail
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="text-xs"
-                          onClick={() => handleAccept(complaint.id)}
-                        >
+                        <Button size="sm" variant="secondary" className="text-xs" onClick={() => handleAccept(complaint.id)}>
                           Accept
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="text-xs"
-                          onClick={() => handleReject(complaint.id)}
-                        >
+                        <Button size="sm" variant="destructive" className="text-xs" onClick={() => handleReject(complaint.id)}>
                           Reject
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs"
-                          onClick={() => handleAssignStaff(complaint)}
-                        >
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => handleAssignStaff(complaint)}>
                           Assign
                         </Button>
                       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,15 @@ import {
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Mock data for all complaints (half overdue, half not overdue)
 const now = new Date();
@@ -222,6 +231,9 @@ export default function AllComplaints() {
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   // Overdue filter state
   const [overdueFilter, setOverdueFilter] = useState("All");
+  // Pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -236,6 +248,19 @@ export default function AllComplaints() {
     resolved: complaints.filter((c) => c.status === "Resolved").length,
   };
 
+  // Reset to first page whenever filters/search/sort change
+  useEffect(() => {
+    // Reset to first page whenever filters/search/sort change
+    setPage(1);
+  }, [
+    searchTerm,
+    statusFilter,
+    categoryFilter,
+    priorityFilter,
+    overdueFilter,
+    prioritySort,
+  ]);
+
   // Helper: check if complaint is overdue
   const isOverdue = (complaint: Complaint) => {
     if (!("deadline" in complaint) || !complaint.deadline) return false;
@@ -249,7 +274,6 @@ export default function AllComplaints() {
       complaint.status !== "Resolved"
     );
   };
-
   // Filter complaints
   let filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
@@ -294,6 +318,27 @@ export default function AllComplaints() {
   };
 
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
+
+  // (pagination reset handled in useEffect above)
+
+  const totalItems = filteredComplaints.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -490,7 +535,7 @@ export default function AllComplaints() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredComplaints.length === 0 ? (
+              {pagedComplaints.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={8}
@@ -505,7 +550,7 @@ export default function AllComplaints() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredComplaints.map((complaint) => (
+                pagedComplaints.map((complaint) => (
                   <TableRow key={complaint.id} className="hover:bg-muted/50">
                     <TableCell className="max-w-xs">
                       <div className="font-medium truncate">
@@ -592,7 +637,7 @@ export default function AllComplaints() {
 
         {/* Mobile Cards */}
         <div className="lg:hidden space-y-4">
-          {filteredComplaints.length === 0 ? (
+          {pagedComplaints.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {searchTerm ||
               statusFilter !== "All" ||
@@ -602,7 +647,7 @@ export default function AllComplaints() {
                 : "No complaints found"}
             </div>
           ) : (
-            filteredComplaints.map((complaint) => (
+            pagedComplaints.map((complaint) => (
               <Card key={complaint.id} className="p-4">
                 <div className="space-y-3">
                   <div className="flex justify-between items-start">
@@ -691,6 +736,88 @@ export default function AllComplaints() {
           )}
         </div>
       </CardContent>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Detail Modal */}
       <RoleBasedComplaintModal

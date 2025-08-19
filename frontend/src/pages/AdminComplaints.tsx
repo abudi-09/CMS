@@ -5,6 +5,15 @@ import { Complaint } from "@/components/ComplaintCard";
 import { useNavigate } from "react-router-dom";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export function AdminComplaints() {
   // Mock complaints data for demo/testing
@@ -113,6 +122,27 @@ export function AdminComplaints() {
       ? isOverdue(c)
       : c.status === statusTab
   );
+  // Pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalItems = complaintsForTable.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedComplaints = complaintsForTable.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-6">
@@ -144,19 +174,100 @@ export function AdminComplaints() {
         </CardHeader>
         <CardContent>
           <ComplaintTable
-            complaints={complaintsForTable}
+            complaints={pagedComplaints}
             userRole="admin"
             showOverdueColumn
             isOverdueFn={isOverdue}
+            actionLabel="View Detail"
             onView={(complaint) => {
               setSelectedComplaint(complaint);
               setModalOpen(true);
             }}
-            onStatusUpdate={(complaint) => {
-              setSelectedComplaint(complaint);
-              setModalOpen(true);
-            }}
           />
+          {totalPages > 1 && (
+            <div className="mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(page - 1);
+                      }}
+                      className={
+                        page === 1 ? "pointer-events-none opacity-50" : ""
+                      }
+                    />
+                  </PaginationItem>
+                  {getVisiblePages()[0] !== 1 && (
+                    <>
+                      <PaginationItem>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            goToPage(1);
+                          }}
+                        >
+                          1
+                        </PaginationLink>
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    </>
+                  )}
+                  {getVisiblePages().map((p) => (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        href="#"
+                        isActive={p === page}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          goToPage(p);
+                        }}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  {getVisiblePages().slice(-1)[0] !== totalPages && (
+                    <>
+                      <PaginationItem>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            goToPage(totalPages);
+                          }}
+                        >
+                          {totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </>
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(page + 1);
+                      }}
+                      className={
+                        page === totalPages
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
       <button

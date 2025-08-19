@@ -5,6 +5,7 @@ import {
   getStaffmanagmentStats,
   getStaffStats,
   getUserStats,
+  getRoleCounts,
 } from "../controllers/stats.controller.js";
 
 import {
@@ -19,6 +20,7 @@ const router = express.Router();
 router.get("/complaints", protectRoute, adminOnly, getComplaintStats);
 router.get("/feedback", protectRoute, adminOnly, getFeedbackStats);
 router.get("/staff", protectRoute, adminOnly, getStaffmanagmentStats);
+router.get("/roles", protectRoute, adminOnly, getRoleCounts);
 // Staff-only stat endpoints
 router.get("/staffs", protectRoute, staffOnly, getStaffStats);
 // User stat endpoint

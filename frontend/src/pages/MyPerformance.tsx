@@ -271,7 +271,7 @@ export default function MyPerformance() {
         </Card>
       </div>
 
-      {/* Recent Activity Table */}
+      {/* Recent Activity - Responsive (cards on mobile, table on desktop) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -280,7 +280,52 @@ export default function MyPerformance() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {recentActivity.map((c) => (
+              <Card key={c.id} className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="text-sm font-semibold">#{c.id}</div>
+                  <Badge
+                    className={
+                      c.status === "Resolved"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-orange-100 text-orange-800"
+                    }
+                  >
+                    {c.status}
+                  </Badge>
+                </div>
+                <div className="mt-1 text-sm text-foreground line-clamp-2">
+                  {c.title}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Assigned:</span>
+                    <span className="ml-1 font-medium">{c.dateAssigned}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Resolved:</span>
+                    <span className="ml-1 font-medium">{c.dateResolved}</span>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs">
+                  <span className="text-muted-foreground">Rating:</span>
+                  {c.rating ? (
+                    <span className="ml-1 inline-flex items-center gap-1 font-medium">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      {c.rating}
+                    </span>
+                  ) : (
+                    <span className="ml-1 text-muted-foreground">-</span>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -301,11 +346,6 @@ export default function MyPerformance() {
                     <TableCell>{complaint.title}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={
-                          complaint.status === "Resolved"
-                            ? "default"
-                            : "secondary"
-                        }
                         className={
                           complaint.status === "Resolved"
                             ? "bg-green-100 text-green-800"

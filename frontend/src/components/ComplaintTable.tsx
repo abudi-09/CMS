@@ -33,6 +33,10 @@ interface ComplaintTableProps {
   priorityFilter?: string;
   showOverdueColumn?: boolean;
   isOverdueFn?: (complaint: Complaint) => boolean;
+  // Controls visibility of the Assigned Staff column (desktop) and row (mobile)
+  showAssignedStaffColumn?: boolean;
+  // Show deadline column/row when deadlines are relevant
+  showDeadlineColumn?: boolean;
 }
 
 const statusColors = {
@@ -105,6 +109,8 @@ export function ComplaintTable({
   priorityFilter = "all",
   showOverdueColumn = false,
   isOverdueFn,
+  showAssignedStaffColumn = true,
+  showDeadlineColumn = false,
 }: ComplaintTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -127,6 +133,7 @@ export function ComplaintTable({
   const complaintsData = userRole === "user" ? mockComplaints : complaints;
   const categories = Array.from(new Set(complaintsData.map((c) => c.category)));
   const allowedStatuses = ["Pending", "In Progress", "Resolved", "Closed"];
+  const showAssignedStaff = showAssignedStaffColumn;
   const filteredComplaints = complaintsData.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -237,7 +244,7 @@ export function ComplaintTable({
                         <h4 className="font-medium text-sm leading-tight">
                           {complaint.title}
                         </h4>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground hidden sm:block">
                           {complaint.category}
                         </div>
                         {showOverdueColumn && isOverdueFn && (
@@ -251,6 +258,12 @@ export function ComplaintTable({
                                 On Time
                               </Badge>
                             )}
+                          </div>
+                        )}
+                        {showDeadlineColumn && complaint.deadline && (
+                          <div className="text-xs text-muted-foreground">
+                            Deadline:{" "}
+                            {new Date(complaint.deadline).toLocaleDateString()}
                           </div>
                         )}
                       </div>
@@ -269,12 +282,13 @@ export function ComplaintTable({
                             {complaint.submittedBy}
                           </div>
                         )}
-                        {(userRole === "staff" || userRole === "admin") && (
-                          <div className="text-xs text-muted-foreground">
-                            <span className="font-medium">Assigned:</span>{" "}
-                            {getStaffDisplay(complaint.assignedStaff)}
-                          </div>
-                        )}
+                        {showAssignedStaff &&
+                          (userRole === "staff" || userRole === "admin") && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">Assigned:</span>{" "}
+                              {getStaffDisplay(complaint.assignedStaff)}
+                            </div>
+                          )}
                       </div>
                     )}
 
@@ -286,28 +300,19 @@ export function ComplaintTable({
                             ).toLocaleDateString()
                           : ""}
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 w-full">
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label={actionLabel || "View Detail"}
                           onClick={() => onView(complaint)}
+                          className="w-full"
                         >
                           <Eye className="h-4 w-4" />
-                          {actionLabel && (
-                            <span className="ml-1">{actionLabel}</span>
-                          )}
+                          <span className="ml-1">
+                            {actionLabel || "View Detail"}
+                          </span>
                         </Button>
-
-                        {(userRole === "staff" || userRole === "admin") &&
-                          onStatusUpdate && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onStatusUpdate(complaint)}
-                            >
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                          )}
                       </div>
                     </div>
                   </div>
@@ -325,13 +330,15 @@ export function ComplaintTable({
                     <TableHead>Status</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Priority</TableHead>
+                    {showDeadlineColumn && <TableHead>Deadline</TableHead>}
                     {showOverdueColumn && <TableHead>Overdue</TableHead>}
                     {userRole === "admin" && (
                       <TableHead>Submitted By</TableHead>
                     )}
-                    {(userRole === "staff" || userRole === "admin") && (
-                      <TableHead>Assigned Staff</TableHead>
-                    )}
+                    {showAssignedStaff &&
+                      (userRole === "staff" || userRole === "admin") && (
+                        <TableHead>Assigned Staff</TableHead>
+                      )}
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -366,6 +373,13 @@ export function ComplaintTable({
                           {complaint.priority}
                         </Badge>
                       </TableCell>
+                      {showDeadlineColumn && (
+                        <TableCell>
+                          {complaint.deadline
+                            ? new Date(complaint.deadline).toLocaleDateString()
+                            : "-"}
+                        </TableCell>
+                      )}
                       {showOverdueColumn && isOverdueFn && (
                         <TableCell>
                           {isOverdueFn(complaint) ? (
@@ -382,11 +396,12 @@ export function ComplaintTable({
                       {userRole === "admin" && (
                         <TableCell>{complaint.submittedBy}</TableCell>
                       )}
-                      {(userRole === "staff" || userRole === "admin") && (
-                        <TableCell>
-                          {getStaffDisplay(complaint.assignedStaff)}
-                        </TableCell>
-                      )}
+                      {showAssignedStaff &&
+                        (userRole === "staff" || userRole === "admin") && (
+                          <TableCell>
+                            {getStaffDisplay(complaint.assignedStaff)}
+                          </TableCell>
+                        )}
                       <TableCell>
                         {complaint.submittedDate
                           ? new Date(
@@ -399,24 +414,14 @@ export function ComplaintTable({
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label={actionLabel || "View Detail"}
                             onClick={() => onView(complaint)}
                           >
                             <Eye className="h-4 w-4" />
-                            {actionLabel && (
-                              <span className="ml-1">{actionLabel}</span>
-                            )}
+                            <span className="ml-1">
+                              {actionLabel || "View Detail"}
+                            </span>
                           </Button>
-
-                          {(userRole === "staff" || userRole === "admin") &&
-                            onStatusUpdate && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onStatusUpdate(complaint)}
-                              >
-                                <Settings className="h-4 w-4" />
-                              </Button>
-                            )}
 
                           {userRole === "admin" && onAssign && (
                             <Button

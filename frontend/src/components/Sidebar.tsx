@@ -54,7 +54,7 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Category Management",
       href: "/category-management",
     },
-    { icon: MessageSquare, label: "Feedback Review", href: "/feedback-review" },
+    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
     { icon: TrendingUp, label: "Admin Analytics", href: "/admin-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" }, // Removed due to missing export
 
@@ -82,6 +82,7 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/dean-department-performance",
     },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
+    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
@@ -103,6 +104,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Users, label: "Staff Management", href: "/hod/staff-management" },
     { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
+    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 

@@ -163,3 +163,20 @@ export async function submitComplaintApi(complaint: Complaint) {
   if (!res.ok) throw new Error(data.error || "Failed to submit complaint");
   return data.complaint || data;
 }
+
+// Admin: fetch role counts summary
+export async function getRoleCountsApi() {
+  const res = await fetch(`${API_BASE}/stats/roles`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch role counts");
+  return data as {
+    deans: number;
+    departmentHeads: number;
+    students: number;
+    staff: number;
+  };
+}

@@ -510,7 +510,87 @@ export function HoDAssignComplaints() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {filteredComplaints.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                No complaints found
+              </div>
+            ) : (
+              filteredComplaints.map((complaint) => (
+                <Card key={complaint.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 space-y-1">
+                      <div className="text-xs text-muted-foreground">#{complaint.id}</div>
+                      <div className="font-medium text-sm">{complaint.title}</div>
+                      <div className="text-xs text-muted-foreground">Category: {complaint.category}</div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Badge className={`text-xs ${statusColors[complaint.status as keyof typeof statusColors]}`}>
+                          {complaint.status}
+                        </Badge>
+                        <Badge className={`${priorityColors[complaint.priority || "Medium"]} text-xs`}>
+                          {complaint.priority || "Medium"}
+                        </Badge>
+                        {isOverdue(complaint) ? (
+                          <Badge className="text-xs bg-red-100 text-red-800 border-red-200" variant="outline">
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge className="text-xs bg-green-100 text-green-800 border-green-200" variant="outline">
+                            On Time
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Assignee: {complaint.assignedStaff || "Not Yet Assigned"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 [&>button]:w-full">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="col-span-2"
+                      onClick={() => handleViewDetail(complaint)}
+                    >
+                      View Detail
+                    </Button>
+                    {(complaint.status === "Pending" || complaint.status === "Unassigned") && !complaint.assignedStaffRole && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          const assignee = (user?.fullName as string) || (user?.name as string) || (user?.email as string) || "Head of Department";
+                          setComplaints((prev) =>
+                            prev.map((c) =>
+                              c.id === complaint.id
+                                ? { ...c, status: "In Progress", assignedStaff: assignee, assignedStaffRole: "headOfDepartment", lastUpdated: new Date() }
+                                : c
+                            )
+                          );
+                          toast({ title: "Accepted", description: "Complaint set In Progress and assigned to you." });
+                        }}
+                      >
+                        Accept
+                      </Button>
+                    )}
+                    {activeTab === "Rejected" ? (
+                      <Button size="sm" variant="secondary" onClick={() => handleReapprove(complaint.id)}>
+                        Re-approve
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="destructive" onClick={() => handleReject(complaint.id)}>
+                        Reject
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

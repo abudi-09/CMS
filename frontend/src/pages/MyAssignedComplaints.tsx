@@ -180,13 +180,29 @@ export function MyAssignedComplaints() {
   });
   // Local update function replacing context update for demo/mock state
 
-  // Only show complaints assigned to the current staff user
-  const myAssignedComplaints = complaints.filter(
-    (c) =>
-      c.assignedStaff &&
-      user &&
-      (c.assignedStaff === user.fullName || c.assignedStaff === user.name)
-  );
+  // Only show complaints assigned to the current staff user; if no user (demo), show all mock complaints
+  const myAssignedComplaints = React.useMemo(() => {
+    if (!user) return complaints; // demo fallback: show all mock complaints
+    const name = user.fullName ?? user.name;
+    if (!name) return complaints;
+    return complaints.filter(
+      (c) => c.assignedStaff && c.assignedStaff === name
+    );
+  }, [complaints, user]);
+
+  // When user becomes available, reassign mock complaints to the logged-in user so they remain visible
+  React.useEffect(() => {
+    if (!user) return;
+    const name = user.fullName ?? user.name;
+    if (!name) return;
+    setComplaints((prev) =>
+      prev.map((c) =>
+        typeof c.id === "string" && c.id.startsWith("mock")
+          ? { ...c, assignedStaff: name }
+          : c
+      )
+    );
+  }, [user]);
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -650,7 +666,7 @@ export function MyAssignedComplaints() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">category</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Submitted By</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
@@ -845,9 +861,7 @@ export function MyAssignedComplaints() {
 
                     <div className="space-y-2 text-sm">
                       <div>
-                        <span className="text-muted-foreground">
-                          Department:
-                        </span>
+                        <span className="text-muted-foreground">Category:</span>
                         <span className="font-medium ml-2">
                           {complaint.category}
                         </span>

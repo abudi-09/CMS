@@ -156,55 +156,102 @@ export default function DeanStaffManagement() {
     data: Staff[];
     actions: (s: Staff) => JSX.Element;
   }) => (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Working Place</TableHead>
-            <TableHead>Registration Date</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.length === 0 ? (
+    <>
+      {/* Mobile: cards */}
+      <div className="md:hidden space-y-3">
+        {data.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground border rounded-lg">
+            No staff found
+          </div>
+        ) : (
+          data.map((s) => (
+            <div key={s.id} className="border rounded-lg p-4 bg-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-base">{s.name}</p>
+                  <p className="text-xs text-muted-foreground break-all">{s.email}</p>
+                </div>
+                <Badge
+                  className={
+                    s.status === "approved"
+                      ? "bg-green-100 text-green-800"
+                      : s.status === "pending"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-red-100 text-red-800"
+                  }
+                >
+                  {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                </Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Working Place</p>
+                  <p className="font-medium">{s.workingPlace}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Registered</p>
+                  <p className="font-medium">{s.registeredDate.toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                {actions(s)}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell
-                colSpan={6}
-                className="text-center py-8 text-muted-foreground"
-              >
-                No staff found
-              </TableCell>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Working Place</TableHead>
+              <TableHead>Registration Date</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
-          ) : (
-            data.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell>{s.name}</TableCell>
-                <TableCell>{s.email}</TableCell>
-                <TableCell>{s.workingPlace}</TableCell>
-                <TableCell>{s.registeredDate.toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <Badge
-                    className={
-                      s.status === "approved"
-                        ? "bg-green-100 text-green-800"
-                        : s.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                    }
-                  >
-                    {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
-                  </Badge>
+          </TableHeader>
+          <TableBody>
+            {data.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-center py-8 text-muted-foreground"
+                >
+                  No staff found
                 </TableCell>
-                <TableCell className="text-right">{actions(s)}</TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+            ) : (
+              data.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>{s.name}</TableCell>
+                  <TableCell>{s.email}</TableCell>
+                  <TableCell>{s.workingPlace}</TableCell>
+                  <TableCell>{s.registeredDate.toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        s.status === "approved"
+                          ? "bg-green-100 text-green-800"
+                          : s.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }
+                    >
+                      {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{actions(s)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 
   return (
@@ -236,16 +283,16 @@ export default function DeanStaffManagement() {
               <StaffTable
                 data={approvedStaff}
                 actions={(s) => (
-                  <>
+                  <div className="flex flex-col md:flex-row gap-2 md:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeactivate(s.id)}
-                      className="text-red-600 hover:text-red-700"
+                      className="w-full md:w-auto text-red-600 hover:text-red-700"
                     >
                       <UserX className="h-4 w-4" /> Deactivate
                     </Button>
-                  </>
+                  </div>
                 )}
               />
             </TabsContent>
@@ -253,12 +300,12 @@ export default function DeanStaffManagement() {
               <StaffTable
                 data={pendingStaff}
                 actions={(s) => (
-                  <>
+                  <div className="flex flex-col md:flex-row gap-2 md:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleApprove(s.id)}
-                      className="text-green-600 hover:text-green-700"
+                      className="w-full md:w-auto text-green-600 hover:text-green-700"
                     >
                       <UserCheck className="h-4 w-4" /> Approve
                     </Button>
@@ -266,11 +313,11 @@ export default function DeanStaffManagement() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleReject(s.id)}
-                      className="text-red-600 hover:text-red-700"
+                      className="w-full md:w-auto text-red-600 hover:text-red-700"
                     >
                       <UserX className="h-4 w-4" /> Reject
                     </Button>
-                  </>
+                  </div>
                 )}
               />
             </TabsContent>
@@ -278,14 +325,16 @@ export default function DeanStaffManagement() {
               <StaffTable
                 data={rejectedStaff}
                 actions={(s) => (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleApprove(s.id)}
-                    className="text-green-600 hover:text-green-700"
-                  >
-                    <UserCheck className="h-4 w-4" /> Re-approve
-                  </Button>
+                  <div className="flex flex-col md:flex-row gap-2 md:justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleApprove(s.id)}
+                      className="w-full md:w-auto text-green-600 hover:text-green-700"
+                    >
+                      <UserCheck className="h-4 w-4" /> Re-approve
+                    </Button>
+                  </div>
                 )}
               />
             </TabsContent>

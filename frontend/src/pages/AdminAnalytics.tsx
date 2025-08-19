@@ -113,8 +113,8 @@ export default function AdminAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
           <p className="text-muted-foreground">
@@ -122,7 +122,7 @@ export default function AdminAnalytics() {
           </p>
         </div>
         <Select value={timeframe} onValueChange={setTimeframe}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -135,7 +135,7 @@ export default function AdminAnalytics() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -200,7 +200,7 @@ export default function AdminAnalytics() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
         {/* Complaint by Category */}
         <Card>
           <CardHeader>
@@ -317,7 +317,7 @@ export default function AdminAnalytics() {
       {/* Department Performance */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
               Department Performance Overview
@@ -329,15 +329,15 @@ export default function AdminAnalytics() {
             {departmentPerformance.map((dept, index) => (
               <div
                 key={dept.department}
-                className="flex items-center justify-between p-4 border rounded-lg"
+                className="p-4 border rounded-lg flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
               >
-                <div>
-                  <h3 className="font-semibold">{dept.department}</h3>
+                <div className="min-w-0">
+                  <h3 className="font-semibold truncate">{dept.department}</h3>
                   <p className="text-sm text-muted-foreground">
                     Staff: {dept.staff.join(", ")}
                   </p>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="grid grid-cols-2 sm:flex sm:items-center sm:gap-6 gap-4">
                   <div className="text-center">
                     <div className="text-lg font-bold">
                       {dept.totalAssigned}
@@ -366,18 +366,20 @@ export default function AdminAnalytics() {
                       In Progress
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={`${
-                      dept.successRate >= 90
-                        ? "border-success text-success"
-                        : dept.successRate >= 80
-                        ? "border-warning text-warning"
-                        : "border-destructive text-destructive"
-                    }`}
-                  >
-                    {dept.successRate.toFixed(1)}%
-                  </Badge>
+                  <div className="flex items-center justify-center">
+                    <Badge
+                      variant="outline"
+                      className={`$${""} ${
+                        dept.successRate >= 90
+                          ? "border-success text-success"
+                          : dept.successRate >= 80
+                          ? "border-warning text-warning"
+                          : "border-destructive text-destructive"
+                      }`}
+                    >
+                      {dept.successRate.toFixed(1)}%
+                    </Badge>
+                  </div>
                 </div>
               </div>
             ))}

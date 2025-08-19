@@ -130,8 +130,47 @@ export default function StaffManagement({
     data: Staff[];
     actions: (s: Staff) => JSX.Element;
   }) => (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
+    <div>
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {data.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">No staff found</div>
+        ) : (
+          data.map((s) => (
+            <Card key={s.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">{s.name}</div>
+                  <div className="text-xs text-muted-foreground">{s.email}</div>
+                  {showDepartmentColumn && (
+                    <div className="text-xs text-muted-foreground">Dept: {s.department}</div>
+                  )}
+                  <div className="text-xs text-muted-foreground">Position: {s.position}</div>
+                  <div className="text-xs text-muted-foreground">Registered: {s.registeredDate.toLocaleDateString()}</div>
+                </div>
+                <Badge
+                  className={
+                    s.status === "approved"
+                      ? "bg-green-100 text-green-800"
+                      : s.status === "pending"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-red-100 text-red-800"
+                  }
+                >
+                  {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                </Badge>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 [&>button]:w-full">
+                {actions(s)}
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-md border overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -179,7 +218,8 @@ export default function StaffManagement({
             ))
           )}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
     </div>
   );
 

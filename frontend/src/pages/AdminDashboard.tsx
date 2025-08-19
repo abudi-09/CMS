@@ -1,6 +1,6 @@
 // For demo/testing: import mockComplaint
 import { mockComplaint } from "@/lib/mockComplaint";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -10,15 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Users,
-  UserCheck,
-  MessageSquare,
-  TrendingUp,
-  Search,
-  Filter,
-  Clock,
-} from "lucide-react";
+import { MessageSquare, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,7 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SummaryCards } from "@/components/SummaryCards";
+import { RoleSummaryCards } from "@/components/RoleSummaryCards";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { StatusUpdateModal } from "@/components/StatusUpdateModal";
@@ -37,6 +38,7 @@ import { useComplaints } from "@/context/ComplaintContext";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { getRoleCountsApi } from "@/lib/api";
 
 export function AdminDashboard() {
   // MOCK DATA ENABLED BY DEFAULT
@@ -132,6 +134,63 @@ export function AdminDashboard() {
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorities = ["Critical", "High", "Medium", "Low"];
 
+  // Role count summary (deans, HoDs, students, staff)
+  const [roleCounts, setRoleCounts] = useState({
+    deans: 0,
+    departmentHeads: 0,
+    students: 0,
+    staff: 0,
+  });
+  const [loadingCounts, setLoadingCounts] = useState(false);
+  const [countsError, setCountsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoadingCounts(true);
+      setCountsError(null);
+      try {
+        const data = await getRoleCountsApi();
+        if (mounted) setRoleCounts(data);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Failed to load counts";
+        if (mounted) setCountsError(msg);
+      } finally {
+        if (mounted) setLoadingCounts(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Pagination for recent complaints table
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  // Reset page when filters change so pagination doesn't point to an empty page
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, categoryFilter, priorityFilter, prioritySort]);
+  const totalItems = sortedComplaints.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedComplaints = sortedComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -141,70 +200,27 @@ export function AdminDashboard() {
         </p>
       </div>
 
-      {/* Summary Cards */}
-      <SummaryCards complaints={complaints} userRole="admin" />
-
-      {/* Pending Staff Notifications */}
-      {pendingStaff.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-800">
-              <Clock className="h-5 w-5" />
-              Pending dean Approvals
-            </CardTitle>
-            <CardDescription className="text-orange-700">
-              {pendingStaff.length} dean member
-              {pendingStaff.length > 1 ? "s" : ""} waiting for approval
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                {pendingStaff.slice(0, 3).map((staff) => (
-                  <div key={staff.id} className="text-sm text-orange-800">
-                    • {staff.fullName || staff.name} ({staff.department})
-                  </div>
-                ))}
-                {pendingStaff.length > 3 && (
-                  <div className="text-sm text-orange-700">
-                    +{pendingStaff.length - 3} more...
-                  </div>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => navigate("/staff-management")}
-                className="text-orange-700 border-orange-300 hover:bg-orange-100"
-              >
-                Review Applications
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Role Summary Cards (totals by role) */}
+      <RoleSummaryCards counts={roleCounts} />
+      {countsError && <p className="text-sm text-destructive">{countsError}</p>}
 
       {/* Quick Actions */}
       <div className="grid md:grid-cols-3 gap-6">
-        {/* ...existing quick action cards... */}
+        {/* Quick link: Admin Complaints */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/staff-management")}
+          onClick={() => navigate("/admin-complaints")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5" />
-              Staff Management
-              {pendingStaff.length > 0 && (
-                <Badge className="bg-orange-100 text-orange-800 ml-auto">
-                  {pendingStaff.length}
-                </Badge>
-              )}
+              <MessageSquare className="h-5 w-5" />
+              Admin Complaints
             </CardTitle>
-            <CardDescription>Approve staff and manage roles</CardDescription>
+            <CardDescription>Review and update complaints</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full">
-              Manage Staff
+              View Detail
             </Button>
           </CardContent>
         </Card>
@@ -227,23 +243,21 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
 
+        {/* Quick link: Category Management */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/assign")}
+          onClick={() => navigate("/category-management")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Assign & Reassign
+              <Filter className="h-5 w-5" />
+              Category Management
             </CardTitle>
-            <CardDescription>
-              {complaints.filter((c) => !c.assignedStaff).length} unassigned
-              complaints
-            </CardDescription>
+            <CardDescription>Manage complaint categories</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full">
-              Assign Complaints
+              Manage Categories
             </Button>
           </CardContent>
         </Card>
@@ -252,14 +266,97 @@ export function AdminDashboard() {
       {/* Complaint Search and Filters */}
 
       <ComplaintTable
-        complaints={sortedComplaints.slice(0, 3)}
+        complaints={pagedComplaints}
         onView={handleViewComplaint}
         onStatusUpdate={handleStatusUpdate}
         userRole="admin"
         title="Recent Complaints"
         priorityFilter={priorityFilter}
         actionLabel="View Detail"
+        showAssignedStaffColumn={false}
       />
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="mt-3">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Modals */}
       <RoleBasedComplaintModal

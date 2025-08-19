@@ -277,10 +277,10 @@ export function StaffDashboard() {
 
   const statusColors = {
     Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    InProgress: "bg-blue-100 text-blue-800 border-blue-200",
+    "In Progress": "bg-blue-100 text-blue-800 border-blue-200",
     Resolved: "bg-green-100 text-green-800 border-green-200",
     Closed: "bg-gray-100 text-gray-800 border-gray-200",
-  };
+  } as const;
 
   return (
     <div className="space-y-6">
@@ -291,70 +291,68 @@ export function StaffDashboard() {
         </p>
       </div>
 
-      {/* Enhanced Summary Cards */}
-      <div className="w-full overflow-x-auto pb-2">
-        <div className="flex gap-4 min-w-[340px] sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
-          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Assigned Complaints
-              </CardTitle>
-              <div className="bg-blue-50 p-2 rounded-lg">
-                <FileText className="h-4 w-4 text-blue-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.assigned}</div>
-              <p className="text-xs text-muted-foreground">
-                Total assigned to you
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending
-              </CardTitle>
-              <div className="bg-yellow-50 p-2 rounded-lg">
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">Awaiting action</p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                In Progress
-              </CardTitle>
-              <div className="bg-blue-50 p-2 rounded-lg">
-                <AlertCircle className="h-4 w-4 text-blue-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.inProgress}</div>
-              <p className="text-xs text-muted-foreground">Currently working</p>
-            </CardContent>
-          </Card>
-          <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Resolved
-              </CardTitle>
-              <div className="bg-green-50 p-2 rounded-lg">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.resolved}</div>
-              <p className="text-xs text-muted-foreground">
-                Successfully completed
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Enhanced Summary Cards - responsive: 1/2/4 grid, stacked on mobile */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <Card className="hover:shadow-md transition-shadow w-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Assigned Complaints
+            </CardTitle>
+            <div className="bg-blue-50 p-2 rounded-lg">
+              <FileText className="h-4 w-4 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.assigned}</div>
+            <p className="text-xs text-muted-foreground">
+              Total assigned to you
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow w-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pending
+            </CardTitle>
+            <div className="bg-yellow-50 p-2 rounded-lg">
+              <Clock className="h-4 w-4 text-yellow-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pending}</div>
+            <p className="text-xs text-muted-foreground">Awaiting action</p>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow w-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              In Progress
+            </CardTitle>
+            <div className="bg-blue-50 p-2 rounded-lg">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.inProgress}</div>
+            <p className="text-xs text-muted-foreground">Currently working</p>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow w-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Resolved
+            </CardTitle>
+            <div className="bg-green-50 p-2 rounded-lg">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.resolved}</div>
+            <p className="text-xs text-muted-foreground">
+              Successfully completed
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* My Assigned Complaints Section */}
@@ -420,8 +418,9 @@ export function StaffDashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-2 sm:p-4">
-          <div className="rounded-md border w-full overflow-x-auto block">
-            <Table className="block w-full min-w-max max-w-full">
+          {/* Desktop Table */}
+          <div className="rounded-md border w-full overflow-x-auto hidden lg:block">
+            <Table className="w-full min-w-max max-w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">Title</TableHead>
@@ -562,6 +561,121 @@ export function StaffDashboard() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="lg:hidden space-y-4">
+            {filteredComplaints.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {searchTerm ||
+                statusFilter !== "All" ||
+                priorityFilter !== "All"
+                  ? "No complaints match your search criteria"
+                  : "No complaints assigned to you yet"}
+              </div>
+            ) : (
+              filteredComplaints.map((complaint) => (
+                <Card key={complaint.id} className="p-4 shadow-md rounded-2xl">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <h3
+                          className="font-medium text-sm truncate"
+                          title={complaint.title}
+                        >
+                          {complaint.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          #{complaint.id}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 ml-2 flex-wrap justify-end">
+                        <Badge
+                          className={`text-xs ${
+                            complaint.priority === "Critical"
+                              ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                              : complaint.priority === "High"
+                              ? "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+                              : complaint.priority === "Medium"
+                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
+                              : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                          }`}
+                          variant="outline"
+                        >
+                          {complaint.priority}
+                        </Badge>
+                        <Badge
+                          className={`text-xs ${
+                            complaint.status === "Resolved"
+                              ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                              : complaint.status === "In Progress"
+                              ? "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"
+                              : complaint.status === "Closed"
+                              ? "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400"
+                              : "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400"
+                          }`}
+                          variant="outline"
+                        >
+                          {complaint.status}
+                        </Badge>
+                        {isOverdue(complaint) && (
+                          <Badge
+                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                            variant="outline"
+                          >
+                            Overdue
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Category:</span>
+                        <span className="font-medium ml-2">
+                          {complaint.category}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">
+                          Submitted By:
+                        </span>
+                        <span className="font-medium ml-2">
+                          {complaint.submittedBy}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Deadline:</span>
+                        <span className="font-medium ml-2">
+                          {complaint.deadline
+                            ? complaint.deadline.toLocaleDateString()
+                            : "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <p className="text-sm">
+                        {complaint.description.substring(0, 120)}
+                        {complaint.description.length > 120 ? "..." : ""}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewAndUpdate(complaint)}
+                        className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View & Update
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

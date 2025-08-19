@@ -101,3 +101,28 @@ export const getUserStats = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch user stats" });
   }
 };
+
+// ROLE COUNTS (Admin): total number of deans, department heads, students, staff that have access
+export const getRoleCounts = async (req, res) => {
+  try {
+    const [deans, departmentHeads, students, staff] = await Promise.all([
+      // Active deans
+      User.countDocuments({ role: "dean", isActive: true }),
+      // Active heads of department
+      User.countDocuments({ role: "headOfDepartment", isActive: true }),
+      // Active students (users)
+      User.countDocuments({ role: "user", isActive: true }),
+      // Staff with access: approved, active, not rejected
+      User.countDocuments({
+        role: "staff",
+        isApproved: true,
+        isActive: true,
+        isRejected: { $ne: true },
+      }),
+    ]);
+
+    res.status(200).json({ deans, departmentHeads, students, staff });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch role counts" });
+  }
+};
