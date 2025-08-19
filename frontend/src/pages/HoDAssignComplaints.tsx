@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -28,12 +28,10 @@ import { Search, UserPlus } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { assignComplaintApi } from "@/lib/api";
 import { useState as useReactState } from "react";
 import { Complaint as ComplaintType } from "@/components/ComplaintCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Use ComplaintType for all references to Complaint
-
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
@@ -46,6 +44,7 @@ const statusColors = {
 export function HoDAssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
+  const { getAllStaff } = useAuth();
   // Diverse mock complaints for demo/testing
   // At least half of complaints are overdue (deadline in the past)
   const now = new Date();
@@ -184,17 +183,16 @@ export function HoDAssignComplaints() {
   const [complaints, setComplaints] =
     useReactState<ComplaintType[]>(demoComplaints);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [assignmentFilter, setAssignmentFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all");
   const [selectedComplaint, setSelectedComplaint] =
     useState<ComplaintType | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
-  const auth = useAuth();
-  const getAllStaff = auth.getAllStaff;
+  const [activeTab, setActiveTab] = useState<
+    "Pending" | "Accepted" | "Rejected"
+  >("Pending");
   const handleAssignClick = (complaint: ComplaintType) => {
     setReassigningRow(complaint.id);
     setAssigningStaffId("");
@@ -206,55 +204,59 @@ export function HoDAssignComplaints() {
     setAssigningStaffId("");
     setReassigningRow(null);
   };
-  const handleStaffAssignment = async (
-    complaintId: string,
-    staffId: string
-  ) => {
+  const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    try {
-      const updatedComplaint = await assignComplaintApi(
-        complaintId,
-        staffId,
-        assigningDeadline || undefined
-      );
-      setComplaints((prev) =>
-        prev.map((c) =>
-          c.id === complaintId
-            ? {
-                ...c,
-                assignedStaff: staff?.fullName || staff?.name || "Unknown",
-                lastUpdated: new Date(),
-                deadline: assigningDeadline
-                  ? new Date(assigningDeadline)
-                  : undefined,
-                status: updatedComplaint.status || "Assigned",
-              }
-            : c
-        )
-      );
-      toast({
-        title: "Staff Assigned",
-        description: `Complaint has been assigned to ${
-          staff?.fullName || staff?.name
-        }${
-          assigningDeadline
-            ? ` with deadline ${new Date(
-                assigningDeadline
-              ).toLocaleDateString()}`
-            : ""
-        }`,
-      });
-    } catch (error) {
-      toast({
-        title: "Assignment Failed",
-        description: "Could not assign staff. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setReassigningRow(null);
-      setAssigningStaffId("");
-      setAssigningDeadline("");
-    }
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
+              assignedStaff: staff?.fullName || staff?.name || "Unknown",
+              lastUpdated: new Date(),
+              deadline: assigningDeadline
+                ? new Date(assigningDeadline)
+                : c.deadline,
+              status:
+                c.status === "Unassigned" || c.status === "Pending"
+                  ? "In Progress"
+                  : c.status,
+            }
+          : c
+      )
+    );
+    toast({
+      title: "Assigned",
+      description: `Assigned to ${staff?.fullName || staff?.name}${
+        assigningDeadline
+          ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
+          : ""
+      }`,
+    });
+    setReassigningRow(null);
+    setAssigningStaffId("");
+    setAssigningDeadline("");
+  };
+
+  const handleResolve = (complaintId: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? { ...c, status: "Resolved", lastUpdated: new Date() }
+          : c
+      )
+    );
+    toast({ title: "Resolved", description: "Complaint marked as resolved." });
+  };
+
+  const handleReject = (complaintId: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? { ...c, status: "Closed", lastUpdated: new Date() }
+          : c
+      )
+    );
+    toast({ title: "Rejected", description: "Complaint rejected and closed." });
   };
 
   const isOverdue = (complaint: ComplaintType) => {
@@ -279,6 +281,37 @@ export function HoDAssignComplaints() {
     High: "bg-orange-100 text-orange-800 border-orange-200",
     Critical: "bg-red-100 text-red-800 border-red-200 font-bold border-2",
   };
+
+  const matchesTab = (c: ComplaintType) => {
+    if (activeTab === "Pending")
+      return c.status === "Pending" || c.status === "Unassigned";
+    if (activeTab === "Accepted")
+      return c.status === "In Progress" || c.status === "Assigned";
+    if (activeTab === "Rejected") return c.status === "Closed";
+    return true;
+  };
+
+  const filteredComplaints = complaints
+    .filter(matchesTab)
+    .filter((c) =>
+      [c.title, c.category, c.submittedBy]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    )
+    .filter((c) =>
+      priorityFilter === "all"
+        ? true
+        : (c.priority || "Medium") === priorityFilter
+    )
+    .filter((c) =>
+      overdueFilter === "all"
+        ? true
+        : overdueFilter === "overdue"
+        ? isOverdue(c)
+        : !isOverdue(c)
+    );
 
   return (
     <div className="space-y-8">
@@ -325,10 +358,22 @@ export function HoDAssignComplaints() {
       {/* Complaints Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Complaints</CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle>Complaints</CardTitle>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+            >
+              <TabsList>
+                <TabsTrigger value="Pending">Pending</TabsTrigger>
+                <TabsTrigger value="Accepted">Accepted</TabsTrigger>
+                <TabsTrigger value="Rejected">Rejected</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <CardDescription>
-            {complaints.length} complaint{complaints.length !== 1 ? "s" : ""}{" "}
-            found
+            {filteredComplaints.length} complaint
+            {filteredComplaints.length !== 1 ? "s" : ""} found
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -340,7 +385,7 @@ export function HoDAssignComplaints() {
                   <TableHead className="text-sm">Category</TableHead>
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
-                  <TableHead className="text-sm">Assigned Staff</TableHead>
+                  <TableHead className="text-sm">Assignee</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -376,7 +421,7 @@ export function HoDAssignComplaints() {
                     <TableCell className="text-sm">
                       {complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
-                          Assigned to: {complaint.assignedStaff}
+                          {complaint.assignedStaff}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
@@ -385,38 +430,64 @@ export function HoDAssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {reassigningRow === complaint.id ? (
-                        <div className="flex flex-col gap-1 min-w-[180px]">
-                          <Select
-                            value={assigningStaffId}
-                            onValueChange={setAssigningStaffId}
-                          >
-                            <SelectTrigger className="w-full text-xs">
-                              <SelectValue placeholder="Select staff" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getAllStaff().map((staff) => (
-                                <SelectItem key={staff.id} value={staff.id}>
-                                  {staff.fullName || staff.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            type="date"
-                            className="w-full text-xs"
-                            value={assigningDeadline}
-                            onChange={(e) =>
-                              setAssigningDeadline(e.target.value)
-                            }
-                            placeholder="Deadline (optional)"
-                          />
-                          <div className="flex gap-1 mt-1">
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewDetail(complaint)}
+                          className="text-xs dark:hover:text-blue-400"
+                        >
+                          View Detail
+                        </Button>
+                        {/* HoD can resolve/reject and assign to staff */}
+                        <Button
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleResolve(complaint.id)}
+                        >
+                          Resolve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="text-xs"
+                          onClick={() => handleReject(complaint.id)}
+                        >
+                          Reject
+                        </Button>
+                        {reassigningRow === complaint.id ? (
+                          <div className="flex gap-2 items-center">
+                            <Select
+                              value={assigningStaffId}
+                              onValueChange={setAssigningStaffId}
+                            >
+                              <SelectTrigger className="w-40 text-xs">
+                                <SelectValue placeholder="Select staff" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getAllStaff()
+                                  .filter((s) => s.role === "staff")
+                                  .map((staff) => (
+                                    <SelectItem key={staff.id} value={staff.id}>
+                                      {staff.fullName || staff.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="date"
+                              className="w-36 text-xs"
+                              value={assigningDeadline}
+                              onChange={(e) =>
+                                setAssigningDeadline(e.target.value)
+                              }
+                              required
+                            />
                             <Button
                               size="sm"
                               variant="default"
-                              className="w-full text-xs"
-                              disabled={!assigningStaffId}
+                              className="text-xs"
+                              disabled={!assigningStaffId || !assigningDeadline}
                               onClick={() =>
                                 handleStaffAssignment(
                                   complaint.id,
@@ -429,7 +500,7 @@ export function HoDAssignComplaints() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="w-full text-xs"
+                              className="text-xs"
                               onClick={() => {
                                 setReassigningRow(null);
                                 setAssigningStaffId("");
@@ -439,17 +510,20 @@ export function HoDAssignComplaints() {
                               Cancel
                             </Button>
                           </div>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full text-xs dark:hover:text-blue-400"
-                          onClick={() => handleAssignClick(complaint)}
-                        >
-                          {complaint.assignedStaff ? "Reassign" : "Assign"}
-                        </Button>
-                      )}
+                        ) : (
+                          (!complaint.assignedStaff ||
+                            isOverdue(complaint)) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs dark:hover:text-blue-400"
+                              onClick={() => handleAssignClick(complaint)}
+                            >
+                              {complaint.assignedStaff ? "Reassign" : "Assign"}
+                            </Button>
+                          )
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -458,6 +532,14 @@ export function HoDAssignComplaints() {
           </div>
         </CardContent>
       </Card>
+      {/* Role-based Complaint Modal for View Detail */}
+      {selectedComplaint && (
+        <RoleBasedComplaintModal
+          complaint={selectedComplaint}
+          open={showDetailModal}
+          onOpenChange={setShowDetailModal}
+        />
+      )}
     </div>
   );
 }

@@ -31,6 +31,14 @@ import { toast } from "@/hooks/use-toast";
 import { useState as useReactState } from "react";
 import { Complaint as ComplaintType } from "@/components/ComplaintCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 // Use ComplaintType for all references to Complaint
 
 const statusColors = {
@@ -69,9 +77,11 @@ export function DeanAssignComplaints() {
       description: "Leave request for faculty not processed in time.",
       category: "HR",
       priority: "Medium",
+      // Accepted by Dean: shows under Accepted tab
       status: "In Progress",
       submittedBy: "Faculty Member",
-      assignedStaff: "HR Manager",
+      assignedStaff: "Dean",
+      assignedStaffRole: "dean",
       submittedDate: new Date("2024-02-01"),
       lastUpdated: new Date("2024-02-05"),
       deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
@@ -95,6 +105,7 @@ export function DeanAssignComplaints() {
       description: "Students report outdated syllabus in core course.",
       category: "Academic",
       priority: "Low",
+      // Rejected: shows under Rejected tab
       status: "Closed",
       submittedBy: "Student Council",
       assignedStaff: "Course Coordinator",
@@ -134,9 +145,11 @@ export function DeanAssignComplaints() {
       description: "",
       category: "Other",
       priority: "Low",
-      status: "Pending",
+      // Assigned to HoD: shows under Assigned tab
+      status: "In Progress",
       submittedBy: "Edge Case",
-      assignedStaff: "Support",
+      assignedStaff: "HoD Support",
+      assignedStaffRole: "headOfDepartment",
       submittedDate: new Date("2024-07-18"),
       lastUpdated: new Date("2024-07-18"),
       deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
@@ -160,9 +173,11 @@ export function DeanAssignComplaints() {
       description: "Mandatory training session for faculty not scheduled.",
       category: "HR",
       priority: "High",
-      status: "Pending",
+      // Assigned to HoD and overdue
+      status: "In Progress",
       submittedBy: "HR Dept",
       assignedStaff: "Training Coordinator",
+      assignedStaffRole: "headOfDepartment",
       submittedDate: new Date("2024-08-01"),
       lastUpdated: new Date("2024-08-03"),
       deadline: new Date(now.getTime() - 4 * 86400000), // overdue
@@ -173,9 +188,11 @@ export function DeanAssignComplaints() {
       description: "Printer in Dean's office is out of service.",
       category: "IT & Technology",
       priority: "Low",
-      status: "Pending",
+      // Assigned to HoD (not overdue)
+      status: "Assigned",
       submittedBy: "Office Staff",
       assignedStaff: "IT Support Team",
+      assignedStaffRole: "headOfDepartment",
       submittedDate: new Date("2024-08-05"),
       lastUpdated: new Date("2024-08-06"),
       deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
@@ -191,7 +208,17 @@ export function DeanAssignComplaints() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"Pending" | "Accepted" | "Rejected">("Pending");
+  const [activeTab, setActiveTab] = useState<
+    "Pending" | "Accepted" | "Assigned" | "Rejected"
+  >("Pending");
+  // Accept flow state
+  const [acceptTarget, setAcceptTarget] = useState<ComplaintType | null>(null);
+  const [acceptNote, setAcceptNote] = useState("");
+  const [accepting, setAccepting] = useState(false);
+  // Bulk accept state
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
   const handleAssignClick = (complaint: ComplaintType) => {
     setReassigningRow(complaint.id);
     setAssigningStaffId("");
@@ -203,10 +230,7 @@ export function DeanAssignComplaints() {
     setAssigningStaffId("");
     setReassigningRow(null);
   };
-  const handleStaffAssignment = (
-    complaintId: string,
-    staffId: string
-  ) => {
+  const handleStaffAssignment = (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
     setComplaints((prev) =>
       prev.map((c) =>
@@ -214,10 +238,16 @@ export function DeanAssignComplaints() {
           ? {
               ...c,
               assignedStaff: staff?.fullName || staff?.name || "Unknown",
+              assignedStaffRole: "headOfDepartment",
               lastUpdated: new Date(),
-              deadline: assigningDeadline ? new Date(assigningDeadline) : c.deadline,
+              deadline: assigningDeadline
+                ? new Date(assigningDeadline)
+                : c.deadline,
               // Dean "accepts" -> use "In Progress" to stay within ComplaintType
-              status: c.status === "Unassigned" || c.status === "Pending" ? "In Progress" : c.status,
+              status:
+                c.status === "Unassigned" || c.status === "Pending"
+                  ? "In Progress"
+                  : c.status,
             }
           : c
       )
@@ -236,17 +266,49 @@ export function DeanAssignComplaints() {
   };
 
   const handleResolve = (complaintId: string) => {
-    setComplaints((prev) =>
-      prev.map((c) => (c.id === complaintId ? { ...c, status: "Resolved", lastUpdated: new Date() } : c))
-    );
-    toast({ title: "Resolved", description: "Complaint marked as resolved." });
+    // Deprecated on this page: resolved items should not be managed here
   };
 
   const handleReject = (complaintId: string) => {
     setComplaints((prev) =>
-      prev.map((c) => (c.id === complaintId ? { ...c, status: "Closed", lastUpdated: new Date() } : c))
+      prev.map((c) =>
+        c.id === complaintId
+          ? { ...c, status: "Closed", lastUpdated: new Date() }
+          : c
+      )
     );
     toast({ title: "Rejected", description: "Complaint rejected and closed." });
+  };
+
+  const handleReapprove = (complaintId: string) => {
+    const assignee =
+      (user?.fullName as string) ||
+      (user?.name as string) ||
+      (user?.email as string) ||
+      "Dean";
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
+              status: "In Progress",
+              assignedStaff: assignee,
+              assignedStaffRole: "dean",
+              lastUpdated: new Date(),
+            }
+          : c
+      )
+    );
+    toast({ title: "Re-approved", description: "Moved back to Accepted." });
+  };
+
+  const handleModalUpdate = (
+    complaintId: string,
+    updates: Partial<ComplaintType>
+  ) => {
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === complaintId ? { ...c, ...updates } : c))
+    );
   };
 
   const isOverdue = (complaint: ComplaintType) => {
@@ -263,20 +325,33 @@ export function DeanAssignComplaints() {
   };
 
   const matchesTab = (c: ComplaintType) => {
-    if (activeTab === "Pending") return c.status === "Pending" || c.status === "Unassigned";
-    if (activeTab === "Accepted") return c.status === "In Progress" || c.status === "Assigned";
+    if (activeTab === "Pending")
+      return (
+        (c.status === "Pending" || c.status === "Unassigned") &&
+        !c.assignedStaffRole
+      );
+    if (activeTab === "Accepted")
+      return c.status === "In Progress" && c.assignedStaffRole === "dean";
+    if (activeTab === "Assigned")
+      return (
+        (c.status === "In Progress" || c.status === "Assigned") &&
+        c.assignedStaffRole === "headOfDepartment"
+      );
     if (activeTab === "Rejected") return c.status === "Closed";
-    return true;
+    return false; // exclude other statuses like Resolved entirely
   };
   const filteredComplaints = complaints
     .filter(matchesTab)
+    // ensure resolved never shows regardless of tab/filter
+    .filter((c) => c.status !== "Resolved")
     .filter((complaint) => {
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
         complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesPriority =
-        priorityFilter === "all" || (complaint.priority || "Medium") === priorityFilter;
+        priorityFilter === "all" ||
+        (complaint.priority || "Medium") === priorityFilter;
       const matchesOverdue =
         overdueFilter === "all"
           ? true
@@ -341,7 +416,7 @@ export function DeanAssignComplaints() {
           </CardContent>
         </Card>
       </div>
-  {/* Search & Filter */}
+      {/* Search & Filter */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -390,10 +465,14 @@ export function DeanAssignComplaints() {
         <CardHeader>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle>Complaints</CardTitle>
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+            >
               <TabsList>
                 <TabsTrigger value="Pending">Pending</TabsTrigger>
                 <TabsTrigger value="Accepted">Accepted</TabsTrigger>
+                <TabsTrigger value="Assigned">Assigned</TabsTrigger>
                 <TabsTrigger value="Rejected">Rejected</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -415,7 +494,20 @@ export function DeanAssignComplaints() {
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assignee</TableHead>
                   <TableHead className="text-sm">Overdue</TableHead>
-                  <TableHead className="text-sm">Actions</TableHead>
+                  <TableHead className="text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>Actions</span>
+                      {activeTab === "Pending" && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setBulkOpen(true)}
+                        >
+                          Accept All
+                        </Button>
+                      )}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -494,16 +586,47 @@ export function DeanAssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {/* Dean can resolve/reject and assign to HoD */}
-                        <Button size="sm" className="text-xs" onClick={() => handleResolve(complaint.id)}>
-                          Resolve
-                        </Button>
-                        <Button size="sm" variant="destructive" className="text-xs" onClick={() => handleReject(complaint.id)}>
-                          Reject
-                        </Button>
+                        {/* Dean can accept to solve, resolve, reject, and assign to HoD */}
+                        {!complaint.assignedStaff &&
+                          (complaint.status === "Pending" ||
+                            complaint.status === "Unassigned") && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="text-xs"
+                              onClick={() => {
+                                setAcceptTarget(complaint);
+                                setAcceptNote("");
+                              }}
+                            >
+                              Accept
+                            </Button>
+                          )}
+                        {activeTab === "Rejected" ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-xs"
+                            onClick={() => handleReapprove(complaint.id)}
+                          >
+                            Re-approve
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="text-xs"
+                            onClick={() => handleReject(complaint.id)}
+                          >
+                            Reject
+                          </Button>
+                        )}
                         {reassigningRow === complaint.id ? (
                           <>
-                            <Select value={assigningStaffId} onValueChange={setAssigningStaffId}>
+                            <Select
+                              value={assigningStaffId}
+                              onValueChange={setAssigningStaffId}
+                            >
                               <SelectTrigger className="w-40 text-xs">
                                 <SelectValue placeholder="Select assignee" />
                               </SelectTrigger>
@@ -521,7 +644,9 @@ export function DeanAssignComplaints() {
                               type="date"
                               className="w-36 text-xs"
                               value={assigningDeadline}
-                              onChange={(e) => setAssigningDeadline(e.target.value)}
+                              onChange={(e) =>
+                                setAssigningDeadline(e.target.value)
+                              }
                               required
                             />
                             <Button
@@ -529,7 +654,12 @@ export function DeanAssignComplaints() {
                               variant="default"
                               className="text-xs"
                               disabled={!assigningStaffId || !assigningDeadline}
-                              onClick={() => handleStaffAssignment(complaint.id, assigningStaffId)}
+                              onClick={() =>
+                                handleStaffAssignment(
+                                  complaint.id,
+                                  assigningStaffId
+                                )
+                              }
                             >
                               Confirm
                             </Button>
@@ -547,7 +677,8 @@ export function DeanAssignComplaints() {
                             </Button>
                           </>
                         ) : (
-                          (!complaint.assignedStaff || isOverdue(complaint)) && (
+                          (!complaint.assignedStaff ||
+                            isOverdue(complaint)) && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -648,15 +779,46 @@ export function DeanAssignComplaints() {
                       View Detail
                     </Button>
                     {/* Dean actions on mobile */}
-                    <Button size="sm" className="w-full text-xs" onClick={() => handleResolve(complaint.id)}>
-                      Resolve
-                    </Button>
-                    <Button size="sm" variant="destructive" className="w-full text-xs" onClick={() => handleReject(complaint.id)}>
-                      Reject
-                    </Button>
+                    {!complaint.assignedStaff &&
+                      (complaint.status === "Pending" ||
+                        complaint.status === "Unassigned") && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="w-full text-xs"
+                          onClick={() => {
+                            setAcceptTarget(complaint);
+                            setAcceptNote("");
+                          }}
+                        >
+                          Accept
+                        </Button>
+                      )}
+                    {activeTab === "Rejected" ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="w-full text-xs"
+                        onClick={() => handleReapprove(complaint.id)}
+                      >
+                        Re-approve
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="w-full text-xs"
+                        onClick={() => handleReject(complaint.id)}
+                      >
+                        Reject
+                      </Button>
+                    )}
                     {reassigningRow === complaint.id ? (
                       <>
-                        <Select value={assigningStaffId} onValueChange={setAssigningStaffId}>
+                        <Select
+                          value={assigningStaffId}
+                          onValueChange={setAssigningStaffId}
+                        >
                           <SelectTrigger className="w-full text-xs">
                             <SelectValue placeholder="Select assignee" />
                           </SelectTrigger>
@@ -682,7 +844,12 @@ export function DeanAssignComplaints() {
                           variant="default"
                           className="w-full text-xs mt-1"
                           disabled={!assigningStaffId || !assigningDeadline}
-                          onClick={() => handleStaffAssignment(complaint.id, assigningStaffId)}
+                          onClick={() =>
+                            handleStaffAssignment(
+                              complaint.id,
+                              assigningStaffId
+                            )
+                          }
                         >
                           Confirm
                         </Button>
@@ -724,8 +891,185 @@ export function DeanAssignComplaints() {
           complaint={selectedComplaint}
           open={showDetailModal}
           onOpenChange={setShowDetailModal}
+          onUpdate={handleModalUpdate}
+          fetchLatest={false}
         />
       )}
+
+      {/* Accept modal: dean accepts to solve with optional note */}
+      <Dialog
+        open={!!acceptTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAcceptTarget(null);
+            setAcceptNote("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accept complaint to solve</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You are accepting this complaint. Status will change to "In
+              Progress" and it will be assigned to you.
+            </p>
+            <Textarea
+              placeholder="Optional note visible to the user..."
+              value={acceptNote}
+              onChange={(e) => setAcceptNote(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAcceptTarget(null);
+                setAcceptNote("");
+              }}
+              disabled={accepting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!acceptTarget) return;
+                setAccepting(true);
+                const assignee =
+                  (user?.fullName as string) ||
+                  (user?.name as string) ||
+                  (user?.email as string) ||
+                  "Dean";
+                setComplaints((prev) =>
+                  prev.map((c) =>
+                    c.id === acceptTarget.id
+                      ? {
+                          ...c,
+                          status: "In Progress",
+                          assignedStaff: assignee,
+                          assignedStaffRole: "dean",
+                          resolutionNote: acceptNote || c.resolutionNote,
+                          lastUpdated: new Date(),
+                        }
+                      : c
+                  )
+                );
+                toast({
+                  title: "Accepted",
+                  description: "Complaint assigned to you and set In Progress.",
+                });
+                setAccepting(false);
+                setAcceptTarget(null);
+                setAcceptNote("");
+              }}
+              disabled={accepting}
+            >
+              Confirm Accept
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Accept modal */}
+      <Dialog
+        open={bulkOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBulkOpen(false);
+            setBulkNote("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accept all visible pending complaints</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              All currently visible Pending/Unassigned complaints will be set to
+              "In Progress" and assigned to you.
+            </p>
+            <Textarea
+              placeholder="Optional note applied to all..."
+              value={bulkNote}
+              onChange={(e) => setBulkNote(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setBulkOpen(false);
+                setBulkNote("");
+              }}
+              disabled={bulkLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setBulkLoading(true);
+                const assignee =
+                  (user?.fullName as string) ||
+                  (user?.name as string) ||
+                  (user?.email as string) ||
+                  "Dean";
+                setComplaints((prev) => {
+                  const passesSearch = (c: ComplaintType) =>
+                    c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    c.category
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase()) ||
+                    c.submittedBy
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase());
+                  const passesPriority = (c: ComplaintType) =>
+                    priorityFilter === "all" ||
+                    (c.priority || "Medium") === priorityFilter;
+                  const passesOverdue = (c: ComplaintType) =>
+                    overdueFilter === "all"
+                      ? true
+                      : overdueFilter === "overdue"
+                      ? isOverdue(c)
+                      : !isOverdue(c);
+                  return prev.map((c) => {
+                    const isPendingUnassigned =
+                      (c.status === "Pending" || c.status === "Unassigned") &&
+                      !c.assignedStaff;
+                    const isVisible =
+                      activeTab === "Pending" &&
+                      isPendingUnassigned &&
+                      passesSearch(c) &&
+                      passesPriority(c) &&
+                      passesOverdue(c);
+                    if (!isVisible) return c;
+                    return {
+                      ...c,
+                      status: "In Progress",
+                      assignedStaff: assignee,
+                      resolutionNote: bulkNote || c.resolutionNote,
+                      lastUpdated: new Date(),
+                    };
+                  });
+                });
+                setBulkLoading(false);
+                setBulkOpen(false);
+                setBulkNote("");
+                toast({
+                  title: "Accepted",
+                  description: "All visible pending complaints accepted.",
+                });
+              }}
+              disabled={bulkLoading}
+            >
+              Confirm Accept All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

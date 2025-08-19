@@ -9,10 +9,18 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SummaryCards } from "@/components/SummaryCards";
-import { ComplaintTable } from "@/components/ComplaintTable";
+// Replacing ComplaintTable with a custom pending-style table to match Assign & Reassign page
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Clock, MessageSquare, UserCheck, Users } from "lucide-react";
 
 // Mock data for demo
@@ -46,6 +54,48 @@ const mockComplaints: Complaint[] = [
     assignedDate: new Date(now.getTime() - 1 * 86400000),
     lastUpdated: new Date(now.getTime() - 1 * 43200000),
   },
+  {
+    id: "d3",
+    title: "Wi-Fi outage in Library",
+    status: "Pending",
+    priority: "High",
+    deadline: new Date(now.getTime() + 1 * 86400000), // not overdue
+    submittedBy: "Student C",
+    assignedStaff: undefined,
+    category: "IT",
+    description: "Library Wi-Fi is down on the 2nd floor.",
+    submittedDate: new Date(now.getTime() - 1 * 86400000),
+    assignedDate: undefined,
+    lastUpdated: new Date(now.getTime() - 6 * 3600000),
+  },
+  {
+    id: "d4",
+    title: "Course syllabus update requested",
+    status: "Pending",
+    priority: "Low",
+    deadline: new Date(now.getTime() + 5 * 86400000), // not overdue
+    submittedBy: "Student D",
+    assignedStaff: undefined,
+    category: "Academic",
+    description: "Students are requesting an updated syllabus for CS101.",
+    submittedDate: new Date(now.getTime() - 4 * 86400000),
+    assignedDate: undefined,
+    lastUpdated: new Date(now.getTime() - 2 * 86400000),
+  },
+  {
+    id: "d5",
+    title: "Air conditioning not working",
+    status: "Pending",
+    priority: "Critical",
+    deadline: new Date(now.getTime() - 1 * 86400000), // overdue
+    submittedBy: "Staff Z",
+    assignedStaff: undefined,
+    category: "Facilities",
+    description: "AC in Lecture Hall A is not functioning.",
+    submittedDate: new Date(now.getTime() - 2 * 86400000),
+    assignedDate: undefined,
+    lastUpdated: new Date(now.getTime() - 12 * 3600000),
+  },
 ];
 
 // Mock pending dean approvals
@@ -66,16 +116,58 @@ export function DeanDashboard() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
+  // Local state to allow Accept/Reject updates in the dashboard table
+  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+
+  const statusColors = {
+    Pending: "bg-yellow-100 text-yellow-800",
+    "In Progress": "bg-blue-100 text-blue-800",
+    Resolved: "bg-green-100 text-green-800",
+    Closed: "bg-gray-100 text-gray-800",
+  } as const;
+
+  const isOverdue = (c: Complaint) => {
+    if (!c.deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(c.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return deadline < today && c.status !== "Resolved" && c.status !== "Closed";
+  };
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
   };
 
+  const handleAccept = (id: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: "In Progress",
+              assignedStaff: c.assignedStaff || "Dean",
+              assignedStaffRole: "dean",
+              lastUpdated: new Date(),
+            }
+          : c
+      )
+    );
+  };
+
+  const handleReject = (id: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, status: "Closed", lastUpdated: new Date() } : c
+      )
+    );
+  };
+
   // Department summary cards mock
   const summaryData = [
     { label: "Total Students", value: 120 },
-    { label: "Total Staff", value: 15 },
+    { label: "Total Departments", value: 4 },
     { label: "Total Complaints", value: 8 },
     { label: "Overdue Complaints", value: 2 },
     { label: "Resolved Complaints", value: 4 },
@@ -129,7 +221,7 @@ export function DeanDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => navigate("/dean-staff-management")}
+                onClick={() => navigate("/department-management")}
                 className="text-orange-700 border-orange-300 hover:bg-orange-100"
               >
                 Review Applications
@@ -142,7 +234,7 @@ export function DeanDashboard() {
       <div className="grid md:grid-cols-3 gap-6">
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/dean-staff-management")}
+          onClick={() => navigate("/department-management")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -154,11 +246,13 @@ export function DeanDashboard() {
                 </Badge>
               )}
             </CardTitle>
-            <CardDescription>Approve staff and manage roles</CardDescription>
+            <CardDescription>
+              Approve head of department and manage roles
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full">
-              Manage Staff
+              Manage Departments
             </Button>
           </CardContent>
         </Card>
@@ -202,18 +296,148 @@ export function DeanDashboard() {
           </CardContent>
         </Card>
       </div>
-      {/* Complaints Table */}
-      <ComplaintTable
-        complaints={mockComplaints}
-        onView={handleViewComplaint}
-        userRole="admin" // TODO: update ComplaintTable to support 'dean' role
-        title="Department Complaints"
-        showOverdueColumn
-        isOverdueFn={(c) =>
-          new Date(c.deadline) < now && c.status !== "Resolved"
-        }
-        actionLabel="View Detail"
-      />
+      {/* Recent Pending Complaints - styled like Assign & Reassign (Pending tab) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Pending Complaints</CardTitle>
+          <CardDescription>
+            Top 3 most recent pending complaints
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-sm">Title</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Priority</TableHead>
+                  <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Assignee</TableHead>
+                  <TableHead className="text-sm">Overdue</TableHead>
+                  <TableHead className="text-sm">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {complaints
+                  .filter((c) => c.status === "Pending")
+                  .sort(
+                    (a, b) =>
+                      new Date(b.submittedDate).getTime() -
+                      new Date(a.submittedDate).getTime()
+                  )
+                  .slice(0, 3)
+                  .map((complaint) => (
+                    <TableRow key={complaint.id}>
+                      <TableCell className="font-medium text-sm">
+                        <div>
+                          <div className="font-semibold flex items-center gap-2">
+                            {complaint.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Submitted by {complaint.submittedBy}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {complaint.category}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <Badge
+                          className={
+                            (complaint.priority === "Low" &&
+                              "bg-gray-200 text-gray-700 border-gray-300") ||
+                            (complaint.priority === "Medium" &&
+                              "bg-blue-100 text-blue-800 border-blue-200") ||
+                            (complaint.priority === "High" &&
+                              "bg-orange-100 text-orange-800 border-orange-200") ||
+                            (complaint.priority === "Critical" &&
+                              "bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
+                            "bg-blue-100 text-blue-800 border-blue-200"
+                          }
+                        >
+                          {complaint.priority || "Medium"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {complaint.status !== "Unassigned" && (
+                          <Badge
+                            className={`text-xs ${
+                              statusColors[
+                                complaint.status as keyof typeof statusColors
+                              ]
+                            }`}
+                          >
+                            {complaint.status}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {complaint.assignedStaff ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                            {complaint.assignedStaff}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                            Not Yet Assigned
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isOverdue(complaint) ? (
+                          <Badge
+                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                            variant="outline"
+                          >
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge
+                            className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                            variant="outline"
+                          >
+                            Not Overdue
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2 items-center flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewComplaint(complaint)}
+                            className="text-xs dark:hover:text-blue-400"
+                          >
+                            View Detail
+                          </Button>
+                          {(complaint.status === "Pending" ||
+                            complaint.status === "Unassigned") && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="text-xs"
+                              onClick={() => handleAccept(complaint.id)}
+                            >
+                              Accept
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="text-xs"
+                            onClick={() => handleReject(complaint.id)}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
       {/* Modal */}
       <RoleBasedComplaintModal
         open={showDetailModal}

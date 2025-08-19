@@ -29,6 +29,7 @@ export interface Complaint {
     | "Pending";
   submittedBy: string;
   assignedStaff?: string;
+  assignedStaffRole?: "dean" | "headOfDepartment" | "staff" | "admin";
   assignedDate?: Date;
   submittedDate: Date;
   deadline?: Date;

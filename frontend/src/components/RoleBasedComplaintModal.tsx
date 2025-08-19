@@ -1,22 +1,4 @@
-// MOCK DATA FOR DEVELOPMENT/TESTING ONLY
-// Remove or comment out before deploying to production
-export const mockComplaint = {
-  id: "mock123",
-  title: "WiFi not working in hostel",
-  description: "The WiFi in hostel block B has been down for 3 days.",
-  category: "Infrastructure",
-  priority: "High",
-  status: "Pending" as const,
-  submittedBy: "John Doe",
-  submittedDate: new Date(),
-  assignedStaff: "Jane Staff",
-  assignedDate: new Date(Date.now() - 86400000), // 1 day ago
-  lastUpdated: new Date(),
-  deadline: new Date(Date.now() + 3 * 86400000), // 3 days from now
-  evidenceFile: null,
-  resolutionNote: "Checked the router, awaiting replacement part.",
-  feedback: { rating: 4, comment: "Staff responded quickly." },
-};
+// For development/testing, use mockComplaint from "@/lib/mockComplaint"
 
 import { useState, useEffect } from "react";
 import { getComplaintApi } from "@/lib/getComplaintApi";
@@ -57,6 +39,8 @@ interface RoleBasedComplaintModalProps {
   onOpenChange: (open: boolean) => void;
   onUpdate?: (complaintId: string, updates: Partial<Complaint>) => void;
   children?: React.ReactNode;
+  // If false, do not fetch from backend; use provided complaint only
+  fetchLatest?: boolean;
 }
 
 export function RoleBasedComplaintModal({
@@ -65,6 +49,7 @@ export function RoleBasedComplaintModal({
   onOpenChange,
   onUpdate,
   children,
+  fetchLatest = true,
 }: RoleBasedComplaintModalProps) {
   // Local state for live backend complaint
   // For development, you can use mockComplaint as the initial value:
@@ -104,6 +89,10 @@ export function RoleBasedComplaintModal({
   useEffect(() => {
     let ignore = false;
     async function fetchComplaint() {
+      if (!fetchLatest) {
+        setLiveComplaint(complaint);
+        return;
+      }
       if (open && complaint?.id) {
         setLoading(true);
         try {
@@ -122,7 +111,7 @@ export function RoleBasedComplaintModal({
     return () => {
       ignore = true;
     };
-  }, [open, complaint]);
+  }, [open, complaint, fetchLatest]);
 
   useEffect(() => {
     if (liveComplaint && liveComplaint.feedback) {
@@ -261,8 +250,7 @@ export function RoleBasedComplaintModal({
   const showViewDetailButton =
     (user.role === "admin" || user.role === "staff") && liveComplaint;
 
-  // Log the complaint object for debugging
-  console.log("RoleBasedComplaintModal liveComplaint:", liveComplaint);
+  // Debug logging removed to reduce console noise in production
 
   // Robust check for assignment: true if assignedStaff is a non-empty string or a non-null object
   const isAssigned = !!(
@@ -714,6 +702,73 @@ export function RoleBasedComplaintModal({
               </Card>
             )}
 
+            {user.role === "dean" && liveComplaint.status === "In Progress" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Dean Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="mb-2">Update Status</Label>
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={liveComplaint.status}
+                      onChange={(e) =>
+                        setLiveComplaint({
+                          ...liveComplaint,
+                          status: e.target.value as Complaint["status"],
+                        })
+                      }
+                    >
+                      <option value="In Progress">In Progress</option>
+                      <option value="Resolved">Resolved</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="mb-2">Note (optional)</Label>
+                    <Textarea
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Add an optional note visible to the user..."
+                      value={liveComplaint.resolutionNote || ""}
+                      onChange={(e) =>
+                        setLiveComplaint({
+                          ...liveComplaint,
+                          resolutionNote: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  </div>
+                  <Button
+                    className="mt-2 w-full"
+                    disabled={isLoading}
+                    onClick={() => {
+                      if (!liveComplaint) return;
+                      setIsLoading(true);
+                      Promise.resolve(
+                        onUpdate?.(liveComplaint.id, {
+                          status: liveComplaint.status,
+                          resolutionNote: liveComplaint.resolutionNote,
+                          lastUpdated: new Date(),
+                        })
+                      )
+                        .then(() => {
+                          toast({
+                            title: "Status updated",
+                            description: `Updated to ${liveComplaint.status}.`,
+                          });
+                        })
+                        .finally(() => setIsLoading(false));
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Admin view: always show status update and resolution note fields */}
             {user.role === "admin" && (
               <Card>
@@ -729,7 +784,7 @@ export function RoleBasedComplaintModal({
                       onChange={(e) =>
                         setLiveComplaint({
                           ...liveComplaint,
-                          status: e.target.value,
+                          status: e.target.value as Complaint["status"],
                         })
                       }
                     >

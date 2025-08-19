@@ -1,5 +1,5 @@
 // For demo/testing: import mockComplaint
-import { mockComplaint as baseMockComplaint } from "@/components/RoleBasedComplaintModal";
+import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

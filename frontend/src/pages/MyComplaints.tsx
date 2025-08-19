@@ -22,7 +22,7 @@ import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
 
 // For demo/testing: import mockComplaint
-import { mockComplaint as baseMockComplaint } from "@/components/RoleBasedComplaintModal";
+import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
 
 const statusColors = {
   Pending: "bg-warning/10 text-warning border-warning/20",
@@ -33,7 +33,7 @@ const statusColors = {
 
 export function MyComplaints() {
   // MOCK DATA ENABLED BY DEFAULT
-  const demoComplaints = Array.from({ length: 6 }).map((_, i) => ({
+  const demoComplaints: Complaint[] = Array.from({ length: 6 }).map((_, i) => ({
     ...baseMockComplaint,
     id: `my-mock${i + 1}`,
     title: [
@@ -52,7 +52,11 @@ export function MyComplaints() {
       "Library computers are extremely slow.",
       "There is a leak in the roof of Dorm 3.",
     ][i],
-    priority: ["High", "Critical", "Medium", "High", "Low", "Medium"][i],
+    priority: ["High", "Critical", "Medium", "High", "Low", "Medium"][i] as
+      | "High"
+      | "Critical"
+      | "Medium"
+      | "Low",
     status: [
       "Pending",
       "In Progress",

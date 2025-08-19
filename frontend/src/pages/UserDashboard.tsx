@@ -1,5 +1,5 @@
 // For demo/testing: import mockComplaint
-import { mockComplaint as baseMockComplaint } from "@/components/RoleBasedComplaintModal";
+import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
 import { useState } from "react";
 import { useComplaints } from "@/context/ComplaintContext";
 import {
@@ -138,7 +138,6 @@ export function UserDashboard() {
     updateComplaint(complaintId, updates);
   };
 
-
   const myComplaints = complaints
     .filter((c) => c.submittedBy === "Current User")
     .map((c) => ({
@@ -262,7 +261,12 @@ export function UserDashboard() {
                 <SelectItem value="Low">Low</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+            <Select
+              value={overdueFilter}
+              onValueChange={(v) =>
+                setOverdueFilter(v as "all" | "overdue" | "notOverdue")
+              }
+            >
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="Overdue" />
               </SelectTrigger>
