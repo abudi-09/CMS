@@ -483,22 +483,6 @@ export function MyAssignedComplaints() {
         </p>
       </div>
 
-      {/* Tabs: filter by status */}
-      <Tabs value={activeTab} onValueChange={onTabChange}>
-        <TabsList className="flex flex-wrap gap-2">
-          <TabsTrigger value="All">
-            All ({myAssignedComplaints.length})
-          </TabsTrigger>
-          <TabsTrigger value="Pending">Pending ({pendingCount})</TabsTrigger>
-          <TabsTrigger value="In Progress">
-            In Progress ({inProgressCount})
-          </TabsTrigger>
-          <TabsTrigger value="Resolved">Resolved ({resolvedCount})</TabsTrigger>
-          <TabsTrigger value="Closed">Closed ({closedCount})</TabsTrigger>
-          <TabsTrigger value="Overdue">Overdue ({overdueCount})</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card
@@ -562,6 +546,30 @@ export function MyAssignedComplaints() {
             <FileText className="h-5 w-5" />
             Assigned Complaints ({filtered.length})
           </CardTitle>
+
+          {/* Tabs: filter by status (below summary cards, inside table header) */}
+          <div className="pt-2">
+            <Tabs value={activeTab} onValueChange={onTabChange}>
+              <TabsList className="flex flex-wrap gap-2">
+                <TabsTrigger value="All">
+                  All ({myAssignedComplaints.length})
+                </TabsTrigger>
+                <TabsTrigger value="Pending">
+                  Pending ({pendingCount})
+                </TabsTrigger>
+                <TabsTrigger value="In Progress">
+                  In Progress ({inProgressCount})
+                </TabsTrigger>
+                <TabsTrigger value="Resolved">
+                  Resolved ({resolvedCount})
+                </TabsTrigger>
+                <TabsTrigger value="Closed">Closed ({closedCount})</TabsTrigger>
+                <TabsTrigger value="Overdue">
+                  Overdue ({overdueCount})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
           {/* Search and Filter Controls */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">

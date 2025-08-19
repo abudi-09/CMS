@@ -20,15 +20,17 @@ import { Search, Filter, Eye, MessageSquare } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // For demo/testing: import mockComplaint
 import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
 
 const statusColors = {
   Pending: "bg-warning/10 text-warning border-warning/20",
-  InProgress: "bg-info/10 text-info border-info/20",
+  "In Progress": "bg-info/10 text-info border-info/20",
   Resolved: "bg-success/10 text-success border-success/20",
   Closed: "bg-muted/10 text-muted-foreground border-muted/20",
+  Overdue: "bg-red-100 text-red-700 border-red-200",
 };
 
 export function MyComplaints() {
@@ -84,7 +86,15 @@ export function MyComplaints() {
     submittedDate: new Date(Date.now() - (i + 1) * 86400000),
     assignedDate: new Date(Date.now() - (i + 1) * 86400000),
     lastUpdated: new Date(Date.now() - i * 43200000),
-    deadline: new Date(Date.now() + (i + 2) * 86400000),
+    deadline: [
+      // Mix deadlines: past = overdue (unless Resolved/Closed), future = not overdue
+      new Date(Date.now() - 2 * 86400000), // 1: Pending -> overdue
+      new Date(Date.now() + 3 * 86400000), // 2: In Progress -> not overdue
+      new Date(Date.now() + 7 * 86400000), // 3: Resolved -> not overdue
+      new Date(Date.now() - 5 * 86400000), // 4: Pending -> overdue
+      new Date(Date.now() - 1 * 86400000), // 5: Closed (past but not overdue due to status)
+      new Date(Date.now() + 1 * 86400000), // 6: Pending -> not overdue
+    ][i],
   }));
   const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
   const [searchTerm, setSearchTerm] = useState("");
@@ -115,6 +125,22 @@ export function MyComplaints() {
     );
   };
 
+  const isOverdue = (c: Complaint) =>
+    !!c.deadline &&
+    new Date() > new Date(c.deadline) &&
+    c.status !== "Resolved" &&
+    c.status !== "Closed";
+
+  // Tab counts
+  const counts = {
+    all: complaints.length,
+    Pending: complaints.filter((c) => c.status === "Pending").length,
+    "In Progress": complaints.filter((c) => c.status === "In Progress").length,
+    Resolved: complaints.filter((c) => c.status === "Resolved").length,
+    Closed: complaints.filter((c) => c.status === "Closed").length,
+    Overdue: complaints.filter((c) => isOverdue(c)).length,
+  } as const;
+
   // Filter complaints based on search, status, and priority
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesSearch =
@@ -123,7 +149,11 @@ export function MyComplaints() {
       complaint.category.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
-      statusFilter === "all" || complaint.status === statusFilter;
+      statusFilter === "all"
+        ? true
+        : statusFilter === "Overdue"
+        ? isOverdue(complaint)
+        : complaint.status === statusFilter;
 
     const matchesPriority =
       priorityFilter === "all" || complaint.priority === priorityFilter;
@@ -213,6 +243,28 @@ export function MyComplaints() {
               ? "All your complaints"
               : `Showing ${filteredComplaints.length} of ${complaints.length} complaints`}
           </CardDescription>
+          <div className="mt-2">
+            <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+              <TabsList className="flex flex-wrap gap-1">
+                <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
+                <TabsTrigger value="Pending">
+                  Pending ({counts["Pending"]})
+                </TabsTrigger>
+                <TabsTrigger value="In Progress">
+                  In Progress ({counts["In Progress"]})
+                </TabsTrigger>
+                <TabsTrigger value="Resolved">
+                  Resolved ({counts["Resolved"]})
+                </TabsTrigger>
+                <TabsTrigger value="Closed">
+                  Closed ({counts["Closed"]})
+                </TabsTrigger>
+                <TabsTrigger value="Overdue">
+                  Overdue ({counts["Overdue"]})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </CardHeader>
         <CardContent>
           {filteredComplaints.length === 0 ? (
@@ -229,12 +281,11 @@ export function MyComplaints() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 font-medium">Title</th>
-                      <th className="text-left p-3 font-medium">Department</th>
+                      <th className="text-left p-3 font-medium">Category</th>
                       <th className="text-left p-3 font-medium">Priority</th>
                       <th className="text-left p-3 font-medium">Status</th>
-                      <th className="text-left p-3 font-medium">
-                        Assigned Staff
-                      </th>
+                      <th className="text-left p-3 font-medium">Overdue</th>
+                      <th className="text-left p-3 font-medium">Assigned To</th>
                       <th className="text-left p-3 font-medium">Date</th>
                       <th className="text-left p-3 font-medium">Actions</th>
                     </tr>
@@ -280,6 +331,20 @@ export function MyComplaints() {
                           >
                             {complaint.status}
                           </Badge>
+                        </td>
+                        <td className="p-3">
+                          {isOverdue(complaint) ? (
+                            <Badge className="text-xs px-2 py-0.5 bg-red-100 text-red-700 border-red-200">
+                              Yes
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-xs px-2 py-0.5 text-muted-foreground"
+                            >
+                              No
+                            </Badge>
+                          )}
                         </td>
                         <td className="p-3">
                           <span className="text-sm">

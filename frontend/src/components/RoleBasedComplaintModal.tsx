@@ -805,6 +805,74 @@ export function RoleBasedComplaintModal({
               </Card>
             )}
 
+            {user.role === "headOfDepartment" &&
+              liveComplaint.status === "In Progress" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>HoD Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="mb-2">Update Status</Label>
+                      <select
+                        className="w-full border rounded px-3 py-2"
+                        value={liveComplaint.status}
+                        onChange={(e) =>
+                          setLiveComplaint({
+                            ...liveComplaint,
+                            status: e.target.value as Complaint["status"],
+                          })
+                        }
+                      >
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Closed">Closed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="mb-2">Note (optional)</Label>
+                      <Textarea
+                        className="w-full border rounded px-3 py-2"
+                        placeholder="Add an optional note visible to the user..."
+                        value={liveComplaint.resolutionNote || ""}
+                        onChange={(e) =>
+                          setLiveComplaint({
+                            ...liveComplaint,
+                            resolutionNote: e.target.value,
+                          })
+                        }
+                        rows={3}
+                      />
+                    </div>
+                    <Button
+                      className="mt-2 w-full"
+                      disabled={isLoading}
+                      onClick={() => {
+                        if (!liveComplaint) return;
+                        setIsLoading(true);
+                        Promise.resolve(
+                          onUpdate?.(liveComplaint.id, {
+                            status: liveComplaint.status,
+                            resolutionNote: liveComplaint.resolutionNote,
+                            lastUpdated: new Date(),
+                          })
+                        )
+                          .then(() => {
+                            toast({
+                              title: "Status updated",
+                              description: `Updated to ${liveComplaint.status}.`,
+                            });
+                          })
+                          .finally(() => setIsLoading(false));
+                      }}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
             {user.role === "dean" && liveComplaint.status === "In Progress" && (
               <Card>
                 <CardHeader>
