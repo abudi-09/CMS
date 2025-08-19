@@ -33,7 +33,7 @@ const mockComplaints: Complaint[] = [
     priority: "High",
     deadline: new Date(now.getTime() - 2 * 86400000), // overdue
     submittedBy: "Student A",
-    assignedStaff: "Staff X",
+    assignedStaff: undefined,
     category: "IT",
     description: "PC in Lab 1 is not booting.",
     submittedDate: new Date(now.getTime() - 3 * 86400000),
@@ -47,7 +47,8 @@ const mockComplaints: Complaint[] = [
     priority: "Medium",
     deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
     submittedBy: "Student B",
-    assignedStaff: "Staff Y",
+    assignedStaff: "Head of Department - Facilities",
+    assignedStaffRole: "headOfDepartment",
     category: "Facilities",
     description: "Projector in Room 204 flickers.",
     submittedDate: new Date(now.getTime() - 2 * 86400000),
@@ -127,6 +128,14 @@ export function DeanDashboard() {
   } as const;
 
   const isOverdue = (c: Complaint) => {
+    // Pending or Unassigned items with no assignee should not be marked overdue
+    if (
+      (c.status === "Pending" || c.status === "Unassigned") &&
+      !c.assignedStaff &&
+      !c.assignedStaffRole
+    ) {
+      return false;
+    }
     if (!c.deadline) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -147,7 +156,7 @@ export function DeanDashboard() {
           ? {
               ...c,
               status: "In Progress",
-              assignedStaff: c.assignedStaff || "Dean",
+              assignedStaff: "Dean",
               assignedStaffRole: "dean",
               lastUpdated: new Date(),
             }
@@ -169,7 +178,6 @@ export function DeanDashboard() {
     { label: "Total Students", value: 120 },
     { label: "Total Departments", value: 4 },
     { label: "Total Complaints", value: 8 },
-    { label: "Overdue Complaints", value: 2 },
     { label: "Resolved Complaints", value: 4 },
   ];
 
@@ -178,7 +186,7 @@ export function DeanDashboard() {
       <div>
         <h1 className="text-3xl font-bold">Dean Dashboard</h1>
         <p className="text-muted-foreground">
-          Manage your department's staff, students, and complaints
+          Manage All department's and complaints
         </p>
       </div>
       {/* Department Summary Cards */}
@@ -285,7 +293,7 @@ export function DeanDashboard() {
               Assign & Reassign
             </CardTitle>
             <CardDescription>
-              {mockComplaints.filter((c) => !c.assignedStaff).length} unassigned
+              {complaints.filter((c) => !c.assignedStaff).length} unassigned
               complaints
             </CardDescription>
           </CardHeader>
@@ -320,7 +328,12 @@ export function DeanDashboard() {
               </TableHeader>
               <TableBody>
                 {complaints
-                  .filter((c) => c.status === "Pending")
+                  .filter(
+                    (c) =>
+                      (c.status === "Pending" || c.status === "Unassigned") &&
+                      !c.assignedStaff &&
+                      !c.assignedStaffRole
+                  )
                   .sort(
                     (a, b) =>
                       new Date(b.submittedDate).getTime() -

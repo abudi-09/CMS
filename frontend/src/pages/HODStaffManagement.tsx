@@ -64,5 +64,7 @@ export default function HODStaffManagement() {
   // For demonstration, we can render a table or pass to StaffManagement
   // If StaffManagement accepts a prop, use: <StaffManagement staff={mockITStaff} />
   // Otherwise, display mock data here
-  return <StaffManagement initialStaff={mockITStaff} />;
+  return (
+    <StaffManagement initialStaff={mockITStaff} showDepartmentColumn={false} />
+  );
 }

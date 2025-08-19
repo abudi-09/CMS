@@ -44,7 +44,7 @@ const statusColors = {
 export function HoDAssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
-  const { getAllStaff } = useAuth();
+  const { getAllStaff, user } = useAuth();
   // Diverse mock complaints for demo/testing
   // At least half of complaints are overdue (deadline in the past)
   const now = new Date();
@@ -71,6 +71,7 @@ export function HoDAssignComplaints() {
       status: "In Progress",
       submittedBy: "Faculty Member",
       assignedStaff: "HR Manager",
+      assignedStaffRole: "staff",
       submittedDate: new Date("2024-02-01"),
       lastUpdated: new Date("2024-02-05"),
       deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
@@ -133,9 +134,10 @@ export function HoDAssignComplaints() {
       description: "",
       category: "Other",
       priority: "Low",
-      status: "Pending",
+      status: "In Progress",
       submittedBy: "Edge Case",
       assignedStaff: "Support",
+      assignedStaffRole: "staff",
       submittedDate: new Date("2024-07-18"),
       lastUpdated: new Date("2024-07-18"),
       deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
@@ -159,9 +161,10 @@ export function HoDAssignComplaints() {
       description: "Mandatory training session for faculty not scheduled.",
       category: "HR",
       priority: "High",
-      status: "Pending",
+      status: "In Progress",
       submittedBy: "HR Dept",
       assignedStaff: "Training Coordinator",
+      assignedStaffRole: "staff",
       submittedDate: new Date("2024-08-01"),
       lastUpdated: new Date("2024-08-03"),
       deadline: new Date(now.getTime() - 4 * 86400000), // overdue
@@ -172,12 +175,41 @@ export function HoDAssignComplaints() {
       description: "Printer in HOD's office is out of service.",
       category: "IT & Technology",
       priority: "Low",
-      status: "Pending",
+      status: "Assigned",
       submittedBy: "Office Staff",
       assignedStaff: "IT Support Team",
+      assignedStaffRole: "staff",
       submittedDate: new Date("2024-08-05"),
       lastUpdated: new Date("2024-08-06"),
       deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
+    },
+    {
+      id: "HOD-011",
+      title: "HoD accepted: Classroom equipment audit",
+      description: "Audit required for classroom equipment inventory.",
+      category: "Academic",
+      priority: "Medium",
+      status: "In Progress",
+      submittedBy: "Dean Office",
+      assignedStaff: "Head of Department - IT",
+      assignedStaffRole: "headOfDepartment",
+      submittedDate: new Date("2024-08-08"),
+      lastUpdated: new Date("2024-08-09"),
+      deadline: new Date(now.getTime() + 6 * 86400000), // not overdue
+    },
+    {
+      id: "HOD-012",
+      title: "HoD accepted: Lab safety compliance",
+      description: "Update lab safety compliance documentation.",
+      category: "Facility",
+      priority: "High",
+      status: "In Progress",
+      submittedBy: "Safety Committee",
+      assignedStaff: "Head of Department - IT",
+      assignedStaffRole: "headOfDepartment",
+      submittedDate: new Date("2024-08-06"),
+      lastUpdated: new Date("2024-08-07"),
+      deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
     },
   ];
   const [complaints, setComplaints] =
@@ -191,7 +223,7 @@ export function HoDAssignComplaints() {
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "Pending" | "Accepted" | "Rejected"
+    "Pending" | "Accepted" | "Assigned" | "Rejected"
   >("Pending");
   const handleAssignClick = (complaint: ComplaintType) => {
     setReassigningRow(complaint.id);
@@ -212,6 +244,7 @@ export function HoDAssignComplaints() {
           ? {
               ...c,
               assignedStaff: staff?.fullName || staff?.name || "Unknown",
+              assignedStaffRole: "staff",
               lastUpdated: new Date(),
               deadline: assigningDeadline
                 ? new Date(assigningDeadline)
@@ -259,7 +292,40 @@ export function HoDAssignComplaints() {
     toast({ title: "Rejected", description: "Complaint rejected and closed." });
   };
 
+  const handleReapprove = (complaintId: string) => {
+    const assignee =
+      (user?.fullName as string) ||
+      (user?.name as string) ||
+      (user?.email as string) ||
+      "Head of Department";
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
+              status: "In Progress",
+              assignedStaff: assignee,
+              assignedStaffRole: "headOfDepartment",
+              lastUpdated: new Date(),
+            }
+          : c
+      )
+    );
+    toast({
+      title: "Re-approved",
+      description: "Complaint moved back to Accepted.",
+    });
+  };
+
   const isOverdue = (complaint: ComplaintType) => {
+    // Pending or Unassigned items with no assignee should not be marked overdue
+    if (
+      (complaint.status === "Pending" || complaint.status === "Unassigned") &&
+      !complaint.assignedStaff &&
+      !complaint.assignedStaffRole
+    ) {
+      return false;
+    }
     if (!complaint.deadline) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -284,15 +350,27 @@ export function HoDAssignComplaints() {
 
   const matchesTab = (c: ComplaintType) => {
     if (activeTab === "Pending")
-      return c.status === "Pending" || c.status === "Unassigned";
+      return (
+        (c.status === "Pending" || c.status === "Unassigned") &&
+        !c.assignedStaffRole &&
+        !c.assignedStaff
+      );
     if (activeTab === "Accepted")
-      return c.status === "In Progress" || c.status === "Assigned";
+      return (
+        c.status === "In Progress" && c.assignedStaffRole === "headOfDepartment"
+      );
+    if (activeTab === "Assigned")
+      return (
+        (c.status === "In Progress" || c.status === "Assigned") &&
+        c.assignedStaffRole === "staff"
+      );
     if (activeTab === "Rejected") return c.status === "Closed";
-    return true;
+    return false;
   };
 
   const filteredComplaints = complaints
     .filter(matchesTab)
+    .filter((c) => c.status !== "Resolved")
     .filter((c) =>
       [c.title, c.category, c.submittedBy]
         .filter(Boolean)
@@ -355,6 +433,50 @@ export function HoDAssignComplaints() {
           </CardContent>
         </Card>
       </div>
+      {/* Search & Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Search & Filter
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4 w-full">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by title, department, or submitter..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full"
+              />
+            </div>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by overdue" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All complaints</SelectItem>
+                <SelectItem value="overdue">Overdue Only</SelectItem>
+                <SelectItem value="notOverdue">Not Overdue Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
       {/* Complaints Table */}
       <Card>
         <CardHeader>
@@ -367,6 +489,7 @@ export function HoDAssignComplaints() {
               <TabsList>
                 <TabsTrigger value="Pending">Pending</TabsTrigger>
                 <TabsTrigger value="Accepted">Accepted</TabsTrigger>
+                <TabsTrigger value="Assigned">Assigned</TabsTrigger>
                 <TabsTrigger value="Rejected">Rejected</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -386,11 +509,12 @@ export function HoDAssignComplaints() {
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assignee</TableHead>
+                  <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {complaints.map((complaint) => (
+                {filteredComplaints.map((complaint) => (
                   <TableRow key={complaint.id}>
                     <TableCell className="font-medium text-sm">
                       {complaint.title}
@@ -430,6 +554,23 @@ export function HoDAssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell>
+                      {isOverdue(complaint) ? (
+                        <Badge
+                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                          variant="outline"
+                        >
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge
+                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                          variant="outline"
+                        >
+                          Not Overdue
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <div className="flex gap-2 items-center flex-wrap">
                         <Button
                           size="sm"
@@ -439,22 +580,63 @@ export function HoDAssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {/* HoD can resolve/reject and assign to staff */}
-                        <Button
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => handleResolve(complaint.id)}
-                        >
-                          Resolve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="text-xs"
-                          onClick={() => handleReject(complaint.id)}
-                        >
-                          Reject
-                        </Button>
+                        {/* HoD can accept to handle, resolve/reject, and assign to staff */}
+                        {(complaint.status === "Pending" ||
+                          complaint.status === "Unassigned") &&
+                          !complaint.assignedStaffRole && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="text-xs"
+                              onClick={() => {
+                                const assignee =
+                                  (user?.fullName as string) ||
+                                  (user?.name as string) ||
+                                  (user?.email as string) ||
+                                  "Head of Department";
+                                setComplaints((prev) =>
+                                  prev.map((c) =>
+                                    c.id === complaint.id
+                                      ? {
+                                          ...c,
+                                          status: "In Progress",
+                                          assignedStaff: assignee,
+                                          assignedStaffRole: "headOfDepartment",
+                                          lastUpdated: new Date(),
+                                        }
+                                      : c
+                                  )
+                                );
+                                toast({
+                                  title: "Accepted",
+                                  description:
+                                    "Complaint set In Progress and assigned to you.",
+                                });
+                              }}
+                            >
+                              Accept
+                            </Button>
+                          )}
+                        {/* Resolve action removed: resolved complaints should not be managed here */}
+                        {activeTab === "Rejected" ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-xs"
+                            onClick={() => handleReapprove(complaint.id)}
+                          >
+                            Re-approve
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="text-xs"
+                            onClick={() => handleReject(complaint.id)}
+                          >
+                            Reject
+                          </Button>
+                        )}
                         {reassigningRow === complaint.id ? (
                           <div className="flex gap-2 items-center">
                             <Select
@@ -467,6 +649,14 @@ export function HoDAssignComplaints() {
                               <SelectContent>
                                 {getAllStaff()
                                   .filter((s) => s.role === "staff")
+                                  .filter((s) => {
+                                    const deptPref = (
+                                      user?.department || "IT"
+                                    ).toLowerCase();
+                                    return (s.department || "")
+                                      .toLowerCase()
+                                      .includes(deptPref);
+                                  })
                                   .map((staff) => (
                                     <SelectItem key={staff.id} value={staff.id}>
                                       {staff.fullName || staff.name}

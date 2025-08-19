@@ -84,10 +84,12 @@ const mockStaff: Staff[] = [
 
 export interface StaffManagementProps {
   initialStaff?: Staff[];
+  showDepartmentColumn?: boolean; // controls visibility of Department column
 }
 
 export default function StaffManagement({
   initialStaff,
+  showDepartmentColumn = true,
 }: StaffManagementProps) {
   const [staff, setStaff] = useState(initialStaff ?? mockStaff);
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,7 +137,7 @@ export default function StaffManagement({
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Position</TableHead>
-            <TableHead>Department</TableHead>
+            {showDepartmentColumn && <TableHead>Department</TableHead>}
             <TableHead>Registration Date</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -145,7 +147,7 @@ export default function StaffManagement({
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={7}
+                colSpan={showDepartmentColumn ? 7 : 6}
                 className="text-center py-8 text-muted-foreground"
               >
                 No staff found
@@ -157,7 +159,7 @@ export default function StaffManagement({
                 <TableCell>{s.name}</TableCell>
                 <TableCell>{s.email}</TableCell>
                 <TableCell>{s.position}</TableCell>
-                <TableCell>{s.department}</TableCell>
+                {showDepartmentColumn && <TableCell>{s.department}</TableCell>}
                 <TableCell>{s.registeredDate.toLocaleDateString()}</TableCell>
                 <TableCell>
                   <Badge

@@ -180,6 +180,42 @@ export function HoDDashboard() {
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorities = ["Critical", "High", "Medium", "Low"];
 
+  // Overdue helper: unassigned Pending/Unassigned should not be marked overdue
+  const isOverdue = (complaint: Complaint) => {
+    if (
+      (complaint.status === "Pending" || complaint.status === "Unassigned") &&
+      !complaint.assignedStaff &&
+      !complaint.assignedStaffRole
+    ) {
+      return false;
+    }
+    if (!complaint.deadline) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(complaint.deadline);
+    deadline.setHours(0, 0, 0, 0);
+    return (
+      deadline < today &&
+      complaint.status !== "Closed" &&
+      complaint.status !== "Resolved"
+    );
+  };
+
+  // Recently Pending list: like HoD Pending tab (unassigned only)
+  const recentPendingComplaints = complaints
+    .filter(
+      (c) =>
+        (c.status === "Pending" || c.status === "Unassigned") &&
+        !c.assignedStaff &&
+        !c.assignedStaffRole
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.submittedDate).getTime() -
+        new Date(a.submittedDate).getTime()
+    )
+    .slice(0, 3);
+
   return (
     <div className="space-y-8">
       <div>
@@ -221,7 +257,7 @@ export function HoDDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => navigate("/staff-management")}
+                onClick={() => navigate("/hod/staff-management")}
                 className="text-orange-700 border-orange-300 hover:bg-orange-100"
               >
                 Review Applications
@@ -236,7 +272,7 @@ export function HoDDashboard() {
         {/* ...existing quick action cards... */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/staff-management")}
+          onClick={() => navigate("/hod/staff-management")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -277,7 +313,7 @@ export function HoDDashboard() {
 
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/assign")}
+          onClick={() => navigate("/hod/assign-complaints")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -300,12 +336,14 @@ export function HoDDashboard() {
       {/* Complaint Search and Filters */}
 
       <ComplaintTable
-        complaints={sortedComplaints.slice(0, 3)}
+        complaints={recentPendingComplaints}
         onView={handleViewComplaint}
         onStatusUpdate={handleStatusUpdate}
         userRole="headOfDepartment"
-        title="Recent Complaints"
+        title="Recently Pending Complaints"
         priorityFilter={priorityFilter}
+        showOverdueColumn={true}
+        isOverdueFn={isOverdue}
         actionLabel="View Detail"
       />
 
