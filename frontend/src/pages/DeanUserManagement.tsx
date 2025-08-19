@@ -257,8 +257,87 @@ export default function DeanUserManagement() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Mobile: cards */}
+          <div className="lg:hidden space-y-3">
+            {filteredStudents.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                No students found
+              </div>
+            ) : (
+              filteredStudents.map((s) => (
+                <div key={s.id} className="border rounded-lg p-4 bg-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-base">{s.name}</p>
+                      <p className="text-xs text-muted-foreground break-all">
+                        {s.email}
+                      </p>
+                    </div>
+                    <Badge
+                      className={
+                        s.status === "Active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-200 text-gray-600"
+                      }
+                    >
+                      {s.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Joined</p>
+                      <p className="font-medium">
+                        {s.joinedDate.toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Complaints</p>
+                      <p className="font-medium">{s.complaintsCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Last Activity</p>
+                      <p className="font-medium">
+                        {s.lastActivity.toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                    {s.status === "Active" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeactivate(s.id, s.name)}
+                        className="w-full hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
+                      >
+                        <UserX className="h-4 w-4 mr-1" /> Deactivate
+                      </Button>
+                    )}
+                    {s.status === "Inactive" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleActivate(s.id, s.name)}
+                        className="w-full hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
+                      >
+                        <UserCheck className="h-4 w-4 mr-1" /> Activate
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openPromoteModal(s.id, s.name)}
+                      className="w-full hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    >
+                      <UserPlus className="h-4 w-4 mr-1" /> Promote
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
           {/* Desktop Table */}
-          <div className="hidden lg:block rounded-md border overflow-x-auto">
+          <div className="hidden md:block rounded-md border overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b">

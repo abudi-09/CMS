@@ -190,7 +190,7 @@ export function DeanDashboard() {
         </p>
       </div>
       {/* Department Summary Cards */}
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summaryData.map((card) => (
           <Card key={card.label}>
             <CardHeader>
@@ -239,7 +239,7 @@ export function DeanDashboard() {
         </Card>
       )}
       {/* Quick Actions - should be above the table */}
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => navigate("/department-management")}
@@ -332,17 +332,32 @@ export function DeanDashboard() {
                 <Card key={complaint.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-1">
-                      <div className="text-xs text-muted-foreground">#{complaint.id}</div>
-                      <div className="font-medium text-sm">{complaint.title}</div>
-                      <div className="text-xs text-muted-foreground">Category: {complaint.category}</div>
+                      <div className="text-xs text-muted-foreground">
+                        #{complaint.id}
+                      </div>
+                      <div className="font-medium text-sm">
+                        {complaint.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Category: {complaint.category}
+                      </div>
                       {complaint.deadline && (
                         <div className="text-xs text-muted-foreground">
-                          Deadline: {new Date(complaint.deadline).toLocaleDateString()}
+                          Deadline:{" "}
+                          {new Date(complaint.deadline).toLocaleDateString()}
                         </div>
                       )}
                       <div className="flex items-center gap-2 pt-1">
-                        <Badge className={`text-xs ${statusColors[complaint.status as keyof typeof statusColors]}`}>
-                          {complaint.status === "Unassigned" ? "Pending" : complaint.status}
+                        <Badge
+                          className={`text-xs ${
+                            statusColors[
+                              complaint.status as keyof typeof statusColors
+                            ]
+                          }`}
+                        >
+                          {complaint.status === "Unassigned"
+                            ? "Pending"
+                            : complaint.status}
                         </Badge>
                         <Badge
                           className={
@@ -360,30 +375,53 @@ export function DeanDashboard() {
                           {complaint.priority || "Medium"}
                         </Badge>
                         {isOverdue(complaint) ? (
-                          <Badge className="text-xs bg-red-100 text-red-800 border-red-200" variant="outline">
+                          <Badge
+                            className="text-xs bg-red-100 text-red-800 border-red-200"
+                            variant="outline"
+                          >
                             Overdue
                           </Badge>
                         ) : (
-                          <Badge className="text-xs bg-green-100 text-green-800 border-green-200" variant="outline">
+                          <Badge
+                            className="text-xs bg-green-100 text-green-800 border-green-200"
+                            variant="outline"
+                          >
                             On Time
                           </Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Assignee: <span className="font-medium">Not Yet Assigned</span>
+                        Assignee:{" "}
+                        <span className="font-medium">Not Yet Assigned</span>
                       </div>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="outline" className="col-span-2" onClick={() => handleViewComplaint(complaint)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="col-span-2"
+                      onClick={() => handleViewComplaint(complaint)}
+                    >
                       View Detail
                     </Button>
-                    {(complaint.status === "Pending" || complaint.status === "Unassigned") && (
-                      <Button size="sm" variant="secondary" onClick={() => handleAccept(complaint.id)} className="w-full">
+                    {(complaint.status === "Pending" ||
+                      complaint.status === "Unassigned") && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleAccept(complaint.id)}
+                        className="w-full"
+                      >
                         Accept
                       </Button>
                     )}
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(complaint.id)} className="w-full">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleReject(complaint.id)}
+                      className="w-full"
+                    >
                       Reject
                     </Button>
                   </div>

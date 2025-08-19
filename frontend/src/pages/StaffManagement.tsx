@@ -134,7 +134,9 @@ export default function StaffManagement({
       {/* Mobile Cards */}
       <div className="md:hidden space-y-3">
         {data.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">No staff found</div>
+          <div className="text-center py-6 text-muted-foreground">
+            No staff found
+          </div>
         ) : (
           data.map((s) => (
             <Card key={s.id} className="p-4">
@@ -143,10 +145,16 @@ export default function StaffManagement({
                   <div className="text-sm font-semibold">{s.name}</div>
                   <div className="text-xs text-muted-foreground">{s.email}</div>
                   {showDepartmentColumn && (
-                    <div className="text-xs text-muted-foreground">Dept: {s.department}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Dept: {s.department}
+                    </div>
                   )}
-                  <div className="text-xs text-muted-foreground">Position: {s.position}</div>
-                  <div className="text-xs text-muted-foreground">Registered: {s.registeredDate.toLocaleDateString()}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Position: {s.position}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Registered: {s.registeredDate.toLocaleDateString()}
+                  </div>
                 </div>
                 <Badge
                   className={
@@ -171,53 +179,55 @@ export default function StaffManagement({
       {/* Desktop Table */}
       <div className="hidden md:block rounded-md border overflow-x-auto">
         <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Position</TableHead>
-            {showDepartmentColumn && <TableHead>Department</TableHead>}
-            <TableHead>Registration Date</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.length === 0 ? (
+          <TableHeader>
             <TableRow>
-              <TableCell
-                colSpan={showDepartmentColumn ? 7 : 6}
-                className="text-center py-8 text-muted-foreground"
-              >
-                No staff found
-              </TableCell>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Position</TableHead>
+              {showDepartmentColumn && <TableHead>Department</TableHead>}
+              <TableHead>Registration Date</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
-          ) : (
-            data.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell>{s.name}</TableCell>
-                <TableCell>{s.email}</TableCell>
-                <TableCell>{s.position}</TableCell>
-                {showDepartmentColumn && <TableCell>{s.department}</TableCell>}
-                <TableCell>{s.registeredDate.toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <Badge
-                    className={
-                      s.status === "approved"
-                        ? "bg-green-100 text-green-800"
-                        : s.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                    }
-                  >
-                    {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
-                  </Badge>
+          </TableHeader>
+          <TableBody>
+            {data.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={showDepartmentColumn ? 7 : 6}
+                  className="text-center py-8 text-muted-foreground"
+                >
+                  No staff found
                 </TableCell>
-                <TableCell className="text-right">{actions(s)}</TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
+            ) : (
+              data.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>{s.name}</TableCell>
+                  <TableCell>{s.email}</TableCell>
+                  <TableCell>{s.position}</TableCell>
+                  {showDepartmentColumn && (
+                    <TableCell>{s.department}</TableCell>
+                  )}
+                  <TableCell>{s.registeredDate.toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        s.status === "approved"
+                          ? "bg-green-100 text-green-800"
+                          : s.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }
+                    >
+                      {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{actions(s)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
         </Table>
       </div>
     </div>

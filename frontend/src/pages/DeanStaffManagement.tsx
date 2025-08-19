@@ -169,7 +169,9 @@ export default function DeanStaffManagement() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-medium text-base">{s.name}</p>
-                  <p className="text-xs text-muted-foreground break-all">{s.email}</p>
+                  <p className="text-xs text-muted-foreground break-all">
+                    {s.email}
+                  </p>
                 </div>
                 <Badge
                   className={
@@ -190,7 +192,9 @@ export default function DeanStaffManagement() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Registered</p>
-                  <p className="font-medium">{s.registeredDate.toLocaleDateString()}</p>
+                  <p className="font-medium">
+                    {s.registeredDate.toLocaleDateString()}
+                  </p>
                 </div>
               </div>
               <div className="mt-4 flex flex-col sm:flex-row gap-2">

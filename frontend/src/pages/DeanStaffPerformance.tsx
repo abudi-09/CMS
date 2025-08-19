@@ -148,66 +148,142 @@ export default function DeanStaffPerformance() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Work Place</TableHead>
-                <TableHead>Assigned</TableHead>
-                <TableHead>Resolved</TableHead>
-                <TableHead>Pending</TableHead>
-                <TableHead>In Progress</TableHead>
-                <TableHead>Success Rate</TableHead>
-                <TableHead>Avg. Rating</TableHead>
-                <TableHead>Avg. Resolution Time (hrs)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedStaff.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={11}
-                    className="text-center py-8 text-muted-foreground"
-                  >
-                    No staff found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedStaff.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar>
-                          <AvatarImage src={s.profilePicture} />
-                          <AvatarFallback>{s.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <span>{s.name}</span>
+          {/* Mobile: cards */}
+          <div className="md:hidden space-y-3">
+            {sortedStaff.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                No staff found
+              </div>
+            ) : (
+              sortedStaff.map((s) => (
+                <div key={s.id} className="border rounded-lg p-4 bg-card">
+                  <div className="flex items-start gap-3">
+                    <Avatar>
+                      <AvatarImage src={s.profilePicture} />
+                      <AvatarFallback>{s.name[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-base">{s.name}</p>
+                          <p className="text-xs text-muted-foreground break-all">
+                            {s.email}
+                          </p>
+                        </div>
+                        <Badge className="bg-green-100 text-green-800">
+                          {s.successRate}%
+                        </Badge>
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {s.department} • {s.workPlace}
+                      </p>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <p className="text-lg font-bold text-primary">
+                            {s.totalAssigned}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Assigned
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-success">
+                            {s.resolved}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Resolved
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-destructive">
+                            {s.pending}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Pending
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-sm">
+                        <span className="flex items-center">
+                          <Star className="h-4 w-4 text-yellow-500 mr-1" />
+                          {s.averageRating}
+                        </span>
+                        <span>
+                          In Progress:{" "}
+                          <span className="font-medium">{s.inProgress}</span>
+                        </span>
+                        <span>{s.avgResolutionTime}h</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Work Place</TableHead>
+                  <TableHead>Assigned</TableHead>
+                  <TableHead>Resolved</TableHead>
+                  <TableHead>Pending</TableHead>
+                  <TableHead>In Progress</TableHead>
+                  <TableHead>Success Rate</TableHead>
+                  <TableHead>Avg. Rating</TableHead>
+                  <TableHead>Avg. Resolution Time (hrs)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedStaff.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={11}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      No staff found
                     </TableCell>
-                    <TableCell>{s.email}</TableCell>
-                    <TableCell>{s.department}</TableCell>
-                    <TableCell>{s.workPlace}</TableCell>
-                    <TableCell>{s.totalAssigned}</TableCell>
-                    <TableCell>{s.resolved}</TableCell>
-                    <TableCell>{s.pending}</TableCell>
-                    <TableCell>{s.inProgress}</TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-100 text-green-800">
-                        {s.successRate}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Star className="inline-block h-4 w-4 text-yellow-500 mr-1" />
-                      {s.averageRating}
-                    </TableCell>
-                    <TableCell>{s.avgResolutionTime}</TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  sortedStaff.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar>
+                            <AvatarImage src={s.profilePicture} />
+                            <AvatarFallback>{s.name[0]}</AvatarFallback>
+                          </Avatar>
+                          <span>{s.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{s.email}</TableCell>
+                      <TableCell>{s.department}</TableCell>
+                      <TableCell>{s.workPlace}</TableCell>
+                      <TableCell>{s.totalAssigned}</TableCell>
+                      <TableCell>{s.resolved}</TableCell>
+                      <TableCell>{s.pending}</TableCell>
+                      <TableCell>{s.inProgress}</TableCell>
+                      <TableCell>
+                        <Badge className="bg-green-100 text-green-800">
+                          {s.successRate}%
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Star className="inline-block h-4 w-4 text-yellow-500 mr-1" />
+                        {s.averageRating}
+                      </TableCell>
+                      <TableCell>{s.avgResolutionTime}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

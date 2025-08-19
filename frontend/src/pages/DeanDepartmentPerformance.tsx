@@ -449,7 +449,69 @@ export default function DeanDepartmentPerformance() {
           <CardTitle>Performance Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Mobile: cards per department */}
+          <div className="md:hidden space-y-3">
+            {sorted.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                No data
+              </div>
+            ) : (
+              sorted.map((d) => (
+                <div
+                  key={d.department}
+                  className="border rounded-lg p-4 bg-card cursor-pointer hover:bg-accent/50"
+                  onClick={() =>
+                    setSelectedDept(d.department as DepartmentName)
+                  }
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-base">{d.department}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Success Rate
+                      </p>
+                    </div>
+                    <Badge
+                      className={
+                        d.successRate >= 80
+                          ? "bg-green-100 text-green-800"
+                          : d.successRate >= 50
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }
+                    >
+                      {d.successRate}%
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Total Assigned</p>
+                      <p className="font-medium">{d.total}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Resolved by HoD</p>
+                      <p className="font-medium">{d.resolvedHoD}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Resolved by Staff</p>
+                      <p className="font-medium">{d.resolvedStaff}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">In Progress</p>
+                      <p className="font-medium">{d.inProgress}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Overdue</p>
+                      <p className="font-medium">{d.overdue}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

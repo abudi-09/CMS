@@ -521,28 +521,51 @@ export function HoDAssignComplaints() {
                 <Card key={complaint.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-1">
-                      <div className="text-xs text-muted-foreground">#{complaint.id}</div>
-                      <div className="font-medium text-sm">{complaint.title}</div>
-                      <div className="text-xs text-muted-foreground">Category: {complaint.category}</div>
+                      <div className="text-xs text-muted-foreground">
+                        #{complaint.id}
+                      </div>
+                      <div className="font-medium text-sm">
+                        {complaint.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Category: {complaint.category}
+                      </div>
                       <div className="flex items-center gap-2 pt-1">
-                        <Badge className={`text-xs ${statusColors[complaint.status as keyof typeof statusColors]}`}>
+                        <Badge
+                          className={`text-xs ${
+                            statusColors[
+                              complaint.status as keyof typeof statusColors
+                            ]
+                          }`}
+                        >
                           {complaint.status}
                         </Badge>
-                        <Badge className={`${priorityColors[complaint.priority || "Medium"]} text-xs`}>
+                        <Badge
+                          className={`${
+                            priorityColors[complaint.priority || "Medium"]
+                          } text-xs`}
+                        >
                           {complaint.priority || "Medium"}
                         </Badge>
                         {isOverdue(complaint) ? (
-                          <Badge className="text-xs bg-red-100 text-red-800 border-red-200" variant="outline">
+                          <Badge
+                            className="text-xs bg-red-100 text-red-800 border-red-200"
+                            variant="outline"
+                          >
                             Overdue
                           </Badge>
                         ) : (
-                          <Badge className="text-xs bg-green-100 text-green-800 border-green-200" variant="outline">
+                          <Badge
+                            className="text-xs bg-green-100 text-green-800 border-green-200"
+                            variant="outline"
+                          >
                             On Time
                           </Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Assignee: {complaint.assignedStaff || "Not Yet Assigned"}
+                        Assignee:{" "}
+                        {complaint.assignedStaff || "Not Yet Assigned"}
                       </div>
                     </div>
                   </div>
@@ -555,31 +578,55 @@ export function HoDAssignComplaints() {
                     >
                       View Detail
                     </Button>
-                    {(complaint.status === "Pending" || complaint.status === "Unassigned") && !complaint.assignedStaffRole && (
+                    {(complaint.status === "Pending" ||
+                      complaint.status === "Unassigned") &&
+                      !complaint.assignedStaffRole && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            const assignee =
+                              (user?.fullName as string) ||
+                              (user?.name as string) ||
+                              (user?.email as string) ||
+                              "Head of Department";
+                            setComplaints((prev) =>
+                              prev.map((c) =>
+                                c.id === complaint.id
+                                  ? {
+                                      ...c,
+                                      status: "In Progress",
+                                      assignedStaff: assignee,
+                                      assignedStaffRole: "headOfDepartment",
+                                      lastUpdated: new Date(),
+                                    }
+                                  : c
+                              )
+                            );
+                            toast({
+                              title: "Accepted",
+                              description:
+                                "Complaint set In Progress and assigned to you.",
+                            });
+                          }}
+                        >
+                          Accept
+                        </Button>
+                      )}
+                    {activeTab === "Rejected" ? (
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => {
-                          const assignee = (user?.fullName as string) || (user?.name as string) || (user?.email as string) || "Head of Department";
-                          setComplaints((prev) =>
-                            prev.map((c) =>
-                              c.id === complaint.id
-                                ? { ...c, status: "In Progress", assignedStaff: assignee, assignedStaffRole: "headOfDepartment", lastUpdated: new Date() }
-                                : c
-                            )
-                          );
-                          toast({ title: "Accepted", description: "Complaint set In Progress and assigned to you." });
-                        }}
+                        onClick={() => handleReapprove(complaint.id)}
                       >
-                        Accept
-                      </Button>
-                    )}
-                    {activeTab === "Rejected" ? (
-                      <Button size="sm" variant="secondary" onClick={() => handleReapprove(complaint.id)}>
                         Re-approve
                       </Button>
                     ) : (
-                      <Button size="sm" variant="destructive" onClick={() => handleReject(complaint.id)}>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleReject(complaint.id)}
+                      >
                         Reject
                       </Button>
                     )}
