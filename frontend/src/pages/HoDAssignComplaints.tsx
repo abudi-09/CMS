@@ -31,6 +31,15 @@ import { toast } from "@/hooks/use-toast";
 import { useState as useReactState } from "react";
 import { Complaint as ComplaintType } from "@/components/ComplaintCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 // Use ComplaintType for all references to Complaint
 
 const statusColors = {
@@ -213,6 +222,19 @@ export function HoDAssignComplaints() {
       submittedDate: new Date("2024-08-06"),
       lastUpdated: new Date("2024-08-07"),
       deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
+    },
+    {
+      id: "HOD-013",
+      title: "Extra pending item to show pagination",
+      description: "Additional item so Pending tab has >5 entries.",
+      category: "General",
+      priority: "Medium",
+      status: "Pending",
+      submittedBy: "QA Tester",
+      assignedStaff: undefined,
+      submittedDate: new Date("2024-08-10"),
+      lastUpdated: new Date("2024-08-10"),
+      deadline: new Date(now.getTime() + 4 * 86400000),
     },
   ];
   const [complaints, setComplaints] =
@@ -409,10 +431,8 @@ export function HoDAssignComplaints() {
     );
 
   // Pagination calculations
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredComplaints.length / pageSize)
-  );
+  const totalItems = filteredComplaints.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const startIndex = (page - 1) * pageSize;
   const paginatedComplaints = filteredComplaints.slice(
     startIndex,
@@ -428,15 +448,15 @@ export function HoDAssignComplaints() {
     if (page > newTotal) setPage(newTotal);
   }, [filteredComplaints.length, page]);
 
-  const getPageNumbers = (tp: number, current: number): (number | "...")[] => {
-    if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1);
-    const pages: (number | "...")[] = [1];
-    const left = Math.max(2, current - 1);
-    const right = Math.min(tp - 1, current + 1);
-    if (left > 2) pages.push("...");
-    for (let i = left; i <= right; i++) pages.push(i);
-    if (right < tp - 1) pages.push("...");
-    pages.push(tp);
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
     return pages;
   };
 
@@ -897,44 +917,88 @@ export function HoDAssignComplaints() {
             </Table>
           </div>
         </CardContent>
-        {/* Pagination controls */}
-        <div className="flex items-center justify-between px-6 pb-4 pt-1">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-          >
-            Previous
-          </Button>
-          <div className="hidden sm:flex items-center gap-1">
-            {getPageNumbers(totalPages, page).map((p, idx) =>
-              p === "..." ? (
-                <span key={idx} className="px-2 text-sm text-muted-foreground">
-                  ...
-                </span>
-              ) : (
-                <Button
-                  key={p as number}
-                  size="sm"
-                  variant={p === page ? "default" : "outline"}
-                  onClick={() => setPage(p as number)}
-                >
-                  {p}
-                </Button>
-              )
-            )}
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages || filteredComplaints.length === 0}
-          >
-            Next
-          </Button>
-        </div>
       </Card>
+      {/* Pagination Controls - aligned with AllComplaints */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p} className="hidden sm:list-item">
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
       {/* Role-based Complaint Modal for View Detail */}
       {selectedComplaint && (
         <RoleBasedComplaintModal

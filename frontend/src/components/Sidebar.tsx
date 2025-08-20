@@ -106,7 +106,7 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Staff Performance",
       href: "/hod-staff-performance",
     },
-    { icon: Users, label: "User Management", href: "/dean-user-management" },
+    { icon: Users, label: "User Management", href: "/user-management" },
     { icon: Users, label: "Staff Management", href: "/hod/staff-management" },
     { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,15 @@ import {
 } from "@/components/ui/table";
 import { UserCheck, UserX, Clock, Users, Mail, Building } from "lucide-react";
 import { StaffStatus } from "@/components/auth/AuthContext";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 type Staff = {
   id: string;
@@ -94,6 +103,12 @@ export default function StaffManagement({
   const [staff, setStaff] = useState(initialStaff ?? mockStaff);
   const [searchTerm, setSearchTerm] = useState("");
   const [tab, setTab] = useState("approved");
+  // Pagination per tab
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, tab]);
 
   const filteredStaff = staff.filter(
     (s) =>
@@ -106,6 +121,30 @@ export default function StaffManagement({
   const approvedStaff = filteredStaff.filter((s) => s.status === "approved");
   const pendingStaff = filteredStaff.filter((s) => s.status === "pending");
   const rejectedStaff = filteredStaff.filter((s) => s.status === "rejected");
+
+  // Select active dataset
+  const activeData = useMemo(() => {
+    if (tab === "pending") return pendingStaff;
+    if (tab === "rejected") return rejectedStaff;
+    return approvedStaff;
+  }, [tab, approvedStaff, pendingStaff, rejectedStaff]);
+
+  // Pagination helpers
+  const totalItems = activeData.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedActive = activeData.slice(startIndex, startIndex + pageSize);
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
 
   const handleApprove = (id: string) => {
     setStaff((prev) =>
@@ -133,12 +172,12 @@ export default function StaffManagement({
     <div>
       {/* Mobile Cards */}
       <div className="md:hidden space-y-3">
-        {data.length === 0 ? (
+        {data.slice(startIndex, startIndex + pageSize).length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             No staff found
           </div>
         ) : (
-          data.map((s) => (
+          data.slice(startIndex, startIndex + pageSize).map((s) => (
             <Card key={s.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
@@ -191,7 +230,7 @@ export default function StaffManagement({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
+            {data.slice(startIndex, startIndex + pageSize).length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={showDepartmentColumn ? 7 : 6}
@@ -201,7 +240,7 @@ export default function StaffManagement({
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((s) => (
+              data.slice(startIndex, startIndex + pageSize).map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>{s.name}</TableCell>
                   <TableCell>{s.email}</TableCell>
@@ -318,6 +357,88 @@ export default function StaffManagement({
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p} className="hidden sm:list-item">
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }

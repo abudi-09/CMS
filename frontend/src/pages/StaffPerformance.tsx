@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,15 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface StaffMember {
   id: string;
@@ -168,6 +177,8 @@ export default function StaffPerformance() {
   const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("successRate");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
 
   const departments = Array.from(
     new Set(staffMembers.map((s) => s.department))
@@ -207,6 +218,31 @@ export default function StaffPerformance() {
           return 0;
       }
     });
+
+  // Reset page when filters, sorting, or view changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, departmentFilter, ratingFilter, sortBy, viewMode]);
+
+  // Pagination helpers for table view
+  const totalItems = filteredAndSortedStaff.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedStaff = useMemo(
+    () => filteredAndSortedStaff.slice(startIndex, startIndex + pageSize),
+    [filteredAndSortedStaff, startIndex]
+  );
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
 
   const getSuccessRateColor = (rate: number) => {
     if (rate >= 90) return "text-success";
@@ -503,7 +539,7 @@ export default function StaffPerformance() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSortedStaff.map((staff) => (
+                  {pagedStaff.map((staff) => (
                     <TableRow key={staff.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -566,6 +602,87 @@ export default function StaffPerformance() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {viewMode === "table" && totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p} className="hidden sm:list-item">
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       )}
 
       {filteredAndSortedStaff.length === 0 && (
