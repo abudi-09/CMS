@@ -130,7 +130,13 @@ export function ComplaintTable({
     }
     return "Assigned";
   };
-  const complaintsData = userRole === "user" ? mockComplaints : complaints;
+  // Prefer provided complaints; if none provided and role is user, fall back to mock for demo
+  const complaintsData =
+    complaints && complaints.length > 0
+      ? complaints
+      : userRole === "user"
+      ? mockComplaints
+      : [];
   const categories = Array.from(new Set(complaintsData.map((c) => c.category)));
   const allowedStatuses = ["Pending", "In Progress", "Resolved", "Closed"];
   const showAssignedStaff = showAssignedStaffColumn;

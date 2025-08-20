@@ -293,7 +293,7 @@ export function AdminDashboard() {
               </PaginationItem>
               {getVisiblePages()[0] !== 1 && (
                 <>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationLink
                       href="#"
                       onClick={(e) => {
@@ -304,13 +304,13 @@ export function AdminDashboard() {
                       1
                     </PaginationLink>
                   </PaginationItem>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationEllipsis />
                   </PaginationItem>
                 </>
               )}
               {getVisiblePages().map((p) => (
-                <PaginationItem key={p}>
+                <PaginationItem key={p} className="hidden sm:list-item">
                   <PaginationLink
                     href="#"
                     isActive={p === page}
@@ -325,10 +325,10 @@ export function AdminDashboard() {
               ))}
               {getVisiblePages().slice(-1)[0] !== totalPages && (
                 <>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationEllipsis />
                   </PaginationItem>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationLink
                       href="#"
                       onClick={(e) => {

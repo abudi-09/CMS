@@ -34,6 +34,15 @@ import {
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Removed useComplaints to avoid requiring ComplaintProvider for this page's local mock state
 import { useAuth } from "@/components/auth/AuthContext";
@@ -158,6 +167,9 @@ export function MyAssignedComplaints() {
   const [quickFilter, setQuickFilter] = useState<
     "recent" | "inprogress" | "resolvedThisMonth" | "overdue" | null
   >(null);
+  // Pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
   // Tabs state and handler
   type TabKey =
     | "All"
@@ -240,6 +252,7 @@ export function MyAssignedComplaints() {
 
   // Filter complaints based on search, status, priority, and overdue
   const [filtered, setFiltered] = useState(myAssignedComplaints);
+  const totalPages = Math.ceil(filtered.length / pageSize);
   // Helper sorts
   const sortByAssignedDateDesc = (items: Complaint[]) => {
     return [...items].sort((a, b) => {
@@ -320,6 +333,8 @@ export function MyAssignedComplaints() {
         : sortByAssignedDateDesc(base);
 
     setFiltered(sorted);
+    // reset to first page when filters/sorts change
+    setPage(1);
   }, [
     myAssignedComplaints,
     searchTerm,
@@ -681,7 +696,7 @@ export function MyAssignedComplaints() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={10}
                       className="text-center py-8 text-muted-foreground"
                     >
                       {searchTerm ||
@@ -692,94 +707,97 @@ export function MyAssignedComplaints() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((complaint) => (
-                    <TableRow
-                      key={complaint.id}
-                      className="hover:bg-muted/50 dark:hover:bg-accent/10"
-                    >
-                      <TableCell className="max-w-xs">
-                        <div className="font-medium truncate">
-                          {complaint.title}
-                          {isNew(complaint) && (
+                  filtered
+                    .slice((page - 1) * pageSize, page * pageSize)
+                    .map((complaint) => (
+                      <TableRow
+                        key={complaint.id}
+                        className="hover:bg-muted/50 dark:hover:bg-accent/10"
+                      >
+                        <TableCell className="max-w-xs">
+                          <div className="font-medium truncate flex items-center gap-2">
+                            <span className="truncate">{complaint.title}</span>
+                            {isNew(complaint) && (
+                              <Badge
+                                className="ml-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 text-[10px]"
+                                variant="outline"
+                              >
+                                NEW
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {complaint.description.substring(0, 60)}...
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">
+                            {complaint.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`text-xs ${
+                              priorityColors[
+                                complaint.priority as keyof typeof priorityColors
+                              ]
+                            }`}
+                            variant="outline"
+                          >
+                            {complaint.priority}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium text-sm">
+                              {complaint.submittedBy}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`text-xs ${
+                              statusColors[complaint.status]
+                            }`}
+                            variant="outline"
+                          >
+                            {complaint.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {isOverdue(complaint) ? (
                             <Badge
-                              className="ml-2 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 text-[10px]"
+                              className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
                               variant="outline"
                             >
-                              NEW
+                              Overdue
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                              variant="outline"
+                            >
+                              Not Overdue
                             </Badge>
                           )}
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {complaint.description.substring(0, 60)}...
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">
-                          {complaint.category}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`text-xs ${
-                            priorityColors[
-                              complaint.priority as keyof typeof priorityColors
-                            ]
-                          }`}
-                          variant="outline"
-                        >
-                          {complaint.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium text-sm">
-                            {complaint.submittedBy}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`text-xs ${
-                            statusColors[complaint.status]
-                          }`}
-                          variant="outline"
-                        >
-                          {complaint.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {isOverdue(complaint) ? (
-                          <Badge
-                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
-                            variant="outline"
-                          >
-                            Overdue
-                          </Badge>
-                        ) : (
-                          <Badge
-                            className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
-                            variant="outline"
-                          >
-                            Not Overdue
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {(
-                          complaint.assignedDate || complaint.submittedDate
-                        ).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {complaint.deadline
-                          ? complaint.deadline.toLocaleDateString()
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {complaint.lastUpdated.toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
+                        </TableCell>
+                        <TableCell>
+                          {(
+                            complaint.assignedDate || complaint.submittedDate
+                          ).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          {complaint.deadline
+                            ? complaint.deadline.toLocaleDateString()
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {complaint.lastUpdated
+                            ? complaint.lastUpdated.toLocaleDateString()
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
                           <Button
                             variant="outline"
                             size="sm"
@@ -789,10 +807,9 @@ export function MyAssignedComplaints() {
                             <Eye className="h-4 w-4 mr-1" />
                             View & Update
                           </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                      </TableRow>
+                    ))
                 )}
               </TableBody>
             </Table>
@@ -809,133 +826,240 @@ export function MyAssignedComplaints() {
                   : "No complaints assigned to you yet"}
               </div>
             ) : (
-              filtered.map((complaint) => (
-                <Card key={complaint.id} className="p-4 shadow-md rounded-2xl">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-sm">
-                          {complaint.title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          #{complaint.id}
+              filtered
+                .slice((page - 1) * pageSize, page * pageSize)
+                .map((complaint) => (
+                  <Card
+                    key={complaint.id}
+                    className="p-4 shadow-md rounded-2xl"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-sm">
+                            {complaint.title}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            #{complaint.id}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 ml-2">
+                          {isNew(complaint) && (
+                            <Badge
+                              className="text-xs bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"
+                              variant="outline"
+                            >
+                              NEW
+                            </Badge>
+                          )}
+                          <Badge
+                            className={`text-xs ${
+                              priorityColors[
+                                complaint.priority as keyof typeof priorityColors
+                              ]
+                            }`}
+                            variant="outline"
+                          >
+                            {complaint.priority}
+                          </Badge>
+                          <Badge
+                            className={`text-xs ${
+                              statusColors[complaint.status]
+                            }`}
+                            variant="outline"
+                          >
+                            {complaint.status}
+                          </Badge>
+                          {isOverdue(complaint) && (
+                            <Badge
+                              className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                              variant="outline"
+                            >
+                              Overdue
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">
+                            Category:
+                          </span>
+                          <span className="font-medium ml-2">
+                            {complaint.category}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Submitted By:
+                          </span>
+                          <span className="font-medium ml-2">
+                            {complaint.submittedBy}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Date Assigned:
+                          </span>
+                          <span className="font-medium ml-2">
+                            {(
+                              complaint.assignedDate || complaint.submittedDate
+                            ).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Deadline:
+                          </span>
+                          <span className="font-medium ml-2">
+                            {complaint.deadline
+                              ? complaint.deadline.toLocaleDateString()
+                              : "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Overdue:
+                          </span>
+                          {isOverdue(complaint) ? (
+                            <Badge
+                              className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs ml-2"
+                              variant="outline"
+                            >
+                              Overdue
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs ml-2"
+                              variant="outline"
+                            >
+                              Not Overdue
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/50 p-3 rounded-lg">
+                        <p className="text-sm">
+                          {complaint.description.substring(0, 120)}...
                         </p>
                       </div>
-                      <div className="flex gap-2 ml-2">
-                        {isNew(complaint) && (
-                          <Badge
-                            className="text-xs bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"
-                            variant="outline"
-                          >
-                            NEW
-                          </Badge>
-                        )}
-                        <Badge
-                          className={`text-xs ${
-                            priorityColors[
-                              complaint.priority as keyof typeof priorityColors
-                            ]
-                          }`}
+
+                      <div className="flex gap-2">
+                        <Button
                           variant="outline"
+                          size="sm"
+                          onClick={() => handleViewComplaint(complaint)}
+                          className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                         >
-                          {complaint.priority}
-                        </Badge>
-                        <Badge
-                          className={`text-xs ${
-                            statusColors[complaint.status]
-                          }`}
-                          variant="outline"
-                        >
-                          {complaint.status}
-                        </Badge>
-                        {isOverdue(complaint) && (
-                          <Badge
-                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
-                            variant="outline"
-                          >
-                            Overdue
-                          </Badge>
-                        )}
+                          <Eye className="h-4 w-4 mr-2" />
+                          View & Update
+                        </Button>
                       </div>
                     </div>
-
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Category:</span>
-                        <span className="font-medium ml-2">
-                          {complaint.category}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">
-                          Submitted By:
-                        </span>
-                        <span className="font-medium ml-2">
-                          {complaint.submittedBy}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">
-                          Date Assigned:
-                        </span>
-                        <span className="font-medium ml-2">
-                          {(
-                            complaint.assignedDate || complaint.submittedDate
-                          ).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Deadline:</span>
-                        <span className="font-medium ml-2">
-                          {complaint.deadline
-                            ? complaint.deadline.toLocaleDateString()
-                            : "-"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Overdue:</span>
-                        {isOverdue(complaint) ? (
-                          <Badge
-                            className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs ml-2"
-                            variant="outline"
-                          >
-                            Overdue
-                          </Badge>
-                        ) : (
-                          <Badge
-                            className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs ml-2"
-                            variant="outline"
-                          >
-                            Not Overdue
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="bg-muted/50 p-3 rounded-lg">
-                      <p className="text-sm">
-                        {complaint.description.substring(0, 120)}...
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewComplaint(complaint)}
-                        className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View & Update
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))
+                  </Card>
+                ))
             )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination Controls (both views) */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage((p) => Math.max(1, p - 1));
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {(() => {
+                const windowSize = 3;
+                let start = Math.max(1, page - 1);
+                const end = Math.min(totalPages, start + windowSize - 1);
+                if (end - start + 1 < windowSize) {
+                  start = Math.max(1, end - windowSize + 1);
+                }
+                const pages: number[] = [];
+                for (let i = start; i <= end; i++) pages.push(i);
+                return (
+                  <>
+                    {pages[0] !== 1 && (
+                      <>
+                        <PaginationItem className="hidden sm:list-item">
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setPage(1);
+                            }}
+                          >
+                            1
+                          </PaginationLink>
+                        </PaginationItem>
+                        <PaginationItem className="hidden sm:list-item">
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      </>
+                    )}
+                    {pages.map((p) => (
+                      <PaginationItem key={p} className="hidden sm:list-item">
+                        <PaginationLink
+                          href="#"
+                          isActive={p === page}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setPage(p);
+                          }}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    {pages[pages.length - 1] !== totalPages && (
+                      <>
+                        <PaginationItem className="hidden sm:list-item">
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                        <PaginationItem className="hidden sm:list-item">
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setPage(totalPages);
+                            }}
+                          >
+                            {totalPages}
+                          </PaginationLink>
+                        </PaginationItem>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage((p) => Math.min(totalPages, p + 1));
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Modal */}
       <RoleBasedComplaintModal

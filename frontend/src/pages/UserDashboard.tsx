@@ -23,8 +23,7 @@ import { SummaryCards } from "@/components/SummaryCards";
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
-import { useEffect } from "react";
-import { getMyComplaintsApi } from "@/lib/api";
+// Note: API hooks available but not used in this mock-driven demo
 
 export function UserDashboard() {
   // MOCK DATA ENABLED BY DEFAULT
@@ -190,8 +189,8 @@ export function UserDashboard() {
       <SummaryCards complaints={myComplaints} userRole="user" />
 
       {/* Quick Actions */}
-      <div className="w-full overflow-x-auto pb-2">
-        <div className="flex gap-4 min-w-[340px] sm:grid sm:grid-cols-2 sm:gap-6">
+      <div className="w-full pb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <Card className="hover:shadow-md transition-shadow min-w-[260px] flex-1">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -204,7 +203,7 @@ export function UserDashboard() {
             </CardHeader>
             <CardContent>
               <Button
-                className="w-full hover:bg-primary/90 dark:hover:bg-hover-blue"
+                className="w-full min-h-11 hover:bg-primary/90 dark:hover:bg-hover-blue"
                 onClick={() => navigate("/submit-complaint")}
               >
                 Submit New Complaint
@@ -224,7 +223,7 @@ export function UserDashboard() {
             <CardContent>
               <Button
                 variant="outline"
-                className="w-full hover:bg-muted dark:hover:bg-hover-blue/10"
+                className="w-full min-h-11 hover:bg-muted dark:hover:bg-hover-blue/10"
                 onClick={() => navigate("/my-complaints")}
               >
                 My Complaints
@@ -240,17 +239,18 @@ export function UserDashboard() {
           <h2 className="text-xl md:text-2xl font-semibold">
             Recent Complaints
           </h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 w-full">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/my-complaints")}
               aria-label="View all complaints"
+              className="w-full sm:w-auto min-h-11"
             >
               View All
             </Button>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-full sm:w-32">
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
               <SelectContent>
@@ -267,7 +267,7 @@ export function UserDashboard() {
                 setOverdueFilter(v as "all" | "overdue" | "notOverdue")
               }
             >
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-full sm:w-36">
                 <SelectValue placeholder="Overdue" />
               </SelectTrigger>
               <SelectContent>
@@ -279,7 +279,7 @@ export function UserDashboard() {
           </div>
         </div>
         <div className="w-full overflow-x-auto">
-          <div className="min-w-[700px] block w-full max-w-full">
+          <div className="block w-full max-w-full">
             <ComplaintTable
               complaints={recentComplaints}
               onView={handleViewComplaint}

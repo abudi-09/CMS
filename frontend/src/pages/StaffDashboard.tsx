@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityLogTable } from "@/components/ActivityLogTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,15 @@ import {
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { toast } from "@/hooks/use-toast";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Mock data for staff - showing only assigned complaints (mix of overdue and not overdue)
 const today = new Date();
@@ -275,6 +284,31 @@ export function StaffDashboard() {
     return matchesSearch && matchesStatus && matchesPriority && matchesOverdue;
   });
 
+  // Pagination: 5 per page, reset on filter/search change
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const totalItems = filteredComplaints.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, priorityFilter, overdueFilter]);
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
+
   const statusColors = {
     Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
     "In Progress": "bg-blue-100 text-blue-800 border-blue-200",
@@ -437,7 +471,7 @@ export function StaffDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredComplaints.length === 0 ? (
+                {pagedComplaints.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
@@ -452,7 +486,7 @@ export function StaffDashboard() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredComplaints.map((complaint) => (
+                  pagedComplaints.map((complaint) => (
                     <TableRow key={complaint.id} className="hover:bg-muted/50">
                       <TableCell className="max-w-xs">
                         <div
@@ -565,7 +599,7 @@ export function StaffDashboard() {
 
           {/* Mobile Cards */}
           <div className="lg:hidden space-y-4">
-            {filteredComplaints.length === 0 ? (
+            {pagedComplaints.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {searchTerm ||
                 statusFilter !== "All" ||
@@ -574,7 +608,7 @@ export function StaffDashboard() {
                   : "No complaints assigned to you yet"}
               </div>
             ) : (
-              filteredComplaints.map((complaint) => (
+              pagedComplaints.map((complaint) => (
                 <Card key={complaint.id} className="p-4 shadow-md rounded-2xl">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
@@ -679,6 +713,88 @@ export function StaffDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p} className="hidden sm:list-item">
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Complaint Action Modal */}
       <RoleBasedComplaintModal

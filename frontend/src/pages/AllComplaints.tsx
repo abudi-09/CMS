@@ -233,7 +233,7 @@ export default function AllComplaints() {
   const [overdueFilter, setOverdueFilter] = useState("All");
   // Pagination
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 5;
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -754,7 +754,7 @@ export default function AllComplaints() {
               </PaginationItem>
               {getVisiblePages()[0] !== 1 && (
                 <>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationLink
                       href="#"
                       onClick={(e) => {
@@ -765,13 +765,13 @@ export default function AllComplaints() {
                       1
                     </PaginationLink>
                   </PaginationItem>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationEllipsis />
                   </PaginationItem>
                 </>
               )}
               {getVisiblePages().map((p) => (
-                <PaginationItem key={p}>
+                <PaginationItem key={p} className="hidden sm:list-item">
                   <PaginationLink
                     href="#"
                     isActive={p === page}
@@ -786,10 +786,10 @@ export default function AllComplaints() {
               ))}
               {getVisiblePages().slice(-1)[0] !== totalPages && (
                 <>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationEllipsis />
                   </PaginationItem>
-                  <PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
                     <PaginationLink
                       href="#"
                       onClick={(e) => {

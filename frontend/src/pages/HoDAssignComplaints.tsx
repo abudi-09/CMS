@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -45,6 +45,9 @@ export function HoDAssignComplaints() {
   // State for deadline during assignment
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
   const { getAllStaff, user } = useAuth();
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
   // Diverse mock complaints for demo/testing
   // At least half of complaints are overdue (deadline in the past)
   const now = new Date();
@@ -225,6 +228,10 @@ export function HoDAssignComplaints() {
   const [activeTab, setActiveTab] = useState<
     "Pending" | "Accepted" | "Assigned" | "Rejected"
   >("Pending");
+  // Reset page when filters/tab change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, priorityFilter, overdueFilter, activeTab]);
   const handleAssignClick = (complaint: ComplaintType) => {
     setReassigningRow(complaint.id);
     setAssigningStaffId("");
@@ -401,6 +408,38 @@ export function HoDAssignComplaints() {
         : !isOverdue(c)
     );
 
+  // Pagination calculations
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredComplaints.length / pageSize)
+  );
+  const startIndex = (page - 1) * pageSize;
+  const paginatedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
+  // Clamp page if filtered size shrinks
+  useEffect(() => {
+    const newTotal = Math.max(
+      1,
+      Math.ceil(filteredComplaints.length / pageSize)
+    );
+    if (page > newTotal) setPage(newTotal);
+  }, [filteredComplaints.length, page]);
+
+  const getPageNumbers = (tp: number, current: number): (number | "...")[] => {
+    if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1);
+    const pages: (number | "...")[] = [1];
+    const left = Math.max(2, current - 1);
+    const right = Math.min(tp - 1, current + 1);
+    if (left > 2) pages.push("...");
+    for (let i = left; i <= right; i++) pages.push(i);
+    if (right < tp - 1) pages.push("...");
+    pages.push(tp);
+    return pages;
+  };
+
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold">Assign & Reassign Complaints (HOD)</h1>
@@ -517,7 +556,7 @@ export function HoDAssignComplaints() {
                 No complaints found
               </div>
             ) : (
-              filteredComplaints.map((complaint) => (
+              paginatedComplaints.map((complaint) => (
                 <Card key={complaint.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-1">
@@ -651,7 +690,7 @@ export function HoDAssignComplaints() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredComplaints.map((complaint) => (
+                {paginatedComplaints.map((complaint) => (
                   <TableRow key={complaint.id}>
                     <TableCell className="font-medium text-sm">
                       {complaint.title}
@@ -858,6 +897,43 @@ export function HoDAssignComplaints() {
             </Table>
           </div>
         </CardContent>
+        {/* Pagination controls */}
+        <div className="flex items-center justify-between px-6 pb-4 pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Previous
+          </Button>
+          <div className="hidden sm:flex items-center gap-1">
+            {getPageNumbers(totalPages, page).map((p, idx) =>
+              p === "..." ? (
+                <span key={idx} className="px-2 text-sm text-muted-foreground">
+                  ...
+                </span>
+              ) : (
+                <Button
+                  key={p as number}
+                  size="sm"
+                  variant={p === page ? "default" : "outline"}
+                  onClick={() => setPage(p as number)}
+                >
+                  {p}
+                </Button>
+              )
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages || filteredComplaints.length === 0}
+          >
+            Next
+          </Button>
+        </div>
       </Card>
       {/* Role-based Complaint Modal for View Detail */}
       {selectedComplaint && (

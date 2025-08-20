@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/pagination";
 
 export function AdminComplaints() {
-  // Mock complaints data for demo/testing
+  
   const mockComplaints: Complaint[] = [
     {
       id: "C1001",
@@ -124,7 +124,7 @@ export function AdminComplaints() {
   );
   // Pagination
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 5;
   const totalItems = complaintsForTable.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const startIndex = (page - 1) * pageSize;
@@ -202,7 +202,7 @@ export function AdminComplaints() {
                   </PaginationItem>
                   {getVisiblePages()[0] !== 1 && (
                     <>
-                      <PaginationItem>
+                      <PaginationItem className="hidden sm:list-item">
                         <PaginationLink
                           href="#"
                           onClick={(e) => {
@@ -213,13 +213,13 @@ export function AdminComplaints() {
                           1
                         </PaginationLink>
                       </PaginationItem>
-                      <PaginationItem>
+                      <PaginationItem className="hidden sm:list-item">
                         <PaginationEllipsis />
                       </PaginationItem>
                     </>
                   )}
                   {getVisiblePages().map((p) => (
-                    <PaginationItem key={p}>
+                    <PaginationItem key={p} className="hidden sm:list-item">
                       <PaginationLink
                         href="#"
                         isActive={p === page}
@@ -234,10 +234,10 @@ export function AdminComplaints() {
                   ))}
                   {getVisiblePages().slice(-1)[0] !== totalPages && (
                     <>
-                      <PaginationItem>
+                      <PaginationItem className="hidden sm:list-item">
                         <PaginationEllipsis />
                       </PaginationItem>
-                      <PaginationItem>
+                      <PaginationItem className="hidden sm:list-item">
                         <PaginationLink
                           href="#"
                           onClick={(e) => {

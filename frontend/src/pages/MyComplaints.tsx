@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -21,6 +21,15 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // For demo/testing: import mockComplaint
 import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
@@ -161,6 +170,33 @@ export function MyComplaints() {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  // Pagination: 5 per page, reset when filters change
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const totalItems = filteredComplaints.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+  // Reset to first page whenever filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, priorityFilter]);
+
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -291,7 +327,7 @@ export function MyComplaints() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredComplaints.map((complaint) => (
+                    {pagedComplaints.map((complaint) => (
                       <tr
                         key={complaint.id}
                         className="border-b hover:bg-muted/5 dark:hover:bg-accent/10"
@@ -388,7 +424,7 @@ export function MyComplaints() {
 
               {/* Mobile Card View */}
               <div className="md:hidden space-y-4">
-                {filteredComplaints.map((complaint) => (
+                {pagedComplaints.map((complaint) => (
                   <Card key={complaint.id} className="p-4">
                     <div className="space-y-3">
                       <div className="flex justify-between items-start">
@@ -480,6 +516,88 @@ export function MyComplaints() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p} className="hidden sm:list-item">
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Modals */}
       {selectedComplaint && (

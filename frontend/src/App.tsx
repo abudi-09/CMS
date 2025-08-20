@@ -33,6 +33,8 @@ import { MyAssignedComplaints } from "@/pages/MyAssignedComplaints";
 import AdminAnalytics from "@/pages/AdminAnalytics";
 import UserManagement from "@/pages/UserManagement";
 import CategoryManagement from "@/pages/CategoryManagement";
+import AdminManagement from "@/pages/AdminManagement";
+import DeanRoleManagement from "@/pages/DeanRoleManagement";
 import AllComplaints from "@/pages/AllComplaints";
 import MyPerformance from "@/pages/MyPerformance";
 import TermsOfService from "@/pages/TermsOfService";
@@ -44,7 +46,6 @@ import { HoDAssignComplaints } from "@/pages/HoDAssignComplaints";
 import HoDAnalytics from "@/pages/HoDAnalytics";
 import HODStaffManagement from "@/pages/HODStaffManagement";
 import DepartmentManagement from "@/pages/DepartmentManagement";
-
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
 import NotFound from "./pages/NotFound";
@@ -185,6 +186,11 @@ function AppContent() {
                 />
                 <Route path="/staff-feedback" element={<StaffFeedback />} />
                 <Route path="/user-management" element={<UserManagement />} />
+                <Route path="/admin-management" element={<AdminManagement />} />
+                <Route
+                  path="/dean-role-management"
+                  element={<DeanRoleManagement />}
+                />
 
                 <Route
                   path="/category-management"
