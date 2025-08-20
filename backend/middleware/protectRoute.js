@@ -32,3 +32,21 @@ export const staffOnly = (req, res, next) => {
     return res.status(403).json({ error: "Access denied: Staff only" });
   }
 };
+
+export const deanOnly = (req, res, next) => {
+  if (req.user && req.user.role === "dean") {
+    next();
+  } else {
+    return res.status(403).json({ error: "Access denied: Deans only" });
+  }
+};
+
+export const hodOnly = (req, res, next) => {
+  if (req.user && req.user.role === "headOfDepartment") {
+    next();
+  } else {
+    return res
+      .status(403)
+      .json({ error: "Access denied: Department Heads only" });
+  }
+};

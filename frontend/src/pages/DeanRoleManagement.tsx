@@ -113,6 +113,13 @@ export default function DeanRoleManagement() {
     });
   }, [approved, statusFilter, deptFilter, search]);
   const totalPages = Math.ceil(filteredApproved.length / pageSize);
+  // Clamp page within bounds when total pages change
+  useEffect(() => {
+    setPage((prev) => {
+      const maxPages = Math.max(1, totalPages);
+      return Math.min(Math.max(1, prev), maxPages);
+    });
+  }, [totalPages]);
 
   // Summary
   const totalDeans = approved.length;

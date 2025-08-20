@@ -76,6 +76,56 @@ const mockUsers: AdminRow[] = [
     role: "Student",
     status: "Active",
   },
+  // Extra users to demonstrate pagination (Admins and mix)
+  {
+    id: "6",
+    name: "Karen Adams",
+    email: "karen@college.edu",
+    role: "Admin",
+    status: "Active",
+  },
+  {
+    id: "7",
+    name: "Leo Park",
+    email: "leo@college.edu",
+    role: "Admin",
+    status: "Active",
+  },
+  {
+    id: "8",
+    name: "Nina Brown",
+    email: "nina@college.edu",
+    role: "Admin",
+    status: "Inactive",
+  },
+  {
+    id: "9",
+    name: "Omar Ali",
+    email: "omar@college.edu",
+    role: "Staff",
+    status: "Active",
+  },
+  {
+    id: "10",
+    name: "Grace Kim",
+    email: "grace@college.edu",
+    role: "Admin",
+    status: "Active",
+  },
+  {
+    id: "11",
+    name: "Victor Hugo",
+    email: "victor@college.edu",
+    role: "SuperAdmin",
+    status: "Active",
+  },
+  {
+    id: "12",
+    name: "Zoe Quinn",
+    email: "zoe@college.edu",
+    role: "Admin",
+    status: "Active",
+  },
 ];
 
 export default function AdminManagement() {
@@ -122,8 +172,14 @@ export default function AdminManagement() {
     });
   }, [users, search, roleView, statusView]);
   const totalPages = Math.ceil(filtered.length / pageSize);
+  // Clamp page within bounds when total pages change
+  useEffect(() => {
+    setPage((prev) => {
+      const maxPages = Math.max(1, totalPages);
+      return Math.min(Math.max(1, prev), maxPages);
+    });
+  }, [totalPages]);
 
-  // Summary metrics
   const totalAdmins = users.filter(
     (u) => u.role === "Admin" || u.role === "SuperAdmin"
   ).length;
@@ -285,7 +341,7 @@ export default function AdminManagement() {
                   </TableRow>
                 ) : (
                   filtered
-                  
+
                     .slice((page - 1) * pageSize, page * pageSize)
                     .map((user) => (
                       <TableRow key={user.id}>
@@ -476,96 +532,6 @@ export default function AdminManagement() {
                             <PaginationItem>
                               <PaginationEllipsis />
                             </PaginationItem>
-
-                            {/* Mobile Cards */}
-                            <div className="lg:hidden space-y-3">
-                              {filtered.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                  No admins found
-                                </div>
-                              ) : (
-                                filtered
-                                  .slice((page - 1) * pageSize, page * pageSize)
-                                  .map((u) => (
-                                    <Card key={u.id} className="p-4">
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="flex-1">
-                                          <div className="font-medium text-sm">
-                                            {u.name}
-                                          </div>
-                                          <div className="text-xs text-muted-foreground break-all">
-                                            {u.email}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <Badge
-                                            variant={
-                                              u.role === "SuperAdmin"
-                                                ? "outline"
-                                                : "secondary"
-                                            }
-                                            className="text-xs"
-                                          >
-                                            {u.role}
-                                          </Badge>
-                                          <Badge
-                                            className={
-                                              u.status === "Active"
-                                                ? "bg-green-100 text-green-800"
-                                                : "bg-gray-100 text-gray-800"
-                                            }
-                                          >
-                                            {u.status}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {u.role !== "SuperAdmin" &&
-                                          u.role === "Admin" &&
-                                          u.status === "Active" && (
-                                            <Button
-                                              className="w-full min-h-11"
-                                              variant="outline"
-                                              onClick={() =>
-                                                deactivateAdmin(u.id)
-                                              }
-                                            >
-                                              <UserMinus className="h-4 w-4 mr-2" />{" "}
-                                              Deactivate
-                                            </Button>
-                                          )}
-                                        {u.role !== "SuperAdmin" &&
-                                          u.role === "Admin" &&
-                                          u.status === "Inactive" && (
-                                            <Button
-                                              className="w-full min-h-11"
-                                              variant="outline"
-                                              onClick={() =>
-                                                reactivateAdmin(u.id)
-                                              }
-                                            >
-                                              <UserCheck className="h-4 w-4 mr-2" />{" "}
-                                              Reactivate
-                                            </Button>
-                                          )}
-                                        {u.role !== "SuperAdmin" &&
-                                          u.role !== "Admin" && (
-                                            <Button
-                                              className="w-full min-h-11"
-                                              variant="outline"
-                                              onClick={() =>
-                                                promoteToAdmin(u.id)
-                                              }
-                                            >
-                                              <UserPlus className="h-4 w-4 mr-2" />{" "}
-                                              Promote to Admin
-                                            </Button>
-                                          )}
-                                      </div>
-                                    </Card>
-                                  ))
-                              )}
-                            </div>
                           </>
                         )}
                         {pages.map((p) => (

@@ -83,7 +83,8 @@ export async function signupApi(formData: {
   email: string;
   password: string;
   role: string;
-  department: string;
+  department?: string;
+  workingPlace?: string;
 }) {
   // Map role to backend expected value
   let role = formData.role;

@@ -57,6 +57,43 @@ const mockITStaff = [
     registeredDate: new Date("2023-04-10"),
     status: "approved",
   },
+  // Extra approved staff to ensure pagination is visible on default tab
+  {
+    id: "it7",
+    name: "Yared Mekonnen",
+    email: "yared.it@university.edu",
+    department: "IT",
+    position: "Systems Engineer",
+    registeredDate: new Date("2023-03-05"),
+    status: "approved",
+  },
+  {
+    id: "it8",
+    name: "Ruth Alem",
+    email: "ruth.it@university.edu",
+    department: "Information Technology",
+    position: "QA Engineer",
+    registeredDate: new Date("2023-02-12"),
+    status: "approved",
+  },
+  {
+    id: "it9",
+    name: "Brook Hailemariam",
+    email: "brook.it@university.edu",
+    department: "IT",
+    position: "DevOps Specialist",
+    registeredDate: new Date("2023-01-28"),
+    status: "approved",
+  },
+  {
+    id: "it10",
+    name: "Lulit Getachew",
+    email: "lulit.it@university.edu",
+    department: "Information Technology",
+    position: "UI/UX Designer",
+    registeredDate: new Date("2022-12-18"),
+    status: "approved",
+  },
 ];
 
 export default function HODStaffManagement() {

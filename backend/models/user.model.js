@@ -23,7 +23,8 @@ const userSchema = new mongoose.Schema(
     isApproved: {
       type: Boolean,
       default: function () {
-        return this.role === "staff" ? false : true;
+        // Only students (user role) are auto-approved. Others require approval.
+        return this.role === "user";
       },
     },
     isRejected: {
@@ -33,11 +34,10 @@ const userSchema = new mongoose.Schema(
     department: {
       type: String,
       required: function () {
-        // Department is required for user, staff, dean, and headOfDepartment
+        // Department is required for user, staff, and headOfDepartment (not dean)
         return (
           this.role === "user" ||
           this.role === "staff" ||
-          this.role === "dean" ||
           this.role === "headOfDepartment"
         );
       },
@@ -45,7 +45,12 @@ const userSchema = new mongoose.Schema(
     workingPlace: {
       type: String,
       required: function () {
-        return this.role === "staff";
+        // Working position is required for staff, headOfDepartment, and dean
+        return (
+          this.role === "staff" ||
+          this.role === "headOfDepartment" ||
+          this.role === "dean"
+        );
       },
     },
     isVerified: {
@@ -54,7 +59,10 @@ const userSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: function () {
+        // Students are active immediately; others become active upon approval
+        return this.role === "user";
+      },
     },
   },
   {
@@ -64,10 +72,11 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Virtual for status (Pending, Approved, Rejected)
+// Virtual for status (Pending, Active, Inactive, Rejected)
 userSchema.virtual("status").get(function () {
   if (this.isRejected) return "Rejected";
-  if (this.isApproved) return "Approved";
+  if (!this.isActive) return "Inactive";
+  if (this.isApproved) return "Active";
   return "Pending";
 });
 

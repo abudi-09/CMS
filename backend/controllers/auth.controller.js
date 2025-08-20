@@ -47,17 +47,20 @@ export const signup = async (req, res) => {
       return res.status(400).json({ error: "Invalid role selected" });
     }
     if (
-      (role === "user" || role === "dean" || role === "headOfDepartment") &&
+      (role === "user" || role === "headOfDepartment") &&
       (!department || !department.trim())
     ) {
       return res
         .status(400)
         .json({ error: "Department is required for this role" });
     }
-    if (role === "staff" && (!workingPlace || !workingPlace.trim())) {
+    if (
+      (role === "staff" || role === "headOfDepartment" || role === "dean") &&
+      (!workingPlace || !workingPlace.trim())
+    ) {
       return res
         .status(400)
-        .json({ error: "Working place is required for staff" });
+        .json({ error: "Working position is required for this role" });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -91,10 +94,11 @@ export const signup = async (req, res) => {
       password: hashedPassword,
       role,
       department:
-        role === "user" || role === "dean" || role === "headOfDepartment"
-          ? department
+        role === "user" || role === "headOfDepartment" ? department : undefined,
+      workingPlace:
+        role === "staff" || role === "headOfDepartment" || role === "dean"
+          ? workingPlace
           : undefined,
-      workingPlace: role === "staff" ? workingPlace : undefined,
       isVerified: false,
     });
 
@@ -111,19 +115,17 @@ export const signup = async (req, res) => {
     // );
     // await sendVerificationEmail({ to: newUser.email, token });
 
-    // Don't generate token if staff is not approved yet
-    if (newUser.role === "staff" && !newUser.isApproved) {
+    // Don't generate token if role is not approved yet (non-student)
+    if (newUser.role !== "user" && !newUser.isApproved) {
       return res.status(201).json({
         message:
-          "Staff registration successful. Please wait for admin approval. Please verify your email.",
+          "Registration submitted. Please wait for approval and verify your email.",
       });
     }
 
     res.status(201).json({
       message:
-        role === "dean"
-          ? "Dean registration successful. Please check your email to verify your account."
-          : "Registration successful. Please check your email to verify your account.",
+        "Registration successful. Please check your email to verify your account.",
     });
   } catch (error) {
     console.log("Error in signup controller", error.message);

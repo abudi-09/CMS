@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,15 @@ import {
   Calendar,
   TrendingUp,
 } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Mock student data
 const mockStudents = [
@@ -86,6 +95,8 @@ export default function DeanUserManagement() {
   const [students, setStudents] = useState(mockStudents);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
   // Modal state
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [promoteTarget, setPromoteTarget] = useState<{
@@ -138,6 +149,31 @@ export default function DeanUserManagement() {
       statusFilter === "All" || student.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Reset page on filter/search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  // Pagination helpers
+  const totalItems = filteredStudents.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedStudents = useMemo(
+    () => filteredStudents.slice(startIndex, startIndex + pageSize),
+    [filteredStudents, startIndex]
+  );
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const getVisiblePages = () => {
+    const maxToShow = 5;
+    if (totalPages <= maxToShow)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: number[] = [];
+    const left = Math.max(1, page - 2);
+    const right = Math.min(totalPages, left + maxToShow - 1);
+    for (let p = left; p <= right; p++) pages.push(p);
+    return pages;
+  };
 
   return (
     <div className="space-y-6">
@@ -259,12 +295,12 @@ export default function DeanUserManagement() {
         <CardContent>
           {/* Mobile: cards */}
           <div className="lg:hidden space-y-3">
-            {filteredStudents.length === 0 ? (
+            {pagedStudents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground border rounded-lg">
                 No students found
               </div>
             ) : (
-              filteredStudents.map((s) => (
+              pagedStudents.map((s) => (
                 <div key={s.id} className="border rounded-lg p-4 bg-card">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -351,14 +387,14 @@ export default function DeanUserManagement() {
                 </tr>
               </thead>
               <tbody>
-                {filteredStudents.length === 0 ? (
+                {pagedStudents.length === 0 ? (
                   <tr>
                     <td className="py-2 px-2" colSpan={7}>
                       No students found
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((s) => (
+                  pagedStudents.map((s) => (
                     <tr key={s.id} className="border-b">
                       <td className="py-2 px-2">{s.name}</td>
                       <td className="py-2 px-2">{s.email}</td>
@@ -423,6 +459,88 @@ export default function DeanUserManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-0">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {getVisiblePages()[0] !== 1 && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(1);
+                      }}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                </>
+              )}
+              {getVisiblePages().map((p) => (
+                <PaginationItem key={p} className="hidden sm:list-item">
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              {getVisiblePages().slice(-1)[0] !== totalPages && (
+                <>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem className="hidden sm:list-item">
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goToPage(totalPages);
+                      }}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToPage(page + 1);
+                  }}
+                  className={
+                    page === totalPages ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }

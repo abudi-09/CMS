@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { Complaint } from "@/components/ComplaintCard";
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/pagination";
 
 export function AdminComplaints() {
-  
   const mockComplaints: Complaint[] = [
     {
       id: "C1001",
@@ -65,6 +64,103 @@ export function AdminComplaints() {
       isEscalated: false,
       evidenceFile: "",
       feedback: { rating: 4, comment: "Resolved quickly, thanks!" },
+    },
+    // Extra resolved complaints to demonstrate pagination on the Resolved tab
+    {
+      id: "C1004",
+      title: "Broken classroom chair",
+      description: "One of the chairs in Room 204 is broken.",
+      category: "Facilities",
+      priority: "Low",
+      status: "Resolved",
+      submittedBy: "Daniel Carter",
+      assignedStaff: "Staff D",
+      submittedDate: new Date(Date.now() - 86400000 * 10),
+      lastUpdated: new Date(Date.now() - 86400000 * 2),
+      deadline: new Date(Date.now() - 86400000 * 6),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: { rating: 5, comment: "All good now" },
+    },
+    {
+      id: "C1005",
+      title: "Projector issue in Hall A",
+      description: "Projector flickers during lectures.",
+      category: "IT",
+      priority: "Medium",
+      status: "Resolved",
+      submittedBy: "Emily Stone",
+      assignedStaff: "Staff E",
+      submittedDate: new Date(Date.now() - 86400000 * 9),
+      lastUpdated: new Date(Date.now() - 86400000 * 1),
+      deadline: new Date(Date.now() - 86400000 * 4),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: { rating: 4, comment: "Works fine" },
+    },
+    {
+      id: "C1006",
+      title: "Cafeteria billing discrepancy",
+      description: "Charged twice for a single meal.",
+      category: "Admin",
+      priority: "Low",
+      status: "Resolved",
+      submittedBy: "Hanna Lee",
+      assignedStaff: "Staff F",
+      submittedDate: new Date(Date.now() - 86400000 * 8),
+      lastUpdated: new Date(Date.now() - 86400000 * 1),
+      deadline: new Date(Date.now() - 86400000 * 3),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: { rating: 5, comment: "Refund received" },
+    },
+    {
+      id: "C1007",
+      title: "Dorm water pressure low",
+      description: "Low water pressure in Dorm 3 bathrooms.",
+      category: "Facilities",
+      priority: "High",
+      status: "Resolved",
+      submittedBy: "Michael Chen",
+      assignedStaff: "Staff G",
+      submittedDate: new Date(Date.now() - 86400000 * 12),
+      lastUpdated: new Date(Date.now() - 86400000 * 2),
+      deadline: new Date(Date.now() - 86400000 * 7),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: { rating: 4, comment: "Improved" },
+    },
+    {
+      id: "C1008",
+      title: "Campus shuttle delay",
+      description: "Morning shuttle consistently late.",
+      category: "Transport",
+      priority: "Medium",
+      status: "Resolved",
+      submittedBy: "Priya Patel",
+      assignedStaff: "Staff H",
+      submittedDate: new Date(Date.now() - 86400000 * 11),
+      lastUpdated: new Date(Date.now() - 86400000 * 5),
+      deadline: new Date(Date.now() - 86400000 * 6),
+      isEscalated: false,
+      evidenceFile: "",
+      feedback: { rating: 3, comment: "Better now" },
+    },
+    {
+      id: "C1009",
+      title: "Library study room booking bug",
+      description: "Unable to book study rooms online.",
+      category: "IT",
+      priority: "High",
+      status: "Resolved",
+      submittedBy: "Nadia Yusuf",
+      assignedStaff: "Staff I",
+      submittedDate: new Date(Date.now() - 86400000 * 14),
+      lastUpdated: new Date(Date.now() - 86400000 * 1),
+      deadline: new Date(Date.now() - 86400000 * 9),
+      isEscalated: true,
+      evidenceFile: "",
+      feedback: { rating: 4, comment: "Booking restored" },
     },
   ];
   const navigate = useNavigate();
@@ -143,6 +239,16 @@ export function AdminComplaints() {
     for (let p = left; p <= right; p++) pages.push(p);
     return pages;
   };
+
+  // Reset to first page when tab changes
+  useEffect(() => {
+    setPage(1);
+  }, [statusTab]);
+
+  // Clamp current page if total pages shrink
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-6">

@@ -37,6 +37,13 @@ export function Signup() {
     department: "",
     workingPlace: "",
   });
+  // Shared department options
+  const departmentOptions = [
+    "Computer Science",
+    "Information Technology",
+    "Information System",
+    "Information Science",
+  ];
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -62,15 +69,24 @@ export function Signup() {
     )
       newErrors.confirmPassword = "Passwords do not match";
     if (!formData.role) newErrors.role = "Please select a role";
+    // Department required for Student (user), Staff, and HoD
     if (
       (formData.role === "user" ||
-        formData.role === "dean" ||
+        formData.role === "staff" ||
         formData.role === "headOfDepartment") &&
       !formData.department.trim()
-    )
+    ) {
       newErrors.department = "Department is required";
-    if (formData.role === "staff" && !formData.workingPlace.trim())
-      newErrors.workingPlace = "Working place is required";
+    }
+    // Working position required for Staff, HoD, and Dean
+    if (
+      (formData.role === "staff" ||
+        formData.role === "headOfDepartment" ||
+        formData.role === "dean") &&
+      !formData.workingPlace.trim()
+    ) {
+      newErrors.workingPlace = "Working position is required";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -322,37 +338,44 @@ export function Signup() {
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="user">Student</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="dean">Dean</SelectItem>
                   <SelectItem value="headOfDepartment">
                     Head of Department
                   </SelectItem>
+                  <SelectItem value="dean">Dean</SelectItem>
                 </SelectContent>
               </Select>
               {touched.role && errors.role && (
                 <p className="text-sm text-destructive">{errors.role}</p>
               )}
             </div>
+
             {(formData.role === "user" ||
+              formData.role === "staff" ||
               formData.role === "headOfDepartment") && (
               <div className="space-y-2">
                 <Label htmlFor="department">Department *</Label>
-                <Input
-                  id="department"
-                  type="text"
-                  aria-label="Department"
-                  autoComplete="organization"
-                  placeholder="Enter your department"
+                <Select
                   value={formData.department}
-                  onChange={(e) =>
-                    handleInputChange("department", e.target.value)
+                  onValueChange={(value) =>
+                    handleInputChange("department", value)
                   }
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, department: true }))
-                  }
-                  className={errors.department ? "border-destructive" : ""}
-                />
+                >
+                  <SelectTrigger
+                    className={errors.department ? "border-destructive" : ""}
+                    aria-label="Select department"
+                  >
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departmentOptions.map((dep) => (
+                      <SelectItem key={dep} value={dep}>
+                        {dep}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {touched.department && errors.department && (
                   <p className="text-sm text-destructive">
                     {errors.department}
@@ -360,15 +383,18 @@ export function Signup() {
                 )}
               </div>
             )}
-            {formData.role === "staff" && (
+
+            {(formData.role === "staff" ||
+              formData.role === "headOfDepartment" ||
+              formData.role === "dean") && (
               <div className="space-y-2">
-                <Label htmlFor="workingPlace">Working Place *</Label>
+                <Label htmlFor="workingPlace">Working Position *</Label>
                 <Input
                   id="workingPlace"
                   type="text"
-                  aria-label="Working Place"
-                  autoComplete="organization"
-                  placeholder="Enter your working place"
+                  aria-label="Working Position"
+                  autoComplete="organization-title"
+                  placeholder="Enter your working position"
                   value={formData.workingPlace}
                   onChange={(e) =>
                     handleInputChange("workingPlace", e.target.value)
@@ -381,33 +407,6 @@ export function Signup() {
                 {touched.workingPlace && errors.workingPlace && (
                   <p className="text-sm text-destructive">
                     {errors.workingPlace}
-                  </p>
-                )}
-              </div>
-            )}
-            {formData.role === "dean" && (
-              <div className="space-y-2">
-                <Label htmlFor="department">
-                  Department or Working Place *
-                </Label>
-                <Input
-                  id="department"
-                  type="text"
-                  aria-label="Department or Working Place"
-                  autoComplete="organization"
-                  placeholder="Enter your department or working place"
-                  value={formData.department}
-                  onChange={(e) =>
-                    handleInputChange("department", e.target.value)
-                  }
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, department: true }))
-                  }
-                  className={errors.department ? "border-destructive" : ""}
-                />
-                {touched.department && errors.department && (
-                  <p className="text-sm text-destructive">
-                    {errors.department}
                   </p>
                 )}
               </div>
@@ -426,9 +425,13 @@ export function Signup() {
                 !formData.confirmPassword ||
                 !formData.role ||
                 ((formData.role === "user" ||
+                  formData.role === "staff" ||
                   formData.role === "headOfDepartment") &&
                   !formData.department.trim()) ||
-                (formData.role === "staff" && !formData.workingPlace.trim())
+                ((formData.role === "staff" ||
+                  formData.role === "headOfDepartment" ||
+                  formData.role === "dean") &&
+                  !formData.workingPlace.trim())
               }
               aria-label="Create account"
             >
