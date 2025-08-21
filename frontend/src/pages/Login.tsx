@@ -48,10 +48,11 @@ export function Login() {
         (result as { error?: string }).error === "pending-approval"
       ) {
         toast({
-          title: "🕒 Not Approved Yet",
-          description:
+          title: "Pending Approval",
+          description: `ℹ️ ${
             (result as { message?: string }).message ||
-            "Please wait, your account has not been approved yet.",
+            "Your account has not yet been approved by the Dean. You will receive an email notification once your account is approved."
+          }`,
           variant: "default",
         });
         return;
