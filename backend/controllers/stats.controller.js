@@ -109,9 +109,9 @@ export const getRoleCounts = async (req, res) => {
       // Active deans
       User.countDocuments({ role: "dean", isActive: true }),
       // Active heads of department
-      User.countDocuments({ role: "headOfDepartment", isActive: true }),
-      // Active students (users)
-      User.countDocuments({ role: "user", isActive: true }),
+      User.countDocuments({ role: "hod", isActive: true }),
+      // Active students
+      User.countDocuments({ role: "student", isActive: true }),
       // Staff with access: approved, active, not rejected
       User.countDocuments({
         role: "staff",

@@ -596,6 +596,7 @@ export type UserDto = {
   email: string;
   role: string;
   isActive?: boolean;
+  isApproved?: boolean;
   department?: string;
   createdAt?: string | Date;
 };

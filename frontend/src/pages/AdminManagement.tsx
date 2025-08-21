@@ -20,8 +20,11 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Search, UserPlus, UserMinus, UserCheck, Users } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/components/auth/AuthContext";
 import { getAllUsersApi, UserDto } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { toast } from "@/hooks/use-toast";
 import {
   Select,
   SelectContent,
@@ -36,10 +39,12 @@ type AdminRow = {
   _id: string;
   name: string;
   email: string;
-  role: string; // backend role: user, staff, headOfDepartment, dean, admin
+  role: string; // backend role: student|user, staff, hod|headOfDepartment, dean, admin
   isActive?: boolean;
   department?: string;
+  workingPlace?: string;
   username?: string;
+  isApproved?: boolean;
 };
 
 export default function AdminManagement() {
@@ -52,6 +57,19 @@ export default function AdminManagement() {
     "All"
   );
   const [departmentFilter, setDepartmentFilter] = useState<string>("All");
+  const [roleTab, setRoleTab] = useState<string>("All");
+
+  const statusLabel = (u: AdminRow) => {
+    if (
+      u.role === "staff" ||
+      u.role === "headOfDepartment" ||
+      u.role === "dean"
+    ) {
+      // staff/HOD/dean may be pending approval
+      if (u.isApproved === false) return "Pending Approval";
+    }
+    return u.isActive ? "Active" : "Inactive";
+  };
   const [page, setPage] = useState(1);
   const pageSize = 5;
   useEffect(() => setPage(1), [search, statusView, departmentFilter]);
@@ -72,10 +90,12 @@ export default function AdminManagement() {
     if (!role) return "Unknown";
     switch (role) {
       case "user":
+      case "student":
         return "Student";
       case "staff":
         return "Staff";
       case "headOfDepartment":
+      case "hod":
         return "HOD";
       case "dean":
         return "Dean";
@@ -89,17 +109,18 @@ export default function AdminManagement() {
   const filtered = useMemo(() => {
     return users.filter((u) => {
       const roleLabel = mapRoleLabel(u.role);
+      // Tab filter
+      const matchesTab = roleTab === "All" ? true : roleLabel === roleTab;
       const matchesStatus =
         statusView === "All"
           ? true
           : (u.isActive ? "Active" : "Inactive") === statusView;
       const matchesDept = (() => {
         if (departmentFilter === "All") return true;
-        // Apply department filter only to Student, Staff, HOD
         if (["Student", "Staff", "HOD"].includes(roleLabel)) {
           return (u.department || "") === departmentFilter;
         }
-        return true; // Dean/Admin unaffected by dept filter
+        return true;
       })();
       const q = search.toLowerCase();
       const matchesSearch =
@@ -107,10 +128,11 @@ export default function AdminManagement() {
         u.email.toLowerCase().includes(q) ||
         (u.username || "").toLowerCase().includes(q) ||
         (u.department || "").toLowerCase().includes(q) ||
+        (u.workingPlace || "").toLowerCase().includes(q) ||
         roleLabel.toLowerCase().includes(q);
-      return matchesStatus && matchesDept && matchesSearch;
+      return matchesTab && matchesStatus && matchesDept && matchesSearch;
     });
-  }, [users, search, statusView, departmentFilter]);
+  }, [users, search, statusView, departmentFilter, roleTab]);
   const totalPages = Math.ceil(filtered.length / pageSize);
   // Clamp page within bounds when total pages change
   useEffect(() => {
@@ -161,6 +183,89 @@ export default function AdminManagement() {
     logAudit("Reactivate User", target ? target.email : id);
   };
 
+  // Confirm dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmWarning, setConfirmWarning] = useState<string | undefined>(
+    undefined
+  );
+  const [pendingAction, setPendingAction] = useState<
+    { type: "activate" | "deactivate"; userId: string } | undefined
+  >(undefined);
+  const handleActionConfirm = async () => {
+    if (!pendingAction) return;
+    const { type, userId } = pendingAction;
+    try {
+      // As required: POST /api/users/activate|deactivate with { userId }
+      const url = `/api/users/${
+        type === "activate" ? "activate" : "deactivate"
+      }`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      // Safely parse response body: server may return empty response which makes res.json() throw
+      const text = await res.text();
+      let body: { error?: string; message?: string } | undefined = undefined;
+      if (text) {
+        try {
+          body = JSON.parse(text);
+        } catch (e) {
+          // Not JSON, fall back to raw text
+          body = { message: text };
+        }
+      }
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: body?.error || body?.message || "Action failed",
+        });
+        return;
+      }
+      // Update table immediately
+      setUsers((prev) =>
+        prev.map((u) =>
+          u._id === userId ? { ...u, isActive: type === "activate" } : u
+        )
+      );
+      if (type === "activate") {
+        toast({
+          title: "Success",
+          description: "User has been activated successfully.",
+        });
+        logAudit("Activate User", userId);
+      } else {
+        toast({
+          title: "Deactivated",
+          description:
+            "User has been deactivated. They will no longer have access.",
+        });
+        logAudit("Deactivate User", userId);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: "Error", description: message || "Request failed" });
+    } finally {
+      setPendingAction(undefined);
+      setConfirmOpen(false);
+    }
+  };
+
+  const promptActivate = (userId: string) => {
+    setConfirmTitle("Are you sure you want to activate this user?");
+    setConfirmWarning(undefined);
+    setPendingAction({ type: "activate", userId });
+    setConfirmOpen(true);
+  };
+
+  const promptDeactivate = (userId: string) => {
+    setConfirmTitle("Are you sure you want to deactivate this user?");
+    setConfirmWarning("They will not be able to access the system.");
+    setPendingAction({ type: "deactivate", userId });
+    setConfirmOpen(true);
+  };
+
   // Load all users from backend once
   useEffect(() => {
     (async () => {
@@ -173,6 +278,9 @@ export default function AdminManagement() {
           role: u.role,
           isActive: u.isActive,
           department: u.department,
+          workingPlace: (u as unknown as Record<string, unknown>)[
+            "workingPlace"
+          ] as string | undefined,
           username: u.username,
         }));
         setUsers(mapped);
@@ -235,13 +343,29 @@ export default function AdminManagement() {
             </Alert>
           )}
           <div className="pt-2 flex flex-col lg:flex-row gap-3 lg:items-center">
+            <div className="mb-3 w-full">
+              <Tabs
+                defaultValue="All"
+                value={roleTab}
+                onValueChange={(v: string) => setRoleTab(v)}
+              >
+                <TabsList>
+                  <TabsTrigger value="All">All</TabsTrigger>
+                  <TabsTrigger value="Student">Student</TabsTrigger>
+                  <TabsTrigger value="Staff">Staff</TabsTrigger>
+                  <TabsTrigger value="HOD">Head of Department</TabsTrigger>
+                  <TabsTrigger value="Dean">Dean</TabsTrigger>
+                  <TabsTrigger value="Admin">Admin</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 lg:left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 lg:h-6 lg:w-6 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email, username or department..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 rounded-lg"
+                className="pl-12 lg:pl-16 rounded-lg h-12 text-lg lg:w-96"
               />
             </div>
             <div className="flex gap-2 items-center">
@@ -294,9 +418,8 @@ export default function AdminManagement() {
                 <TableRow>
                   <TableHead>Full Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Username</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Department / Working Position</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -305,7 +428,7 @@ export default function AdminManagement() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={6}
                       className="text-center py-8 text-muted-foreground"
                     >
                       No users found
@@ -316,16 +439,16 @@ export default function AdminManagement() {
                     .slice((page - 1) * pageSize, page * pageSize)
                     .map((user) => {
                       const roleLabel = mapRoleLabel(user.role);
-                      const dept = ["Student", "Staff", "HOD"].includes(
-                        roleLabel
-                      )
-                        ? user.department || "N/A"
-                        : "N/A";
+                      const dept =
+                        roleLabel === "Dean"
+                          ? user.workingPlace || "N/A"
+                          : ["Student", "Staff", "HOD"].includes(roleLabel)
+                          ? user.department || "N/A"
+                          : "N/A";
                       return (
                         <TableRow key={user._id}>
                           <TableCell>{user.name}</TableCell>
                           <TableCell>{user.email}</TableCell>
-                          <TableCell>{user.username || ""}</TableCell>
                           <TableCell>
                             <Badge>{roleLabel}</Badge>
                           </TableCell>
@@ -346,7 +469,7 @@ export default function AdminManagement() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => deactivateUser(user._id)}
+                                onClick={() => promptDeactivate(user._id)}
                               >
                                 <UserMinus className="h-4 w-4 mr-1" />{" "}
                                 Deactivate
@@ -356,10 +479,9 @@ export default function AdminManagement() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => reactivateUser(user._id)}
+                                onClick={() => promptActivate(user._id)}
                               >
-                                <UserCheck className="h-4 w-4 mr-1" />{" "}
-                                Reactivate
+                                <UserCheck className="h-4 w-4 mr-1" /> Activate
                               </Button>
                             )}
                             {roleLabel !== "Admin" && (
@@ -422,13 +544,18 @@ export default function AdminManagement() {
                           </Badge>
                         </div>
                       </div>
-                      <div className="text-xs mt-2">Department: {dept}</div>
+                      <div className="text-xs mt-2">
+                        {roleLabel === "Dean"
+                          ? "Working Position: "
+                          : "Department: "}
+                        {dept}
+                      </div>
                       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {u.isActive ? (
                           <Button
                             className="w-full min-h-11"
                             variant="outline"
-                            onClick={() => deactivateUser(u._id)}
+                            onClick={() => promptDeactivate(u._id)}
                           >
                             <UserMinus className="h-4 w-4 mr-2" /> Deactivate
                           </Button>
@@ -436,9 +563,9 @@ export default function AdminManagement() {
                           <Button
                             className="w-full min-h-11"
                             variant="outline"
-                            onClick={() => reactivateUser(u._id)}
+                            onClick={() => promptActivate(u._id)}
                           >
-                            <UserCheck className="h-4 w-4 mr-2" /> Reactivate
+                            <UserCheck className="h-4 w-4 mr-2" /> Activate
                           </Button>
                         )}
                         {roleLabel !== "Admin" && (
@@ -517,6 +644,21 @@ export default function AdminManagement() {
           )}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={confirmTitle}
+        warning={confirmWarning}
+        onConfirm={handleActionConfirm}
+        onCancel={() => {
+          setPendingAction(undefined);
+          setConfirmOpen(false);
+        }}
+        confirmText={
+          pendingAction?.type === "activate" ? "Activate" : "Deactivate"
+        }
+        cancelText="Cancel"
+      />
     </div>
   );
 }

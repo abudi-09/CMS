@@ -31,18 +31,18 @@ const complaintSchema = new mongoose.Schema(
     // Provenance fields for routing/assignment transparency
     sourceRole: {
       type: String,
-      enum: ["student", "staff", "dean", "headOfDepartment", "admin"],
+      enum: ["student", "staff", "dean", "hod", "admin"],
       default: "student",
     },
     assignedByRole: {
       type: String,
-      enum: ["student", "headOfDepartment", "dean", "admin"],
+      enum: ["student", "hod", "dean", "admin"],
       default: null,
     },
     assignmentPath: [
       {
         type: String,
-        enum: ["student", "headOfDepartment", "dean", "admin", "staff"],
+        enum: ["student", "hod", "dean", "admin", "staff"],
       },
     ],
     submittedTo: {

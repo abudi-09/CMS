@@ -42,12 +42,15 @@ export const signup = async (req, res) => {
     const { name, username, email, password, role, department, workingPlace } =
       req.body;
 
-    const allowedRoles = ["user", "staff", "dean", "headOfDepartment"];
+    // Allow new role names and include admin
+    const allowedRoles = ["student", "staff", "dean", "hod", "admin"];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role selected" });
     }
+
+    // Department and workingPlace are not required for admin
     if (
-      (role === "user" || role === "staff" || role === "headOfDepartment") &&
+      (role === "student" || role === "staff" || role === "hod") &&
       (!department || !department.trim())
     ) {
       return res
@@ -55,7 +58,7 @@ export const signup = async (req, res) => {
         .json({ error: "Department is required for this role" });
     }
     if (
-      (role === "staff" || role === "headOfDepartment" || role === "dean") &&
+      (role === "staff" || role === "hod" || role === "dean") &&
       (!workingPlace || !workingPlace.trim())
     ) {
       return res
@@ -93,16 +96,22 @@ export const signup = async (req, res) => {
       email,
       password: hashedPassword,
       role,
+      // map incoming role aliases to DB values if necessary
       department:
-        role === "user" || role === "staff" || role === "headOfDepartment"
+        role === "student" || role === "staff" || role === "hod"
           ? department
           : undefined,
       workingPlace:
-        role === "staff" || role === "headOfDepartment" || role === "dean"
+        role === "staff" || role === "hod" || role === "dean"
           ? workingPlace
           : undefined,
       isVerified: false,
     });
+    // If creating an admin via this endpoint, ensure they are approved & active
+    if (role === "admin") {
+      newUser.isApproved = true;
+      newUser.isActive = true;
+    }
 
     await newUser.save();
 
@@ -118,7 +127,7 @@ export const signup = async (req, res) => {
     // await sendVerificationEmail({ to: newUser.email, token });
 
     // Don't generate token if role is not approved yet (non-student)
-    if (newUser.role !== "user" && !newUser.isApproved) {
+    if (newUser.role !== "student" && !newUser.isApproved) {
       return res.status(201).json({
         message:
           "Registration submitted. Please wait for approval and verify your email.",
@@ -173,8 +182,8 @@ export const login = async (req, res) => {
       }
     }
 
-    // USERS (students): Block login if deactivated by HOD
-    if (user.role === "user" && user.isApproved && !user.isActive) {
+    // STUDENTS: Block login if deactivated by HOD
+    if (user.role === "student" && user.isApproved && !user.isActive) {
       return res.status(403).json({
         error: "inactive-account",
         message:
@@ -183,7 +192,7 @@ export const login = async (req, res) => {
     }
 
     // Block login if HoD account is deactivated (must be approved first)
-    if (user.role === "headOfDepartment" && user.isApproved && !user.isActive) {
+    if (user.role === "hod" && user.isApproved && !user.isActive) {
       return res.status(403).json({
         error: "inactive-account",
         message:
@@ -192,9 +201,9 @@ export const login = async (req, res) => {
     }
 
     // Block login if role is not approved (non-student roles require approval)
-    if (user.role !== "user" && !user.isApproved) {
+    if (user.role !== "student" && !user.isApproved) {
       // HoD-specific message (Dean approval pending)
-      if (user.role === "headOfDepartment") {
+      if (user.role === "hod") {
         return res.status(403).json({
           error: "pending-approval",
           message:

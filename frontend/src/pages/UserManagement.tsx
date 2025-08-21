@@ -107,7 +107,7 @@ function UserManagement() {
             email: u.email,
             department: u.department,
             createdAt: u.createdAt,
-            status: (u as any).isActive ? "Active" : "Inactive",
+            status: (u as unknown).isActive ? "Active" : "Inactive",
             complaintsCount: u.complaintsCount || 0,
             lastActivity: u.lastActivity || (u as any).updatedAt || u.createdAt,
           }))

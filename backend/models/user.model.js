@@ -15,16 +15,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "Please enter password"],
     },
+    // role values: student, staff, hod, dean, admin
     role: {
       type: String,
-      enum: ["user", "admin", "staff", "dean", "headOfDepartment"],
-      default: "user",
+      enum: ["student", "staff", "hod", "dean", "admin"],
+      default: "student",
     },
     isApproved: {
       type: Boolean,
       default: function () {
-        // Only students (user role) are auto-approved. Others require approval.
-        return this.role === "user";
+        // Only students are auto-approved. Admins should also be auto-approved.
+        return this.role === "student" || this.role === "admin";
       },
     },
     isRejected: {
@@ -34,22 +35,20 @@ const userSchema = new mongoose.Schema(
     department: {
       type: String,
       required: function () {
-        // Department is required for user, staff, and headOfDepartment (not dean)
+        // Department is required for student, staff, and hod (not dean or admin)
         return (
-          this.role === "user" ||
+          this.role === "student" ||
           this.role === "staff" ||
-          this.role === "headOfDepartment"
+          this.role === "hod"
         );
       },
     },
     workingPlace: {
       type: String,
       required: function () {
-        // Working position is required for staff, headOfDepartment, and dean
+        // Working position is required for staff, hod, and dean (not admin or student)
         return (
-          this.role === "staff" ||
-          this.role === "headOfDepartment" ||
-          this.role === "dean"
+          this.role === "staff" || this.role === "hod" || this.role === "dean"
         );
       },
     },
@@ -57,7 +56,7 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // For HoD two-stage approval: set true when Dean approves, then Admin gives final approval
+    // For hod two-stage approval: set true when Dean approves, then Admin gives final approval
     approvedByDean: {
       type: Boolean,
       default: false,
@@ -65,8 +64,8 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: function () {
-        // Students are active immediately; others become active upon approval
-        return this.role === "user";
+        // Students and admins are active immediately; others become active upon approval
+        return this.role === "student" || this.role === "admin";
       },
     },
   },
@@ -82,7 +81,7 @@ userSchema.virtual("status").get(function () {
   if (this.isRejected) return "Rejected";
   // Special intermediate state for HoD
   if (
-    this.role === "headOfDepartment" &&
+    this.role === "hod" &&
     this.approvedByDean === true &&
     !this.isApproved &&
     this.isRejected !== true

@@ -115,7 +115,7 @@ export const hodGetUsers = async (req, res) => {
   try {
     const dept = req.user.department;
     const users = await User.find({
-      role: "user",
+      role: "student",
       department: dept,
     }).select("-password");
     res.status(200).json(users);
@@ -129,7 +129,7 @@ export const hodActivateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const user = await User.findById(id);
-    if (!user || user.role !== "user")
+    if (!user || user.role !== "student")
       return res.status(404).json({ error: "User not found" });
     if (user.department !== req.user.department) {
       return res
@@ -149,7 +149,7 @@ export const hodDeactivateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const user = await User.findById(id);
-    if (!user || user.role !== "user")
+    if (!user || user.role !== "student")
       return res.status(404).json({ error: "User not found" });
     if (user.department !== req.user.department) {
       return res
@@ -170,7 +170,7 @@ export const hodPromoteUser = async (req, res) => {
     const { id } = req.params;
     const { workingPlace } = req.body;
     const user = await User.findById(id);
-    if (!user || user.role !== "user")
+    if (!user || user.role !== "student")
       return res.status(404).json({ error: "User not found" });
     if (user.department !== req.user.department) {
       return res
@@ -245,7 +245,7 @@ export const hodGetRejectedStaff = async (req, res) => {
 export const deanGetPendingHod = async (req, res) => {
   try {
     const pending = await User.find({
-      role: "headOfDepartment",
+      role: "hod",
       isApproved: false,
       approvedByDean: { $ne: true },
       isRejected: { $ne: true },
@@ -260,7 +260,7 @@ export const deanApproveHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     // Dean final approval: activate and approve account
     hod.isApproved = true;
@@ -279,7 +279,7 @@ export const deanRejectHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     hod.isRejected = true;
     hod.isApproved = false;
@@ -305,7 +305,7 @@ export const deanDeactivateHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     // Only allowed for approved HoDs; otherwise use reject/deapprove flows
     if (!hod.isApproved || hod.isRejected) {
@@ -326,7 +326,7 @@ export const deanReactivateHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     // Only change active flag; don't change approval/rejection state
     if (!hod.isApproved || hod.isRejected) {
@@ -348,7 +348,7 @@ export const deanDeapproveHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     // Move back to Pending
     hod.isApproved = false;
@@ -366,7 +366,7 @@ export const deanReapproveHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     // Move to Active again
     hod.isRejected = false;
@@ -382,7 +382,7 @@ export const deanReapproveHod = async (req, res) => {
 export const deanGetActiveHod = async (req, res) => {
   try {
     const active = await User.find({
-      role: "headOfDepartment",
+      role: "hod",
       isApproved: true,
       isRejected: { $ne: true },
       isActive: true,
@@ -396,7 +396,7 @@ export const deanGetActiveHod = async (req, res) => {
 export const deanGetRejectedHod = async (req, res) => {
   try {
     const rejected = await User.find({
-      role: "headOfDepartment",
+      role: "hod",
       $or: [
         { isRejected: true },
         { isApproved: true, isActive: false }, // deactivated but still approved
@@ -412,7 +412,7 @@ export const deanGetRejectedHod = async (req, res) => {
 export const adminGetPendingHod = async (req, res) => {
   try {
     const pending = await User.find({
-      role: "headOfDepartment",
+      role: "hod",
       approvedByDean: true,
       isApproved: false,
       isRejected: { $ne: true },
@@ -427,7 +427,7 @@ export const adminApproveHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     hod.isApproved = true;
     hod.isActive = true;
@@ -450,7 +450,7 @@ export const adminRejectHod = async (req, res) => {
   try {
     const { id } = req.params;
     const hod = await User.findById(id);
-    if (!hod || hod.role !== "headOfDepartment")
+    if (!hod || hod.role !== "hod")
       return res.status(404).json({ error: "Department head not found" });
     hod.isRejected = true;
     hod.isApproved = false;
@@ -474,7 +474,7 @@ export const adminRejectHod = async (req, res) => {
 export const adminGetActiveHod = async (req, res) => {
   try {
     const active = await User.find({
-      role: "headOfDepartment",
+      role: "hod",
       isApproved: true,
       isRejected: { $ne: true },
     }).select("-password");

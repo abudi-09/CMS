@@ -23,7 +23,7 @@ router.get("/pending-staff", protectRoute, adminOnly, getPendingStaff);
 // Get all staff
 router.get("/all-staff", protectRoute, adminOnly, getAllStaff);
 
-// Get all users (optional query: ?role=user|staff|headOfDepartment|dean|admin&department=DeptName)
+// Get all users (optional query: ?role=student|staff|hod|dean|admin&department=DeptName)
 router.get("/users", protectRoute, adminOnly, getAllUsers);
 
 // Approve staff

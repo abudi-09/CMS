@@ -103,7 +103,7 @@ export const getAllUsers = async (req, res) => {
     const { role, department } = req.query;
     const query = {};
     if (role) {
-      // allow frontend to pass DB role values (user, staff, headOfDepartment, dean, admin)
+      // allow frontend to pass DB role values (student, staff, hod, dean, admin)
       query.role = role;
     }
     if (department) {

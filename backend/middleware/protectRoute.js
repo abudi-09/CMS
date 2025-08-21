@@ -42,7 +42,7 @@ export const deanOnly = (req, res, next) => {
 };
 
 export const hodOnly = (req, res, next) => {
-  if (req.user && req.user.role === "headOfDepartment") {
+  if (req.user && req.user.role === "hod") {
     next();
   } else {
     return res
