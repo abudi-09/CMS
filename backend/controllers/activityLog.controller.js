@@ -1,9 +1,7 @@
 import ActivityLog from "../models/activityLog.model.js";
 import User from "../models/user.model.js";
 
-// Get all logs for a complaint
 export const getLogsForComplaint = async (req, res) => {
-  // Hardcoded example for understanding
   if (req.query.example === "true") {
     return res.status(200).json([
       {

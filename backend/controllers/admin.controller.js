@@ -96,3 +96,23 @@ export const getAllStaff = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+// Admin: get all users across roles, with optional role and department filters
+export const getAllUsers = async (req, res) => {
+  try {
+    const { role, department } = req.query;
+    const query = {};
+    if (role) {
+      // allow frontend to pass DB role values (user, staff, headOfDepartment, dean, admin)
+      query.role = role;
+    }
+    if (department) {
+      query.department = department;
+    }
+    const users = await User.find(query).select("-password");
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Failed to fetch users", error?.message || error);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+};

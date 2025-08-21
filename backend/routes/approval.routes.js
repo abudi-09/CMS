@@ -9,6 +9,11 @@ import {
   hodGetPendingStaff,
   hodApproveStaff,
   hodRejectStaff,
+  hodDeactivateStaff,
+  hodReactivateStaff,
+  hodGetActiveStaff,
+  hodGetDeactivatedStaff,
+  hodGetRejectedStaff,
   deanGetPendingHod,
   deanApproveHod,
   deanRejectHod,
@@ -29,9 +34,47 @@ import {
 const router = express.Router();
 
 // HoD approval routes
+import {
+  hodGetUsers,
+  hodActivateUser,
+  hodDeactivateUser,
+  hodPromoteUser,
+} from "../controllers/approval.controller.js";
+
+// ...existing code...
+// HoD user management routes
+router.get("/hod/users", protectRoute, hodOnly, hodGetUsers);
+router.put("/hod/activate-user/:id", protectRoute, hodOnly, hodActivateUser);
+router.put(
+  "/hod/deactivate-user/:id",
+  protectRoute,
+  hodOnly,
+  hodDeactivateUser
+);
+router.put("/hod/promote-user/:id", protectRoute, hodOnly, hodPromoteUser);
 router.get("/hod/pending-staff", protectRoute, hodOnly, hodGetPendingStaff);
 router.put("/hod/approve-staff/:id", protectRoute, hodOnly, hodApproveStaff);
 router.delete("/hod/reject-staff/:id", protectRoute, hodOnly, hodRejectStaff);
+router.put(
+  "/hod/deactivate-staff/:id",
+  protectRoute,
+  hodOnly,
+  hodDeactivateStaff
+);
+router.put(
+  "/hod/reactivate-staff/:id",
+  protectRoute,
+  hodOnly,
+  hodReactivateStaff
+);
+router.get("/hod/active-staff", protectRoute, hodOnly, hodGetActiveStaff);
+router.get(
+  "/hod/deactivated-staff",
+  protectRoute,
+  hodOnly,
+  hodGetDeactivatedStaff
+);
+router.get("/hod/rejected-staff", protectRoute, hodOnly, hodGetRejectedStaff);
 
 // Dean approval routes
 router.get("/dean/pending-hod", protectRoute, deanOnly, deanGetPendingHod);

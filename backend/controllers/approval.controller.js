@@ -58,6 +58,189 @@ export const hodRejectStaff = async (req, res) => {
   }
 };
 
+// HoD: deactivate/reactivate approved staff in their department
+export const hodDeactivateStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await User.findById(id);
+    if (!staff || staff.role !== "staff")
+      return res.status(404).json({ error: "Staff not found" });
+    if (staff.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only deactivate staff in your department" });
+    }
+    if (!staff.isApproved || staff.isRejected) {
+      return res.status(400).json({
+        error:
+          "Only approved staff can be deactivated. Use approve or reject for pending accounts.",
+      });
+    }
+    staff.isActive = false;
+    await staff.save();
+    res.status(200).json({ message: "Staff deactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to deactivate staff" });
+  }
+};
+
+export const hodReactivateStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await User.findById(id);
+    if (!staff || staff.role !== "staff")
+      return res.status(404).json({ error: "Staff not found" });
+    if (staff.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only reactivate staff in your department" });
+    }
+    if (!staff.isApproved || staff.isRejected) {
+      return res.status(400).json({
+        error:
+          "Only approved staff can be reactivated. Approve staff to move out of rejected/pending.",
+      });
+    }
+    staff.isActive = true;
+    await staff.save();
+    res.status(200).json({ message: "Staff reactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reactivate staff" });
+  }
+};
+
+// HoD: list approved(active), deactivated, rejected staff in their department
+// HoD: list users (students) in their department
+export const hodGetUsers = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const users = await User.find({
+      role: "user",
+      department: dept,
+    }).select("-password");
+    res.status(200).json(users);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+};
+
+// HoD: activate a user in their department
+export const hodActivateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user || user.role !== "user")
+      return res.status(404).json({ error: "User not found" });
+    if (user.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only activate users in your department" });
+    }
+    user.isActive = true;
+    await user.save();
+    res.status(200).json({ message: "User activated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to activate user" });
+  }
+};
+
+// HoD: deactivate a user in their department
+export const hodDeactivateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user || user.role !== "user")
+      return res.status(404).json({ error: "User not found" });
+    if (user.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only deactivate users in your department" });
+    }
+    user.isActive = false;
+    await user.save();
+    res.status(200).json({ message: "User deactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to deactivate user" });
+  }
+};
+
+// HoD: promote a user to staff in their department
+export const hodPromoteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { workingPlace } = req.body;
+    const user = await User.findById(id);
+    if (!user || user.role !== "user")
+      return res.status(404).json({ error: "User not found" });
+    if (user.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only promote users in your department" });
+    }
+    if (!workingPlace) {
+      return res
+        .status(400)
+        .json({ error: "Working position is required to promote to staff" });
+    }
+    user.role = "staff";
+    user.workingPlace = workingPlace;
+    user.isApproved = false;
+    user.isRejected = false;
+    user.isActive = false;
+    await user.save();
+    res
+      .status(200)
+      .json({ message: "User promoted to staff. Awaiting approval." });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to promote user" });
+  }
+};
+export const hodGetActiveStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const active = await User.find({
+      role: "staff",
+      department: dept,
+      isApproved: true,
+      isActive: true,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(active);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active staff" });
+  }
+};
+
+export const hodGetDeactivatedStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const deactivated = await User.find({
+      role: "staff",
+      department: dept,
+      isApproved: true,
+      isActive: false,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(deactivated);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch deactivated staff" });
+  }
+};
+
+export const hodGetRejectedStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const rejected = await User.find({
+      role: "staff",
+      department: dept,
+      isRejected: true,
+    }).select("-password");
+    res.status(200).json(rejected);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch rejected staff" });
+  }
+};
+
 // Dean: manage HoD
 export const deanGetPendingHod = async (req, res) => {
   try {

@@ -47,7 +47,7 @@ export const signup = async (req, res) => {
       return res.status(400).json({ error: "Invalid role selected" });
     }
     if (
-      (role === "user" || role === "headOfDepartment") &&
+      (role === "user" || role === "staff" || role === "headOfDepartment") &&
       (!department || !department.trim())
     ) {
       return res
@@ -94,7 +94,9 @@ export const signup = async (req, res) => {
       password: hashedPassword,
       role,
       department:
-        role === "user" || role === "headOfDepartment" ? department : undefined,
+        role === "user" || role === "staff" || role === "headOfDepartment"
+          ? department
+          : undefined,
       workingPlace:
         role === "staff" || role === "headOfDepartment" || role === "dean"
           ? workingPlace
@@ -169,6 +171,15 @@ export const login = async (req, res) => {
           message: "Your account has been deactivated by your Department Head.",
         });
       }
+    }
+
+    // USERS (students): Block login if deactivated by HOD
+    if (user.role === "user" && user.isApproved && !user.isActive) {
+      return res.status(403).json({
+        error: "inactive-account",
+        message:
+          "You have been deactivated by the HOD. You cannot access the system.",
+      });
     }
 
     // Block login if HoD account is deactivated (must be approved first)

@@ -324,7 +324,7 @@ export type LoginSuccess = {
 };
 
 export type LoginError = {
-  error: "pending-approval" | "inactive-account";
+  error: "pending-approval" | "inactive-account" | "rejected-account";
   message?: string;
 };
 
@@ -343,12 +343,189 @@ export async function loginApi(
     // Special handling for pending approval or inactive account
     if (
       data?.error === "pending-approval" ||
-      data?.error === "inactive-account"
+      data?.error === "inactive-account" ||
+      data?.error === "rejected-account"
     ) {
       return { error: data.error, message: data.message };
     }
     throw new Error(data.error || "Login failed");
   }
+  return data;
+}
+
+// HOD: Staff management within department
+export async function getHodPendingStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/hod/pending-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch pending staff");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
+export async function hodApproveStaffApi(staffId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/hod/approve-staff/${staffId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to approve staff");
+  return data;
+}
+
+export async function hodRejectStaffApi(staffId: string) {
+  const res = await fetch(`${API_BASE}/approvals/hod/reject-staff/${staffId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reject staff");
+  return data;
+}
+
+export async function hodDeactivateStaffApi(staffId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/hod/deactivate-staff/${staffId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to deactivate staff");
+  return data;
+}
+
+export async function hodReactivateStaffApi(staffId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/hod/reactivate-staff/${staffId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reactivate staff");
+  return data;
+}
+
+export async function getHodActiveStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/hod/active-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch active staff");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
+export async function getHodDeactivatedStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/hod/deactivated-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch deactivated staff");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
+export async function getHodRejectedStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/hod/rejected-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch rejected staff");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
+// HOD: user (student) management in department
+export async function hodGetUsersApi() {
+  const res = await fetch(`${API_BASE}/approvals/hod/users`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch users");
+  return data as Array<unknown>;
+}
+
+export async function hodActivateUserApi(userId: string) {
+  const res = await fetch(`${API_BASE}/approvals/hod/activate-user/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to activate user");
+  return data;
+}
+
+export async function hodDeactivateUserApi(userId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/hod/deactivate-user/${userId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to deactivate user");
+  return data;
+}
+
+export async function hodPromoteUserApi(userId: string, workingPlace: string) {
+  const res = await fetch(`${API_BASE}/approvals/hod/promote-user/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ workingPlace }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to promote user");
   return data;
 }
 
@@ -408,4 +585,37 @@ export async function getRoleCountsApi() {
     students: number;
     staff: number;
   };
+}
+
+// Admin: fetch users with optional role and department filters
+export type UserDto = {
+  username: string;
+  _id: string;
+  fullName?: string;
+  name?: string;
+  email: string;
+  role: string;
+  isActive?: boolean;
+  department?: string;
+  createdAt?: string | Date;
+};
+
+export async function getAllUsersApi(opts?: {
+  role?: string;
+  department?: string;
+}): Promise<UserDto[]> {
+  const params = new URLSearchParams();
+  if (opts?.role) params.set("role", opts.role);
+  if (opts?.department) params.set("department", opts.department);
+  const url =
+    `${API_BASE}/admin/users` +
+    (params.toString() ? `?${params.toString()}` : "");
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch users");
+  return data as UserDto[];
 }

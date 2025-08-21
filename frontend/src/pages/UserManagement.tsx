@@ -48,87 +48,29 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  hodGetUsersApi,
+  hodActivateUserApi,
+  hodDeactivateUserApi,
+  hodPromoteUserApi,
+} from "@/lib/api";
 
 interface Student {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   department: string;
-  joinedDate: Date;
+  createdAt: string;
   status: "Active" | "Inactive";
-  complaintsCount: number;
-  lastActivity: Date;
+  complaintsCount?: number;
+  lastActivity?: string;
 }
 
-// Mock data for students
-const mockStudents: Student[] = [
-  {
-    id: "STU-001",
-    name: "John Doe",
-    email: "john.doe@student.uog.edu.et",
-    department: "Computer Science",
-    joinedDate: new Date("2023-09-01"),
-    status: "Active",
-    complaintsCount: 3,
-    lastActivity: new Date("2024-01-20"),
-  },
-  {
-    id: "STU-002",
-    name: "Jane Smith",
-    email: "jane.smith@student.uog.edu.et",
-    department: "Business Administration",
-    joinedDate: new Date("2023-09-01"),
-    status: "Active",
-    complaintsCount: 1,
-    lastActivity: new Date("2024-01-18"),
-  },
-  {
-    id: "STU-003",
-    name: "Mike Johnson",
-    email: "mike.johnson@student.uog.edu.et",
-    department: "Engineering",
-    joinedDate: new Date("2023-09-01"),
-    status: "Inactive",
-    complaintsCount: 0,
-    lastActivity: new Date("2023-12-15"),
-  },
-  {
-    id: "STU-004",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@student.uog.edu.et",
-    department: "Medicine",
-    joinedDate: new Date("2023-09-01"),
-    status: "Active",
-    complaintsCount: 2,
-    lastActivity: new Date("2024-01-22"),
-  },
-  {
-    id: "STU-005",
-    name: "David Brown",
-    email: "david.brown@student.uog.edu.et",
-    department: "Law",
-    joinedDate: new Date("2022-09-01"),
-    status: "Active",
-    complaintsCount: 5,
-    lastActivity: new Date("2024-01-25"),
-  },
-  {
-    id: "STU-006",
-    name: "Emma Davis",
-    email: "emma.davis@student.uog.edu.et",
-    department: "Economics",
-    joinedDate: new Date("2023-09-01"),
-    status: "Inactive",
-    complaintsCount: 1,
-    lastActivity: new Date("2023-11-30"),
-  },
-];
-
 function UserManagement() {
-  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [departmentFilter, setDepartmentFilter] = useState("All");
+  // Department filter removed
   // Pagination
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -153,46 +95,109 @@ function UserManagement() {
     setSelectedRole("");
   };
 
-  const handlePromoteConfirm = () => {
-    if (promoteTarget && selectedRole) {
+  // Fetch students from backend
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const users = await hodGetUsersApi();
+        setStudents(
+          users.map((u: Student) => ({
+            _id: u._id,
+            name: u.name,
+            email: u.email,
+            department: u.department,
+            createdAt: u.createdAt,
+            status: (u as any).isActive ? "Active" : "Inactive",
+            complaintsCount: u.complaintsCount || 0,
+            lastActivity: u.lastActivity || (u as any).updatedAt || u.createdAt,
+          }))
+        );
+      } catch (e) {
+        toast({
+          title: "Error",
+          description: (e as Error).message,
+          variant: "destructive",
+        });
+      }
+    }
+    fetchUsers();
+  }, []);
+
+  const handleDeactivate = async (studentId: string, studentName: string) => {
+    try {
+      await hodDeactivateUserApi(studentId);
+      setStudents((prev) =>
+        prev.map((student) =>
+          student._id === studentId
+            ? { ...student, status: "Inactive" }
+            : student
+        )
+      );
       toast({
-        title: "Promotion Request",
-        description: `${
-          promoteTarget.name
-        } has been promoted to ${selectedRole.toLowerCase()}. They will receive an email notification.`,
+        title: "Student Deactivated",
+        description: `${studentName} has been deactivated.`,
       });
-      closePromoteModal();
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
-  const handleDeactivate = (studentId: string, studentName: string) => {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId
-          ? { ...student, status: "Inactive" as const }
-          : student
-      )
-    );
-
-    toast({
-      title: "Student Deactivated",
-      description: `${studentName} has been deactivated.`,
-    });
+  const handleActivate = async (studentId: string, studentName: string) => {
+    try {
+      await hodActivateUserApi(studentId);
+      setStudents((prev) =>
+        prev.map((student) =>
+          student._id === studentId ? { ...student, status: "Active" } : student
+        )
+      );
+      toast({
+        title: "Student Activated",
+        description: `${studentName} has been activated.`,
+      });
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleActivate = (studentId: string, studentName: string) => {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId
-          ? { ...student, status: "Active" as const }
-          : student
-      )
-    );
-
-    toast({
-      title: "Student Activated",
-      description: `${studentName} has been activated.`,
-    });
+  const handlePromoteConfirm = async () => {
+    if (promoteTarget && selectedRole) {
+      if (selectedRole === "Staff") {
+        // Prompt for working position
+        const workingPlace = window.prompt("Enter working position for staff:");
+        if (!workingPlace) {
+          toast({ title: "Error", description: "Working position required." });
+          return;
+        }
+        try {
+          await hodPromoteUserApi(promoteTarget.id, workingPlace);
+          toast({
+            title: "Promotion Request",
+            description: `${promoteTarget.name} has been promoted to staff. Awaiting approval by HoD.`,
+          });
+          closePromoteModal();
+        } catch (e) {
+          toast({
+            title: "Error",
+            description: (e as Error).message,
+            variant: "destructive",
+          });
+        }
+      } else if (selectedRole === "Admin") {
+        toast({
+          title: "Not Supported",
+          description: "Promotion to Admin is not supported via this page.",
+        });
+        closePromoteModal();
+      }
+    }
   };
 
   // Calculate summary stats
@@ -210,16 +215,13 @@ function UserManagement() {
       student.department.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All" || student.status === statusFilter;
-    const matchesDepartment =
-      departmentFilter === "All" || student.department === departmentFilter;
-
-    return matchesSearch && matchesStatus && matchesDepartment;
+    return matchesSearch && matchesStatus;
   });
 
   // Reset page on filter/search changes
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, departmentFilter]);
+  }, [searchTerm, statusFilter]);
 
   // Pagination calculations
   const totalItems = filteredStudents.length;
@@ -373,22 +375,7 @@ function UserManagement() {
                 </Select>
               </div>
 
-              <Select
-                value={departmentFilter}
-                onValueChange={setDepartmentFilter}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Departments</SelectItem>
-                  {departments.map((department) => (
-                    <SelectItem key={department} value={department}>
-                      {department}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Department filter removed */}
             </div>
           </div>
         </CardHeader>
@@ -417,9 +404,7 @@ function UserManagement() {
                       className="text-center py-8 text-muted-foreground"
                     >
                       {totalItems === 0
-                        ? searchTerm ||
-                          statusFilter !== "All" ||
-                          departmentFilter !== "All"
+                        ? searchTerm || statusFilter !== "All" || false
                           ? "No students match your search criteria"
                           : "No students found"
                         : null}
@@ -427,11 +412,11 @@ function UserManagement() {
                   </TableRow>
                 ) : (
                   pagedStudents.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-muted/50">
+                    <TableRow key={student._id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="font-medium">{student.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          ID: {student.id}
+                          ID: {student._id}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -463,7 +448,7 @@ function UserManagement() {
                       <TableCell className="text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
-                          {student.joinedDate.toLocaleDateString()}
+                          {new Date(student.createdAt).toLocaleDateString()}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -475,7 +460,9 @@ function UserManagement() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {student.lastActivity.toLocaleDateString()}
+                        {student.lastActivity
+                          ? new Date(student.lastActivity).toLocaleDateString()
+                          : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
@@ -484,7 +471,7 @@ function UserManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                openPromoteModal(student.id, student.name)
+                                openPromoteModal(student._id, student.name)
                               }
                               className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
                             >
@@ -497,7 +484,7 @@ function UserManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                handleDeactivate(student.id, student.name)
+                                handleDeactivate(student._id, student.name)
                               }
                               className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
                             >
@@ -509,7 +496,7 @@ function UserManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                handleActivate(student.id, student.name)
+                                handleActivate(student._id, student.name)
                               }
                               className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
                             >
@@ -531,22 +518,20 @@ function UserManagement() {
             {pagedStudents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {totalItems === 0
-                  ? searchTerm ||
-                    statusFilter !== "All" ||
-                    departmentFilter !== "All"
+                  ? searchTerm || statusFilter !== "All" || false
                     ? "No students match your search criteria"
                     : "No students found"
                   : null}
               </div>
             ) : (
               pagedStudents.map((student) => (
-                <Card key={student.id} className="p-4">
+                <Card key={student._id} className="p-4">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="font-medium">{student.name}</h3>
                         <p className="text-xs text-muted-foreground">
-                          ID: {student.id}
+                          ID: {student._id}
                         </p>
                       </div>
                       <Badge
@@ -573,7 +558,8 @@ function UserManagement() {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          Joined: {student.joinedDate.toLocaleDateString()}
+                          Joined:{" "}
+                          {new Date(student.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -589,7 +575,7 @@ function UserManagement() {
                         variant="outline"
                         size="sm"
                         onClick={() =>
-                          openPromoteModal(student.id, student.name)
+                          openPromoteModal(student._id, student.name)
                         }
                         className="flex-1 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                       >
@@ -601,7 +587,7 @@ function UserManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            handleDeactivate(student.id, student.name)
+                            handleDeactivate(student._id, student.name)
                           }
                           className="flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
                         >
@@ -613,7 +599,7 @@ function UserManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            handleActivate(student.id, student.name)
+                            handleActivate(student._id, student.name)
                           }
                           className="flex-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
                         >

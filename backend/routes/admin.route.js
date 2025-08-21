@@ -7,6 +7,7 @@ import {
   deactivateStaff,
   activateStaff,
   getAllStaff,
+  getAllUsers,
 } from "../controllers/admin.controller.js";
 
 const router = express.Router();
@@ -21,6 +22,9 @@ router.get("/pending-staff", protectRoute, adminOnly, getPendingStaff);
 
 // Get all staff
 router.get("/all-staff", protectRoute, adminOnly, getAllStaff);
+
+// Get all users (optional query: ?role=user|staff|headOfDepartment|dean|admin&department=DeptName)
+router.get("/users", protectRoute, adminOnly, getAllUsers);
 
 // Approve staff
 router.put("/approve/:id", protectRoute, adminOnly, approveStaff);

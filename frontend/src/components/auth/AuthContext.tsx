@@ -11,9 +11,14 @@ import {
   type LoginError,
   getAllStaffApi,
   getPendingStaffApi,
+  getHodPendingStaffApi,
   getMeApi,
   approveStaffApi,
   rejectStaffApi,
+  hodApproveStaffApi,
+  hodRejectStaffApi,
+  hodDeactivateStaffApi,
+  hodReactivateStaffApi,
 } from "@/lib/api";
 
 export type UserRole = "user" | "staff" | "admin" | "dean" | "headOfDepartment";
@@ -47,7 +52,10 @@ interface AuthContextType {
         department?: string;
         isApproved?: boolean;
       }
-    | { error: "pending-approval" | "inactive-account"; message?: string }
+    | {
+        error: "pending-approval" | "inactive-account" | "rejected-account";
+        message?: string;
+      }
     | false
   >;
   logout: () => void;
@@ -87,19 +95,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           department: me.department,
           status: me.isApproved ? "approved" : "pending",
         });
+        // Fetch staff data depending on role
+        if (me.role === "admin") {
+          try {
+            const [all, pending] = await Promise.all([
+              getAllStaffApi(),
+              getPendingStaffApi(),
+            ]);
+            setAllStaff(all);
+            setPendingStaff(pending);
+          } catch (e) {
+            console.error("Failed to fetch admin staff lists", e);
+          }
+        } else if (me.role === "headOfDepartment") {
+          try {
+            const pending = await getHodPendingStaffApi();
+            // Map to User shape minimally
+            const mapped = pending.map((p) => ({
+              id: p._id,
+              username: p.username || p.email,
+              name: p.fullName || p.name || p.username || p.email,
+              email: p.email,
+              role: "staff" as UserRole,
+              department: p.department,
+              status: "pending" as StaffStatus,
+            }));
+            setPendingStaff(mapped);
+          } catch (e) {
+            console.error("Failed to fetch HoD pending staff", e);
+          }
+        }
       } catch (err) {
         setUser(null);
-      }
-      // Always fetch staff data for admin panel
-      try {
-        const [all, pending] = await Promise.all([
-          getAllStaffApi(),
-          getPendingStaffApi(),
-        ]);
-        setAllStaff(all);
-        setPendingStaff(pending);
-      } catch (err) {
-        // Optionally handle error
       }
       setIsCheckingAuth(false);
     }
@@ -151,26 +178,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const approveStaff = async (staffId: string) => {
-    await approveStaffApi(staffId);
-    // Refetch staff data after approval
-    const [all, pending] = await Promise.all([
-      getAllStaffApi(),
-      getPendingStaffApi(),
-    ]);
-    setAllStaff(all);
-    setPendingStaff(pending);
+    if (user?.role === "headOfDepartment") {
+      await hodApproveStaffApi(staffId);
+      const pending = await getHodPendingStaffApi();
+      const mapped = pending.map((p) => ({
+        id: p._id,
+        username: p.username || p.email,
+        name: p.fullName || p.name || p.username || p.email,
+        email: p.email,
+        role: "staff" as UserRole,
+        department: p.department,
+        status: "pending" as StaffStatus,
+      }));
+      setPendingStaff(mapped);
+    } else {
+      await approveStaffApi(staffId);
+      const [all, pending] = await Promise.all([
+        getAllStaffApi(),
+        getPendingStaffApi(),
+      ]);
+      setAllStaff(all);
+      setPendingStaff(pending);
+    }
   };
 
   const rejectStaff = async (staffId: string) => {
-    await rejectStaffApi(staffId);
-    // Refetch staff data after rejection
-    const [all, pending] = await Promise.all([
-      getAllStaffApi(),
-      getPendingStaffApi(),
-    ]);
-    setAllStaff(all);
-    setPendingStaff(pending);
+    if (user?.role === "headOfDepartment") {
+      await hodRejectStaffApi(staffId);
+      const pending = await getHodPendingStaffApi();
+      const mapped = pending.map((p) => ({
+        id: p._id,
+        username: p.username || p.email,
+        name: p.fullName || p.name || p.username || p.email,
+        email: p.email,
+        role: "staff" as UserRole,
+        department: p.department,
+        status: "pending" as StaffStatus,
+      }));
+      setPendingStaff(mapped);
+    } else {
+      await rejectStaffApi(staffId);
+      const [all, pending] = await Promise.all([
+        getAllStaffApi(),
+        getPendingStaffApi(),
+      ]);
+      setAllStaff(all);
+      setPendingStaff(pending);
+    }
   };
+
+  // HoD: convenience helpers for deactivation/reactivation of approved staff
+  async function hodDeactivateStaff(staffId: string) {
+    if (user?.role !== "headOfDepartment") return;
+    await hodDeactivateStaffApi(staffId);
+  }
+  async function hodReactivateStaff(staffId: string) {
+    if (user?.role !== "headOfDepartment") return;
+    await hodReactivateStaffApi(staffId);
+  }
 
   const getAllStaff = () => allStaff;
 

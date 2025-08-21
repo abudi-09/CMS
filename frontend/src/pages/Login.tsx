@@ -72,6 +72,22 @@ export function Login() {
           variant: "destructive",
         });
         return;
+      } else if (
+        result !== null &&
+        typeof result === "object" &&
+        result &&
+        "error" in result &&
+        (result as { error?: string }).error === "rejected-account"
+      ) {
+        toast({
+          title: "Access Denied",
+          description: `⛔ ${
+            (result as { message?: string }).message ||
+            "Your account has been rejected by your Department Head."
+          }`,
+          variant: "destructive",
+        });
+        return;
       } else if (!result) {
         setError("Invalid email or password");
         toast({
