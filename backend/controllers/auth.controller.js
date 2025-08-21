@@ -149,8 +149,30 @@ export const login = async (req, res) => {
     //     .status(403)
     //     .json({ error: "Please verify your email before logging in." });
     // }
-    // Block login if HoD account is deactivated (show this message even if approval flag is wrong)
-    if (user.role === "headOfDepartment" && !user.isActive) {
+    // STAFF: Block login if Pending, Rejected, or Deactivated
+    if (user.role === "staff") {
+      if (!user.isApproved && !user.isRejected) {
+        return res.status(403).json({
+          error: "pending-approval",
+          message: "Your account is pending approval by your Department Head.",
+        });
+      }
+      if (user.isRejected) {
+        return res.status(403).json({
+          error: "rejected-account",
+          message: "Your account has been rejected by your Department Head.",
+        });
+      }
+      if (user.isApproved && !user.isActive) {
+        return res.status(403).json({
+          error: "inactive-account",
+          message: "Your account has been deactivated by your Department Head.",
+        });
+      }
+    }
+
+    // Block login if HoD account is deactivated (must be approved first)
+    if (user.role === "headOfDepartment" && user.isApproved && !user.isActive) {
       return res.status(403).json({
         error: "inactive-account",
         message:
@@ -160,6 +182,23 @@ export const login = async (req, res) => {
 
     // Block login if role is not approved (non-student roles require approval)
     if (user.role !== "user" && !user.isApproved) {
+      // HoD-specific message (Dean approval pending)
+      if (user.role === "headOfDepartment") {
+        return res.status(403).json({
+          error: "pending-approval",
+          message:
+            "Your account has not yet been approved by the Dean. You will receive an email notification once your account is approved.",
+        });
+      }
+      // Dean-specific message (Admin approval pending)
+      if (user.role === "dean") {
+        return res.status(403).json({
+          error: "pending-approval",
+          message:
+            "Your account has not yet been approved by admin . You will receive an email notification once your account is approved.",
+        });
+      }
+      // Generic for other roles
       return res.status(403).json({
         error: "pending-approval",
         message: "Your account has not been approved yet.",
