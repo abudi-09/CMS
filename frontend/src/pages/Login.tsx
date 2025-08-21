@@ -48,10 +48,10 @@ export function Login() {
         (result as { error?: string }).error === "pending-approval"
       ) {
         toast({
-          title: "🕒 Staff Not Approved Yet",
+          title: "🕒 Not Approved Yet",
           description:
             (result as { message?: string }).message ||
-            "Please wait, your account has not been approved by the admin yet.",
+            "Please wait, your account has not been approved yet.",
           variant: "default",
         });
         return;
@@ -64,9 +64,10 @@ export function Login() {
       ) {
         toast({
           title: "Access Denied",
-          description:
+          description: `⚠️ ${
             (result as { message?: string }).message ||
-            "Your account has been deactivated by the Admin. You no longer have access to the system.",
+            "Your account has been deactivated by the Admin. You no longer have access to the system."
+          }`,
           variant: "destructive",
         });
         return;

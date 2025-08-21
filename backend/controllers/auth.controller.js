@@ -149,6 +149,15 @@ export const login = async (req, res) => {
     //     .status(403)
     //     .json({ error: "Please verify your email before logging in." });
     // }
+    // Block login if HoD account is deactivated (show this message even if approval flag is wrong)
+    if (user.role === "headOfDepartment" && !user.isActive) {
+      return res.status(403).json({
+        error: "inactive-account",
+        message:
+          "Your account has been deactivated by the Dean. You no longer have access to the system.",
+      });
+    }
+
     // Block login if role is not approved (non-student roles require approval)
     if (user.role !== "user" && !user.isApproved) {
       return res.status(403).json({
@@ -157,7 +166,7 @@ export const login = async (req, res) => {
       });
     }
 
-    // Block login if account is deactivated (dean only, per requirement)
+    // Block login if dean account is deactivated
     if (user.role === "dean" && user.isApproved && !user.isActive) {
       return res.status(403).json({
         error: "inactive-account",

@@ -220,6 +220,34 @@ export async function deanReapproveHodApi(hodId: string) {
   return data;
 }
 
+export async function deanDeactivateHodApi(hodId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
+  return data;
+}
+
+export async function deanReactivateHodApi(hodId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
+  return data;
+}
+
 export async function getDeanActiveHodApi() {
   const res = await fetch(`${API_BASE}/approvals/dean/active-hod`, {
     method: "GET",

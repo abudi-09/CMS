@@ -117,6 +117,49 @@ export const deanRejectHod = async (req, res) => {
   }
 };
 
+// Dean: deactivate/reactivate HoD (keep approved status, toggle active)
+export const deanDeactivateHod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hod = await User.findById(id);
+    if (!hod || hod.role !== "headOfDepartment")
+      return res.status(404).json({ error: "Department head not found" });
+    // Only allowed for approved HoDs; otherwise use reject/deapprove flows
+    if (!hod.isApproved || hod.isRejected) {
+      return res.status(400).json({
+        error:
+          "Only approved HoD accounts can be deactivated. Use reject or de-approve instead.",
+      });
+    }
+    hod.isActive = false;
+    await hod.save();
+    res.status(200).json({ message: "Department head deactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to deactivate department head" });
+  }
+};
+
+export const deanReactivateHod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hod = await User.findById(id);
+    if (!hod || hod.role !== "headOfDepartment")
+      return res.status(404).json({ error: "Department head not found" });
+    // Only change active flag; don't change approval/rejection state
+    if (!hod.isApproved || hod.isRejected) {
+      return res.status(400).json({
+        error:
+          "Only approved HoD accounts can be reactivated. Use approve to move out of rejected/pending.",
+      });
+    }
+    hod.isActive = true;
+    await hod.save();
+    res.status(200).json({ message: "Department head reactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reactivate department head" });
+  }
+};
+
 // Dean: reversal controls
 export const deanDeapproveHod = async (req, res) => {
   try {
@@ -159,6 +202,7 @@ export const deanGetActiveHod = async (req, res) => {
       role: "headOfDepartment",
       isApproved: true,
       isRejected: { $ne: true },
+      isActive: true,
     }).select("-password");
     res.status(200).json(active);
   } catch (e) {
@@ -170,7 +214,10 @@ export const deanGetRejectedHod = async (req, res) => {
   try {
     const rejected = await User.find({
       role: "headOfDepartment",
-      isRejected: true,
+      $or: [
+        { isRejected: true },
+        { isApproved: true, isActive: false }, // deactivated but still approved
+      ],
     }).select("-password");
     res.status(200).json(rejected);
   } catch (e) {

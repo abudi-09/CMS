@@ -35,6 +35,8 @@ import {
   deanApproveHodApi,
   deanRejectHodApi,
   deanReapproveHodApi,
+  deanDeactivateHodApi,
+  deanReactivateHodApi,
 } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
@@ -52,7 +54,12 @@ interface HoDRow {
 }
 
 // Actions supported via confirm modal
-type ActionType = "approve" | "reject" | "deactivate" | "reapprove";
+type ActionType =
+  | "approve"
+  | "reject"
+  | "deactivate"
+  | "reapprove"
+  | "reactivate";
 
 export default function DepartmentManagement() {
   // Safe error message extractor (avoids `any` use)
@@ -85,8 +92,15 @@ export default function DepartmentManagement() {
 
   // Summary cards
   const totalHods = pending.length + approved.length + rejected.length;
-  const activeHods = approved.length;
-  const inactiveHods = totalHods - activeHods;
+  const activeHods = useMemo(
+    () => approved.filter((h) => h.active).length,
+    [approved]
+  );
+  // Deactivated HoDs appear in rejected list but have status 'approved' and active=false
+  const deactivatedHods = useMemo(
+    () => rejected.filter((h) => h.status === "approved" && !h.active).length,
+    [rejected]
+  );
 
   // Fixed department options per requirements
   const departmentOptions = useMemo(
@@ -203,17 +217,23 @@ export default function DepartmentManagement() {
           description: `${hod.name} was rejected.`,
         });
       } else if (action === "deactivate") {
-        // Deactivate should move approved HoD to Rejected list
-        await deanRejectHodApi(hod.id);
+        // Toggle active=false but keep approved state
+        await deanDeactivateHodApi(hod.id);
         toast({
           title: "HoD deactivated",
-          description: `${hod.name} has been moved to Rejected.`,
+          description: `${hod.name} can no longer login until reactivated.`,
         });
       } else if (action === "reapprove") {
         await deanReapproveHodApi(hod.id);
         toast({
           title: "HoD re-approved",
           description: `${hod.name} is now active.`,
+        });
+      } else if (action === "reactivate") {
+        await deanReactivateHodApi(hod.id);
+        toast({
+          title: "HoD reactivated",
+          description: `${hod.name} is now active again.`,
         });
       }
       await fetchLists();
@@ -236,9 +256,11 @@ export default function DepartmentManagement() {
       case "reject":
         return "Are you sure you want to reject this Head of Department?";
       case "deactivate":
-        return "Are you sure you want to deactivate this Head of Department? They will appear in Rejected.";
+        return "Are you sure you want to deactivate this Head of Department? They will be unable to login.";
       case "reapprove":
         return "Are you sure you want to re-approve this Head of Department?";
+      case "reactivate":
+        return "Are you sure you want to reactivate this Head of Department?";
       default:
         return "Confirm action";
     }
@@ -281,13 +303,13 @@ export default function DepartmentManagement() {
         <Card className="border border-red-200 bg-red-50 dark:bg-red-950/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-red-700 dark:text-red-300">
-              Inactive HoDs
+              Deactivated HoDs
             </CardTitle>
             <UserX className="h-5 w-5 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-red-800 dark:text-red-200">
-              {inactiveHods}
+              {deactivatedHods}
             </div>
           </CardContent>
         </Card>
@@ -376,8 +398,15 @@ export default function DepartmentManagement() {
                         Dept: {h.department}
                       </div>
                       {activeTab === "approved" && (
-                        <div className="mt-1 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
-                          Active
+                        <div
+                          className={
+                            "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                            (h.active
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700")
+                          }
+                        >
+                          {h.active ? "Active" : "Deactivated"}
                         </div>
                       )}
                     </div>
@@ -401,24 +430,42 @@ export default function DepartmentManagement() {
                         </Button>
                       </>
                     )}
-                    {activeTab === "approved" && (
-                      <Button
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                        disabled={loading}
-                        onClick={() => openConfirm("deactivate", h)}
-                      >
-                        Deactivate
-                      </Button>
-                    )}
-                    {activeTab === "rejected" && (
-                      <Button
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        disabled={loading}
-                        onClick={() => openConfirm("reapprove", h)}
-                      >
-                        Re-approve
-                      </Button>
-                    )}
+                    {activeTab === "approved" &&
+                      (h.active ? (
+                        <Button
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          disabled={loading}
+                          onClick={() => openConfirm("deactivate", h)}
+                        >
+                          Deactivate
+                        </Button>
+                      ) : (
+                        <Button
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={loading}
+                          onClick={() => openConfirm("reactivate", h)}
+                        >
+                          Reactivate
+                        </Button>
+                      ))}
+                    {activeTab === "rejected" &&
+                      (h.status === "approved" && !h.active ? (
+                        <Button
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={loading}
+                          onClick={() => openConfirm("reactivate", h)}
+                        >
+                          Reactivate
+                        </Button>
+                      ) : (
+                        <Button
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={loading}
+                          onClick={() => openConfirm("reapprove", h)}
+                        >
+                          Re-approve
+                        </Button>
+                      ))}
                   </div>
                 </Card>
               ))
@@ -455,8 +502,14 @@ export default function DepartmentManagement() {
                       <TableCell>{h.email}</TableCell>
                       {activeTab === "approved" && (
                         <TableCell>
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            Active
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              h.active
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {h.active ? "Active" : "Deactivated"}
                           </span>
                         </TableCell>
                       )}
@@ -480,25 +533,43 @@ export default function DepartmentManagement() {
                           </div>
                         )}
 
-                        {activeTab === "approved" && (
-                          <Button
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                            disabled={loading}
-                            onClick={() => openConfirm("deactivate", h)}
-                          >
-                            Deactivate
-                          </Button>
-                        )}
+                        {activeTab === "approved" &&
+                          (h.active ? (
+                            <Button
+                              className="bg-red-600 hover:bg-red-700 text-white"
+                              disabled={loading}
+                              onClick={() => openConfirm("deactivate", h)}
+                            >
+                              Deactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              disabled={loading}
+                              onClick={() => openConfirm("reactivate", h)}
+                            >
+                              Reactivate
+                            </Button>
+                          ))}
 
-                        {activeTab === "rejected" && (
-                          <Button
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            disabled={loading}
-                            onClick={() => openConfirm("reapprove", h)}
-                          >
-                            Re-approve
-                          </Button>
-                        )}
+                        {activeTab === "rejected" &&
+                          (h.status === "approved" && !h.active ? (
+                            <Button
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              disabled={loading}
+                              onClick={() => openConfirm("reactivate", h)}
+                            >
+                              Reactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              disabled={loading}
+                              onClick={() => openConfirm("reapprove", h)}
+                            >
+                              Re-approve
+                            </Button>
+                          ))}
                       </TableCell>
                     </TableRow>
                   ))

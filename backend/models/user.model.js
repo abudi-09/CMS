@@ -89,7 +89,7 @@ userSchema.virtual("status").get(function () {
   ) {
     return "Dean Approved";
   }
-  if (!this.isActive) return "Inactive";
+  if (!this.isActive) return "Deactivated";
   if (this.isApproved) return "Active";
   return "Pending";
 });

@@ -14,6 +14,8 @@ import {
   deanRejectHod,
   deanDeapproveHod,
   deanReapproveHod,
+  deanDeactivateHod,
+  deanReactivateHod,
   deanGetActiveHod,
   deanGetRejectedHod,
   adminGetPendingDeans,
@@ -37,6 +39,18 @@ router.put("/dean/approve-hod/:id", protectRoute, deanOnly, deanApproveHod);
 router.delete("/dean/reject-hod/:id", protectRoute, deanOnly, deanRejectHod);
 router.put("/dean/deapprove-hod/:id", protectRoute, deanOnly, deanDeapproveHod);
 router.put("/dean/reapprove-hod/:id", protectRoute, deanOnly, deanReapproveHod);
+router.put(
+  "/dean/deactivate-hod/:id",
+  protectRoute,
+  deanOnly,
+  deanDeactivateHod
+);
+router.put(
+  "/dean/reactivate-hod/:id",
+  protectRoute,
+  deanOnly,
+  deanReactivateHod
+);
 router.get("/dean/active-hod", protectRoute, deanOnly, deanGetActiveHod);
 router.get("/dean/rejected-hod", protectRoute, deanOnly, deanGetRejectedHod);
 

@@ -390,7 +390,7 @@ export default function DeanDepartmentPerformance() {
                   setDepartmentFilter(v)
                 }
               >
-                <SelectTrigger className="w-56">
+                <SelectTrigger className="w-full sm:w-56 h-11">
                   <SelectValue placeholder="All Departments" />
                 </SelectTrigger>
                 <SelectContent>
@@ -409,6 +409,7 @@ export default function DeanDepartmentPerformance() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full sm:w-auto h-11"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -417,6 +418,7 @@ export default function DeanDepartmentPerformance() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
+                className="w-full sm:w-auto h-11"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -425,7 +427,7 @@ export default function DeanDepartmentPerformance() {
                 value={sortBy}
                 onValueChange={(v) => setSortBy(v as SortKey)}
               >
-                <SelectTrigger className="w-56">
+                <SelectTrigger className="w-full sm:w-56 h-11">
                   <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
                 <SelectContent>
@@ -510,15 +512,19 @@ export default function DeanDepartmentPerformance() {
             )}
           </div>
 
-          {/* Desktop: table */}
+          {/* Desktop/Tablet: table with responsive columns */}
           <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Department</TableHead>
                   <TableHead>Total Assigned</TableHead>
-                  <TableHead>Resolved by HoD</TableHead>
-                  <TableHead>Resolved by Staff</TableHead>
+                  <TableHead className="hidden lg:table-cell">
+                    Resolved by HoD
+                  </TableHead>
+                  <TableHead className="hidden lg:table-cell">
+                    Resolved by Staff
+                  </TableHead>
                   <TableHead>Pending/In Progress</TableHead>
                   <TableHead>Overdue</TableHead>
                   <TableHead>Success Rate (%)</TableHead>
@@ -547,8 +553,12 @@ export default function DeanDepartmentPerformance() {
                         {d.department}
                       </TableCell>
                       <TableCell>{d.total}</TableCell>
-                      <TableCell>{d.resolvedHoD}</TableCell>
-                      <TableCell>{d.resolvedStaff}</TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {d.resolvedHoD}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {d.resolvedStaff}
+                      </TableCell>
                       <TableCell>{d.inProgress}</TableCell>
                       <TableCell>{d.overdue}</TableCell>
                       <TableCell>
@@ -635,7 +645,59 @@ export default function DeanDepartmentPerformance() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="overflow-x-auto">
+            {/* Mobile modal list as cards */}
+            <div className="md:hidden space-y-3">
+              {selectedDetails?.complaints.map((c) => (
+                <div key={c.id} className="border rounded-lg p-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-sm font-semibold">
+                      {c.id}
+                    </div>
+                    <Badge
+                      className={
+                        c.status === "resolved"
+                          ? "bg-green-100 text-green-800"
+                          : c.status === "overdue"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }
+                    >
+                      {c.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    {c.title}
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Assigned To</p>
+                      <p className="font-medium">{c.assignedTo}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Deadline</p>
+                      <p className="font-medium">
+                        {new Date(c.deadline).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Resolved By</p>
+                      <p className="font-medium">{c.resolvedBy || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Resolved At</p>
+                      <p className="font-medium">
+                        {c.resolvedAt
+                          ? new Date(c.resolvedAt).toLocaleDateString()
+                          : "-"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop modal table */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
