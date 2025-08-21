@@ -149,12 +149,20 @@ export const login = async (req, res) => {
     //     .status(403)
     //     .json({ error: "Please verify your email before logging in." });
     // }
-    // Block login if staff is not approved
-    if (user.role === "staff" && !user.isApproved) {
+    // Block login if role is not approved (non-student roles require approval)
+    if (user.role !== "user" && !user.isApproved) {
       return res.status(403).json({
         error: "pending-approval",
+        message: "Your account has not been approved yet.",
+      });
+    }
+
+    // Block login if account is deactivated (dean only, per requirement)
+    if (user.role === "dean" && user.isApproved && !user.isActive) {
+      return res.status(403).json({
+        error: "inactive-account",
         message:
-          "Please wait, your account has not been approved by the admin yet.",
+          "Your account has been deactivated by the Admin. You no longer have access to the system.",
       });
     }
 

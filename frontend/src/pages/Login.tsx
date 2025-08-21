@@ -55,6 +55,21 @@ export function Login() {
           variant: "default",
         });
         return;
+      } else if (
+        result !== null &&
+        typeof result === "object" &&
+        result &&
+        "error" in result &&
+        (result as { error?: string }).error === "inactive-account"
+      ) {
+        toast({
+          title: "Access Denied",
+          description:
+            (result as { message?: string }).message ||
+            "Your account has been deactivated by the Admin. You no longer have access to the system.",
+          variant: "destructive",
+        });
+        return;
       } else if (!result) {
         setError("Invalid email or password");
         toast({

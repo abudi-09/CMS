@@ -57,6 +57,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // For HoD two-stage approval: set true when Dean approves, then Admin gives final approval
+    approvedByDean: {
+      type: Boolean,
+      default: false,
+    },
     isActive: {
       type: Boolean,
       default: function () {
@@ -72,9 +77,18 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Virtual for status (Pending, Active, Inactive, Rejected)
+// Virtual for status (Pending, Dean Approved, Active, Inactive, Rejected)
 userSchema.virtual("status").get(function () {
   if (this.isRejected) return "Rejected";
+  // Special intermediate state for HoD
+  if (
+    this.role === "headOfDepartment" &&
+    this.approvedByDean === true &&
+    !this.isApproved &&
+    this.isRejected !== true
+  ) {
+    return "Dean Approved";
+  }
   if (!this.isActive) return "Inactive";
   if (this.isApproved) return "Active";
   return "Pending";

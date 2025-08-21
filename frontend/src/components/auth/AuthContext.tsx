@@ -7,6 +7,8 @@ import {
 } from "react";
 import {
   loginApi,
+  type LoginSuccess,
+  type LoginError,
   getAllStaffApi,
   getPendingStaffApi,
   getMeApi,
@@ -45,7 +47,7 @@ interface AuthContextType {
         department?: string;
         isApproved?: boolean;
       }
-    | { error: "pending-approval" }
+    | { error: "pending-approval" | "inactive-account"; message?: string }
     | false
   >;
   logout: () => void;
@@ -107,33 +109,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (
     email: string,
     password: string
-  ): Promise<
-    | {
-        _id: string;
-        fullName?: string;
-        username?: string;
-        name?: string;
-        email: string;
-        role: UserRole;
-        department?: string;
-        isApproved?: boolean;
-      }
-    | { error: "pending-approval" }
-    | false
-  > => {
+  ): Promise<(LoginSuccess & { role: UserRole }) | LoginError | false> => {
     try {
       const data = await loginApi(email, password);
+      // If API returned a structured error object, don't set user; propagate it
+      if (
+        data &&
+        typeof data === "object" &&
+        "error" in data &&
+        (data as { error?: string }).error
+      ) {
+        return data as LoginError;
+      }
+      // Success path: persist user
+      const success = data as LoginSuccess;
+      const role = success.role as UserRole;
       setUser({
-        id: data._id,
-        username: data.username || "",
-        name: data.fullName || data.username || data.name || "",
-        email: data.email,
-        role: data.role,
-        fullName: data.fullName,
-        department: data.department,
-        status: data.isApproved ? "approved" : "pending",
+        id: success._id,
+        username: success.username || "",
+        name: success.fullName || success.username || success.name || "",
+        email: success.email,
+        role,
+        fullName: success.fullName,
+        department: success.department,
+        status: success.isApproved ? "approved" : "pending",
       });
-      return data; // Return the backend response for status checks
+      return { ...success, role };
     } catch (err: unknown) {
       // If backend returns a 403 for pending staff, surface the error
       if (
@@ -196,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

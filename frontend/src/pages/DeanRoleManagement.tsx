@@ -30,57 +30,34 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Search, UserCheck, UserMinus, Users } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  approveDeanApi,
+  rejectDeanApi,
+  getPendingDeansApi,
+  getActiveDeansApi,
+  deactivateDeanApi,
+  reactivateDeanApi,
+} from "@/lib/api";
 
-type UserRow = {
-  id: string;
+type Dean = {
+  _id: string;
   name: string;
   email: string;
-  role: "student" | "staff" | "headOfDepartment" | "dean" | "admin";
-  department?: string | null;
-  status: "Active" | "Inactive";
+  role: "dean";
+  department?: string;
+  workingPlace?: string;
+  isApproved: boolean;
+  isActive: boolean;
 };
-
-// Mock data for demo (replace with real API calls)
-const mockUsers: UserRow[] = [
-  {
-    id: "1",
-    name: "Dr. A",
-    email: "a@college.edu",
-    role: "dean",
-    department: "Informatics",
-    status: "Active",
-  },
-  {
-    id: "2",
-    name: "Dr. B",
-    email: "b@college.edu",
-    role: "staff",
-    department: "Informatics",
-    status: "Active",
-  },
-  {
-    id: "3",
-    name: "Dr. C",
-    email: "c@college.edu",
-    role: "dean",
-    department: "Informatics",
-    status: "Inactive",
-  },
-  {
-    id: "4",
-    name: "Alice",
-    email: "alice@college.edu",
-    role: "staff",
-    department: "Informatics",
-    status: "Active",
-  },
-];
 
 export default function DeanRoleManagement() {
   const { user: authUser } = useAuth();
   const canManage = authUser?.role === "admin";
-
-  const [users, setUsers] = useState<UserRow[]>(mockUsers);
+  const { toast } = useToast();
+  const [activeDeans, setActiveDeans] = useState<Dean[]>([]);
+  const [pendingDeans, setPendingDeans] = useState<Dean[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "All" | "Active" | "Inactive"
@@ -91,19 +68,20 @@ export default function DeanRoleManagement() {
   useEffect(() => setPage(1), [search, statusFilter, deptFilter]);
 
   const departments = useMemo(() => {
-    const set = new Set(users.map((u) => u.department || "").filter(Boolean));
+    const set = new Set(
+      activeDeans.map((u) => u.department || "").filter(Boolean)
+    );
     return ["All", ...Array.from(set)] as ("All" | string)[];
-  }, [users]);
+  }, [activeDeans]);
 
   // Derived lists
-  const pending = users.filter(
-    (u) => u.role !== "dean" && u.status === "Active"
-  );
-  const approved = users.filter((u) => u.role === "dean");
+  const approved = activeDeans;
   const filteredApproved = useMemo(() => {
     return approved.filter((u) => {
       const matchesStatus =
-        statusFilter === "All" ? true : u.status === statusFilter;
+        statusFilter === "All"
+          ? true
+          : (u.isActive ? "Active" : "Inactive") === statusFilter;
       const matchesDept =
         deptFilter === "All" ? true : (u.department || "") === deptFilter;
       const q = search.toLowerCase();
@@ -123,30 +101,52 @@ export default function DeanRoleManagement() {
 
   // Summary
   const totalDeans = approved.length;
-  const activeDeans = approved.filter((u) => u.status === "Active").length;
-  const inactiveDeans = approved.filter((u) => u.status === "Inactive").length;
+  const activeCount = approved.filter((u) => u.isActive).length;
+  const inactiveCount = approved.filter((u) => !u.isActive).length;
 
   // Actions
-  const promoteToDean = (id: string) => {
+  const approveDean = async (id: string) => {
     if (!canManage) return;
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, role: "dean", status: "Active" } : u
-      )
-    );
+    try {
+      await approveDeanApi(id);
+      toast({ title: "Dean approved" });
+      await loadData();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Approve failed";
+      toast({ variant: "destructive", title: msg });
+    }
   };
-  const deactivateDean = (id: string) => {
+  const rejectDean = async (id: string) => {
     if (!canManage) return;
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, status: "Inactive" } : u))
-    );
+    try {
+      await rejectDeanApi(id);
+      toast({ title: "Dean rejected" });
+      await loadData();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Reject failed";
+      toast({ variant: "destructive", title: msg });
+    }
   };
-  const reactivateDean = (id: string) => {
+
+  const loadData = async () => {
     if (!canManage) return;
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, status: "Active" } : u))
-    );
+    setLoading(true);
+    try {
+      const [pending, active] = await Promise.all([
+        getPendingDeansApi(),
+        getActiveDeansApi(),
+      ]);
+      setPendingDeans(pending);
+      setActiveDeans(active);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage]);
 
   return (
     <div className="space-y-6">
@@ -176,7 +176,7 @@ export default function DeanRoleManagement() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeDeans}</div>
+            <div className="text-2xl font-bold">{activeCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -186,7 +186,7 @@ export default function DeanRoleManagement() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inactiveDeans}</div>
+            <div className="text-2xl font-bold">{inactiveCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -253,7 +253,7 @@ export default function DeanRoleManagement() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Working Position</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -272,41 +272,72 @@ export default function DeanRoleManagement() {
                   filteredApproved
                     .slice((page - 1) * pageSize, page * pageSize)
                     .map((u) => (
-                      <TableRow key={u.id}>
+                      <TableRow key={u._id}>
                         <TableCell>{u.name}</TableCell>
                         <TableCell>{u.email}</TableCell>
-                        <TableCell>{u.department || "-"}</TableCell>
+                        <TableCell>{u.workingPlace || "-"}</TableCell>
                         <TableCell>
                           <Badge
                             className={
-                              u.status === "Active"
+                              u.isActive
                                 ? "bg-green-100 text-green-800"
                                 : "bg-gray-100 text-gray-800"
                             }
                           >
-                            {u.status}
+                            {u.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                          {u.status === "Active" ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!canManage}
-                              onClick={() => deactivateDean(u.id)}
-                            >
-                              <UserMinus className="h-4 w-4 mr-1" /> Deactivate
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!canManage}
-                              onClick={() => reactivateDean(u.id)}
-                            >
-                              <UserCheck className="h-4 w-4 mr-1" /> Re-approve
-                            </Button>
-                          )}
+                          {canManage &&
+                            (u.isActive ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    await deactivateDeanApi(u._id);
+                                    toast({ title: "Dean deactivated" });
+                                    await loadData();
+                                  } catch (e: unknown) {
+                                    const msg =
+                                      e instanceof Error
+                                        ? e.message
+                                        : "Deactivate failed";
+                                    toast({
+                                      variant: "destructive",
+                                      title: msg,
+                                    });
+                                  }
+                                }}
+                              >
+                                <UserMinus className="h-4 w-4 mr-1" />{" "}
+                                Deactivate
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    await reactivateDeanApi(u._id);
+                                    toast({ title: "Dean reactivated" });
+                                    await loadData();
+                                  } catch (e: unknown) {
+                                    const msg =
+                                      e instanceof Error
+                                        ? e.message
+                                        : "Reactivate failed";
+                                    toast({
+                                      variant: "destructive",
+                                      title: msg,
+                                    });
+                                  }
+                                }}
+                              >
+                                <UserCheck className="h-4 w-4 mr-1" />{" "}
+                                Reactivate
+                              </Button>
+                            ))}
                         </TableCell>
                       </TableRow>
                     ))
@@ -325,7 +356,7 @@ export default function DeanRoleManagement() {
               filteredApproved
                 .slice((page - 1) * pageSize, page * pageSize)
                 .map((u) => (
-                  <Card key={u.id} className="p-4">
+                  <Card key={u._id} className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="font-medium text-sm">{u.name}</div>
@@ -333,41 +364,64 @@ export default function DeanRoleManagement() {
                           {u.email}
                         </div>
                         <div className="text-xs mt-1">
-                          Dept: {u.department || "-"}
+                          Position: {u.workingPlace || "-"}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
                           className={
-                            u.status === "Active"
+                            u.isActive
                               ? "bg-green-100 text-green-800"
                               : "bg-gray-100 text-gray-800"
                           }
                         >
-                          {u.status}
+                          {u.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {u.status === "Active" ? (
-                        <Button
-                          className="w-full min-h-11"
-                          variant="outline"
-                          disabled={!canManage}
-                          onClick={() => deactivateDean(u.id)}
-                        >
-                          <UserMinus className="h-4 w-4 mr-2" /> Deactivate
-                        </Button>
-                      ) : (
-                        <Button
-                          className="w-full min-h-11"
-                          variant="outline"
-                          disabled={!canManage}
-                          onClick={() => reactivateDean(u.id)}
-                        >
-                          <UserCheck className="h-4 w-4 mr-2" /> Re-approve
-                        </Button>
-                      )}
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {canManage &&
+                        (u.isActive ? (
+                          <Button
+                            className="w-full min-h-11"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await deactivateDeanApi(u._id);
+                                toast({ title: "Dean deactivated" });
+                                await loadData();
+                              } catch (e: unknown) {
+                                const msg =
+                                  e instanceof Error
+                                    ? e.message
+                                    : "Deactivate failed";
+                                toast({ variant: "destructive", title: msg });
+                              }
+                            }}
+                          >
+                            <UserMinus className="h-4 w-4 mr-2" /> Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            className="w-full min-h-11"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await reactivateDeanApi(u._id);
+                                toast({ title: "Dean reactivated" });
+                                await loadData();
+                              } catch (e: unknown) {
+                                const msg =
+                                  e instanceof Error
+                                    ? e.message
+                                    : "Reactivate failed";
+                                toast({ variant: "destructive", title: msg });
+                              }
+                            }}
+                          >
+                            <UserCheck className="h-4 w-4 mr-2" /> Reactivate
+                          </Button>
+                        ))}
                     </div>
                   </Card>
                 ))
@@ -475,49 +529,58 @@ export default function DeanRoleManagement() {
         </CardContent>
       </Card>
 
-      {/* Pending Nominations (optional list for visibility) */}
+      {/* Pending Dean Sign-ups */}
       <Card>
         <CardHeader>
-          <CardTitle>Pending Requests (Candidates)</CardTitle>
+          <CardTitle>Pending Dean Sign-ups</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="lg:hidden text-sm text-muted-foreground mb-2">
-            Tap Promote to Dean to approve
-          </div>
+          {loading && (
+            <div className="text-sm text-muted-foreground mb-2">Loading…</div>
+          )}
           <div className="hidden lg:block overflow-x-auto rounded-md border bg-transparent">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Working Position</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pending.length === 0 ? (
+                {pendingDeans.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={4}
                       className="text-center py-6 text-muted-foreground"
                     >
-                      No pending candidates
+                      No pending dean sign-ups
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pending.map((u) => (
-                    <TableRow key={u.id}>
+                  pendingDeans.map((u) => (
+                    <TableRow key={u._id}>
                       <TableCell>{u.name}</TableCell>
                       <TableCell>{u.email}</TableCell>
-                      <TableCell>{u.department || "-"}</TableCell>
+                      <TableCell>{u.workingPlace || "-"}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={!canManage}
-                          onClick={() => promoteToDean(u.id)}
+                          onClick={() => approveDean(u._id)}
                         >
-                          <UserCheck className="h-4 w-4 mr-1" /> Promote to Dean
+                          <UserCheck className="h-4 w-4 mr-1" /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="ml-2"
+                          disabled={!canManage}
+                          onClick={() => rejectDean(u._id)}
+                        >
+                          <UserMinus className="h-4 w-4 mr-1" /> Reject
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -529,13 +592,13 @@ export default function DeanRoleManagement() {
 
           {/* Mobile cards for pending */}
           <div className="lg:hidden space-y-3">
-            {pending.length === 0 ? (
+            {pendingDeans.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
-                No pending candidates
+                No pending dean sign-ups
               </div>
             ) : (
-              pending.map((u) => (
-                <Card key={u.id} className="p-4">
+              pendingDeans.map((u) => (
+                <Card key={u._id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-medium text-sm">{u.name}</div>
@@ -543,18 +606,29 @@ export default function DeanRoleManagement() {
                         {u.email}
                       </div>
                       <div className="text-xs mt-1">
-                        Dept: {u.department || "-"}
+                        Position: {u.workingPlace || "-"}
                       </div>
                     </div>
-                    <Button
-                      className="min-h-11"
-                      size="sm"
-                      variant="outline"
-                      disabled={!canManage}
-                      onClick={() => promoteToDean(u.id)}
-                    >
-                      <UserCheck className="h-4 w-4 mr-2" /> Promote to Dean
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        className="min-h-11"
+                        size="sm"
+                        variant="outline"
+                        disabled={!canManage}
+                        onClick={() => approveDean(u._id)}
+                      >
+                        <UserCheck className="h-4 w-4 mr-2" /> Approve
+                      </Button>
+                      <Button
+                        className="min-h-11"
+                        size="sm"
+                        variant="outline"
+                        disabled={!canManage}
+                        onClick={() => rejectDean(u._id)}
+                      >
+                        <UserMinus className="h-4 w-4 mr-2" /> Reject
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))

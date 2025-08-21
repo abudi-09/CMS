@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,84 +28,139 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Users, UserCheck, UserX } from "lucide-react";
+import {
+  getDeanPendingHodApi,
+  getDeanActiveHodApi,
+  getDeanRejectedHodApi,
+  deanApproveHodApi,
+  deanRejectHodApi,
+  deanReapproveHodApi,
+} from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
+// Status tabs
 type Status = "pending" | "approved" | "rejected";
 
-interface HoD {
+// UI row shape
+interface HoDRow {
   id: string;
   name: string;
   department: string;
   email: string;
   status: Status;
-  active: boolean; // true only when approved & active
+  active: boolean;
 }
 
-const initialHoDs: HoD[] = [
-  {
-    id: "1",
-    name: "Dr. Smith",
-    department: "IT Services",
-    email: "smith@gondar.edu",
-    status: "approved",
-    active: true,
-  },
-  {
-    id: "2",
-    name: "Dr. Johnson",
-    department: "Computer Science",
-    email: "johnson@gondar.edu",
-    status: "pending",
-    active: false,
-  },
-  {
-    id: "3",
-    name: "Dr. Lee",
-    department: "Facilities",
-    email: "lee@gondar.edu",
-    status: "rejected",
-    active: false,
-  },
-  {
-    id: "4",
-    name: "Dr. Patel",
-    department: "IT",
-    email: "patel@gondar.edu",
-    status: "approved",
-    active: true,
-  },
-];
-
+// Actions supported via confirm modal
 type ActionType = "approve" | "reject" | "deactivate" | "reapprove";
 
 export default function DepartmentManagement() {
-  const [hods, setHods] = useState<HoD[]>(initialHoDs);
+  // Safe error message extractor (avoids `any` use)
+  const getErrorMessage = (e: unknown): string => {
+    if (e instanceof Error) return e.message;
+    if (typeof e === "object" && e && "message" in e) {
+      const msg = (e as { message?: unknown }).message;
+      return typeof msg === "string" ? msg : String(msg);
+    }
+    return String(e);
+  };
+
+  // Three lists driven from backend
+  const [pending, setPending] = useState<HoDRow[]>([]);
+  const [approved, setApproved] = useState<HoDRow[]>([]);
+  const [rejected, setRejected] = useState<HoDRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // UI state
   const [activeTab, setActiveTab] = useState<Status>("pending");
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<string>("all");
 
+  // Confirm modal
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
     type: ActionType;
-    hod: HoD | null;
+    hod: HoDRow | null;
   }>({ type: "approve", hod: null });
 
-  // Derived values for summary cards
-  const totalHods = hods.length;
-  const activeHods = hods.filter(
-    (h) => h.status === "approved" && h.active
-  ).length;
+  // Summary cards
+  const totalHods = pending.length + approved.length + rejected.length;
+  const activeHods = approved.length;
   const inactiveHods = totalHods - activeHods;
 
-  const departments = useMemo(
-    () => Array.from(new Set(hods.map((h) => h.department))).sort(),
-    [hods]
+  // Fixed department options per requirements
+  const departmentOptions = useMemo(
+    () => [
+      "Computer Science",
+      "Information Technology",
+      "Information Science",
+      "Information Systems",
+    ],
+    []
   );
 
+  // API HoD user type returned by backend
+  interface ApiHodUser {
+    _id: string;
+    fullName?: string;
+    name?: string;
+    username?: string;
+    email: string;
+    department?: string;
+    isApproved?: boolean;
+    isRejected?: boolean;
+    isActive?: boolean;
+  }
+
+  // Map API user to UI row (stable for hooks)
+  const mapUserToRow = useCallback((u: ApiHodUser): HoDRow => {
+    return {
+      id: u._id,
+      name: u.fullName || u.name || u.username || "",
+      email: u.email,
+      department: u.department || "",
+      status: (u.isApproved
+        ? "approved"
+        : u.isRejected
+        ? "rejected"
+        : "pending") as Status,
+      active: !!u.isApproved && u.isActive !== false,
+    };
+  }, []);
+
+  const fetchLists = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [p, a, r] = await Promise.all([
+        getDeanPendingHodApi(),
+        getDeanActiveHodApi(),
+        getDeanRejectedHodApi(),
+      ]);
+      setPending(p.map(mapUserToRow));
+      setApproved(a.map(mapUserToRow));
+      setRejected(r.map(mapUserToRow));
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e) || "Failed to load";
+      toast({
+        title: "Failed to load HoDs",
+        description: String(msg),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [mapUserToRow]);
+
+  useEffect(() => {
+    fetchLists();
+  }, [fetchLists]);
+
+  // Current tab rows with search/filter applied
   const listForTab = useMemo(() => {
-    let rows = hods.filter((h) => {
-      if (activeTab === "approved") return h.status === "approved" && h.active;
-      return h.status === activeTab; // pending or rejected
-    });
+    let rows: HoDRow[] = [];
+    if (activeTab === "pending") rows = pending;
+    else if (activeTab === "approved") rows = approved;
+    else rows = rejected;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -122,38 +177,56 @@ export default function DepartmentManagement() {
     }
 
     return rows;
-  }, [hods, activeTab, search, deptFilter]);
+  }, [pending, approved, rejected, activeTab, search, deptFilter]);
 
-  function openConfirm(type: ActionType, hod: HoD) {
+  function openConfirm(type: ActionType, hod: HoDRow) {
     setPendingAction({ type, hod });
     setConfirmOpen(true);
   }
 
-  function applyAction() {
+  async function applyAction() {
     const action = pendingAction.type;
     const hod = pendingAction.hod;
     if (!hod) return setConfirmOpen(false);
 
-    setHods((prev) => {
-      return prev.map((h) => {
-        if (h.id !== hod.id) return h;
-        switch (action) {
-          case "approve":
-            return { ...h, status: "approved", active: true };
-          case "reject":
-            return { ...h, status: "rejected", active: false };
-          case "deactivate":
-            // Move approved -> rejected (inactive)
-            return { ...h, status: "rejected", active: false };
-          case "reapprove":
-            return { ...h, status: "approved", active: true };
-          default:
-            return h;
-        }
+    try {
+      if (action === "approve") {
+        await deanApproveHodApi(hod.id);
+        toast({
+          title: "HoD approved",
+          description: `${hod.name} is now active.`,
+        });
+      } else if (action === "reject") {
+        await deanRejectHodApi(hod.id);
+        toast({
+          title: "HoD rejected",
+          description: `${hod.name} was rejected.`,
+        });
+      } else if (action === "deactivate") {
+        // Deactivate should move approved HoD to Rejected list
+        await deanRejectHodApi(hod.id);
+        toast({
+          title: "HoD deactivated",
+          description: `${hod.name} has been moved to Rejected.`,
+        });
+      } else if (action === "reapprove") {
+        await deanReapproveHodApi(hod.id);
+        toast({
+          title: "HoD re-approved",
+          description: `${hod.name} is now active.`,
+        });
+      }
+      await fetchLists();
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e) || "Action failed";
+      toast({
+        title: "Action failed",
+        description: String(msg),
+        variant: "destructive",
       });
-    });
-
-    setConfirmOpen(false);
+    } finally {
+      setConfirmOpen(false);
+    }
   }
 
   const confirmText = useMemo(() => {
@@ -163,7 +236,7 @@ export default function DepartmentManagement() {
       case "reject":
         return "Are you sure you want to reject this Head of Department?";
       case "deactivate":
-        return "Are you sure you want to deactivate this Head of Department?";
+        return "Are you sure you want to deactivate this Head of Department? They will appear in Rejected.";
       case "reapprove":
         return "Are you sure you want to re-approve this Head of Department?";
       default:
@@ -257,7 +330,7 @@ export default function DepartmentManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              {departments.map((d) => (
+              {departmentOptions.map((d) => (
                 <SelectItem key={d} value={d}>
                   {d}
                 </SelectItem>
@@ -279,6 +352,11 @@ export default function DepartmentManagement() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Loading */}
+          {loading && (
+            <div className="text-sm text-muted-foreground pb-3">Loading…</div>
+          )}
+
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
             {listForTab.length === 0 ? (
@@ -309,12 +387,14 @@ export default function DepartmentManagement() {
                       <>
                         <Button
                           className="bg-green-600 hover:bg-green-700 text-white"
+                          disabled={loading}
                           onClick={() => openConfirm("approve", h)}
                         >
                           Approve
                         </Button>
                         <Button
                           className="bg-red-600 hover:bg-red-700 text-white"
+                          disabled={loading}
                           onClick={() => openConfirm("reject", h)}
                         >
                           Reject
@@ -324,6 +404,7 @@ export default function DepartmentManagement() {
                     {activeTab === "approved" && (
                       <Button
                         className="bg-red-600 hover:bg-red-700 text-white"
+                        disabled={loading}
                         onClick={() => openConfirm("deactivate", h)}
                       >
                         Deactivate
@@ -332,6 +413,7 @@ export default function DepartmentManagement() {
                     {activeTab === "rejected" && (
                       <Button
                         className="bg-blue-600 hover:bg-blue-700 text-white"
+                        disabled={loading}
                         onClick={() => openConfirm("reapprove", h)}
                       >
                         Re-approve
@@ -383,12 +465,14 @@ export default function DepartmentManagement() {
                           <div className="flex justify-end gap-2">
                             <Button
                               className="bg-green-600 hover:bg-green-700 text-white"
+                              disabled={loading}
                               onClick={() => openConfirm("approve", h)}
                             >
                               Approve
                             </Button>
                             <Button
                               className="bg-red-600 hover:bg-red-700 text-white"
+                              disabled={loading}
                               onClick={() => openConfirm("reject", h)}
                             >
                               Reject
@@ -399,6 +483,7 @@ export default function DepartmentManagement() {
                         {activeTab === "approved" && (
                           <Button
                             className="bg-red-600 hover:bg-red-700 text-white"
+                            disabled={loading}
                             onClick={() => openConfirm("deactivate", h)}
                           >
                             Deactivate
@@ -408,6 +493,7 @@ export default function DepartmentManagement() {
                         {activeTab === "rejected" && (
                           <Button
                             className="bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={loading}
                             onClick={() => openConfirm("reapprove", h)}
                           >
                             Re-approve
@@ -431,8 +517,10 @@ export default function DepartmentManagement() {
             <AlertDialogDescription>{confirmText}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={applyAction}>Confirm</AlertDialogAction>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={applyAction} disabled={loading}>
+              Confirm
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

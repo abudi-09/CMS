@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import { sendDecisionEmail } from "../utils/sendDecisionEmail.js";
 
 // HoD: manage Staff in same department
 export const hodGetPendingStaff = async (req, res) => {
@@ -63,6 +64,7 @@ export const deanGetPendingHod = async (req, res) => {
     const pending = await User.find({
       role: "headOfDepartment",
       isApproved: false,
+      approvedByDean: { $ne: true },
       isRejected: { $ne: true },
     }).select("-password");
     res.status(200).json(pending);
@@ -77,8 +79,12 @@ export const deanApproveHod = async (req, res) => {
     const hod = await User.findById(id);
     if (!hod || hod.role !== "headOfDepartment")
       return res.status(404).json({ error: "Department head not found" });
+    // Dean final approval: activate and approve account
     hod.isApproved = true;
     hod.isActive = true;
+    hod.isRejected = false;
+    // approvedByDean is not needed in dean-only flow; keep false for clarity
+    hod.approvedByDean = false;
     await hod.save();
     res.status(200).json({ message: "Department head approved" });
   } catch (e) {
@@ -95,10 +101,156 @@ export const deanRejectHod = async (req, res) => {
     hod.isRejected = true;
     hod.isApproved = false;
     hod.isActive = false;
+    hod.approvedByDean = false;
     await hod.save();
+    try {
+      await sendDecisionEmail({
+        to: hod.email,
+        decision: "rejected",
+        name: hod.name || "",
+        role: "Head of Department",
+      });
+    } catch {}
     res.status(200).json({ message: "Department head rejected" });
   } catch (e) {
     res.status(500).json({ error: "Failed to reject department head" });
+  }
+};
+
+// Dean: reversal controls
+export const deanDeapproveHod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hod = await User.findById(id);
+    if (!hod || hod.role !== "headOfDepartment")
+      return res.status(404).json({ error: "Department head not found" });
+    // Move back to Pending
+    hod.isApproved = false;
+    hod.isActive = false;
+    hod.isRejected = false;
+    hod.approvedByDean = false;
+    await hod.save();
+    res.status(200).json({ message: "Department head set to pending" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to de-approve department head" });
+  }
+};
+
+export const deanReapproveHod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hod = await User.findById(id);
+    if (!hod || hod.role !== "headOfDepartment")
+      return res.status(404).json({ error: "Department head not found" });
+    // Move to Active again
+    hod.isRejected = false;
+    hod.isApproved = true;
+    hod.isActive = true;
+    await hod.save();
+    res.status(200).json({ message: "Department head re-approved" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to re-approve department head" });
+  }
+};
+
+export const deanGetActiveHod = async (req, res) => {
+  try {
+    const active = await User.find({
+      role: "headOfDepartment",
+      isApproved: true,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(active);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active HoDs" });
+  }
+};
+
+export const deanGetRejectedHod = async (req, res) => {
+  try {
+    const rejected = await User.find({
+      role: "headOfDepartment",
+      isRejected: true,
+    }).select("-password");
+    res.status(200).json(rejected);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch rejected HoDs" });
+  }
+};
+
+// Admin: manage HoD after Dean approval (final approval stage)
+export const adminGetPendingHod = async (req, res) => {
+  try {
+    const pending = await User.find({
+      role: "headOfDepartment",
+      approvedByDean: true,
+      isApproved: false,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(pending);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch pending HoDs for admin" });
+  }
+};
+
+export const adminApproveHod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hod = await User.findById(id);
+    if (!hod || hod.role !== "headOfDepartment")
+      return res.status(404).json({ error: "Department head not found" });
+    hod.isApproved = true;
+    hod.isActive = true;
+    await hod.save();
+    try {
+      await sendDecisionEmail({
+        to: hod.email,
+        decision: "approved",
+        name: hod.name || "",
+        role: "Head of Department",
+      });
+    } catch {}
+    res.status(200).json({ message: "Department head approved by Admin" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to approve HoD by admin" });
+  }
+};
+
+export const adminRejectHod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hod = await User.findById(id);
+    if (!hod || hod.role !== "headOfDepartment")
+      return res.status(404).json({ error: "Department head not found" });
+    hod.isRejected = true;
+    hod.isApproved = false;
+    hod.isActive = false;
+    hod.approvedByDean = false;
+    await hod.save();
+    try {
+      await sendDecisionEmail({
+        to: hod.email,
+        decision: "rejected",
+        name: hod.name || "",
+        role: "Head of Department",
+      });
+    } catch {}
+    res.status(200).json({ message: "Department head rejected by Admin" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reject HoD by admin" });
+  }
+};
+
+export const adminGetActiveHod = async (req, res) => {
+  try {
+    const active = await User.find({
+      role: "headOfDepartment",
+      isApproved: true,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(active);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active HoDs" });
   }
 };
 
@@ -116,6 +268,19 @@ export const adminGetPendingDeans = async (req, res) => {
   }
 };
 
+export const adminGetActiveDeans = async (req, res) => {
+  try {
+    const active = await User.find({
+      role: "dean",
+      isApproved: true,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(active);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active deans" });
+  }
+};
+
 export const adminApproveDean = async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,6 +290,14 @@ export const adminApproveDean = async (req, res) => {
     dean.isApproved = true;
     dean.isActive = true;
     await dean.save();
+    try {
+      await sendDecisionEmail({
+        to: dean.email,
+        decision: "approved",
+        name: dean.name || "",
+        role: "Dean",
+      });
+    } catch {}
     res.status(200).json({ message: "Dean approved" });
   } catch (e) {
     res.status(500).json({ error: "Failed to approve dean" });
@@ -141,8 +314,46 @@ export const adminRejectDean = async (req, res) => {
     dean.isApproved = false;
     dean.isActive = false;
     await dean.save();
+    try {
+      await sendDecisionEmail({
+        to: dean.email,
+        decision: "rejected",
+        name: dean.name || "",
+        role: "Dean",
+      });
+    } catch {}
     res.status(200).json({ message: "Dean rejected" });
   } catch (e) {
     res.status(500).json({ error: "Failed to reject dean" });
+  }
+};
+
+// Admin: deactivate/activate an already approved dean
+export const adminDeactivateDean = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dean = await User.findById(id);
+    if (!dean || dean.role !== "dean")
+      return res.status(404).json({ error: "Dean not found" });
+    dean.isActive = false;
+    await dean.save();
+    res.status(200).json({ message: "Dean deactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to deactivate dean" });
+  }
+};
+
+export const adminReactivateDean = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dean = await User.findById(id);
+    if (!dean || dean.role !== "dean")
+      return res.status(404).json({ error: "Dean not found" });
+    // Keep approval as-is, only toggle active back
+    dean.isActive = true;
+    await dean.save();
+    res.status(200).json({ message: "Dean reactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reactivate dean" });
   }
 };

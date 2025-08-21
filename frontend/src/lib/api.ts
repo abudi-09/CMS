@@ -77,6 +77,184 @@ export async function getPendingStaffApi() {
   if (!res.ok) throw new Error(data.error || "Failed to fetch pending staff");
   return data;
 }
+
+// Admin: dean approvals
+export async function getPendingDeansApi() {
+  const res = await fetch(`${API_BASE}/approvals/admin/pending-deans`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch pending deans");
+  return data;
+}
+
+export async function getActiveDeansApi() {
+  const res = await fetch(`${API_BASE}/approvals/admin/active-deans`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch active deans");
+  return data;
+}
+
+export async function approveDeanApi(deanId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/admin/approve-dean/${deanId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to approve dean");
+  return data;
+}
+
+export async function rejectDeanApi(deanId: string) {
+  const res = await fetch(`${API_BASE}/approvals/admin/reject-dean/${deanId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reject dean");
+  return data;
+}
+
+export async function deactivateDeanApi(deanId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/admin/deactivate-dean/${deanId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to deactivate dean");
+  return data;
+}
+
+export async function reactivateDeanApi(deanId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/admin/reactivate-dean/${deanId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reactivate dean");
+  return data;
+}
+
+// Dean stage: HOD approvals
+export async function getDeanPendingHodApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+    status?: string;
+  }>;
+}
+
+export async function deanApproveHodApi(hodId: string) {
+  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
+  return data;
+}
+
+export async function deanRejectHodApi(hodId: string) {
+  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
+  return data;
+}
+
+// Dean: reversal and lists
+export async function deanDeapproveHodApi(hodId: string) {
+  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
+  return data;
+}
+
+export async function deanReapproveHodApi(hodId: string) {
+  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
+  return data;
+}
+
+export async function getDeanActiveHodApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/active-hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch active HoDs");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
+export async function getDeanRejectedHodApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/rejected-hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch rejected HoDs");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
 export async function signupApi(formData: {
   name: string;
   username: string;
@@ -106,7 +284,26 @@ export async function signupApi(formData: {
 export const API_BASE =
   import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
-export async function loginApi(email: string, password: string) {
+export type LoginSuccess = {
+  _id: string;
+  username?: string;
+  name?: string;
+  fullName?: string;
+  email: string;
+  role: string; // narrowed to UserRole at call sites
+  department?: string;
+  isApproved?: boolean;
+};
+
+export type LoginError = {
+  error: "pending-approval" | "inactive-account";
+  message?: string;
+};
+
+export async function loginApi(
+  email: string,
+  password: string
+): Promise<LoginSuccess | LoginError> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -115,8 +312,11 @@ export async function loginApi(email: string, password: string) {
   });
   const data = await res.json();
   if (!res.ok) {
-    // Special handling for pending approval
-    if (data.error === "pending-approval") {
+    // Special handling for pending approval or inactive account
+    if (
+      data?.error === "pending-approval" ||
+      data?.error === "inactive-account"
+    ) {
       return { error: data.error, message: data.message };
     }
     throw new Error(data.error || "Login failed");
