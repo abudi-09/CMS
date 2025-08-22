@@ -69,11 +69,11 @@ export function Signup() {
     )
       newErrors.confirmPassword = "Passwords do not match";
     if (!formData.role) newErrors.role = "Please select a role";
-    // Department required for Student (user), Staff, and HoD
+    // Department required for Student, Staff, and HoD
     if (
-      (formData.role === "user" ||
+      (formData.role === "student" ||
         formData.role === "staff" ||
-        formData.role === "headOfDepartment") &&
+        formData.role === "hod") &&
       !formData.department.trim()
     ) {
       newErrors.department = "Department is required";
@@ -81,7 +81,7 @@ export function Signup() {
     // Working position required for Staff, HoD, and Dean
     if (
       (formData.role === "staff" ||
-        formData.role === "headOfDepartment" ||
+        formData.role === "hod" ||
         formData.role === "dean") &&
       !formData.workingPlace.trim()
     ) {
@@ -122,7 +122,7 @@ export function Signup() {
             "Dean account created. Please check your email to verify your account.",
         });
         navigate("/login");
-      } else if (formData.role === "headOfDepartment") {
+      } else if (formData.role === "hod") {
         toast({
           title: "Account Created Successfully",
           description:
@@ -338,11 +338,9 @@ export function Signup() {
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">Student</SelectItem>
+                  <SelectItem value="student">Student</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="headOfDepartment">
-                    Head of Department
-                  </SelectItem>
+                  <SelectItem value="hod">Head of Department</SelectItem>
                   <SelectItem value="dean">Dean</SelectItem>
                 </SelectContent>
               </Select>
@@ -351,9 +349,9 @@ export function Signup() {
               )}
             </div>
 
-            {(formData.role === "user" ||
+            {(formData.role === "student" ||
               formData.role === "staff" ||
-              formData.role === "headOfDepartment") && (
+              formData.role === "hod") && (
               <div className="space-y-2">
                 <Label htmlFor="department">Department *</Label>
                 <Select
@@ -385,7 +383,7 @@ export function Signup() {
             )}
 
             {(formData.role === "staff" ||
-              formData.role === "headOfDepartment" ||
+              formData.role === "hod" ||
               formData.role === "dean") && (
               <div className="space-y-2">
                 <Label htmlFor="workingPlace">Working Position *</Label>
@@ -424,12 +422,12 @@ export function Signup() {
                 !formData.password ||
                 !formData.confirmPassword ||
                 !formData.role ||
-                ((formData.role === "user" ||
+                ((formData.role === "student" ||
                   formData.role === "staff" ||
-                  formData.role === "headOfDepartment") &&
+                  formData.role === "hod") &&
                   !formData.department.trim()) ||
                 ((formData.role === "staff" ||
-                  formData.role === "headOfDepartment" ||
+                  formData.role === "hod" ||
                   formData.role === "dean") &&
                   !formData.workingPlace.trim())
               }

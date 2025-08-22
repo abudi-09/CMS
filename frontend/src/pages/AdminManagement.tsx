@@ -155,32 +155,52 @@ export default function AdminManagement() {
     new Set(users.map((u) => u.department).filter(Boolean))
   ) as string[];
 
-  // Actions
-  const promoteToAdmin = (id: string) => {
+  // Actions via API
+  const promoteToAdmin = async (id: string) => {
     if (!canManage) return;
-    setUsers((prev) =>
-      prev.map((u) =>
-        u._id === id ? { ...u, role: "admin", isActive: true } : u
-      )
-    );
-    const target = users.find((u) => u._id === id);
-    logAudit("Promote to Admin", target ? target.email : id);
-  };
-  const deactivateUser = (id: string) => {
-    if (!canManage) return;
-    setUsers((prev) =>
-      prev.map((u) => (u._id === id ? { ...u, isActive: false } : u))
-    );
-    const target = users.find((u) => u._id === id);
-    logAudit("Deactivate User", target ? target.email : id);
-  };
-  const reactivateUser = (id: string) => {
-    if (!canManage) return;
-    setUsers((prev) =>
-      prev.map((u) => (u._id === id ? { ...u, isActive: true } : u))
-    );
-    const target = users.find((u) => u._id === id);
-    logAudit("Reactivate User", target ? target.email : id);
+    try {
+      const res = await fetch(`/api/users/${id}/promote?role=admin`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      const text = await res.text();
+      const body = text
+        ? (() => {
+            try {
+              return JSON.parse(text);
+            } catch {
+              return { message: text };
+            }
+          })()
+        : undefined;
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description:
+            body?.error ||
+            body?.message ||
+            "Failed to promote user. Please try again.",
+        });
+        return;
+      }
+      setUsers((prev) =>
+        prev.map((u) =>
+          u._id === id ? { ...u, role: "admin", isActive: true } : u
+        )
+      );
+      toast({
+        title: "Success",
+        description: "User promoted to admin successfully.",
+      });
+      const target = users.find((u) => u._id === id);
+      logAudit("Promote to Admin", target ? target.email : id);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({
+        title: "Error",
+        description: message || "Failed to promote user.",
+      });
+    }
   };
 
   // Confirm dialog state
@@ -196,14 +216,13 @@ export default function AdminManagement() {
     if (!pendingAction) return;
     const { type, userId } = pendingAction;
     try {
-      // As required: POST /api/users/activate|deactivate with { userId }
-      const url = `/api/users/${
+      // As required: PATCH /api/users/:id/activate|deactivate
+      const url = `/api/users/${userId}/${
         type === "activate" ? "activate" : "deactivate"
       }`;
       const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        method: "PATCH",
+        credentials: "include",
       });
       // Safely parse response body: server may return empty response which makes res.json() throw
       const text = await res.text();
@@ -217,9 +236,13 @@ export default function AdminManagement() {
         }
       }
       if (!res.ok) {
+        const fallback =
+          type === "activate"
+            ? "Failed to reactivate user. Please try again."
+            : "Failed to deactivate user. Please try again.";
         toast({
           title: "Error",
-          description: body?.error || body?.message || "Action failed",
+          description: body?.error || body?.message || fallback,
         });
         return;
       }
@@ -232,14 +255,13 @@ export default function AdminManagement() {
       if (type === "activate") {
         toast({
           title: "Success",
-          description: "User has been activated successfully.",
+          description: "User reactivated successfully",
         });
         logAudit("Activate User", userId);
       } else {
         toast({
-          title: "Deactivated",
-          description:
-            "User has been deactivated. They will no longer have access.",
+          title: "Success",
+          description: "User deactivated successfully",
         });
         logAudit("Deactivate User", userId);
       }

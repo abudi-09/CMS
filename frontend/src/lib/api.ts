@@ -330,11 +330,13 @@ export async function signupApi(formData: {
   workingPlace?: string;
 }) {
   // Map role to backend expected value
-  let role = formData.role;
-  // Only lowercase for staff, user, dean; keep headOfDepartment as is
-  if (["user", "staff", "dean"].includes(role)) {
-    role = role.toLowerCase();
-  }
+  let role = (formData.role || "").toLowerCase();
+  // Normalize legacy values to canonical backend roles
+  if (role === "user" || role === "student") role = "student";
+  else if (role === "headofdepartment" || role === "hod") role = "hod";
+  else if (role === "staff") role = "staff";
+  else if (role === "dean") role = "dean";
+  else if (role === "admin") role = "admin";
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
