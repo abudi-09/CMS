@@ -15,6 +15,9 @@ export const getMe = async (req, res) => {
       role,
       department,
       isApproved,
+      phone,
+      address,
+      bio,
     } = req.user;
     res.status(200).json({
       _id,
@@ -25,6 +28,9 @@ export const getMe = async (req, res) => {
       role,
       department,
       isApproved,
+      phone: phone || "",
+      address: address || "",
+      bio: bio || "",
     });
   } catch (error) {
     res.status(500).json({ error: "Internal Server Error" });
@@ -245,8 +251,9 @@ export const login = async (req, res) => {
     generateTokenAndSetCookie(user._id, res);
     res.status(200).json({
       _id: user._id,
-      fullName: user.fullName,
+  fullName: user.fullName || user.name,
       username: user.username,
+  name: user.name,
       email: user.email,
       role: user.role,
       isApproved: user.isApproved,
@@ -254,6 +261,9 @@ export const login = async (req, res) => {
       workingPlace: user.workingPlace,
       status: user.status,
       registeredDate: user.registeredDate,
+  phone: user.phone || "",
+  address: user.address || "",
+  bio: user.bio || "",
     });
   } catch (error) {
     console.log("Error in login controller", error.message);

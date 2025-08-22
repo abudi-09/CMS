@@ -54,6 +54,43 @@ export async function getMeApi() {
   if (!res.ok) throw new Error(data.error || "Not authenticated");
   return data;
 }
+
+// Update profile (basic fields like name)
+export async function updateProfileApi(payload: {
+  name?: string;
+  phone?: string;
+  address?: string;
+  bio?: string;
+}) {
+  const res = await fetch(`${API_BASE}/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to update profile");
+  return data.user || data;
+}
+
+// Change password
+export async function changePasswordApi(payload: {
+  oldPassword: string;
+  newPassword: string;
+}) {
+  const res = await fetch(`${API_BASE}/profile/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      oldPassword: payload.oldPassword,
+      newPassword: payload.newPassword,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to change password");
+  return data;
+}
 // Fetch all staff (admin)
 export async function getAllStaffApi() {
   const res = await fetch(`${API_BASE}/admin/all-staff`, {
@@ -321,6 +358,9 @@ export type LoginSuccess = {
   role: string; // narrowed to UserRole at call sites
   department?: string;
   isApproved?: boolean;
+  phone?: string;
+  address?: string;
+  bio?: string;
 };
 
 export type LoginError = {
