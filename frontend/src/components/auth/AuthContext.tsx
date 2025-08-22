@@ -97,14 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Try to restore user session
         const me = await getMeApi();
-  // Determine normalized role (canonical values)
-  const rawRole = (me.role || "").toLowerCase();
-  let normRole: UserRole = "student";
-  if (rawRole === "student" || rawRole === "user") normRole = "student";
-  else if (rawRole === "staff") normRole = "staff";
-  else if (rawRole === "hod" || rawRole === "headofdepartment") normRole = "hod";
-  else if (rawRole === "dean") normRole = "dean";
-  else if (rawRole === "admin") normRole = "admin";
+        // Determine normalized role (canonical values)
+        const rawRole = (me.role || "").toLowerCase();
+        let normRole: UserRole = "user";
+        if (rawRole === "student" || rawRole === "user") normRole = "user";
+        else if (rawRole === "staff") normRole = "staff";
+        else if (rawRole === "hod" || rawRole === "headofdepartment")
+          normRole = "headOfDepartment";
+        else if (rawRole === "dean") normRole = "dean";
+        else if (rawRole === "admin") normRole = "admin";
         setUser({
           id: me._id,
           username: me.username || "",
