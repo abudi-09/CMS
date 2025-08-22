@@ -21,7 +21,14 @@ import {
   hodReactivateStaffApi,
 } from "@/lib/api";
 
-export type UserRole = "user" | "staff" | "admin" | "dean" | "headOfDepartment";
+export type UserRole =
+  | "student" // new canonical student role
+  | "user" // legacy alias
+  | "staff"
+  | "hod" // canonical head of department role (backend)
+  | "headOfDepartment" // legacy alias
+  | "dean"
+  | "admin";
 export type StaffStatus = "pending" | "approved" | "rejected";
 
 interface User {
@@ -34,6 +41,9 @@ interface User {
   department?: string;
   status?: StaffStatus;
   registeredDate?: Date;
+  phone?: string;
+  address?: string;
+  bio?: string;
 }
 
 interface AuthContextType {
@@ -65,6 +75,8 @@ interface AuthContextType {
   approveStaff: (staffId: string) => Promise<void>;
   rejectStaff: (staffId: string) => Promise<void>;
   getAllStaff: () => User[];
+  setUserName?: (name: string) => void;
+  updateUserProfile?: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,15 +97,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Try to restore user session
         const me = await getMeApi();
+        // Normalize backend role to internal union
+        const rawRole = (me.role || "").toLowerCase();
+        let normRole: UserRole = "student";
+        if (rawRole === "student" || rawRole === "user")
+          normRole = rawRole === "user" ? "student" : "student";
+        else if (rawRole === "staff") normRole = "staff";
+        else if (rawRole === "hod" || rawRole === "headofdepartment")
+          normRole = "hod";
+        else if (rawRole === "dean") normRole = "dean";
+        else if (rawRole === "admin") normRole = "admin";
         setUser({
           id: me._id,
           username: me.username || "",
-          name: me.fullName || me.username || me.name || "",
+          name: me.fullName || me.name || me.username || "",
           email: me.email,
-          role: me.role,
-          fullName: me.fullName,
+          role: normRole,
+          fullName: me.fullName || me.name,
           department: me.department,
           status: me.isApproved ? "approved" : "pending",
+          phone: me.phone,
+          address: me.address,
+          bio: me.bio,
         });
         // Fetch staff data depending on role
         if (me.role === "admin") {
@@ -150,16 +175,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Success path: persist user
       const success = data as LoginSuccess;
-      const role = success.role as UserRole;
+      // Normalize login role
+      const rawRole = (success.role || "").toLowerCase();
+      let role: UserRole = "student";
+      if (rawRole === "student" || rawRole === "user") role = "student";
+      else if (rawRole === "staff") role = "staff";
+      else if (rawRole === "hod" || rawRole === "headofdepartment")
+        role = "hod";
+      else if (rawRole === "dean") role = "dean";
+      else if (rawRole === "admin") role = "admin";
       setUser({
         id: success._id,
         username: success.username || "",
-        name: success.fullName || success.username || success.name || "",
+        name: success.fullName || success.name || success.username || "",
         email: success.email,
         role,
         fullName: success.fullName,
         department: success.department,
         status: success.isApproved ? "approved" : "pending",
+        phone: success.phone,
+        address: success.address,
+        bio: success.bio,
       });
       return { ...success, role };
     } catch (err: unknown) {
@@ -243,6 +279,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const setUserName = (name: string) => {
+    setUser((prev) => (prev ? { ...prev, name, fullName: name } : prev));
+  };
+
+  const updateUserProfile = (updates: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -255,6 +299,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approveStaff,
         rejectStaff,
         getAllStaff,
+        setUserName,
+        updateUserProfile,
       }}
     >
       {children}

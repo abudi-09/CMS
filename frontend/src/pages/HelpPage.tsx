@@ -15,7 +15,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Layout } from "@/components/Layout";
+import { HomePageHeader } from "@/components/HomePageHeader";
 import {
   HelpCircle,
   FileText,
@@ -144,6 +144,7 @@ export default function HelpPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <HomePageHeader />
       {/* Hero Section */}
       <section className="bg-gradient-to-b from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-16 md:py-24">
         <div className="container mx-auto px-4 text-center">

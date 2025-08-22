@@ -52,6 +52,22 @@ const userSchema = new mongoose.Schema(
         );
       },
     },
+    phone: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+    address: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+    bio: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 500,
+    },
     isVerified: {
       type: Boolean,
       default: false,
