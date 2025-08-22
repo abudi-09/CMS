@@ -97,7 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Try to restore user session
         const me = await getMeApi();
-        // Determine normalized role (canonical values)
+
+         // Normalize backend role to internal union
+
+     
+
         const rawRole = (me.role || "").toLowerCase();
         let normRole: UserRole = "user";
         if (rawRole === "student" || rawRole === "user") normRole = "user";
@@ -131,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } catch (e) {
             console.error("Failed to fetch admin staff lists", e);
           }
-        } else if (me.role === "headOfDepartment") {
+        } else if (me.role === "hod") {
           try {
             const pending = await getHodPendingStaffApi();
             // Map to User shape minimally
@@ -176,11 +180,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const success = data as LoginSuccess;
       // Normalize login role
       const rawRole = (success.role || "").toLowerCase();
-      let role: UserRole = "student";
-      if (rawRole === "student" || rawRole === "user") role = "student";
+
+      let role: UserRole = "user";
+      if (rawRole === "student" || rawRole === "user") role = "user";
       else if (rawRole === "staff") role = "staff";
       else if (rawRole === "hod" || rawRole === "headofdepartment")
-        role = "hod";
+        role = "headOfDepartment";
+
       else if (rawRole === "dean") role = "dean";
       else if (rawRole === "admin") role = "admin";
       setUser({

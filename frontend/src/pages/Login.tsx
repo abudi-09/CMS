@@ -117,7 +117,7 @@ export function Login() {
               navigate("/dashboard");
             } else if (role === "dean") {
               navigate("/dean-dashboard");
-            } else if (role === "headOfDepartment") {
+            } else if (role === "hod") {
               navigate("/hod-dashboard");
             } else {
               navigate("/dashboard");
