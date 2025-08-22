@@ -99,11 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const me = await getMeApi();
         // Normalize backend role to internal union
         const rawRole = (me.role || "").toLowerCase();
-        let normRole: UserRole = "student";
-        if (rawRole === "student" || rawRole === "user") normRole = "student";
+        let normRole: UserRole = "user";
+<<<<<<< HEAD
+        if (rawRole === "student" || rawRole === "user") normRole = "user";
+=======
+        if (rawRole === "student" || rawRole === "user")
+          normRole = rawRole === "user" ? "student" : "student";
+>>>>>>> 8d6b73214136d5f465c40d79072dac50d66251ed
         else if (rawRole === "staff") normRole = "staff";
         else if (rawRole === "hod" || rawRole === "headofdepartment")
-          normRole = "hod";
+          normRole = "headOfDepartment";
         else if (rawRole === "dean") normRole = "dean";
         else if (rawRole === "admin") normRole = "admin";
         setUser({
