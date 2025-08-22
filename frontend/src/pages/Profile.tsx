@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { updateProfileApi, changePasswordApi } from "@/lib/api";
 import {
   Card,
   CardContent,
@@ -35,84 +36,69 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// Mock data for profile information
-const getProfileData = (role: string) => {
-  const baseData = {
-    name: "John Doe",
-    email: "john.doe@uog.edu.et",
-    phone: "+251-912-345-678",
-    address: "123 University Street, Gondar, Ethiopia",
-    joinDate: "2023-01-15",
-    bio: "",
-    avatar:
-      "https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?w=100&h=100&fit=crop&crop=face",
+// Helper to format role labels
+const formatRole = (role?: string) => {
+  if (!role) return "";
+  const map: Record<string, string> = {
+    student: "Student",
+    user: "Student",
+    staff: "Staff",
+    hod: "Head of Department",
+    headOfDepartment: "Head of Department",
+    dean: "Dean",
+    admin: "Admin",
   };
-
-  switch (role) {
-    case "staff":
-      return {
-        ...baseData,
-        name: "Dr. Sarah Wilson",
-        email: "sarah.wilson@uog.edu.et",
-        position: "Senior Academic Advisor",
-        department: "Academic Affairs",
-        staffId: "ST-2023-001",
-        bio: "Dedicated to helping students achieve their academic goals.",
-      };
-    case "admin":
-      return {
-        ...baseData,
-        name: "Admin User",
-        email: "admin@uog.edu.et",
-        position: "System Administrator",
-        department: "IT Department",
-        adminId: "AD-2023-001",
-        bio: "Managing the complaint system and ensuring smooth operations.",
-      };
-    default: // student
-      return {
-        ...baseData,
-        name: "John Doe",
-        email: "john.doe@student.uog.edu.et",
-        studentId: "UOG/2023/CS/001",
-        department: "Computer Science",
-        year: "3rd Year",
-        bio: "Computer Science student passionate about technology.",
-      };
-  }
-};
-
-// Mock performance data
-const getPerformanceData = (role: string) => {
-  if (role === "staff") {
-    return {
-      totalAssigned: 45,
-      resolved: 38,
-      inProgress: 5,
-      pending: 2,
-      resolutionRate: 84,
-      averageRating: 4.6,
-      averageResolutionTime: "2.3 days",
-      satisfactionRating: 4.6,
-      completionRate: 95,
-    };
-  }
-  return {
-    totalComplaints: 12,
-    resolved: 8,
-    inProgress: 3,
-    pending: 1,
-    resolutionRate: 67,
-  };
+  return map[role] || role;
 };
 
 export function Profile() {
-  const { user } = useAuth();
+  type AuthWithSetter = ReturnType<typeof useAuth> & {
+    setUserName?: (name: string) => void;
+  };
+  const auth = useAuth() as AuthWithSetter;
+  const { user } = auth;
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const profileData = getProfileData(user?.role || "user");
-  const performanceData = getPerformanceData(user?.role || "user");
+  // Derive live profile data from authenticated user
+  const profileData = useMemo(() => {
+    return {
+      name: user?.fullName || user?.name || user?.username || "",
+      email: user?.email || "",
+      department: user?.department || "",
+      role: user?.role,
+      joinDate: user?.registeredDate
+        ? String(user.registeredDate)
+        : new Date().toISOString(),
+      phone: user?.phone || "",
+      address: user?.address || "",
+      bio: user?.bio || "",
+    };
+  }, [user]);
+
+  // Basic placeholder stats (could be replaced with real stats API)
+  const performanceData = useMemo(() => {
+    if (user?.role === "staff") {
+      return {
+        totalAssigned: 0,
+        resolved: 0,
+        inProgress: 0,
+        pending: 0,
+        resolutionRate: 0,
+        averageRating: 0,
+        averageResolutionTime: "-",
+        satisfactionRating: 0,
+        completionRate: 0,
+      };
+    }
+    return {
+      totalComplaints: 0,
+      resolved: 0,
+      inProgress: 0,
+      pending: 0,
+      resolutionRate: 0,
+    };
+  }, [user]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,20 +124,53 @@ export function Profile() {
   };
 
   const handleSave = async () => {
-    setIsLoading(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const updated = await updateProfileApi({
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
+        bio: formData.bio,
+      });
+      auth.setUserName?.(updated.name || formData.name);
+      auth.updateUserProfile?.({
+        phone: updated.phone,
+        address: updated.address,
+        bio: updated.bio,
+      });
       setIsEditing(false);
       toast({
         title: "Profile Updated",
         description: "Your profile information has been successfully updated.",
       });
-    }, 1000);
+    } catch (e) {
+      toast({
+        title: "Update Failed",
+        description: "Could not update profile.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePasswordSave = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword) {
+      toast({
+        title: "Missing Fields",
+        description: "Please fill current and new password.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: "Weak Password",
+        description: "New password must be at least 6 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast({
         title: "Password Mismatch",
@@ -160,22 +179,29 @@ export function Profile() {
       });
       return;
     }
-
-    setIsLoading(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
+    try {
+      setIsLoading(true);
+      await changePasswordApi({
+        oldPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
       });
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       toast({
         title: "Password Updated",
         description: "Your password has been successfully changed.",
       });
-    }, 1000);
+    } catch (e) {
+      toast({
+        title: "Update Failed",
+        description:
+          (e && typeof e === "object" && "message" in e
+            ? (e as { message: string }).message
+            : undefined) || "Failed to change password.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getRoleBadgeVariant = (role: string) => {
@@ -265,8 +291,7 @@ export function Profile() {
                     <div className="flex items-center justify-center gap-2 mt-1">
                       <UserCheck className="h-4 w-4 text-muted-foreground" />
                       <Badge variant={getRoleBadgeVariant(user?.role || "")}>
-                        {user?.role?.charAt(0).toUpperCase() +
-                          user?.role?.slice(1)}
+                        {formatRole(user?.role)}
                       </Badge>
                     </div>
                   </div>
@@ -279,11 +304,11 @@ export function Profile() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{profileData.phone}</span>
+                    <span>{user?.phone || profileData.phone || "—"}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{profileData.address}</span>
+                    <span>{user?.address || profileData.address || ""}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -295,26 +320,19 @@ export function Profile() {
                 </div>
 
                 {/* Role-specific info */}
-                {user?.role === "staff" && "position" in profileData && (
-                  <div className="space-y-2 pt-3 border-t">
-                    <p className="text-sm text-muted-foreground">Position</p>
-                    <p className="font-medium">{profileData.position}</p>
-                  </div>
-                )}
-
-                {user?.role === "user" && "studentId" in profileData && (
-                  <div className="space-y-2 pt-3 border-t">
-                    <p className="text-sm text-muted-foreground">Department</p>
-                    <p className="font-medium">{profileData.department}</p>
-                  </div>
-                )}
-
-                {user?.role === "admin" && "adminId" in profileData && (
-                  <div className="space-y-2 pt-3 border-t">
-                    <p className="text-sm text-muted-foreground">Department</p>
-                    <p className="font-medium">{profileData.department}</p>
-                  </div>
-                )}
+                {(user?.role === "student" ||
+                  user?.role === "user" ||
+                  user?.role === "staff" ||
+                  user?.role === "hod" ||
+                  user?.role === "dean") &&
+                  profileData.department && (
+                    <div className="space-y-2 pt-3 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        Department
+                      </p>
+                      <p className="font-medium">{profileData.department}</p>
+                    </div>
+                  )}
               </CardContent>
             </Card>
 
@@ -424,10 +442,14 @@ export function Profile() {
                       onClick={() => {
                         setIsEditing(false);
                         setFormData({
-                          name: profileData.name,
-                          phone: profileData.phone,
-                          address: profileData.address,
-                          bio: profileData.bio,
+                          name:
+                            user?.fullName ||
+                            user?.name ||
+                            user?.username ||
+                            "",
+                          phone: user?.phone || "",
+                          address: user?.address || "",
+                          bio: user?.bio || "",
                         });
                       }}
                     >

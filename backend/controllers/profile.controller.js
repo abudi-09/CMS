@@ -36,6 +36,52 @@ export const getProfile = async (req, res) => {
   }
 };
 
+// PUT /api/profile (update basic profile fields like name)
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const { name, phone, address, bio } = req.body;
+
+    if (name && (!name.trim() || name.length < 2)) {
+      return res
+        .status(400)
+        .json({ error: "Name must be at least 2 characters long" });
+    }
+    if (bio && bio.length > 500) {
+      return res
+        .status(400)
+        .json({ error: "Bio must be 500 characters or less" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (name) user.name = name.trim();
+    if (phone !== undefined) user.phone = phone;
+    if (address !== undefined) user.address = address;
+    if (bio !== undefined) user.bio = bio;
+
+    await user.save({ validateModifiedOnly: true });
+    return res.json({
+      message: "Profile updated successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        phone: user.phone || "",
+        address: user.address || "",
+        bio: user.bio || "",
+      },
+    });
+  } catch (err) {
+    console.error("[updateProfile] Error:", err);
+    return res.status(500).json({ error: "Failed to update profile" });
+  }
+};
+
 // PUT /api/profile/password
 export const changePassword = async (req, res) => {
   try {
