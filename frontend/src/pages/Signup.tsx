@@ -123,10 +123,11 @@ export function Signup() {
         });
         navigate("/login");
       } else if (formData.role === "hod") {
+        // Explicit pending approval message for HoD
         toast({
-          title: "Account Created Successfully",
-          description:
-            "Head of Department account created. Please check your email to verify your account.",
+          title: "Pending Approval",
+          description: "⚠️ Your account is pending approval.",
+          variant: "default",
         });
         navigate("/login");
       } else {

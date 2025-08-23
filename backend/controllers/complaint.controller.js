@@ -1,6 +1,8 @@
 import Complaint from "../models/complaint.model.js";
 import ActivityLog from "../models/activityLog.model.js";
-import User from "../models/user.model.js";
+import User, {
+  normalizeRole as normalizeUserRole,
+} from "../models/user.model.js";
 
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
@@ -18,6 +20,15 @@ export const createComplaint = async (req, res) => {
       assignedByRole,
       assignmentPath,
     } = req.body;
+
+    // Normalize any role-like strings to canonical roles to satisfy Complaint schema enums
+    const normalizedSourceRole = normalizeUserRole(sourceRole || "student");
+    const normalizedAssignedByRole = assignedByRole
+      ? normalizeUserRole(assignedByRole)
+      : null;
+    const normalizedAssignmentPath = Array.isArray(assignmentPath)
+      ? assignmentPath.map((r) => normalizeUserRole(r))
+      : undefined;
     const complaint = new Complaint({
       title,
       category,
@@ -27,11 +38,9 @@ export const createComplaint = async (req, res) => {
       deadline: deadline ? new Date(deadline) : null,
       evidenceFile: evidenceFile || null,
       submittedTo: submittedTo || null,
-      sourceRole: sourceRole || "student",
-      assignedByRole: assignedByRole || null,
-      assignmentPath: Array.isArray(assignmentPath)
-        ? assignmentPath
-        : undefined,
+      sourceRole: normalizedSourceRole,
+      assignedByRole: normalizedAssignedByRole,
+      assignmentPath: normalizedAssignmentPath,
       submittedBy: req.user._id,
     });
 
@@ -148,9 +157,12 @@ export const assignComplaint = async (req, res) => {
     complaint.status = "In Progress";
     complaint.assignedAt = new Date();
     if (deadline) complaint.deadline = new Date(deadline);
-    if (assignedByRole) complaint.assignedByRole = assignedByRole;
+    if (assignedByRole)
+      complaint.assignedByRole = normalizeUserRole(assignedByRole);
     if (Array.isArray(assignmentPath))
-      complaint.assignmentPath = assignmentPath;
+      complaint.assignmentPath = assignmentPath.map((r) =>
+        normalizeUserRole(r)
+      );
 
     // Optional: Add reassignment history here if needed
     await complaint.save();

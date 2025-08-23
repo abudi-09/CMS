@@ -203,7 +203,8 @@ export default function AdminManagement() {
     }
   };
 
-  // Confirm dialog state
+  // Confirm dialog statecls
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmWarning, setConfirmWarning] = useState<string | undefined>(

@@ -320,6 +320,44 @@ export async function getDeanRejectedHodApi() {
     department: string;
   }>;
 }
+// Strongly-typed HOD user shape for dean grouped response
+export type HodApiUser = {
+  _id: string;
+  name?: string;
+  fullName?: string;
+  username?: string;
+  email: string;
+  department?: string;
+  isApproved?: boolean;
+  isRejected?: boolean;
+  isActive?: boolean;
+};
+
+export type DeanAllHodResponse = {
+  pending: HodApiUser[];
+  approved: HodApiUser[];
+  rejected: HodApiUser[];
+  deactivated: HodApiUser[];
+};
+
+export async function getDeanAllHodApi(): Promise<DeanAllHodResponse> {
+  const res = await fetch(`${API_BASE}/approvals/dean/all-hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const raw = (await res.json()) as unknown;
+  if (!res.ok) {
+    const errMsg =
+      typeof raw === "object" && raw && "error" in raw
+        ? String(
+            (raw as { error?: unknown }).error || "Failed to fetch all HoDs"
+          )
+        : "Failed to fetch all HoDs";
+    throw new Error(errMsg);
+  }
+  return raw as DeanAllHodResponse;
+}
 export async function signupApi(formData: {
   name: string;
   username: string;

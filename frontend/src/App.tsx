@@ -31,7 +31,7 @@ import { AssignComplaints } from "@/pages/AssignComplaints";
 import { StaffFeedback } from "@/pages/StaffFeedback";
 import { MyAssignedComplaints } from "@/pages/MyAssignedComplaints";
 import AdminAnalytics from "@/pages/AdminAnalytics";
-import UserManagement from "@/pages/UserManagement";
+import StudentManagement from "@/pages/StudentManagement";
 import CategoryManagement from "@/pages/CategoryManagement";
 import AdminManagement from "@/pages/AdminManagement";
 import DeanRoleManagement from "@/pages/DeanRoleManagement";
@@ -185,7 +185,10 @@ function AppContent() {
                   element={<AssignComplaints />}
                 />
                 <Route path="/staff-feedback" element={<StaffFeedback />} />
-                <Route path="/user-management" element={<UserManagement />} />
+                <Route
+                  path="/student-management"
+                  element={<StudentManagement />}
+                />
                 <Route path="/admin-management" element={<AdminManagement />} />
                 <Route
                   path="/dean-role-management"
