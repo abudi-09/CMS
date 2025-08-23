@@ -15,57 +15,7 @@ const hodList = [
 const dean = { id: "d1", fullName: "Dean of College" };
 const admin = { id: "a1", fullName: "System Admin" };
 import { useState, useContext } from "react";
-// Role-based categories
-const roleCategories = {
-  staff: [
-    "Teacher Missed Class",
-    "Lab / Equipment Issue",
-    "Dormitory / Hostel Issue",
-    "Cafeteria Issue",
-    "Assignment / Coursework Issue",
-    "Attendance / Roll-call Issue",
-    "Classroom Maintenance (lights, fans, AC)",
-    "Miscommunication regarding class or assignments",
-    "Minor IT issues in department lab",
-    "Student behavior or peer conflict in class",
-  ],
-  hod: [
-    "Major Grade / Exam Issue",
-    "Staff Misconduct (department-level)",
-    "Department Resource Issue (labs, classrooms, equipment)",
-    "Curriculum / Schedule Issue",
-    "Class Allocation / Timetable Conflicts",
-    "Student Disciplinary Issue (academic behavior)",
-    "Department Events / Program Issues",
-    "Faculty Absence or Unavailability",
-    "Lab Safety or Compliance Issues",
-    "Requests for Special Accommodations (exam or lab)",
-  ],
-  dean: [
-    "College Facility Issue (lecture halls, auditoriums)",
-    "Campus-wide Infrastructure Issue (internet, electricity, water)",
-    "College Policy / Administration Issue",
-    "Department Conflicts / Inter-department Issues",
-    "College-wide Events / Program Issues",
-    "Security / Safety Concerns affecting multiple departments",
-    "Major Academic Policy Changes or Complaints",
-    "Complaints related to Staff Promotions / Transfers",
-    "College Transportation or Shuttle Issues",
-    "Appeals for Cross-department Issues",
-  ],
-  admin: [
-    "College Portal Issue",
-    "System Errors / Technical Failures",
-    "Feedback & Reports Management",
-    "Student Account / Registration Issue",
-    "Lost Access / Password Recovery",
-    "Admin Notifications or Alerts Issue",
-    "Data / Database Issue (Grades, Attendance)",
-    "Complaint Analytics / Reporting Issue",
-    "IT System Upgrades / Maintenance Feedback",
-    "System-wide Communication Issue",
-  ],
-};
+// Categories now dynamically fetched; the list above has been moved to backend seeding.
 // Update the path below if your ComplaintContext file is in a different location
 import { useComplaints } from "@/context/ComplaintContext";
 import { CategoryContext } from "@/context/CategoryContext";
@@ -497,7 +447,7 @@ export function SubmitComplaint() {
               )}
             </div>
 
-            {/* Category Selection (filtered by role) */}
+            {/* Category Selection (filtered by selected recipient role) */}
             {formData.role && (
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
@@ -513,11 +463,19 @@ export function SubmitComplaint() {
                     <SelectValue placeholder="Select complaint category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roleCategories[formData.role].map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
+                    {categories
+                      .filter((c) =>
+                        // show if no role restriction OR includes selected target role mapping
+                        !c.roles?.length ||
+                        c.roles.includes(
+                          formData.role === "hod" ? "hod" : formData.role
+                        )
+                      )
+                      .map((c) => (
+                        <SelectItem key={c._id} value={c.name}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 {touched.category && !formData.category && (
