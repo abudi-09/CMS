@@ -106,7 +106,7 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Staff Performance",
       href: "/hod-staff-performance",
     },
-    { icon: Users, label: "User Management", href: "/user-management" },
+    { icon: Users, label: "Student Management", href: "/student-management" },
     { icon: Users, label: "Staff Management", href: "/hod/staff-management" },
     { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
@@ -114,11 +114,17 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
+  const role = (user?.role || "").toLowerCase();
+  const isHod =
+    role === "hod" ||
+    role === "headofdepartment" ||
+    role === "headofdepartment".toLowerCase();
+
   const getMenuItems = () => {
-    if (user?.role === "dean") return deanMenuItems;
-    if (user?.role === "headOfDepartment") return hodMenuItems;
-    if (user?.role === "admin") return adminMenuItems;
-    if (user?.role === "staff") return staffMenuItems;
+    if (role === "dean") return deanMenuItems;
+    if (isHod) return hodMenuItems;
+    if (role === "admin") return adminMenuItems;
+    if (role === "staff") return staffMenuItems;
     return userMenuItems;
   };
 
@@ -128,13 +134,13 @@ export function Sidebar({ className }: SidebarProps) {
     <div className={cn("flex flex-col h-full p-4", className)}>
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-2">
-          {user?.role === "dean"
+          {role === "dean"
             ? "Dean Dashboard"
-            : user?.role === "headOfDepartment"
+            : isHod
             ? "HOD Dashboard"
-            : user?.role === "admin"
+            : role === "admin"
             ? "Admin Panel"
-            : user?.role === "staff"
+            : role === "staff"
             ? "Staff Portal"
             : "Student Portal"}
         </h2>

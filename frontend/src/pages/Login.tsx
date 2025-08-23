@@ -102,7 +102,25 @@ export function Login() {
           variant: "default",
         });
         setTimeout(() => {
-          // Redirect based on user role
+          // Redirect based on (normalized) user role
+          const normalizeRole = (r: string) => {
+            const s = (r || "").toLowerCase().trim();
+            if (s === "user" || s === "student") return "student";
+            if (
+              s === "hod" ||
+              s === "head of department" ||
+              s === "headofdepartment" ||
+              s === "department" ||
+              s === "head_of_department" ||
+              s === "head-of-department"
+            )
+              return "hod";
+            if (s === "dean") return "dean";
+            if (s === "staff") return "staff";
+            if (s === "admin" || s === "administrator") return "admin";
+            return s || "student";
+          };
+
           if (
             result !== null &&
             typeof result === "object" &&
@@ -110,14 +128,14 @@ export function Login() {
             "role" in result
           ) {
             type UserResult = { role: string };
-            const role = (result as UserResult).role;
-            if (role === "admin") {
+            const normalized = normalizeRole((result as UserResult).role);
+            if (normalized === "admin") {
               navigate("/dashboard");
-            } else if (role === "staff") {
+            } else if (normalized === "staff") {
               navigate("/dashboard");
-            } else if (role === "dean") {
+            } else if (normalized === "dean") {
               navigate("/dean-dashboard");
-            } else if (role === "hod") {
+            } else if (normalized === "hod") {
               navigate("/hod-dashboard");
             } else {
               navigate("/dashboard");

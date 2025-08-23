@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
-import User from "../models/user.model.js";
+import User, {
+  normalizeRole as normalizeUserRole,
+} from "../models/user.model.js";
 
 export const protectRoute = async (req, res, next) => {
   try {
@@ -11,6 +13,10 @@ export const protectRoute = async (req, res, next) => {
 
     if (!user) return res.status(401).json({ error: "User not found" });
 
+    // Normalize role to canonical for request lifecycle (DB value unchanged)
+    if (user && typeof user.role === "string") {
+      user.role = normalizeUserRole(user.role);
+    }
     req.user = user;
     next();
   } catch (error) {
@@ -19,14 +25,16 @@ export const protectRoute = async (req, res, next) => {
 };
 
 export const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  const role = req.user?.role && normalizeUserRole(req.user.role);
+  if (role === "admin") {
     next();
   } else {
     return res.status(403).json({ error: "Access denied: Admins only" });
   }
 };
 export const staffOnly = (req, res, next) => {
-  if (req.user && req.user.role === "staff" && req.user.isApproved) {
+  const role = req.user?.role && normalizeUserRole(req.user.role);
+  if (role === "staff" && req.user.isApproved) {
     next();
   } else {
     return res.status(403).json({ error: "Access denied: Staff only" });
@@ -34,7 +42,8 @@ export const staffOnly = (req, res, next) => {
 };
 
 export const deanOnly = (req, res, next) => {
-  if (req.user && req.user.role === "dean") {
+  const role = req.user?.role && normalizeUserRole(req.user.role);
+  if (role === "dean") {
     next();
   } else {
     return res.status(403).json({ error: "Access denied: Deans only" });
@@ -42,7 +51,8 @@ export const deanOnly = (req, res, next) => {
 };
 
 export const hodOnly = (req, res, next) => {
-  if (req.user && req.user.role === "hod") {
+  const role = req.user?.role && normalizeUserRole(req.user.role);
+  if (role === "hod") {
     next();
   } else {
     return res

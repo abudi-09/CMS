@@ -29,9 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Users, UserCheck, UserX } from "lucide-react";
 import {
-  getDeanPendingHodApi,
-  getDeanActiveHodApi,
-  getDeanRejectedHodApi,
+  getDeanAllHodApi,
   deanApproveHodApi,
   deanRejectHodApi,
   deanReapproveHodApi,
@@ -39,9 +37,10 @@ import {
   deanReactivateHodApi,
 } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth/AuthContext";
 
 // Status tabs
-type Status = "pending" | "approved" | "rejected";
+type Status = "pending" | "approved" | "rejected" | "deactivated";
 
 // UI row shape
 interface HoDRow {
@@ -62,6 +61,18 @@ type ActionType =
   | "reactivate";
 
 export default function DepartmentManagement() {
+  const { user } = useAuth();
+  // Only dean may access this page
+  if (user?.role !== "dean") {
+    return (
+      <div className="p-6">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-muted-foreground">
+          You must be a Dean to access this page.
+        </p>
+      </div>
+    );
+  }
   // Safe error message extractor (avoids `any` use)
   const getErrorMessage = (e: unknown): string => {
     if (e instanceof Error) return e.message;
@@ -76,6 +87,7 @@ export default function DepartmentManagement() {
   const [pending, setPending] = useState<HoDRow[]>([]);
   const [approved, setApproved] = useState<HoDRow[]>([]);
   const [rejected, setRejected] = useState<HoDRow[]>([]);
+  const [deactivated, setDeactivated] = useState<HoDRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   // UI state
@@ -91,16 +103,13 @@ export default function DepartmentManagement() {
   }>({ type: "approve", hod: null });
 
   // Summary cards
-  const totalHods = pending.length + approved.length + rejected.length;
+  const totalHods =
+    pending.length + approved.length + rejected.length + deactivated.length;
   const activeHods = useMemo(
     () => approved.filter((h) => h.active).length,
     [approved]
   );
-  // Deactivated HoDs appear in rejected list but have status 'approved' and active=false
-  const deactivatedHods = useMemo(
-    () => rejected.filter((h) => h.status === "approved" && !h.active).length,
-    [rejected]
-  );
+  const deactivatedHods = useMemo(() => deactivated.length, [deactivated]);
 
   // Fixed department options per requirements
   const departmentOptions = useMemo(
@@ -145,14 +154,17 @@ export default function DepartmentManagement() {
   const fetchLists = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, a, r] = await Promise.all([
-        getDeanPendingHodApi(),
-        getDeanActiveHodApi(),
-        getDeanRejectedHodApi(),
-      ]);
-      setPending(p.map(mapUserToRow));
-      setApproved(a.map(mapUserToRow));
-      setRejected(r.map(mapUserToRow));
+      // Use consolidated endpoint that returns grouped HODs
+      const all = await getDeanAllHodApi();
+      const pendingRows = all.pending.map(mapUserToRow);
+      const approvedRows = all.approved.map(mapUserToRow);
+      const rejectedRows = all.rejected.map(mapUserToRow);
+      const deactivatedRows = all.deactivated.map(mapUserToRow);
+
+      setPending(pendingRows);
+      setApproved(approvedRows);
+      setRejected(rejectedRows);
+      setDeactivated(deactivatedRows);
     } catch (e: unknown) {
       const msg = getErrorMessage(e) || "Failed to load";
       toast({
@@ -174,7 +186,8 @@ export default function DepartmentManagement() {
     let rows: HoDRow[] = [];
     if (activeTab === "pending") rows = pending;
     else if (activeTab === "approved") rows = approved;
-    else rows = rejected;
+    else if (activeTab === "rejected") rows = rejected;
+    else rows = deactivated;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -191,7 +204,7 @@ export default function DepartmentManagement() {
     }
 
     return rows;
-  }, [pending, approved, rejected, activeTab, search, deptFilter]);
+  }, [pending, approved, rejected, deactivated, activeTab, search, deptFilter]);
 
   function openConfirm(type: ActionType, hod: HoDRow) {
     setPendingAction({ type, hod });
@@ -207,35 +220,36 @@ export default function DepartmentManagement() {
       if (action === "approve") {
         await deanApproveHodApi(hod.id);
         toast({
-          title: "HoD approved",
-          description: `${hod.name} is now active.`,
+          title: "Approved",
+          description: "✅ HOD approved successfully.",
         });
       } else if (action === "reject") {
         await deanRejectHodApi(hod.id);
         toast({
-          title: "HoD rejected",
-          description: `${hod.name} was rejected.`,
+          title: "Rejected",
+          description: "❌ HOD has been rejected.",
         });
       } else if (action === "deactivate") {
         // Toggle active=false but keep approved state
         await deanDeactivateHodApi(hod.id);
         toast({
-          title: "HoD deactivated",
-          description: `${hod.name} can no longer login until reactivated.`,
+          title: "Deactivated",
+          description: "📴 HOD account deactivated.",
         });
       } else if (action === "reapprove") {
         await deanReapproveHodApi(hod.id);
         toast({
-          title: "HoD re-approved",
-          description: `${hod.name} is now active.`,
+          title: "Approved",
+          description: "✅ HOD approved successfully.",
         });
       } else if (action === "reactivate") {
         await deanReactivateHodApi(hod.id);
         toast({
-          title: "HoD reactivated",
-          description: `${hod.name} is now active again.`,
+          title: "Activated",
+          description: "🔵 HOD account activated.",
         });
       }
+      // optimistic: refresh lists to reflect latest server state
       await fetchLists();
     } catch (e: unknown) {
       const msg = getErrorMessage(e) || "Action failed";
@@ -323,6 +337,7 @@ export default function DepartmentManagement() {
               { key: "pending", label: "Pending" },
               { key: "approved", label: "Approved" },
               { key: "rejected", label: "Rejected" },
+              { key: "deactivated", label: "Deactivated" },
             ] as { key: Status; label: string }[]
           ).map((t, i) => (
             <Button
@@ -339,7 +354,7 @@ export default function DepartmentManagement() {
         </div>
 
         {/* Search and filter */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <Input
             placeholder="Search by name, email, or department"
             value={search}
@@ -359,6 +374,14 @@ export default function DepartmentManagement() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={() => fetchLists()}
+            disabled={loading}
+            className="ml-2"
+          >
+            Refresh
+          </Button>
         </div>
       </div>
 
@@ -370,7 +393,9 @@ export default function DepartmentManagement() {
               ? "Pending List"
               : activeTab === "approved"
               ? "Approved List"
-              : "Rejected List"}
+              : activeTab === "rejected"
+              ? "Rejected List"
+              : "Deactivated List"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -397,18 +422,26 @@ export default function DepartmentManagement() {
                       <div className="text-xs text-muted-foreground">
                         Dept: {h.department}
                       </div>
-                      {activeTab === "approved" && (
-                        <div
-                          className={
-                            "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium " +
-                            (h.active
+                      <div
+                        className={
+                          "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium " +
+                          (h.status === "approved"
+                            ? h.active
                               ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700")
-                          }
-                        >
-                          {h.active ? "Active" : "Deactivated"}
-                        </div>
-                      )}
+                              : "bg-orange-100 text-orange-700"
+                            : h.status === "pending"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-red-100 text-red-700")
+                        }
+                      >
+                        {h.status === "approved"
+                          ? h.active
+                            ? "Approved"
+                            : "Approved (Deactivated)"
+                          : h.status === "pending"
+                          ? "Pending"
+                          : "Rejected"}
+                      </div>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-col gap-2 [&>button]:w-full">
@@ -466,6 +499,15 @@ export default function DepartmentManagement() {
                           Re-approve
                         </Button>
                       ))}
+                    {activeTab === "deactivated" && (
+                      <Button
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        disabled={loading}
+                        onClick={() => openConfirm("reactivate", h)}
+                      >
+                        Reactivate
+                      </Button>
+                    )}
                   </div>
                 </Card>
               ))
@@ -480,7 +522,7 @@ export default function DepartmentManagement() {
                   <TableHead>Name</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Email</TableHead>
-                  {activeTab === "approved" && <TableHead>Status</TableHead>}
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -500,19 +542,27 @@ export default function DepartmentManagement() {
                       <TableCell className="font-medium">{h.name}</TableCell>
                       <TableCell>{h.department}</TableCell>
                       <TableCell>{h.email}</TableCell>
-                      {activeTab === "approved" && (
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              h.active
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            h.status === "approved"
+                              ? h.active
                                 ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {h.active ? "Active" : "Deactivated"}
-                          </span>
-                        </TableCell>
-                      )}
+                                : "bg-orange-100 text-orange-700"
+                              : h.status === "pending"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {h.status === "approved"
+                            ? h.active
+                              ? "Approved"
+                              : "Approved (Deactivated)"
+                            : h.status === "pending"
+                            ? "Pending"
+                            : "Rejected"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">
                         {activeTab === "pending" && (
                           <div className="flex justify-end gap-2">

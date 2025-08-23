@@ -320,6 +320,21 @@ export async function getDeanRejectedHodApi() {
     department: string;
   }>;
 }
+export async function getDeanAllHodApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/all-hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch all HoDs");
+  return data as {
+    pending: Array<any>;
+    approved: Array<any>;
+    rejected: Array<any>;
+    deactivated: Array<any>;
+  };
+}
 export async function signupApi(formData: {
   name: string;
   username: string;

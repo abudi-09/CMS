@@ -57,26 +57,23 @@ import {
   hodReactivateStaffApi,
 } from "@/lib/api";
 
-interface DeptUser {
+interface Student {
   _id: string;
   name: string;
   email: string;
   department: string;
-  role?: "student" | "staff"; // default to student when absent
+  role?: "student"; // only students on this page
   createdAt: string;
   status: "Active" | "Inactive";
   complaintsCount?: number;
   lastActivity?: string;
 }
 
-function UserManagement() {
-  const [students, setStudents] = useState<DeptUser[]>([]);
+function StudentManagement() {
+  const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [roleFilter, setRoleFilter] = useState<"All" | "student" | "staff">(
-    "All"
-  );
-  // Department filter removed
+  const [roleFilter, setRoleFilter] = useState<"All" | "student">("All");
   // Pagination
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -87,7 +84,8 @@ function UserManagement() {
     id: string;
     name: string;
   } | null>(null);
-  const [selectedRole, setSelectedRole] = useState<"Staff" | "Admin" | "">("");
+  const [selectedRole, setSelectedRole] = useState<"Staff" | "">("");
+  const [workingPlace, setWorkingPlace] = useState("");
 
   const openPromoteModal = (studentId: string, studentName: string) => {
     setPromoteTarget({ id: studentId, name: studentName });
@@ -99,13 +97,14 @@ function UserManagement() {
     setPromoteModalOpen(false);
     setPromoteTarget(null);
     setSelectedRole("");
+    setWorkingPlace("");
   };
 
-  // Fetch students from backend
   useEffect(() => {
     async function fetchUsers() {
       try {
         const users = await hodGetUsersApi();
+
         type RawUser = {
           _id: string;
           name?: string;
@@ -120,22 +119,21 @@ function UserManagement() {
           complaintsCount?: number;
           lastActivity?: string;
         };
-        setStudents(
-          (users as RawUser[]).map((u) => ({
+        // keep only students
+        const onlyStudents: Student[] = (users as RawUser[])
+          .filter((u) => !u.role || u.role === "student")
+          .map((u) => ({
             _id: u._id,
             name: u.name || u.fullName || u.username || u.email,
             email: u.email,
             department: u.department,
-            role:
-              u.role === "staff" || u.role === "student"
-                ? (u.role as "student" | "staff")
-                : "student",
+            role: "student",
             createdAt: u.createdAt,
-            status: u.isActive ? "Active" : "Inactive",
+            status: (u.isActive ? "Active" : "Inactive") as Student["status"],
             complaintsCount: u.complaintsCount || 0,
             lastActivity: u.lastActivity || u.updatedAt || u.createdAt,
-          }))
-        );
+          }));
+        setStudents(onlyStudents);
       } catch (e) {
         toast({
           title: "Error",
@@ -147,22 +145,12 @@ function UserManagement() {
     fetchUsers();
   }, []);
 
-  const handleDeactivate = async (
-    studentId: string,
-    studentName: string,
-    role: "student" | "staff" | undefined
-  ) => {
+  const handleDeactivate = async (studentId: string, studentName: string) => {
     try {
-      if (role === "staff") {
-        await hodDeactivateStaffApi(studentId);
-      } else {
-        await hodDeactivateUserApi(studentId);
-      }
+      await hodDeactivateUserApi(studentId);
       setStudents((prev) =>
-        prev.map((student) =>
-          student._id === studentId
-            ? { ...student, status: "Inactive" }
-            : student
+        prev.map((s) =>
+          s._id === studentId ? { ...s, status: "Inactive" } : s
         )
       );
       toast({
@@ -178,21 +166,11 @@ function UserManagement() {
     }
   };
 
-  const handleActivate = async (
-    studentId: string,
-    studentName: string,
-    role: "student" | "staff" | undefined
-  ) => {
+  const handleActivate = async (studentId: string, studentName: string) => {
     try {
-      if (role === "staff") {
-        await hodReactivateStaffApi(studentId);
-      } else {
-        await hodActivateUserApi(studentId);
-      }
+      await hodActivateUserApi(studentId);
       setStudents((prev) =>
-        prev.map((student) =>
-          student._id === studentId ? { ...student, status: "Active" } : student
-        )
+        prev.map((s) => (s._id === studentId ? { ...s, status: "Active" } : s))
       );
       toast({
         title: "User Activated",
@@ -210,18 +188,36 @@ function UserManagement() {
   const handlePromoteConfirm = async () => {
     if (promoteTarget && selectedRole) {
       if (selectedRole === "Staff") {
-        // Prompt for working position
-        const workingPlace = window.prompt("Enter working position for staff:");
-        if (!workingPlace) {
+        if (!workingPlace || workingPlace.trim() === "") {
           toast({ title: "Error", description: "Working position required." });
           return;
         }
         try {
-          await hodPromoteUserApi(promoteTarget.id, workingPlace);
-          toast({
-            title: "Promotion Request",
-            description: `${promoteTarget.name} has been promoted to staff. Awaiting approval by HoD.`,
+          const data = await hodPromoteUserApi(
+            promoteTarget.id,
+            workingPlace.trim()
+          );
+          // server returns the updated user under data.user
+          const promoted = data?.user;
+          // remove from students list
+          setStudents((prev) => prev.filter((s) => s._id !== promoteTarget.id));
+
+          // dispatch the canonical user object so HODStaffManagement can insert it
+          const event = new CustomEvent("hod:staff-promoted", {
+            detail: {
+              user: promoted,
+              status: promoted ? "approved" : "approved",
+            },
           });
+          window.dispatchEvent(event);
+
+          toast({
+            title: "Promotion Successful",
+            description: `${
+              promoteTarget.name
+            } has been promoted to staff (working position: ${workingPlace.trim()}) and added to HOD Staff Management (approved).`,
+          });
+          setWorkingPlace("");
           closePromoteModal();
         } catch (e) {
           toast({
@@ -230,24 +226,16 @@ function UserManagement() {
             variant: "destructive",
           });
         }
-      } else if (selectedRole === "Admin") {
-        toast({
-          title: "Not Supported",
-          description: "Promotion to Admin is not supported via this page.",
-        });
-        closePromoteModal();
       }
     }
   };
 
-  // Calculate summary stats
   const stats = {
     total: students.length,
     active: students.filter((s) => s.status === "Active").length,
     inactive: students.filter((s) => s.status === "Inactive").length,
   };
 
-  // Filter students
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -260,12 +248,10 @@ function UserManagement() {
     return matchesSearch && matchesStatus && matchesRole;
   });
 
-  // Reset page on filter/search changes
   useEffect(() => {
     setPage(1);
   }, [searchTerm, statusFilter, roleFilter]);
 
-  // Pagination calculations
   const totalItems = filteredStudents.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const startIndex = (page - 1) * pageSize;
@@ -285,8 +271,6 @@ function UserManagement() {
     return pages;
   };
 
-  const departments = Array.from(new Set(students.map((s) => s.department)));
-
   return (
     <div className="space-y-6">
       {/* Promote Modal */}
@@ -303,31 +287,53 @@ function UserManagement() {
               </Label>
               <Select
                 value={selectedRole}
-                onValueChange={(v) => setSelectedRole(v as "Staff" | "Admin")}
+                onValueChange={(v) => setSelectedRole(v as "Staff")}
               >
                 <SelectTrigger id="role-select" className="mt-2 w-full">
                   <SelectValue placeholder="Choose role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Staff">Promote to Staff</SelectItem>
-                  <SelectItem value="Admin">Promote to Admin</SelectItem>
                 </SelectContent>
               </Select>
+
+              {selectedRole === "Staff" && (
+                <div className="mt-3">
+                  <Label htmlFor="working-place">Working position</Label>
+                  <Input
+                    id="working-place"
+                    placeholder="e.g., Lecturer, Lab Assistant"
+                    value={workingPlace}
+                    onChange={(e) => setWorkingPlace(e.target.value)}
+                    className="mt-2 w-full"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closePromoteModal}>
               Cancel
             </Button>
-            <Button onClick={handlePromoteConfirm} disabled={!selectedRole}>
+            <Button
+              onClick={handlePromoteConfirm}
+              disabled={
+                !selectedRole ||
+                (selectedRole === "Staff" && !workingPlace.trim())
+              }
+            >
               Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <div>
-        <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+        <h1 className="text-3xl font-bold text-foreground">
+          Student Management
+        </h1>
       </div>
+
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -360,9 +366,7 @@ function UserManagement() {
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <Select
                   value={roleFilter}
-                  onValueChange={(v) =>
-                    setRoleFilter(v as "All" | "student" | "staff")
-                  }
+                  onValueChange={(v) => setRoleFilter(v as "All" | "student")}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="Role" />
@@ -370,7 +374,6 @@ function UserManagement() {
                   <SelectContent>
                     <SelectItem value="All">All Roles</SelectItem>
                     <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -436,7 +439,7 @@ function UserManagement() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {(student.role || "student").toUpperCase()}
+                          STUDENT
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -472,30 +475,25 @@ function UserManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          {student.status === "Active" &&
-                            (student.role || "student") === "student" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  openPromoteModal(student._id, student.name)
-                                }
-                                className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                              >
-                                <UserPlus className="h-4 w-4 mr-1" />
-                                Promote
-                              </Button>
-                            )}
+                          {student.status === "Active" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                openPromoteModal(student._id, student.name)
+                              }
+                              className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            >
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              Promote
+                            </Button>
+                          )}
                           {student.status === "Active" ? (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                handleDeactivate(
-                                  student._id,
-                                  student.name,
-                                  student.role
-                                )
+                                handleDeactivate(student._id, student.name)
                               }
                               className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
                             >
@@ -507,11 +505,7 @@ function UserManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                handleActivate(
-                                  student._id,
-                                  student.name,
-                                  student.role
-                                )
+                                handleActivate(student._id, student.name)
                               }
                               className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
                             >
@@ -550,7 +544,7 @@ function UserManagement() {
                         </p>
                       </div>
                       <Badge variant="outline" className="text-xs mr-2">
-                        {(student.role || "student").toUpperCase()}
+                        STUDENT
                       </Badge>
                       <Badge
                         className={`text-xs ${
@@ -589,30 +583,25 @@ function UserManagement() {
                     </div>
 
                     <div className="flex gap-2">
-                      {(student.role || "student") === "student" &&
-                        student.status === "Active" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              openPromoteModal(student._id, student.name)
-                            }
-                            className="flex-1 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                          >
-                            <UserPlus className="h-4 w-4 mr-1" />
-                            Promote
-                          </Button>
-                        )}
+                      {student.status === "Active" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            openPromoteModal(student._id, student.name)
+                          }
+                          className="flex-1 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        >
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          Promote
+                        </Button>
+                      )}
                       {student.status === "Active" ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            handleDeactivate(
-                              student._id,
-                              student.name,
-                              student.role
-                            )
+                            handleDeactivate(student._id, student.name)
                           }
                           className="flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
                         >
@@ -624,11 +613,7 @@ function UserManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            handleActivate(
-                              student._id,
-                              student.name,
-                              student.role
-                            )
+                            handleActivate(student._id, student.name)
                           }
                           className="flex-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
                         >
@@ -730,4 +715,4 @@ function UserManagement() {
   );
 }
 
-export default UserManagement;
+export default StudentManagement;

@@ -83,6 +83,54 @@ export default function HODStaffManagement() {
     loadAll();
   }, []);
 
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const d = e.detail;
+        if (!d) return;
+        // If backend returned the full user, use it. Otherwise fall back to id/name
+        const u = d.user;
+        if (d.status === "approved") {
+          const newApproved: Staff = u
+            ? {
+                id: u._id || u.id,
+                name:
+                  u.fullName || u.name || u.username || u.email || "Unknown",
+                email: u.email || "",
+                department: u.department || "",
+                workingPlace: u.workingPlace,
+                status: "approved",
+              }
+            : {
+                id: d.id,
+                name: d.name || "Unknown",
+                email: d.email || "",
+                department: d.department || "",
+                workingPlace: d.workingPlace,
+                status: "approved",
+              };
+          setApproved((prev) => [newApproved, ...prev]);
+          return;
+        }
+        // default: add to pending
+        const newPending: Staff = {
+          id: d.id,
+          name: d.name || "Unknown",
+          email: d.email || "",
+          department: d.department || "",
+          workingPlace: d.workingPlace,
+          status: "pending",
+        };
+        setPending((prev) => [newPending, ...prev]);
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener("hod:staff-promoted", handler as any);
+    return () =>
+      window.removeEventListener("hod:staff-promoted", handler as any);
+  }, []);
+
   const filterList = (list: Staff[]) =>
     list.filter(
       (s) =>

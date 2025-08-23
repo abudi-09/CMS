@@ -115,9 +115,9 @@ export const hodGetUsers = async (req, res) => {
   try {
     const dept = req.user.department;
     const users = await User.find({
-      role: "student",
       department: dept,
-    }).select("-password");
+      role: { $in: ["student", "staff"] },
+    }).select("_id name email department role isActive createdAt updatedAt");
     res.status(200).json(users);
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch users" });
@@ -182,15 +182,21 @@ export const hodPromoteUser = async (req, res) => {
         .status(400)
         .json({ error: "Working position is required to promote to staff" });
     }
+    // Promote and auto-approve: make the user a staff member and mark active/approved
     user.role = "staff";
     user.workingPlace = workingPlace;
-    user.isApproved = false;
+    user.isApproved = true;
     user.isRejected = false;
-    user.isActive = false;
+    user.isActive = true;
     await user.save();
-    res
-      .status(200)
-      .json({ message: "User promoted to staff. Awaiting approval." });
+
+    // Return the updated user (without password) so frontend can render immediately
+    const returned = user.toObject();
+    if (returned.password) delete returned.password;
+    res.status(200).json({
+      message: "User promoted to staff and approved.",
+      user: returned,
+    });
   } catch (e) {
     res.status(500).json({ error: "Failed to promote user" });
   }
@@ -405,6 +411,38 @@ export const deanGetRejectedHod = async (req, res) => {
     res.status(200).json(rejected);
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch rejected HoDs" });
+  }
+};
+
+// Dean: fetch all HODs grouped by status
+export const deanGetAllHod = async (req, res) => {
+  try {
+    const hods = await User.find({ role: "hod" }).select("-password");
+    const pending = [];
+    const approved = [];
+    const rejected = [];
+    const deactivated = [];
+
+    hods.forEach((u) => {
+      const obj = {
+        _id: u._id,
+        name: u.fullName || u.name || u.username || u.email,
+        email: u.email,
+        department: u.department,
+        isApproved: !!u.isApproved,
+        isRejected: !!u.isRejected,
+        isActive: !!u.isActive,
+      };
+      if (u.isRejected) rejected.push(obj);
+      else if (!u.isApproved) pending.push(obj);
+      else if (u.isApproved && !u.isActive) deactivated.push(obj);
+      else if (u.isApproved && u.isActive) approved.push(obj);
+      else pending.push(obj);
+    });
+
+    res.status(200).json({ pending, approved, rejected, deactivated });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch HODs" });
   }
 };
 
