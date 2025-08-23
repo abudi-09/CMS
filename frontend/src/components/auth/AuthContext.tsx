@@ -21,7 +21,14 @@ import {
   hodReactivateStaffApi,
 } from "@/lib/api";
 
-export type UserRole = "user" | "staff" | "admin" | "dean" | "headOfDepartment";
+export type UserRole =
+  | "student" // new canonical student role
+  | "user" // legacy alias
+  | "staff"
+  | "hod" // canonical head of department role (backend)
+  | "headOfDepartment" // legacy alias
+  | "dean"
+  | "admin";
 export type StaffStatus = "pending" | "approved" | "rejected";
 
 interface User {
@@ -90,7 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Try to restore user session
         const me = await getMeApi();
-        // Normalize backend role to internal union
+
+         // Normalize backend role to internal union
+
+     
+
         const rawRole = (me.role || "").toLowerCase();
         let normRole: UserRole = "user";
         if (rawRole === "student" || rawRole === "user") normRole = "user";
@@ -169,11 +180,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const success = data as LoginSuccess;
       // Normalize login role
       const rawRole = (success.role || "").toLowerCase();
+
       let role: UserRole = "user";
       if (rawRole === "student" || rawRole === "user") role = "user";
       else if (rawRole === "staff") role = "staff";
       else if (rawRole === "hod" || rawRole === "headofdepartment")
         role = "headOfDepartment";
+
       else if (rawRole === "dean") role = "dean";
       else if (rawRole === "admin") role = "admin";
       setUser({
