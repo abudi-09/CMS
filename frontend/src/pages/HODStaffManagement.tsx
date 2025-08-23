@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +84,20 @@ export default function HODStaffManagement() {
     loadAll();
   }, []);
 
+  // Respect ?tab=... query param so external links can open a specific tab
+  const location = useLocation();
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const t = params.get("tab");
+      if (t && ["pending", "approved", "rejected", "deactivated"].includes(t)) {
+        setTab(t);
+      }
+    } catch (err) {
+      // ignore malformed url
+    }
+  }, [location.search]);
+
   useEffect(() => {
     type PromotedDetail = {
       user?: {
@@ -107,7 +122,6 @@ export default function HODStaffManagement() {
       try {
         const d = e.detail as PromotedDetail | undefined;
         if (!d) return;
-        // If backend returned the full user, use it. Otherwise fall back to id/name
         const u = d.user;
         if (d.status === "approved") {
           const newApproved: Staff = u
@@ -265,8 +279,8 @@ export default function HODStaffManagement() {
         <CardContent>
           <Tabs value={tab} onValueChange={setTab} className="w-full">
             <TabsList>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
               <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="approved">Approved</TabsTrigger>
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
               <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
             </TabsList>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,18 +18,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, UserCheck, UserX } from "lucide-react";
 import {
+  API_BASE,
   getDeanAllHodApi,
   deanApproveHodApi,
   deanRejectHodApi,
@@ -38,9 +32,10 @@ import {
 } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthContext";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 // Status tabs
-type Status = "pending" | "approved" | "rejected" | "deactivated";
+type Status = "all" | "pending" | "approved" | "rejected" | "deactivated";
 
 // UI row shape
 interface HoDRow {
@@ -63,6 +58,7 @@ type ActionType =
 export default function DepartmentManagement() {
   const { user } = useAuth();
   const unauthorized = user?.role !== "dean";
+  const location = useLocation();
   // Safe error message extractor (avoids `any` use)
   const getErrorMessage = (e: unknown): string => {
     if (e instanceof Error) return e.message;
@@ -80,9 +76,20 @@ export default function DepartmentManagement() {
   const [deactivated, setDeactivated] = useState<HoDRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false); // marks that an initial fetch has completed
+  // Debug helpers to diagnose missing HODs in UI
+  const [lastFetchError, setLastFetchError] = useState<string | null>(null);
+  const [lastFetchCounts, setLastFetchCounts] = useState<{
+    total?: number;
+    pending?: number;
+    approved?: number;
+    rejected?: number;
+    deactivated?: number;
+  } | null>(null);
+  // Dev-only server debug response (removed in production)
 
   // UI state
-  const [activeTab, setActiveTab] = useState<Status>("pending");
+  // Default to 'all' so Dean can view the complete HOD list immediately
+  const [activeTab, setActiveTab] = useState<Status>("all");
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<string>("all");
 
@@ -102,16 +109,15 @@ export default function DepartmentManagement() {
   );
   const deactivatedHods = useMemo(() => deactivated.length, [deactivated]);
 
-  // Fixed department options per requirements
-  const departmentOptions = useMemo(
-    () => [
-      "Computer Science",
-      "Information Technology",
-      "Information Science",
-      "Information Systems",
-    ],
-    []
-  );
+  // Derive departments from backend data (no hardcoded list)
+  const departments = useMemo(() => {
+    const all = [...pending, ...approved, ...rejected, ...deactivated];
+    const set = new Set<string>();
+    for (const h of all) {
+      if (h.department && h.department.trim().length > 0) set.add(h.department);
+    }
+    return Array.from(set).sort();
+  }, [pending, approved, rejected, deactivated]);
 
   // API HoD user type returned by backend
   interface ApiHodUser {
@@ -124,6 +130,21 @@ export default function DepartmentManagement() {
     isApproved?: boolean;
     isRejected?: boolean;
     isActive?: boolean;
+  }
+
+  // Typed response for the dean grouped HOD endpoint
+  interface DeanAllHodResponse {
+    pending?: ApiHodUser[];
+    approved?: ApiHodUser[];
+    rejected?: ApiHodUser[];
+    deactivated?: ApiHodUser[];
+    counts?: {
+      total?: number;
+      pending?: number;
+      approved?: number;
+      rejected?: number;
+      deactivated?: number;
+    };
   }
 
   // Map API user to UI row (stable for hooks)
@@ -151,20 +172,62 @@ export default function DepartmentManagement() {
 
   const fetchLists = useCallback(async () => {
     setLoading(true);
+    setLastFetchError(null);
     try {
-      // Use consolidated endpoint that returns grouped HODs
-      const all = await getDeanAllHodApi();
-      const pendingRows = all.pending.map(mapUserToRow);
-      const approvedRows = all.approved.map(mapUserToRow);
-      const rejectedRows = all.rejected.map(mapUserToRow);
-      const deactivatedRows = all.deactivated.map(mapUserToRow);
+      // Use the dean-scoped grouped endpoint so the Dean can fetch all HoDs
+      // (existing + newly created) without calling the admin-only endpoint.
+      const grouped = await getDeanAllHodApi();
 
-      setPending(pendingRows);
-      setApproved(approvedRows);
-      setRejected(rejectedRows);
-      setDeactivated(deactivatedRows);
+      const pendingList = grouped.pending || [];
+      const approvedList = grouped.approved || [];
+      const rejectedList = grouped.rejected || [];
+      const deactivatedList = grouped.deactivated || [];
+
+      // Prefer counts returned by the endpoint if available.
+      // If backend returned counts, use them; otherwise compute locally.
+      const counts = (grouped as DeanAllHodResponse & { counts?: unknown })
+        .counts;
+      if (
+        counts &&
+        typeof counts === "object" &&
+        "total" in counts &&
+        "pending" in counts
+      ) {
+        const c = counts as {
+          total?: number;
+          pending?: number;
+          approved?: number;
+          rejected?: number;
+          deactivated?: number;
+        };
+        setLastFetchCounts({
+          total: c.total,
+          pending: c.pending,
+          approved: c.approved,
+          rejected: c.rejected,
+          deactivated: c.deactivated,
+        });
+      } else {
+        setLastFetchCounts({
+          total:
+            pendingList.length +
+            approvedList.length +
+            rejectedList.length +
+            deactivatedList.length,
+          pending: pendingList.length,
+          approved: approvedList.length,
+          rejected: rejectedList.length,
+          deactivated: deactivatedList.length,
+        });
+      }
+
+      setPending(pendingList.map(mapUserToRow));
+      setApproved(approvedList.map(mapUserToRow));
+      setRejected(rejectedList.map(mapUserToRow));
+      setDeactivated(deactivatedList.map(mapUserToRow));
     } catch (e: unknown) {
       const msg = getErrorMessage(e) || "Failed to load";
+      setLastFetchError(String(msg));
       toast({
         title: "Failed to load HoDs",
         description: String(msg),
@@ -178,8 +241,22 @@ export default function DepartmentManagement() {
 
   useEffect(() => {
     if (unauthorized) return;
+    // Allow linking to a specific tab via query param: ?tab=pending|approved|rejected|deactivated|all
+    const params = new URLSearchParams(location.search);
+    const tab = params.get("tab");
+    if (
+      tab === "pending" ||
+      tab === "approved" ||
+      tab === "rejected" ||
+      tab === "deactivated" ||
+      tab === "all"
+    ) {
+      setActiveTab(tab as Status);
+    }
     fetchLists();
-  }, [fetchLists, unauthorized]);
+  }, [fetchLists, unauthorized, location.search]);
+
+  // (dev debug removed)
 
   // Current tab rows with search/filter applied
   const listForTab = useMemo(() => {
@@ -187,7 +264,8 @@ export default function DepartmentManagement() {
     if (activeTab === "pending") rows = pending;
     else if (activeTab === "approved") rows = approved;
     else if (activeTab === "rejected") rows = rejected;
-    else rows = deactivated;
+    else if (activeTab === "deactivated") rows = deactivated;
+    else rows = [...pending, ...approved, ...rejected, ...deactivated];
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -200,7 +278,11 @@ export default function DepartmentManagement() {
     }
 
     if (deptFilter !== "all") {
-      rows = rows.filter((h) => h.department === deptFilter);
+      if (deptFilter === "unassigned") {
+        rows = rows.filter((h) => !h.department || h.department.trim() === "");
+      } else {
+        rows = rows.filter((h) => h.department === deptFilter);
+      }
     }
 
     return rows;
@@ -210,6 +292,70 @@ export default function DepartmentManagement() {
     setPendingAction({ type, hod });
     setConfirmOpen(true);
   }
+
+  // centralized action renderer used by both mobile and desktop lists
+  const renderActions = (h: HoDRow) => {
+    if (h.status === "pending") {
+      return (
+        <>
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={loading}
+            onClick={() => openConfirm("approve", h)}
+          >
+            Approve
+          </Button>
+          <Button
+            className="bg-red-600 hover:bg-red-700 text-white"
+            disabled={loading}
+            onClick={() => openConfirm("reject", h)}
+          >
+            Reject
+          </Button>
+        </>
+      );
+    }
+    if (h.status === "approved") {
+      return h.active ? (
+        <Button
+          className="bg-red-600 hover:bg-red-700 text-white"
+          disabled={loading}
+          onClick={() => openConfirm("deactivate", h)}
+        >
+          Deactivate
+        </Button>
+      ) : (
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+          disabled={loading}
+          onClick={() => openConfirm("reactivate", h)}
+        >
+          Reactivate
+        </Button>
+      );
+    }
+    if (h.status === "rejected") {
+      return (
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+          disabled={loading}
+          onClick={() => openConfirm("reapprove", h)}
+        >
+          Re-approve
+        </Button>
+      );
+    }
+    // deactivated
+    return (
+      <Button
+        className="bg-blue-600 hover:bg-blue-700 text-white"
+        disabled={loading}
+        onClick={() => openConfirm("reactivate", h)}
+      >
+        Reactivate
+      </Button>
+    );
+  };
 
   async function applyAction() {
     const action = pendingAction.type;
@@ -249,8 +395,16 @@ export default function DepartmentManagement() {
           description: "🔵 HOD account activated.",
         });
       }
-      // optimistic: refresh lists to reflect latest server state
+      // refresh lists to reflect latest server state
       await fetchLists();
+      // notify other pages (AdminManagement etc.) that HODs were updated
+      try {
+        window.dispatchEvent(
+          new CustomEvent("hod:updated", { detail: { id: hod.id, action } })
+        );
+      } catch (e) {
+        /* ignore for older browsers */
+      }
     } catch (e: unknown) {
       const msg = getErrorMessage(e) || "Action failed";
       toast({
@@ -342,26 +496,20 @@ export default function DepartmentManagement() {
 
       {/* Tabs header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-md shadow-sm overflow-hidden border">
-          {(
-            [
-              { key: "pending", label: "Pending" },
-              { key: "approved", label: "Approved" },
-              { key: "rejected", label: "Rejected" },
-              { key: "deactivated", label: "Deactivated" },
-            ] as { key: Status; label: string }[]
-          ).map((t, i) => (
-            <Button
-              key={t.key}
-              variant={activeTab === t.key ? "default" : "ghost"}
-              className={`rounded-none ${
-                i === 0 ? "rounded-l-md" : i === 2 ? "rounded-r-md" : ""
-              }`}
-              onClick={() => setActiveTab(t.key)}
-            >
-              {t.label}
-            </Button>
-          ))}
+        <div className="mb-3 w-full sm:w-auto">
+          <Tabs
+            defaultValue="pending"
+            value={activeTab}
+            onValueChange={(v: string) => setActiveTab(v as Status)}
+          >
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="approved">Approved</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected</TabsTrigger>
+              <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {/* Search and filter */}
@@ -378,7 +526,8 @@ export default function DepartmentManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              {departmentOptions.map((d) => (
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {departments.map((d) => (
                 <SelectItem key={d} value={d}>
                   {d}
                 </SelectItem>
@@ -400,7 +549,9 @@ export default function DepartmentManagement() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {activeTab === "pending"
+            {activeTab === "all"
+              ? "All HoDs"
+              : activeTab === "pending"
               ? "Pending List"
               : activeTab === "approved"
               ? "Approved List"
@@ -431,18 +582,20 @@ export default function DepartmentManagement() {
                         {h.email}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Dept: {h.department}
+                        Dept:{" "}
+                        {h.department && h.department.trim().length > 0
+                          ? h.department
+                          : "Unassigned"}
                       </div>
-                      <div
+                      <Badge
                         className={
-                          "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium " +
-                          (h.status === "approved"
-                            ? "bg-green-100 text-green-700"
+                          h.status === "approved"
+                            ? "bg-green-100 text-green-800"
                             : h.status === "pending"
-                            ? "bg-yellow-100 text-yellow-700"
+                            ? "bg-yellow-100 text-yellow-800"
                             : h.status === "deactivated"
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-red-100 text-red-700")
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-red-100 text-red-800"
                         }
                       >
                         {h.status === "approved"
@@ -452,73 +605,11 @@ export default function DepartmentManagement() {
                           : h.status === "deactivated"
                           ? "Deactivated"
                           : "Rejected"}
-                      </div>
+                      </Badge>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-col gap-2 [&>button]:w-full">
-                    {activeTab === "pending" && (
-                      <>
-                        <Button
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          disabled={loading}
-                          onClick={() => openConfirm("approve", h)}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                          disabled={loading}
-                          onClick={() => openConfirm("reject", h)}
-                        >
-                          Reject
-                        </Button>
-                      </>
-                    )}
-                    {activeTab === "approved" &&
-                      (h.active ? (
-                        <Button
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                          disabled={loading}
-                          onClick={() => openConfirm("deactivate", h)}
-                        >
-                          Deactivate
-                        </Button>
-                      ) : (
-                        <Button
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          disabled={loading}
-                          onClick={() => openConfirm("reactivate", h)}
-                        >
-                          Reactivate
-                        </Button>
-                      ))}
-                    {activeTab === "rejected" &&
-                      (h.status === "approved" && !h.active ? (
-                        <Button
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          disabled={loading}
-                          onClick={() => openConfirm("reactivate", h)}
-                        >
-                          Reactivate
-                        </Button>
-                      ) : (
-                        <Button
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          disabled={loading}
-                          onClick={() => openConfirm("reapprove", h)}
-                        >
-                          Re-approve
-                        </Button>
-                      ))}
-                    {activeTab === "deactivated" && (
-                      <Button
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        disabled={loading}
-                        onClick={() => openConfirm("reactivate", h)}
-                      >
-                        Reactivate
-                      </Button>
-                    )}
+                    {renderActions(h)}
                   </div>
                 </Card>
               ))
@@ -551,19 +642,23 @@ export default function DepartmentManagement() {
                   listForTab.map((h) => (
                     <TableRow key={h.id}>
                       <TableCell className="font-medium">{h.name}</TableCell>
-                      <TableCell>{h.department}</TableCell>
+                      <TableCell>
+                        {h.department && h.department.trim().length > 0
+                          ? h.department
+                          : "Unassigned"}
+                      </TableCell>
                       <TableCell>{h.email}</TableCell>
                       <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        <Badge
+                          className={
                             h.status === "approved"
-                              ? "bg-green-100 text-green-700"
+                              ? "bg-green-100 text-green-800"
                               : h.status === "pending"
-                              ? "bg-yellow-100 text-yellow-700"
+                              ? "bg-yellow-100 text-yellow-800"
                               : h.status === "deactivated"
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
+                              ? "bg-orange-100 text-orange-800"
+                              : "bg-red-100 text-red-800"
+                          }
                         >
                           {h.status === "approved"
                             ? "Approved"
@@ -572,65 +667,12 @@ export default function DepartmentManagement() {
                             : h.status === "deactivated"
                             ? "Deactivated"
                             : "Rejected"}
-                        </span>
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {activeTab === "pending" && (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              disabled={loading}
-                              onClick={() => openConfirm("approve", h)}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                              disabled={loading}
-                              onClick={() => openConfirm("reject", h)}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-
-                        {activeTab === "approved" &&
-                          (h.active ? (
-                            <Button
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                              disabled={loading}
-                              onClick={() => openConfirm("deactivate", h)}
-                            >
-                              Deactivate
-                            </Button>
-                          ) : (
-                            <Button
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              disabled={loading}
-                              onClick={() => openConfirm("reactivate", h)}
-                            >
-                              Reactivate
-                            </Button>
-                          ))}
-
-                        {activeTab === "rejected" &&
-                          (h.status === "approved" && !h.active ? (
-                            <Button
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              disabled={loading}
-                              onClick={() => openConfirm("reactivate", h)}
-                            >
-                              Reactivate
-                            </Button>
-                          ) : (
-                            <Button
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              disabled={loading}
-                              onClick={() => openConfirm("reapprove", h)}
-                            >
-                              Re-approve
-                            </Button>
-                          ))}
+                        <div className="flex justify-end gap-2">
+                          {renderActions(h)}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -642,20 +684,18 @@ export default function DepartmentManagement() {
       </Card>
 
       {/* Confirmation Modal */}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Action</AlertDialogTitle>
-            <AlertDialogDescription>{confirmText}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={applyAction} disabled={loading}>
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Confirm Action"
+        onConfirm={applyAction}
+        onCancel={() => setConfirmOpen(false)}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        warning={undefined}
+      >
+        {confirmText}
+      </ConfirmDialog>
     </div>
   );
 }

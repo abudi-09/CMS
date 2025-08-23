@@ -104,6 +104,19 @@ export function Signup() {
         formData.role === "staff" ||
         formData.role.toLowerCase() === "staff"
       ) {
+        // Notify any in-page listeners (HOD dashboards) about the new staff signup
+        try {
+          const payload = {
+            name: formData.name,
+            email: formData.email,
+            department: formData.department,
+          };
+          window.dispatchEvent(
+            new CustomEvent("staff:created", { detail: payload })
+          );
+        } catch (e) {
+          // non-fatal
+        }
         toast({
           title: "Account Created Successfully",
           description:
@@ -116,6 +129,19 @@ export function Signup() {
         formData.role === "dean" ||
         formData.role.toLowerCase() === "dean"
       ) {
+        // Notify admins in-page that a new dean has signed up
+        try {
+          const payload = {
+            name: formData.name,
+            email: formData.email,
+            workingPlace: formData.workingPlace,
+          };
+          window.dispatchEvent(
+            new CustomEvent("dean:created", { detail: payload })
+          );
+        } catch (e) {
+          // non-fatal
+        }
         toast({
           title: "Account Created Successfully",
           description:

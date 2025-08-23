@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Clock, MessageSquare, UserCheck, Users } from "lucide-react";
+import { getDeanPendingHodApi } from "@/lib/api";
 
 // Mock data for demo
 const now = new Date();
@@ -99,17 +100,9 @@ const mockComplaints: Complaint[] = [
   },
 ];
 
-// Mock pending dean approvals
-const pendingStaff = [
-  { id: "s1", fullName: "Dr. Alan Turing", department: "Computer Science" },
-  { id: "s2", fullName: "Ms. Ada Lovelace", department: "IT" },
-  {
-    id: "s3",
-    fullName: "Prof. Michael Chen",
-    department: "Information System",
-  },
-  { id: "s4", fullName: "Ms. Grace Hopper", department: "Information Science" },
-];
+// Pending dean approvals (fetched from backend)
+// Shape used in UI
+type PendingStaff = { id: string; fullName: string; department?: string };
 
 export function DeanDashboard() {
   const navigate = useNavigate();
@@ -117,6 +110,40 @@ export function DeanDashboard() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
+
+  const fetchPending = useCallback(async () => {
+    try {
+      const data = await getDeanPendingHodApi();
+      // API returns array of users
+      const mapped: PendingStaff[] = (data || []).map((u: unknown) => {
+        const obj = u as {
+          _id?: string;
+          id?: string;
+          fullName?: string;
+          name?: string;
+          username?: string;
+          department?: string;
+        };
+        return {
+          id: obj._id || obj.id || String(Math.random()),
+          fullName: obj.fullName || obj.name || obj.username || "",
+          department: obj.department || "",
+        };
+      });
+      setPendingStaff(mapped);
+    } catch (err) {
+      // swallow; dashboard shouldn't crash on fetch failure
+      console.error("Failed to load pending HODs", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPending();
+    const handler = () => fetchPending();
+    window.addEventListener("hod:updated", handler);
+    return () => window.removeEventListener("hod:updated", handler);
+  }, [fetchPending]);
   // Local state to allow Accept/Reject updates in the dashboard table
   const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
 
@@ -229,7 +256,7 @@ export function DeanDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => navigate("/department-management")}
+                onClick={() => navigate("/department-management?tab=pending")}
                 className="text-orange-700 border-orange-300 hover:bg-orange-100"
               >
                 Review Applications

@@ -417,7 +417,80 @@ export const deanGetRejectedHod = async (req, res) => {
 // Dean: fetch all HODs grouped by status
 export const deanGetAllHod = async (req, res) => {
   try {
-    const hods = await User.find({ role: "hod" }).select("-password");
+    const { status, page: pageRaw, limit: limitRaw } = req.query || {};
+    const normalized =
+      typeof status === "string" ? status.toLowerCase() : undefined;
+    const allowed = ["pending", "approved", "rejected", "deactivated"];
+    const wantsPaginated = normalized && allowed.includes(normalized);
+
+    // If a specific status is requested, return a paginated flat list for that status
+    if (wantsPaginated) {
+      const page = Math.max(1, parseInt(String(pageRaw || 1), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(limitRaw || 20), 10) || 20)
+      );
+
+      // Build status-specific filter
+      const base = { role: "hod" };
+      let filter = { ...base };
+      switch (normalized) {
+        case "pending":
+          filter = { ...base, isApproved: false, isRejected: { $ne: true } };
+          break;
+        case "approved":
+          filter = {
+            ...base,
+            isApproved: true,
+            isActive: true,
+            isRejected: { $ne: true },
+          };
+          break;
+        case "deactivated":
+          filter = {
+            ...base,
+            isApproved: true,
+            isActive: false,
+            isRejected: { $ne: true },
+          };
+          break;
+        case "rejected":
+          filter = { ...base, isRejected: true };
+          break;
+        default:
+          filter = base;
+      }
+
+      const total = await User.countDocuments(filter);
+      const docs = await User.find(filter)
+        .select("-password")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
+
+      const items = docs.map((u) => ({
+        _id: u._id,
+        name: u.fullName || u.name || u.username || u.email,
+        email: u.email,
+        department: u.department,
+        isApproved: !!u.isApproved,
+        isRejected: !!u.isRejected,
+        isActive: !!u.isActive,
+      }));
+
+      return res.status(200).json({
+        items,
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+        status: normalized,
+      });
+    }
+
+    // Default: return grouped lists (backward compatible)
+    const hods = await User.find({ role: "hod" }).select("-password").lean();
     const pending = [];
     const approved = [];
     const rejected = [];
@@ -440,7 +513,19 @@ export const deanGetAllHod = async (req, res) => {
       else pending.push(obj);
     });
 
-    res.status(200).json({ pending, approved, rejected, deactivated });
+    res.status(200).json({
+      pending,
+      approved,
+      rejected,
+      deactivated,
+      counts: {
+        total: hods.length,
+        pending: pending.length,
+        approved: approved.length,
+        rejected: rejected.length,
+        deactivated: deactivated.length,
+      },
+    });
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch HODs" });
   }
@@ -623,5 +708,22 @@ export const adminReactivateDean = async (req, res) => {
     res.status(200).json({ message: "Dean reactivated" });
   } catch (e) {
     res.status(500).json({ error: "Failed to reactivate dean" });
+  }
+};
+
+// Development-only: debug endpoint to inspect HOD counts/sample
+export const deanDebugHodCounts = async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(403).json({ error: "Not allowed in production" });
+    }
+    const total = await User.countDocuments({ role: "hod" });
+    const sample = await User.find({ role: "hod" })
+      .select("-password")
+      .limit(10)
+      .lean();
+    return res.status(200).json({ total, sample });
+  } catch (e) {
+    return res.status(500).json({ error: "Failed to fetch debug HOD counts" });
   }
 };

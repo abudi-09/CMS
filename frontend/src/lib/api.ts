@@ -669,6 +669,7 @@ export async function getRoleCountsApi() {
 
 // Admin: fetch users with optional role and department filters
 export type UserDto = {
+  isRejected: unknown;
   username: string;
   _id: string;
   fullName?: string;

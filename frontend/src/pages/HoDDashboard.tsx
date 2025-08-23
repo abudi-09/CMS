@@ -1,6 +1,6 @@
 // For demo/testing: import mockComplaint
 import { mockComplaint } from "@/lib/mockComplaint";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -193,6 +193,34 @@ export function HoDDashboard() {
   const { pendingStaff, getAllStaff, user } = useAuth();
   const navigate = useNavigate();
 
+  // New staff signup notifications for HODs
+  const [newStaffNotifications, setNewStaffNotifications] = useState<
+    { name: string; email: string; department?: string }[]
+  >([]);
+
+  // Listen for in-page staff creation events (signup page dispatches this)
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as {
+        name: string;
+        email: string;
+        department?: string;
+      };
+      // Only notify if the new staff is in this HOD's department
+      if (!detail) return;
+      if (user?.department && detail.department === user.department) {
+        setNewStaffNotifications((prev) => [detail, ...prev].slice(0, 5));
+        toast({
+          title: "New Staff Signup",
+          description: `${detail.name} has signed up for ${detail.department}.`,
+        });
+      }
+    };
+    window.addEventListener("staff:created", handler as EventListener);
+    return () =>
+      window.removeEventListener("staff:created", handler as EventListener);
+  }, [user?.department]);
+
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
@@ -361,7 +389,6 @@ export function HoDDashboard() {
     )
     .slice(0, 3);
 
-  // Local state pool for recent pending actions so UI updates immediately
   const [recentPool, setRecentPool] = useState<Complaint[]>(
     hodAssignPendingMocks
   );
@@ -447,7 +474,7 @@ export function HoDDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => navigate("/hod/staff-management")}
+                onClick={() => navigate("/hod/staff-management?tab=pending")}
                 className="text-orange-700 border-orange-300 hover:bg-orange-100"
               >
                 Review Applications
@@ -462,7 +489,7 @@ export function HoDDashboard() {
         {/* ...existing quick action cards... */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/hod/staff-management")}
+          onClick={() => navigate("/hod/staff-management?tab=pending")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

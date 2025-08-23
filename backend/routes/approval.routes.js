@@ -18,6 +18,7 @@ import {
   deanApproveHod,
   deanRejectHod,
   deanGetAllHod,
+  deanDebugHodCounts,
   deanDeapproveHod,
   deanReapproveHod,
   deanDeactivateHod,
@@ -99,6 +100,13 @@ router.get("/dean/active-hod", protectRoute, deanOnly, deanGetActiveHod);
 router.get("/dean/rejected-hod", protectRoute, deanOnly, deanGetRejectedHod);
 // new: get all hods grouped
 router.get("/dean/all-hod", protectRoute, deanOnly, deanGetAllHod);
+// Development-only debug endpoint
+router.get(
+  "/dean/debug/hod-counts",
+  protectRoute,
+  deanOnly,
+  deanDebugHodCounts
+);
 
 // Admin approval routes for Deans
 router.get(
