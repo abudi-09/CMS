@@ -15,10 +15,7 @@ import feedbackRoutes from "./routes/feedback.routes.js";
 import activityLogRoutes from "./routes/activityLog.routes.js";
 import approvalRoutes from "./routes/approval.routes.js";
 import usersRoutes from "./routes/users.route.js";
-import categoryRoutes from "./routes/category.routes.js";
-import { ensureDefaultCategories } from "./models/category.model.js";
 import { checkEscalations } from "./utils/escalation.js";
-import { Category } from "./models/category.model.js";
 const app = express();
 app.use(corsMiddleware);
 app.use(express.json());
@@ -33,32 +30,10 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/activity-logs", activityLogRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/users", usersRoutes);
-app.use("/api/categories", categoryRoutes);
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  await connectMongoDB();
-  // Seed default categories only if explicitly enabled
-  if (process.env.SEED_CATEGORIES === "true") {
-    await ensureDefaultCategories();
-  }
-  try {
-    const cats = await Category.find({}).sort({ name: 1 });
-    console.log(
-      `Category Summary -> Total: ${cats.length} | Active: ${
-        cats.filter((c) => c.status !== "inactive").length
-      } | Inactive: ${cats.filter((c) => c.status === "inactive").length}`
-    );
-    cats.forEach((c) =>
-      console.log(
-        ` - ${c.name} [${c.status}] roles=${
-          c.roles?.length ? c.roles.join(",") : "all"
-        }`
-      )
-    );
-  } catch (e) {
-    console.log("Failed to print category summary", e.message);
-  }
+  connectMongoDB();
   // Run escalation check every hour
   setInterval(() => {
     checkEscalations();
