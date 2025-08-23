@@ -62,17 +62,7 @@ type ActionType =
 
 export default function DepartmentManagement() {
   const { user } = useAuth();
-  // Only dean may access this page
-  if (user?.role !== "dean") {
-    return (
-      <div className="p-6">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
-        <p className="text-muted-foreground">
-          You must be a Dean to access this page.
-        </p>
-      </div>
-    );
-  }
+  const unauthorized = user?.role !== "dean";
   // Safe error message extractor (avoids `any` use)
   const getErrorMessage = (e: unknown): string => {
     if (e instanceof Error) return e.message;
@@ -89,6 +79,7 @@ export default function DepartmentManagement() {
   const [rejected, setRejected] = useState<HoDRow[]>([]);
   const [deactivated, setDeactivated] = useState<HoDRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false); // marks that an initial fetch has completed
 
   // UI state
   const [activeTab, setActiveTab] = useState<Status>("pending");
@@ -137,17 +128,24 @@ export default function DepartmentManagement() {
 
   // Map API user to UI row (stable for hooks)
   const mapUserToRow = useCallback((u: ApiHodUser): HoDRow => {
+    const isApproved = !!u.isApproved;
+    const isRejected = !!u.isRejected;
+    const isActive = u.isActive !== false; // default true unless explicitly false
+    const status: Status = isRejected
+      ? "rejected"
+      : !isApproved
+      ? "pending"
+      : isApproved && !isActive
+      ? "deactivated"
+      : "approved";
+
     return {
       id: u._id,
       name: u.fullName || u.name || u.username || "",
       email: u.email,
       department: u.department || "",
-      status: (u.isApproved
-        ? "approved"
-        : u.isRejected
-        ? "rejected"
-        : "pending") as Status,
-      active: !!u.isApproved && u.isActive !== false,
+      status,
+      active: isApproved && isActive,
     };
   }, []);
 
@@ -174,12 +172,14 @@ export default function DepartmentManagement() {
       });
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [mapUserToRow]);
 
   useEffect(() => {
+    if (unauthorized) return;
     fetchLists();
-  }, [fetchLists]);
+  }, [fetchLists, unauthorized]);
 
   // Current tab rows with search/filter applied
   const listForTab = useMemo(() => {
@@ -279,6 +279,17 @@ export default function DepartmentManagement() {
         return "Confirm action";
     }
   }, [pendingAction.type]);
+
+  if (unauthorized) {
+    return (
+      <div className="p-6">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-muted-foreground">
+          You must be a Dean to access this page.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -406,11 +417,11 @@ export default function DepartmentManagement() {
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
-            {listForTab.length === 0 ? (
+            {!loading && loaded && listForTab.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
                 No results
               </div>
-            ) : (
+            ) : !loaded ? null : (
               listForTab.map((h) => (
                 <Card key={h.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -426,20 +437,20 @@ export default function DepartmentManagement() {
                         className={
                           "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium " +
                           (h.status === "approved"
-                            ? h.active
-                              ? "bg-green-100 text-green-700"
-                              : "bg-orange-100 text-orange-700"
+                            ? "bg-green-100 text-green-700"
                             : h.status === "pending"
                             ? "bg-yellow-100 text-yellow-700"
+                            : h.status === "deactivated"
+                            ? "bg-orange-100 text-orange-700"
                             : "bg-red-100 text-red-700")
                         }
                       >
                         {h.status === "approved"
-                          ? h.active
-                            ? "Approved"
-                            : "Approved (Deactivated)"
+                          ? "Approved"
                           : h.status === "pending"
                           ? "Pending"
+                          : h.status === "deactivated"
+                          ? "Deactivated"
                           : "Rejected"}
                       </div>
                     </div>
@@ -527,7 +538,7 @@ export default function DepartmentManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {listForTab.length === 0 ? (
+                {!loading && loaded && listForTab.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={activeTab === "approved" ? 5 : 4}
@@ -546,20 +557,20 @@ export default function DepartmentManagement() {
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                             h.status === "approved"
-                              ? h.active
-                                ? "bg-green-100 text-green-700"
-                                : "bg-orange-100 text-orange-700"
+                              ? "bg-green-100 text-green-700"
                               : h.status === "pending"
                               ? "bg-yellow-100 text-yellow-700"
+                              : h.status === "deactivated"
+                              ? "bg-orange-100 text-orange-700"
                               : "bg-red-100 text-red-700"
                           }`}
                         >
                           {h.status === "approved"
-                            ? h.active
-                              ? "Approved"
-                              : "Approved (Deactivated)"
+                            ? "Approved"
                             : h.status === "pending"
                             ? "Pending"
+                            : h.status === "deactivated"
+                            ? "Deactivated"
                             : "Rejected"}
                         </span>
                       </TableCell>

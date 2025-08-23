@@ -84,9 +84,28 @@ export default function HODStaffManagement() {
   }, []);
 
   useEffect(() => {
-    const handler = (e: any) => {
+    type PromotedDetail = {
+      user?: {
+        _id?: string;
+        id?: string;
+        fullName?: string;
+        name?: string;
+        username?: string;
+        email?: string;
+        department?: string;
+        workingPlace?: string;
+      };
+      id?: string;
+      name?: string;
+      email?: string;
+      department?: string;
+      workingPlace?: string;
+      status?: "approved" | "pending";
+    };
+
+    const handler = (e: CustomEvent<PromotedDetail>) => {
       try {
-        const d = e.detail;
+        const d = e.detail as PromotedDetail | undefined;
         if (!d) return;
         // If backend returned the full user, use it. Otherwise fall back to id/name
         const u = d.user;
@@ -126,9 +145,12 @@ export default function HODStaffManagement() {
         // ignore
       }
     };
-    window.addEventListener("hod:staff-promoted", handler as any);
+    window.addEventListener("hod:staff-promoted", handler as EventListener);
     return () =>
-      window.removeEventListener("hod:staff-promoted", handler as any);
+      window.removeEventListener(
+        "hod:staff-promoted",
+        handler as unknown as EventListener
+      );
   }, []);
 
   const filterList = (list: Staff[]) =>
