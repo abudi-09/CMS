@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,6 +20,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CategoryContext, Category } from "@/context/CategoryContext";
+import { submitComplaintApi } from "@/lib/api";
 
 const departments = [
   "ICT",
@@ -27,42 +29,89 @@ const departments = [
   "Registrar",
   "Library",
   "Academic Affairs",
-];
+]; // TODO: move to backend if needed
 
 export function ComplaintForm() {
   const [formData, setFormData] = useState({
     title: "",
     department: "",
+    category: "",
     description: "",
     priority: "Medium",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
+  const categoryCtx = useContext(CategoryContext);
+  const categories = categoryCtx?.categories || [];
+  type Priority = "Low" | "Medium" | "High" | "Critical";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    // TODO: Replace with real API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setSubmitted(true);
-    toast({
-      title: "Complaint Submitted Successfully",
-      description:
-        "Your complaint has been received and will be reviewed shortly.",
-    });
+    try {
+      setIsSubmitting(true);
+      await submitComplaintApi({
+        title: formData.title,
+        department: formData.department,
+        category: formData.category,
+        description: formData.description,
+        priority: formData.priority as Priority,
+        sourceRole: "student",
+      });
+      setSubmitted(true);
+      toast({
+        title: "Complaint Submitted Successfully",
+        description:
+          "Your complaint has been received and will be reviewed shortly.",
+      });
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? (e as { message?: string }).message
+          : undefined;
+      toast({
+        title: "Submission Failed",
+        description: msg || "Could not submit complaint",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
     // Reset form after success
     setTimeout(() => {
       setSubmitted(false);
       setFormData({
         title: "",
         department: "",
+        category: "",
         description: "",
         priority: "Medium",
       });
     }, 3000);
   };
+  <div className="space-y-2">
+    <Label htmlFor="category">Select Category *</Label>
+    <Select
+      value={formData.category}
+      onValueChange={(value) =>
+        setFormData((prev) => ({ ...prev, category: value }))
+      }
+      required
+    >
+      <SelectTrigger>
+        <SelectValue placeholder="Select category" />
+      </SelectTrigger>
+      <SelectContent>
+        {categories
+          .filter((c: Category) => c.status !== "inactive")
+          .map((cat: Category) => (
+            <SelectItem key={cat._id} value={cat.name}>
+              {cat.name}
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  </div>;
 
   if (submitted) {
     return (
