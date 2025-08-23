@@ -45,6 +45,7 @@ type AdminRow = {
   workingPlace?: string;
   username?: string;
   isApproved?: boolean;
+  isRejected?: boolean;
 };
 
 export default function AdminManagement() {
@@ -294,23 +295,85 @@ export default function AdminManagement() {
     (async () => {
       try {
         const data = await getAllUsersApi();
-        const mapped = data.map((u: UserDto) => ({
-          _id: u._id,
-          name: u.fullName || u.name || u.username || u.email,
-          email: u.email,
-          role: u.role,
-          isActive: u.isActive,
-          department: u.department,
-          workingPlace: (u as unknown as Record<string, unknown>)[
-            "workingPlace"
-          ] as string | undefined,
-          username: u.username,
-        }));
+        // Include all users (including HODs) so admins can view and manage HOD accounts as requested.
+        // Filter out pending staff/HOD accounts: these should not appear on Admin page
+        const mapped = data
+          .map((u: UserDto) => ({
+            _id: u._id,
+            name: u.fullName || u.name || u.username || u.email,
+            email: u.email,
+            role: u.role,
+            isActive: u.isActive,
+            isApproved: (u as unknown as { isApproved?: boolean }).isApproved,
+            isRejected: (u as unknown as { isRejected?: boolean }).isRejected,
+            department: u.department,
+            workingPlace: (u as unknown as Record<string, unknown>)[
+              "workingPlace"
+            ] as string | undefined,
+            username: u.username,
+          }))
+          .filter((row) => {
+            // If staff/HOD and explicitly not approved and not rejected => pending -> exclude
+            const role = row.role;
+            const isStaffOrHod =
+              role === "staff" || role === "headOfDepartment" || role === "hod";
+            if (
+              isStaffOrHod &&
+              row.isApproved === false &&
+              row.isRejected !== true
+            ) {
+              return false;
+            }
+            return true;
+          });
         setUsers(mapped);
       } catch (e) {
         console.error("Failed to load users", e);
       }
     })();
+  }, []);
+
+  // Refresh when HoDs are updated elsewhere (Dean actions)
+  useEffect(() => {
+    const handler = async () => {
+      try {
+        const data = await getAllUsersApi();
+        const mapped = data
+          .map((u: UserDto) => ({
+            _id: u._id,
+            name: u.fullName || u.name || u.username || u.email,
+            email: u.email,
+            role: u.role,
+            isActive: u.isActive,
+            isApproved: (u as unknown as { isApproved?: boolean }).isApproved,
+            isRejected: (u as unknown as { isRejected?: boolean }).isRejected,
+            department: u.department,
+            workingPlace: (u as unknown as Record<string, unknown>)[
+              "workingPlace"
+            ] as string | undefined,
+            username: u.username,
+          }))
+          .filter((row) => {
+            const role = row.role;
+            const isStaffOrHod =
+              role === "staff" || role === "headOfDepartment" || role === "hod";
+            if (
+              isStaffOrHod &&
+              row.isApproved === false &&
+              row.isRejected !== true
+            ) {
+              return false;
+            }
+            return true;
+          });
+        setUsers(mapped);
+      } catch (err) {
+        console.error("Failed to refresh users on hod:updated", err);
+      }
+    };
+    window.addEventListener("hod:updated", handler as EventListener);
+    return () =>
+      window.removeEventListener("hod:updated", handler as EventListener);
   }, []);
 
   // Responsive summary cards

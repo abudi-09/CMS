@@ -104,6 +104,19 @@ export function Signup() {
         formData.role === "staff" ||
         formData.role.toLowerCase() === "staff"
       ) {
+        // Notify any in-page listeners (HOD dashboards) about the new staff signup
+        try {
+          const payload = {
+            name: formData.name,
+            email: formData.email,
+            department: formData.department,
+          };
+          window.dispatchEvent(
+            new CustomEvent("staff:created", { detail: payload })
+          );
+        } catch (e) {
+          // non-fatal
+        }
         toast({
           title: "Account Created Successfully",
           description:
