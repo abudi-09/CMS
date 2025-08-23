@@ -474,7 +474,7 @@ export function HoDDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => navigate("/hod/staff-management")}
+                onClick={() => navigate("/hod/staff-management?tab=pending")}
                 className="text-orange-700 border-orange-300 hover:bg-orange-100"
               >
                 Review Applications
@@ -489,7 +489,7 @@ export function HoDDashboard() {
         {/* ...existing quick action cards... */}
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/hod/staff-management")}
+          onClick={() => navigate("/hod/staff-management?tab=pending")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

@@ -36,6 +36,7 @@ import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useComplaints } from "@/context/ComplaintContext";
 import { useAuth } from "@/components/auth/AuthContext";
+import { getPendingDeansApi } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { getRoleCountsApi } from "@/lib/api";
@@ -62,7 +63,7 @@ export function AdminDashboard() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
 
-  const { pendingStaff, getAllStaff } = useAuth();
+  const { pendingStaff, getAllStaff, user } = useAuth();
   const navigate = useNavigate();
 
   const handleViewComplaint = (complaint: Complaint) => {
@@ -143,6 +144,9 @@ export function AdminDashboard() {
   });
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [countsError, setCountsError] = useState<string | null>(null);
+  const [newDeanNotifications, setNewDeanNotifications] = useState<
+    { name?: string; email?: string; workingPlace?: string; ts: Date }[]
+  >([]);
 
   useEffect(() => {
     let mounted = true;
@@ -163,6 +167,87 @@ export function AdminDashboard() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  // Seed notifications from backend pending dean list so admins opening the dashboard
+  // will see existing pending dean sign-ups even if they occurred earlier.
+  useEffect(() => {
+    let mounted = true;
+    type PendingDean = {
+      fullName?: string;
+      name?: string;
+      email?: string;
+      workingPlace?: string;
+    };
+    const seedPendingDeans = async () => {
+      try {
+        if (user?.role !== "admin") return;
+        const pending = await getPendingDeansApi();
+        if (!mounted || !pending || pending.length === 0) return;
+        const notes = pending.map((d: PendingDean) => ({
+          name: d.fullName || d.name || d.email,
+          email: d.email,
+          workingPlace: d.workingPlace,
+          ts: new Date(),
+        }));
+        setNewDeanNotifications((prev) => {
+          // Prepend new pending ones but avoid duplicates by email
+          const emails = new Set(prev.map((p) => p.email));
+          const combined = [
+            ...notes.filter((n) => !emails.has(n.email)),
+            ...prev,
+          ];
+          return combined.slice(0, 20);
+        });
+        if (pending.length > 0) {
+          toast({
+            title: "Pending Dean Sign-ups",
+            description: `${pending.length} pending dean sign-up${
+              pending.length > 1 ? "s" : ""
+            } awaiting review`,
+          });
+        }
+      } catch (err) {
+        // ignore failures
+      }
+    };
+    seedPendingDeans();
+    return () => {
+      mounted = false;
+    };
+    // only run when user resolves / on mount
+  }, [user]);
+
+  // Listen for in-page dean signup events and notify admins
+  useEffect(() => {
+    const handler = (e: Event) => {
+      try {
+        const ce = e as CustomEvent<{
+          name?: string;
+          email?: string;
+          workingPlace?: string;
+        }>;
+        const d = ce.detail || {};
+        const note = {
+          name: d.name,
+          email: d.email,
+          workingPlace: d.workingPlace,
+          ts: new Date(),
+        };
+        setNewDeanNotifications((prev) => [note, ...prev].slice(0, 10));
+        toast({
+          title: "New Dean Signup",
+          description: `${
+            d.name || d.email || "A dean"
+          } has signed up. Review and approve as necessary.`,
+        });
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener("dean:created", handler as EventListener);
+    return () =>
+      window.removeEventListener("dean:created", handler as EventListener);
   }, []);
 
   // Pagination for recent complaints table
@@ -203,6 +288,44 @@ export function AdminDashboard() {
       {/* Role Summary Cards (totals by role) */}
       <RoleSummaryCards counts={roleCounts} />
       {countsError && <p className="text-sm text-destructive">{countsError}</p>}
+      {/* New Dean signup notification (in-page) */}
+      {newDeanNotifications.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-800">
+              <MessageSquare className="h-5 w-5" /> New Dean Sign-ups
+            </CardTitle>
+            <CardDescription className="text-orange-700">
+              {newDeanNotifications.length} new dean
+              {newDeanNotifications.length > 1 ? "s" : ""} waiting for review
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                {newDeanNotifications.slice(0, 3).map((n, idx) => (
+                  <div key={idx} className="text-sm text-orange-800">
+                    • {n.name || n.email}{" "}
+                    {n.workingPlace ? `(${n.workingPlace})` : ""}
+                  </div>
+                ))}
+                {newDeanNotifications.length > 3 && (
+                  <div className="text-sm text-orange-700">
+                    +{newDeanNotifications.length - 3} more...
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/dean-role-management")}
+                className="text-orange-700 border-orange-300 hover:bg-orange-100"
+              >
+                Review Deans
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <div className="grid md:grid-cols-3 gap-6">

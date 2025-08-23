@@ -295,8 +295,8 @@ export default function AdminManagement() {
     (async () => {
       try {
         const data = await getAllUsersApi();
-        // Include all users (including HODs) so admins can view and manage HOD accounts as requested.
-        // Filter out pending staff/HOD accounts: these should not appear on Admin page
+        // Include all users (including HODs and Deans) so admins can view and manage accounts as requested.
+        // Filter out pending staff/HOD/Dean accounts: these should not appear on Admin page
         const mapped = data
           .map((u: UserDto) => ({
             _id: u._id,
@@ -313,12 +313,15 @@ export default function AdminManagement() {
             username: u.username,
           }))
           .filter((row) => {
-            // If staff/HOD and explicitly not approved and not rejected => pending -> exclude
+            // If staff/HOD/Dean and explicitly not approved and not rejected => pending -> exclude
             const role = row.role;
-            const isStaffOrHod =
-              role === "staff" || role === "headOfDepartment" || role === "hod";
+            const isStaffOrHodOrDean =
+              role === "staff" ||
+              role === "headOfDepartment" ||
+              role === "hod" ||
+              role === "dean";
             if (
-              isStaffOrHod &&
+              isStaffOrHodOrDean &&
               row.isApproved === false &&
               row.isRejected !== true
             ) {
@@ -355,10 +358,13 @@ export default function AdminManagement() {
           }))
           .filter((row) => {
             const role = row.role;
-            const isStaffOrHod =
-              role === "staff" || role === "headOfDepartment" || role === "hod";
+            const isStaffOrHodOrDean =
+              role === "staff" ||
+              role === "headOfDepartment" ||
+              role === "hod" ||
+              role === "dean";
             if (
-              isStaffOrHod &&
+              isStaffOrHodOrDean &&
               row.isApproved === false &&
               row.isRejected !== true
             ) {
