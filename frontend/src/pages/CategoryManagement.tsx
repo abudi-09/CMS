@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,105 +31,60 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { CategoryContext } from "@/context/CategoryContext";
 
-interface Category {
-  id: string;
+interface CategoryLike {
+  _id: string;
   name: string;
-  complaintsCount: number;
-  status: "Active" | "Inactive";
-  role: "staff" | "hod" | "dean" | "admin";
+  roles?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  status?: "active" | "inactive";
   description?: string;
-  createdDate: Date;
-  lastUpdated: Date;
 }
 
-// Mock data for categories
-const mockCategories: Category[] = [
-  {
-    id: "CAT-001",
-    name: "Academic",
-    complaintsCount: 45,
-    status: "Active",
-    role: "staff",
-    description:
-      "Issues related to academic activities, courses, and curriculum",
-    createdDate: new Date("2023-09-01"),
-    lastUpdated: new Date("2024-01-15"),
-  },
-  {
-    id: "CAT-002",
-    name: "Facility",
-    complaintsCount: 32,
-    status: "Active",
-    role: "staff",
-    description: "Infrastructure and facility-related issues",
-    createdDate: new Date("2023-09-01"),
-    lastUpdated: new Date("2024-01-10"),
-  },
-  {
-    id: "CAT-003",
-    name: "Finance",
-    complaintsCount: 18,
-
-    status: "Active",
-    role: "staff",
-    description: "Financial matters, fees, and billing issues",
-    createdDate: new Date("2023-09-01"),
-    lastUpdated: new Date("2024-01-20"),
-  },
-  {
-    id: "CAT-004",
-    name: "ICT Support",
-    complaintsCount: 28,
-    status: "Active",
-    description: "Technology and IT-related issues",
-    role: "staff",
-    createdDate: new Date("2023-09-01"),
-    lastUpdated: new Date("2024-01-18"),
-  },
-  {
-    id: "CAT-005",
-    name: "Cafeteria",
-    complaintsCount: 12,
-    role: "hod",
-    status: "Active",
-    description: "Food services and cafeteria-related issues",
-    createdDate: new Date("2023-09-01"),
-    lastUpdated: new Date("2024-01-12"),
-  },
-  {
-    id: "CAT-006",
-    name: "Library Services",
-    role: "staff",
-    complaintsCount: 0,
-    status: "Inactive",
-    description: "Library-related issues and services",
-    createdDate: new Date("2023-09-01"),
-    lastUpdated: new Date("2023-12-15"),
-  },
-];
-
 function CategoryManagement() {
+  const categoryCtx = useContext(CategoryContext);
+  const {
+    categories,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    loading,
+    error,
+  } = categoryCtx || {
+    categories: [],
+    addCategory: async () => null,
+    updateCategory: async () => null,
+    deleteCategory: async () => false,
+    loading: false,
+    error: null,
+  };
   const [editRole, setEditRole] = useState<"staff" | "hod" | "dean" | "admin">(
     "staff"
   );
   const [newCategoryRole, setNewCategoryRole] = useState<
     "staff" | "hod" | "dean" | "admin"
   >("staff");
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryDescription, setNewCategoryDescription] = useState("");
+  const [newCategoryStatus, setNewCategoryStatus] = useState<
+    "active" | "inactive"
+  >("active");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<CategoryLike | null>(
+    null
+  );
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState<"active" | "inactive">("active");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteCategory, setPendingDeleteCategory] =
-    useState<Category | null>(null);
+    useState<CategoryLike | null>(null);
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
       toast({
         title: "Error",
@@ -138,36 +93,28 @@ function CategoryManagement() {
       });
       return;
     }
-
-    // Check for duplicates
-    if (
-      categories.some(
-        (cat) => cat.name.toLowerCase() === newCategoryName.toLowerCase()
-      )
-    ) {
+    const created = await addCategory(newCategoryName, [newCategoryRole]);
+    if (created) {
+      // patch description/status if provided
+      if (newCategoryDescription || newCategoryStatus !== "active") {
+        await updateCategory(created._id, {
+          description: newCategoryDescription,
+          status: newCategoryStatus,
+        });
+      }
+    }
+    if (!created) {
       toast({
         title: "Error",
-        description: "A category with this name already exists",
+        description: "Failed to create category",
         variant: "destructive",
       });
       return;
     }
-
-    const newCategory: Category = {
-      id: `CAT-${String(categories.length + 1).padStart(3, "0")}`,
-      name: newCategoryName,
-      complaintsCount: 0,
-      status: "Active",
-      role: newCategoryRole,
-      description: newCategoryDescription,
-      createdDate: new Date(),
-      lastUpdated: new Date(),
-    };
-
-    setCategories((prev) => [...prev, newCategory]);
     setNewCategoryName("");
     setNewCategoryDescription("");
     setNewCategoryRole("staff");
+    setNewCategoryStatus("active");
     setShowAddModal(false);
 
     toast({
@@ -176,14 +123,15 @@ function CategoryManagement() {
     });
   };
 
-  const handleEditCategory = (category: Category) => {
+  const handleEditCategory = (category: CategoryLike) => {
     setEditingCategory(category);
     setEditName(category.name);
     setEditDescription(category.description || "");
-    setEditRole(category.role);
+    setEditRole(category.roles?.[0] || "staff");
+    setEditStatus(category.status || "active");
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editName.trim() || !editingCategory) {
       toast({
         title: "Error",
@@ -192,36 +140,20 @@ function CategoryManagement() {
       });
       return;
     }
-
-    // Check for duplicates (excluding current category)
-    if (
-      categories.some(
-        (cat) =>
-          cat.id !== editingCategory.id &&
-          cat.name.toLowerCase() === editName.toLowerCase()
-      )
-    ) {
+    const updated = await updateCategory(editingCategory._id, {
+      name: editName,
+      roles: [editRole],
+      status: editStatus,
+      description: editDescription,
+    });
+    if (!updated) {
       toast({
         title: "Error",
-        description: "A category with this name already exists",
+        description: "Failed to update category",
         variant: "destructive",
       });
       return;
     }
-
-    setCategories((prev) =>
-      prev.map((cat) =>
-        cat.id === editingCategory.id
-          ? {
-              ...cat,
-              name: editName,
-              description: editDescription,
-              role: editRole,
-              lastUpdated: new Date(),
-            }
-          : cat
-      )
-    );
 
     setEditingCategory(null);
     setEditName("");
@@ -234,84 +166,79 @@ function CategoryManagement() {
     });
   };
 
-  const handleDeleteCategory = (categoryId: string, categoryName: string) => {
-    setCategories((prev) => prev.filter((cat) => cat.id !== categoryId));
+  const handleDeleteCategory = async (category: CategoryLike) => {
+    const ok = await deleteCategory(category._id);
     toast({
-      title: "Category Deleted",
-      description: `${categoryName} has been deleted successfully`,
+      title: ok ? "Category Deleted" : "Delete Failed",
+      description: ok
+        ? `${category.name} has been deleted successfully`
+        : "Could not delete category. Make sure it is inactive first.",
+      variant: ok ? "default" : "destructive",
     });
   };
 
-  const handleDeleteClick = (category: Category) => {
+  const handleDeleteClick = (category: CategoryLike) => {
     setPendingDeleteCategory(category);
     setDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (pendingDeleteCategory) {
-      if (
-        pendingDeleteCategory.status === "Inactive" &&
-        pendingDeleteCategory.complaintsCount === 0
-      ) {
-        handleDeleteCategory(
-          pendingDeleteCategory.id,
-          pendingDeleteCategory.name
-        );
-      } else {
+      if (pendingDeleteCategory.status !== "inactive") {
         toast({
           title: "Cannot Delete",
-          description:
-            pendingDeleteCategory.status !== "Inactive"
-              ? `Category must be inactive to delete.`
-              : `Category has complaints. Please reassign or resolve them first.`,
+          description: "Category must be inactive before deletion.",
           variant: "destructive",
         });
+      } else {
+        await handleDeleteCategory(pendingDeleteCategory);
       }
     }
     setDeleteDialogOpen(false);
     setPendingDeleteCategory(null);
   };
 
-  const handleToggleStatus = (
-    categoryId: string,
-    currentStatus: Category["status"]
-  ) => {
-    const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
-
-    setCategories((prev) =>
-      prev.map((cat) =>
-        cat.id === categoryId
-          ? { ...cat, status: newStatus, lastUpdated: new Date() }
-          : cat
-      )
-    );
-
-    toast({
-      title: "Status Updated",
-      description: `Category has been ${newStatus.toLowerCase()}`,
-    });
+  const handleToggleStatus = async (categoryId: string) => {
+    const cat = categories.find((c: CategoryLike) => c._id === categoryId);
+    if (!cat) return;
+    const next = cat.status === "active" ? "inactive" : "active";
+    const updated = await updateCategory(categoryId, { status: next });
+    if (!updated) {
+      toast({
+        title: "Update Failed",
+        description: "Could not change status",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Status Updated",
+        description: `${cat.name} is now ${next}`,
+      });
+    }
   };
 
   // Calculate summary stats
-  const stats = {
-    total: categories.length,
-    active: categories.filter((c) => c.status === "Active").length,
-    inactive: categories.filter((c) => c.status === "Inactive").length,
-    totalComplaints: categories.reduce(
-      (sum, cat) => sum + cat.complaintsCount,
-      0
-    ),
-  };
+  const stats = useMemo(
+    () => ({
+      total: categories.length,
+      active: categories.filter((c: CategoryLike) => c.status === "active")
+        .length,
+      inactive: categories.filter((c: CategoryLike) => c.status === "inactive")
+        .length,
+      totalComplaints: 0,
+    }),
+    [categories]
+  );
 
   // Filter categories
-  const filteredCategories = categories.filter((category) => {
-    const matchesSearch =
-      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      category.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      false;
+  const filteredCategories = categories.filter((category: CategoryLike) => {
+    const matchesSearch = category.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesStatus =
-      statusFilter === "All" || category.status === statusFilter;
-
+      statusFilter === "All" ||
+      (statusFilter === "Active" && category.status === "active") ||
+      (statusFilter === "Inactive" && category.status === "inactive");
     return matchesSearch && matchesStatus;
   });
 
@@ -434,6 +361,25 @@ function CategoryManagement() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Status
+                  </label>
+                  <Select
+                    value={newCategoryStatus}
+                    onValueChange={(v) =>
+                      setNewCategoryStatus(v as "active" | "inactive")
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
                     Role *
                   </label>
                   <Select
@@ -462,6 +408,7 @@ function CategoryManagement() {
                       setNewCategoryName("");
                       setNewCategoryDescription("");
                       setNewCategoryRole("staff");
+                      setNewCategoryStatus("active");
                     }}
                     className="flex-1"
                   >
@@ -521,7 +468,7 @@ function CategoryManagement() {
             ) : (
               filteredCategories.map((category) => (
                 <Card
-                  key={category.id}
+                  key={category._id}
                   className="relative hover:shadow-md transition-shadow"
                 >
                   <CardHeader className="pb-3">
@@ -534,13 +481,13 @@ function CategoryManagement() {
                       </div>
                       <Badge
                         className={`text-xs ${
-                          category.status === "Active"
+                          category.status === "active"
                             ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
                             : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
                         }`}
                         variant="outline"
                       >
-                        {category.status}
+                        {category.status === "active" ? "Active" : "Inactive"}
                       </Badge>
                     </div>
                     {category.description && (
@@ -554,9 +501,7 @@ function CategoryManagement() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">
-                          {category.complaintsCount}
-                        </span>
+                        <span className="text-sm font-medium">0</span>
                         <span className="text-sm text-muted-foreground">
                           complaints
                         </span>
@@ -567,9 +512,9 @@ function CategoryManagement() {
                           Active
                         </span>
                         <Switch
-                          checked={category.status === "Active"}
+                          checked={category.status === "active"}
                           onCheckedChange={() =>
-                            handleToggleStatus(category.id, category.status)
+                            handleToggleStatus(category._id)
                           }
                         />
                       </div>
@@ -577,10 +522,16 @@ function CategoryManagement() {
 
                     <div className="text-xs text-muted-foreground">
                       <div>
-                        Created: {category.createdDate.toLocaleDateString()}
+                        Created:{" "}
+                        {new Date(
+                          category.createdAt || Date.now()
+                        ).toLocaleDateString()}
                       </div>
                       <div>
-                        Updated: {category.lastUpdated.toLocaleDateString()}
+                        Updated:{" "}
+                        {new Date(
+                          category.updatedAt || Date.now()
+                        ).toLocaleDateString()}
                       </div>
                     </div>
 
@@ -598,15 +549,8 @@ function CategoryManagement() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDeleteClick(category)}
-                        disabled={
-                          category.status === "Active" ||
-                          category.complaintsCount > 0
-                        }
-                        className={`flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 disabled:opacity-50${
-                          category.status === "Active"
-                            ? " cursor-not-allowed"
-                            : ""
-                        }`}
+                        className="flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
+                        disabled={loading}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Delete
@@ -667,6 +611,25 @@ function CategoryManagement() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                  Status
+                </label>
+                <Select
+                  value={editStatus}
+                  onValueChange={(v) =>
+                    setEditStatus(v as "active" | "inactive")
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSaveEdit} className="flex-1">
                   Save Changes
@@ -703,10 +666,17 @@ function CategoryManagement() {
           setDeleteDialogOpen(open);
           if (!open) setPendingDeleteCategory(null);
         }}
+        warning={
+          pendingDeleteCategory && pendingDeleteCategory.status !== 'inactive'
+            ? 'You must deactivate this category before deleting.'
+            : undefined
+        }
       >
         {pendingDeleteCategory
-          ? `Are you sure you want to delete the category "${pendingDeleteCategory.name}"? This action cannot be undone.`
-          : ""}
+          ? pendingDeleteCategory.status === 'inactive'
+            ? `Are you sure you want to permanently delete "${pendingDeleteCategory.name}"? This action cannot be undone.`
+            : `"${pendingDeleteCategory.name}" is currently active. Toggle it inactive first, then delete.`
+          : ''}
       </ConfirmDialog>
     </div>
   );
