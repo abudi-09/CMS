@@ -60,12 +60,10 @@ function CategoryManagement() {
     loading: false,
     error: null,
   };
-  const [editRole, setEditRole] = useState<"staff" | "hod" | "dean" | "admin">(
-    "staff"
-  );
-  const [newCategoryRole, setNewCategoryRole] = useState<
-    "staff" | "hod" | "dean" | "admin"
-  >("staff");
+  // (Legacy single-role state removed; now supporting multi-role arrays)
+  const roleOptions = ["staff", "hod", "dean", "admin"] as const;
+  const [editRoles, setEditRoles] = useState<string[]>(["staff"]);
+  const [newCategoryRoles, setNewCategoryRoles] = useState<string[]>(["staff"]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -93,7 +91,7 @@ function CategoryManagement() {
       });
       return;
     }
-    const created = await addCategory(newCategoryName, [newCategoryRole]);
+  const created = await addCategory(newCategoryName, newCategoryRoles);
     if (created) {
       // patch description/status if provided
       if (newCategoryDescription || newCategoryStatus !== "active") {
@@ -113,7 +111,7 @@ function CategoryManagement() {
     }
     setNewCategoryName("");
     setNewCategoryDescription("");
-    setNewCategoryRole("staff");
+  setNewCategoryRoles(["staff"]);
     setNewCategoryStatus("active");
     setShowAddModal(false);
 
@@ -127,7 +125,7 @@ function CategoryManagement() {
     setEditingCategory(category);
     setEditName(category.name);
     setEditDescription(category.description || "");
-    setEditRole(category.roles?.[0] || "staff");
+  setEditRoles(category.roles && category.roles.length ? category.roles : ["staff"]);
     setEditStatus(category.status || "active");
   };
 
@@ -142,7 +140,7 @@ function CategoryManagement() {
     }
     const updated = await updateCategory(editingCategory._id, {
       name: editName,
-      roles: [editRole],
+  roles: editRoles,
       status: editStatus,
       description: editDescription,
     });
@@ -158,7 +156,7 @@ function CategoryManagement() {
     setEditingCategory(null);
     setEditName("");
     setEditDescription("");
-    setEditRole("staff");
+  setEditRoles(["staff"]);
 
     toast({
       title: "Category Updated",
@@ -269,7 +267,6 @@ function CategoryManagement() {
             <p className="text-xs text-muted-foreground">All categories</p>
           </CardContent>
         </Card>
-
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -284,7 +281,6 @@ function CategoryManagement() {
             <p className="text-xs text-muted-foreground">Currently active</p>
           </CardContent>
         </Card>
-
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -299,7 +295,6 @@ function CategoryManagement() {
             <p className="text-xs text-muted-foreground">Deactivated</p>
           </CardContent>
         </Card>
-
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -311,9 +306,7 @@ function CategoryManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalComplaints}</div>
-            <p className="text-xs text-muted-foreground">
-              Across all categories
-            </p>
+            <p className="text-xs text-muted-foreground">Across all categories</p>
           </CardContent>
         </Card>
       </div>
@@ -379,23 +372,23 @@ function CategoryManagement() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Role *
-                  </label>
-                  <Select
-                    value={newCategoryRole}
-                    onValueChange={setNewCategoryRole}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="hod">HoD</SelectItem>
-                      <SelectItem value="dean">Dean</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">Roles (who can use it) *</label>
+                  <div className="flex flex-wrap gap-3">
+                    {roleOptions.map(r => {
+                      const checked = newCategoryRoles.includes(r);
+                      return (
+                        <label key={r} className="flex items-center gap-1 text-sm cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={checked}
+                            onChange={() => setNewCategoryRoles(prev => checked ? prev.filter(x=>x!==r) : [...prev, r])}
+                          />
+                          {r === 'hod' ? 'HoD' : r.charAt(0).toUpperCase()+r.slice(1)}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleAddCategory} className="flex-1">
@@ -407,7 +400,7 @@ function CategoryManagement() {
                       setShowAddModal(false);
                       setNewCategoryName("");
                       setNewCategoryDescription("");
-                      setNewCategoryRole("staff");
+                      setNewCategoryRoles(["staff"]);
                       setNewCategoryStatus("active");
                     }}
                     className="flex-1"
@@ -597,19 +590,26 @@ function CategoryManagement() {
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                  Role *
+                  Roles (who can use it) *
                 </label>
-                <Select value={editRole} onValueChange={setEditRole}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="hod">HoD</SelectItem>
-                    <SelectItem value="dean">Dean</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-3">
+                  {roleOptions.map(r => {
+                    const checked = editRoles.includes(r);
+                    return (
+                      <label key={r} className="flex items-center gap-1 text-sm cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={checked}
+                          onChange={() => {
+                            setEditRoles(prev => checked ? prev.filter(x=>x!==r) : [...prev, r]);
+                          }}
+                        />
+                        {r === 'hod' ? 'HoD' : r.charAt(0).toUpperCase()+r.slice(1)}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-2 block">
@@ -640,7 +640,7 @@ function CategoryManagement() {
                     setEditingCategory(null);
                     setEditName("");
                     setEditDescription("");
-                    setEditRole("staff");
+                    setEditRoles(["staff"]);
                   }}
                   className="flex-1"
                 >

@@ -14,11 +14,12 @@ const hodList = [
 ];
 const dean = { id: "d1", fullName: "Dean of College" };
 const admin = { id: "a1", fullName: "System Admin" };
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 // Categories now dynamically fetched; the list above has been moved to backend seeding.
 // Update the path below if your ComplaintContext file is in a different location
 import { useComplaints } from "@/context/ComplaintContext";
-import { CategoryContext } from "@/context/CategoryContext";
+import { CategoryContext } from "@/context/CategoryContext"; // still used for initial mount (optional)
+import { fetchCategoriesApi } from "@/lib/categoryApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,10 @@ export function SubmitComplaint() {
     "Computer System",
   ];
   const { addComplaint } = useComplaints();
-  const { categories } = useContext(CategoryContext);
+  const { categories } = useContext(CategoryContext); // student-visible categories (may exclude staff/hod/dean/admin specific ones)
+  interface RoleCategory { _id: string; name: string; roles?: string[]; status?: string; }
+  const [targetCategories, setTargetCategories] = useState<RoleCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const { user } = useAuth();
   let currentDepartment = user?.department;
   if (!validDepartments.includes(currentDepartment)) {
@@ -94,6 +98,30 @@ export function SubmitComplaint() {
   // Remove old submitTo, use formData.role
   // If you have user context, import/use it here
   // Example: const { user } = useAuth();
+
+  // Load categories for the chosen target role (staff/hod/dean/admin)
+  const loadTargetCategories = async (role: string) => {
+    if (!role) {
+      setTargetCategories([]);
+      return;
+    }
+    setLoadingCategories(true);
+    try {
+      const backendRole = role; // role keys match backend (hod, staff, dean, admin)
+      const data = await fetchCategoriesApi({ role: backendRole, status: "active" });
+      setTargetCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setTargetCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // When user changes Send To role, fetch categories for that role
+  useEffect(() => {
+    if (formData.role) loadTargetCategories(formData.role);
+    else setTargetCategories([]);
+  }, [formData.role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -460,22 +488,17 @@ export function SubmitComplaint() {
                   required
                 >
                   <SelectTrigger className="rounded-lg">
-                    <SelectValue placeholder="Select complaint category" />
+                    <SelectValue placeholder={loadingCategories ? "Loading..." : "Select complaint category"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories
-                      .filter((c) =>
-                        // show if no role restriction OR includes selected target role mapping
-                        !c.roles?.length ||
-                        c.roles.includes(
-                          formData.role === "hod" ? "hod" : formData.role
-                        )
-                      )
-                      .map((c) => (
-                        <SelectItem key={c._id} value={c.name}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
+                    {(!loadingCategories ? targetCategories : []).map((c: RoleCategory) => (
+                      <SelectItem key={c._id} value={c.name}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                    {!loadingCategories && targetCategories.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No categories for this role</div>
+                    )}
                   </SelectContent>
                 </Select>
                 {touched.category && !formData.category && (
