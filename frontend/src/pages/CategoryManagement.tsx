@@ -66,6 +66,7 @@ function CategoryManagement() {
   const [newCategoryRoles, setNewCategoryRoles] = useState<string[]>(["staff"]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [roleFilter, setRoleFilter] = useState<string>("All");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryDescription, setNewCategoryDescription] = useState("");
   const [newCategoryStatus, setNewCategoryStatus] = useState<
@@ -91,7 +92,7 @@ function CategoryManagement() {
       });
       return;
     }
-  const created = await addCategory(newCategoryName, newCategoryRoles);
+    const created = await addCategory(newCategoryName, newCategoryRoles);
     if (created) {
       // patch description/status if provided
       if (newCategoryDescription || newCategoryStatus !== "active") {
@@ -111,7 +112,7 @@ function CategoryManagement() {
     }
     setNewCategoryName("");
     setNewCategoryDescription("");
-  setNewCategoryRoles(["staff"]);
+    setNewCategoryRoles(["staff"]);
     setNewCategoryStatus("active");
     setShowAddModal(false);
 
@@ -125,7 +126,9 @@ function CategoryManagement() {
     setEditingCategory(category);
     setEditName(category.name);
     setEditDescription(category.description || "");
-  setEditRoles(category.roles && category.roles.length ? category.roles : ["staff"]);
+    setEditRoles(
+      category.roles && category.roles.length ? category.roles : ["staff"]
+    );
     setEditStatus(category.status || "active");
   };
 
@@ -140,7 +143,7 @@ function CategoryManagement() {
     }
     const updated = await updateCategory(editingCategory._id, {
       name: editName,
-  roles: editRoles,
+      roles: editRoles,
       status: editStatus,
       description: editDescription,
     });
@@ -156,7 +159,7 @@ function CategoryManagement() {
     setEditingCategory(null);
     setEditName("");
     setEditDescription("");
-  setEditRoles(["staff"]);
+    setEditRoles(["staff"]);
 
     toast({
       title: "Category Updated",
@@ -237,7 +240,13 @@ function CategoryManagement() {
       statusFilter === "All" ||
       (statusFilter === "Active" && category.status === "active") ||
       (statusFilter === "Inactive" && category.status === "inactive");
-    return matchesSearch && matchesStatus;
+    const matchesRole =
+      roleFilter === "All" ||
+      // empty roles means available to all
+      !category.roles ||
+      category.roles.length === 0 ||
+      category.roles.includes(roleFilter.toLowerCase());
+    return matchesSearch && matchesStatus && matchesRole;
   });
 
   return (
@@ -306,7 +315,9 @@ function CategoryManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalComplaints}</div>
-            <p className="text-xs text-muted-foreground">Across all categories</p>
+            <p className="text-xs text-muted-foreground">
+              Across all categories
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -372,19 +383,32 @@ function CategoryManagement() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">Roles (who can use it) *</label>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Roles (who can use it) *
+                  </label>
                   <div className="flex flex-wrap gap-3">
-                    {roleOptions.map(r => {
+                    {roleOptions.map((r) => {
                       const checked = newCategoryRoles.includes(r);
                       return (
-                        <label key={r} className="flex items-center gap-1 text-sm cursor-pointer select-none">
+                        <label
+                          key={r}
+                          className="flex items-center gap-1 text-sm cursor-pointer select-none"
+                        >
                           <input
                             type="checkbox"
                             className="h-4 w-4"
                             checked={checked}
-                            onChange={() => setNewCategoryRoles(prev => checked ? prev.filter(x=>x!==r) : [...prev, r])}
+                            onChange={() =>
+                              setNewCategoryRoles((prev) =>
+                                checked
+                                  ? prev.filter((x) => x !== r)
+                                  : [...prev, r]
+                              )
+                            }
                           />
-                          {r === 'hod' ? 'HoD' : r.charAt(0).toUpperCase()+r.slice(1)}
+                          {r === "hod"
+                            ? "HoD"
+                            : r.charAt(0).toUpperCase() + r.slice(1)}
                         </label>
                       );
                     })}
@@ -434,18 +458,37 @@ function CategoryManagement() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
-                  <SelectItem value="Active">Active only</SelectItem>
-                  <SelectItem value="Inactive">Inactive only</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All</SelectItem>
+                    <SelectItem value="Active">Active only</SelectItem>
+                    <SelectItem value="Inactive">Inactive only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All roles</SelectItem>
+                    {roleOptions.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r === "hod"
+                          ? "HoD"
+                          : r.charAt(0).toUpperCase() + r.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -593,19 +636,28 @@ function CategoryManagement() {
                   Roles (who can use it) *
                 </label>
                 <div className="flex flex-wrap gap-3">
-                  {roleOptions.map(r => {
+                  {roleOptions.map((r) => {
                     const checked = editRoles.includes(r);
                     return (
-                      <label key={r} className="flex items-center gap-1 text-sm cursor-pointer select-none">
+                      <label
+                        key={r}
+                        className="flex items-center gap-1 text-sm cursor-pointer select-none"
+                      >
                         <input
                           type="checkbox"
                           className="h-4 w-4"
                           checked={checked}
                           onChange={() => {
-                            setEditRoles(prev => checked ? prev.filter(x=>x!==r) : [...prev, r]);
+                            setEditRoles((prev) =>
+                              checked
+                                ? prev.filter((x) => x !== r)
+                                : [...prev, r]
+                            );
                           }}
                         />
-                        {r === 'hod' ? 'HoD' : r.charAt(0).toUpperCase()+r.slice(1)}
+                        {r === "hod"
+                          ? "HoD"
+                          : r.charAt(0).toUpperCase() + r.slice(1)}
                       </label>
                     );
                   })}
@@ -667,16 +719,16 @@ function CategoryManagement() {
           if (!open) setPendingDeleteCategory(null);
         }}
         warning={
-          pendingDeleteCategory && pendingDeleteCategory.status !== 'inactive'
-            ? 'You must deactivate this category before deleting.'
+          pendingDeleteCategory && pendingDeleteCategory.status !== "inactive"
+            ? "You must deactivate this category before deleting."
             : undefined
         }
       >
         {pendingDeleteCategory
-          ? pendingDeleteCategory.status === 'inactive'
+          ? pendingDeleteCategory.status === "inactive"
             ? `Are you sure you want to permanently delete "${pendingDeleteCategory.name}"? This action cannot be undone.`
             : `"${pendingDeleteCategory.name}" is currently active. Toggle it inactive first, then delete.`
-          : ''}
+          : ""}
       </ConfirmDialog>
     </div>
   );

@@ -75,16 +75,20 @@ export function Layout({ children }: LayoutProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center gap-2"
+                    className="relative h-9 w-9 rounded-full p-0"
+                    aria-label="User menu"
                   >
                     <Avatar className="h-8 w-8">
-                      <User className="h-4 w-4 text-muted-foreground absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-                      <AvatarFallback>
-                        {user?.name
-                          ?.split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase()}
+                      <AvatarFallback className="text-xs font-medium">
+                        {(() => {
+                          const nm = (user?.name || user?.fullName || "").trim();
+                          if (!nm) return <User className="h-4 w-4 text-muted-foreground" />;
+                          return nm
+                            .split(/\s+/)
+                            .slice(0, 2)
+                            .map((n) => n[0]?.toUpperCase())
+                            .join("");
+                        })()}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
