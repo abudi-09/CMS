@@ -4,7 +4,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node backend/server.js",
-    "dev": "nodemon backend/server.js"
+    "dev": "nodemon backend/server.js",
+    "meta:touch": "echo placeholder"
   },
   "keywords": [],
   "author": "",
@@ -25,5 +26,6 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
-  }
+  },
+  "_metaNote": "Harmless change added only to register a modification; safe to keep or remove."
 }

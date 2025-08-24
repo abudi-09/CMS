@@ -29,7 +29,7 @@ export const createComplaint = async (req, res) => {
     const normalizedAssignmentPath = Array.isArray(assignmentPath)
       ? assignmentPath.map((r) => normalizeUserRole(r))
       : undefined;
-  const complaint = new Complaint({
+    const complaint = new Complaint({
       title,
       category,
       description,
@@ -44,7 +44,7 @@ export const createComplaint = async (req, res) => {
       submittedBy: req.user._id,
     });
 
-  await complaint.save();
+    await complaint.save();
     try {
       console.log("[DEBUG] Complaint created:", {
         _id: complaint._id.toString(),
@@ -54,6 +54,7 @@ export const createComplaint = async (req, res) => {
         priority: complaint.priority,
         department: complaint.department,
         submittedBy: complaint.submittedBy?.toString(),
+  evidenceFile: complaint.evidenceFile || null,
       });
     } catch (_) {}
     // Log activity
@@ -61,14 +62,13 @@ export const createComplaint = async (req, res) => {
       user: req.user._id,
       role: req.user.role,
       action: "Complaint Submitted",
-      complaint: complaint._id, // still ObjectId
+      complaint: complaint._id,
       timestamp: new Date(),
       details: { title, category, complaintCode: complaint.complaintCode },
     });
-    // Expose complaintCode as id for frontend expectations
     const response = {
-      id: complaint.complaintCode,
-      mongoId: complaint._id,
+      id: complaint.complaintCode, // human friendly code
+      mongoId: complaint._id,      // underlying ObjectId
       title: complaint.title,
       category: complaint.category,
       description: complaint.description,
@@ -106,11 +106,6 @@ export const getMyComplaints = async (req, res) => {
     const complaints = await Complaint.find(filters)
       .populate("assignedTo", "name email")
       .sort({ updatedAt: -1 });
-    try {
-      console.log(
-        `[DEBUG] getMyComplaints user=${req.user._id} count=${complaints.length}`
-      );
-    } catch (_) {}
 
     const formatted = complaints.map((c) => ({
       id: c.complaintCode || c._id,
@@ -143,11 +138,6 @@ export const getAllComplaints = async (req, res) => {
     const complaints = await Complaint.find()
       .populate("submittedBy", "name")
       .populate("assignedTo", "name");
-    try {
-      console.log(
-        `[DEBUG] getAllComplaints requester=${req.user._id} count=${complaints.length}`
-      );
-    } catch (_) {}
     const formatted = complaints.map((c) => ({
       id: c.complaintCode || c._id,
       title: c.title,

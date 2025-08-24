@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 
-// Helper to generate a short human friendly code (not used for relations)
 function generateComplaintCode() {
   return `CMP-${Date.now().toString(36).toUpperCase()}-${Math.random()
     .toString(36)
@@ -10,7 +9,6 @@ function generateComplaintCode() {
 
 const complaintSchema = new mongoose.Schema(
   {
-    // Human readable code exposed to UI; real primary key remains ObjectId
     complaintCode: {
       type: String,
       unique: true,
