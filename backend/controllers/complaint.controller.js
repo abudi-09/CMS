@@ -45,6 +45,18 @@ export const createComplaint = async (req, res) => {
     });
 
     await complaint.save();
+    try {
+      console.log("[DEBUG] Complaint created:", {
+        _id: complaint._id.toString(),
+        complaintCode: complaint.complaintCode,
+        title: complaint.title,
+        category: complaint.category,
+        priority: complaint.priority,
+        department: complaint.department,
+        submittedBy: complaint.submittedBy?.toString(),
+  evidenceFile: complaint.evidenceFile || null,
+      });
+    } catch (_) {}
     // Log activity
     await ActivityLog.create({
       user: req.user._id,
@@ -52,11 +64,26 @@ export const createComplaint = async (req, res) => {
       action: "Complaint Submitted",
       complaint: complaint._id,
       timestamp: new Date(),
-      details: { title, category },
+      details: { title, category, complaintCode: complaint.complaintCode },
     });
-    res.status(201).json({ message: "Complaint submitted", complaint });
+    const response = {
+      id: complaint.complaintCode, // human friendly code
+      mongoId: complaint._id,      // underlying ObjectId
+      title: complaint.title,
+      category: complaint.category,
+      description: complaint.description,
+      priority: complaint.priority,
+      department: complaint.department,
+      status: complaint.status,
+      submittedDate: complaint.createdAt,
+      lastUpdated: complaint.updatedAt,
+    };
+    res.status(201).json({ message: "Complaint submitted", complaint: response });
   } catch (err) {
-    res.status(500).json({ error: "Failed to submit complaint" });
+    console.error("Create complaint error:", err.message, err.stack);
+    res
+      .status(500)
+      .json({ error: "Failed to submit complaint", details: err.message });
   }
 };
 
@@ -81,7 +108,7 @@ export const getMyComplaints = async (req, res) => {
       .sort({ updatedAt: -1 });
 
     const formatted = complaints.map((c) => ({
-      id: c._id,
+      id: c.complaintCode || c._id,
       title: c.title,
       status: c.status,
       department: c.department,
@@ -112,7 +139,7 @@ export const getAllComplaints = async (req, res) => {
       .populate("submittedBy", "name")
       .populate("assignedTo", "name");
     const formatted = complaints.map((c) => ({
-      id: c._id,
+      id: c.complaintCode || c._id,
       title: c.title,
       status: c.status,
       department: c.department,

@@ -39,6 +39,7 @@ import { useState as useReactState } from "react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 import { useAuth } from "@/components/auth/AuthContext";
+import { uploadEvidenceFile } from "@/lib/cloudinary";
 
 // Categories now come from context
 
@@ -90,6 +91,9 @@ export function SubmitComplaint() {
   });
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadedEvidenceUrl, setUploadedEvidenceUrl] = useState<string>("");
+  const [uploadError, setUploadError] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
   const [complaintId, setComplaintId] = useState("");
   const [showDetailModal, setShowDetailModal] = useReactState(false);
@@ -149,15 +153,25 @@ export function SubmitComplaint() {
     }
     setIsSubmitting(true);
     try {
-      let evidenceFileString = "";
-      if (evidenceFile) {
-        // Convert file to base64 string (or use URL.createObjectURL if only for preview)
-        evidenceFileString = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(evidenceFile);
-        });
+      let evidenceFileUrl = uploadedEvidenceUrl;
+      if (evidenceFile && !evidenceFileUrl) {
+        try {
+          setUploadError("");
+          const result = await uploadEvidenceFile(evidenceFile, {
+            onProgress: (p) => setUploadProgress(p),
+            folder: "complaints_evidence",
+          });
+            evidenceFileUrl = result.url;
+            setUploadedEvidenceUrl(result.url);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : "Upload failed";
+          setUploadError(message);
+          toast({
+            title: "Evidence Upload Failed",
+            description: message,
+            variant: "destructive",
+          });
+        }
       }
       let submittedTo = "";
       let status = "";
@@ -199,7 +213,7 @@ export function SubmitComplaint() {
         submittedBy: formData.anonymous
           ? "Anonymous"
           : user?.username || "Current User",
-        evidenceFile: evidenceFileString,
+  evidenceFile: evidenceFileUrl,
         submittedTo,
         department: user?.department || "Unknown Department",
         // Who created the complaint (role)
@@ -257,7 +271,10 @@ export function SubmitComplaint() {
       deadline: "",
       anonymous: false,
     });
-    setEvidenceFile(null);
+  setEvidenceFile(null);
+  setUploadedEvidenceUrl("");
+  setUploadProgress(0);
+  setUploadError("");
     setComplaintId("");
   };
 
@@ -586,18 +603,90 @@ export function SubmitComplaint() {
                   DOCX)
                 </p>
                 {evidenceFile && (
-                  <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{evidenceFile.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEvidenceFile(null)}
-                      className="ml-auto h-6 w-6 p-0"
-                    >
-                      ×
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm truncate max-w-[200px]">{evidenceFile.name}</span>
+                      {uploadedEvidenceUrl && (
+                        <span className="text-xs text-green-600">Uploaded</span>
+                      )}
+                      {!uploadedEvidenceUrl && uploadProgress > 0 && (
+                        <span className="text-xs text-blue-600">{uploadProgress}%</span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEvidenceFile(null);
+                          setUploadedEvidenceUrl("");
+                          setUploadProgress(0);
+                          setUploadError("");
+                        }}
+                        className="ml-auto h-6 w-6 p-0"
+                        aria-label="Remove evidence file"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                    {!uploadedEvidenceUrl && evidenceFile && uploadProgress > 0 && (
+                      <div className="w-full h-2 bg-muted rounded overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    )}
+                    {uploadError && (
+                      <div className="text-xs text-red-600 flex items-center gap-2">
+                        <span>{uploadError}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            if (!evidenceFile) return;
+                            try {
+                              setUploadError("");
+                              const result = await uploadEvidenceFile(evidenceFile, {
+                                onProgress: (p) => setUploadProgress(p),
+                              });
+                              setUploadedEvidenceUrl(result.url);
+                            } catch (err: unknown) {
+                              const message = err instanceof Error ? err.message : 'Retry failed';
+                              setUploadError(message);
+                            }
+                          }}
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    )}
+                    {!uploadedEvidenceUrl && evidenceFile && uploadProgress === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Evidence will upload automatically on submit.
+                      </p>
+                    )}
+                    {uploadedEvidenceUrl && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-green-600 break-all">
+                          Uploaded. <a
+                            href={uploadedEvidenceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-blue-600"
+                          >Open full file</a>
+                        </p>
+                        {evidenceFile?.type.startsWith("image/") && (
+                          <img
+                            src={uploadedEvidenceUrl.replace(/\/upload\//, "/upload/c_thumb,w_200,h_200,g_auto,f_auto,q_auto/")}
+                            alt="Evidence preview"
+                            className="h-32 w-32 object-cover rounded border"
+                            loading="lazy"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
