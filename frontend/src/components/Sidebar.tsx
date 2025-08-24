@@ -132,20 +132,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <div className={cn("flex flex-col h-full p-4", className)}>
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">
-          {role === "dean"
-            ? "Dean Dashboard"
-            : isHod
-            ? "HOD Dashboard"
-            : role === "admin"
-            ? "Admin Panel"
-            : role === "staff"
-            ? "Staff Portal"
-            : "Student Portal"}
-        </h2>
-        <p className="text-sm text-muted-foreground">Welcome, {user?.name}</p>
-      </div>
+  {/* Removed role heading and welcome text as per request */}
 
       <nav className="space-y-2 flex-1">
         {menuItems.map((item) => {

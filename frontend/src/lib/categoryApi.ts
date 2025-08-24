@@ -22,14 +22,14 @@ export async function fetchCategoriesApi(options?: {
 }
 
 export async function createCategoryApi(dto: CreateCategoryDTO) {
-  return await apiClient.post("/categories", dto);
+  return await apiClient.post("/categories", dto as unknown);
 }
 
 export async function updateCategoryApi(
   id: string,
   dto: Partial<CreateCategoryDTO>
 ) {
-  return await apiClient.patch(`/categories/${id}`, dto);
+  return await apiClient.patch(`/categories/${id}`, dto as unknown);
 }
 
 export async function deleteCategoryApi(id: string) {
