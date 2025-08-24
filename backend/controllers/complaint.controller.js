@@ -29,7 +29,7 @@ export const createComplaint = async (req, res) => {
     const normalizedAssignmentPath = Array.isArray(assignmentPath)
       ? assignmentPath.map((r) => normalizeUserRole(r))
       : undefined;
-    const complaint = new Complaint({
+  const complaint = new Complaint({
       title,
       category,
       description,
@@ -44,19 +44,46 @@ export const createComplaint = async (req, res) => {
       submittedBy: req.user._id,
     });
 
-    await complaint.save();
+  await complaint.save();
+    try {
+      console.log("[DEBUG] Complaint created:", {
+        _id: complaint._id.toString(),
+        complaintCode: complaint.complaintCode,
+        title: complaint.title,
+        category: complaint.category,
+        priority: complaint.priority,
+        department: complaint.department,
+        submittedBy: complaint.submittedBy?.toString(),
+      });
+    } catch (_) {}
     // Log activity
     await ActivityLog.create({
       user: req.user._id,
       role: req.user.role,
       action: "Complaint Submitted",
-      complaint: complaint._id,
+      complaint: complaint._id, // still ObjectId
       timestamp: new Date(),
-      details: { title, category },
+      details: { title, category, complaintCode: complaint.complaintCode },
     });
-    res.status(201).json({ message: "Complaint submitted", complaint });
+    // Expose complaintCode as id for frontend expectations
+    const response = {
+      id: complaint.complaintCode,
+      mongoId: complaint._id,
+      title: complaint.title,
+      category: complaint.category,
+      description: complaint.description,
+      priority: complaint.priority,
+      department: complaint.department,
+      status: complaint.status,
+      submittedDate: complaint.createdAt,
+      lastUpdated: complaint.updatedAt,
+    };
+    res.status(201).json({ message: "Complaint submitted", complaint: response });
   } catch (err) {
-    res.status(500).json({ error: "Failed to submit complaint" });
+    console.error("Create complaint error:", err.message, err.stack);
+    res
+      .status(500)
+      .json({ error: "Failed to submit complaint", details: err.message });
   }
 };
 
@@ -79,9 +106,14 @@ export const getMyComplaints = async (req, res) => {
     const complaints = await Complaint.find(filters)
       .populate("assignedTo", "name email")
       .sort({ updatedAt: -1 });
+    try {
+      console.log(
+        `[DEBUG] getMyComplaints user=${req.user._id} count=${complaints.length}`
+      );
+    } catch (_) {}
 
     const formatted = complaints.map((c) => ({
-      id: c._id,
+      id: c.complaintCode || c._id,
       title: c.title,
       status: c.status,
       department: c.department,
@@ -111,8 +143,13 @@ export const getAllComplaints = async (req, res) => {
     const complaints = await Complaint.find()
       .populate("submittedBy", "name")
       .populate("assignedTo", "name");
+    try {
+      console.log(
+        `[DEBUG] getAllComplaints requester=${req.user._id} count=${complaints.length}`
+      );
+    } catch (_) {}
     const formatted = complaints.map((c) => ({
-      id: c._id,
+      id: c.complaintCode || c._id,
       title: c.title,
       status: c.status,
       department: c.department,
