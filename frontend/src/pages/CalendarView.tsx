@@ -17,13 +17,7 @@ import {
   CheckCircle2,
   Users,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import {
   format,
@@ -275,7 +269,7 @@ export default function CalendarView({
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendar View</h1>
@@ -431,102 +425,47 @@ export default function CalendarView({
                     complaint.status !== "Resolved" &&
                     complaint.status !== "Closed";
                   return (
-                    <Dialog key={complaint.id}>
-                      <DialogTrigger asChild>
-                        <div
-                          className={`p-3 border-l-4 cursor-pointer hover:bg-accent/50 transition-colors ${
-                            isOverdue
-                              ? "border-red-500 bg-red-50 dark:bg-red-900/10"
-                              : priorityColors[complaint.priority || "Low"]
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-sm leading-tight">
-                                {complaint.title}
-                              </p>
-                              {isOverdue && (
-                                <Badge className="bg-red-500 text-white text-xs">
-                                  Overdue
-                                </Badge>
-                              )}
-                            </div>
-                            <Badge
-                              className={`${
-                                statusColors[complaint.status]
-                              } text-xs ml-2`}
-                            >
-                              {complaint.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            {getStatusIcon(complaint.status)}
-                            <span>{complaint.category}</span>
-                            <span>•</span>
-                            <span>{complaint.priority}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Assigned to:{" "}
-                            {complaint.assignedStaff || "Unassigned"}
+                    <div
+                      key={complaint.id}
+                      onClick={() => {
+                        setSelectedComplaint(complaint);
+                        setModalOpen(true);
+                      }}
+                      className={`p-3 border-l-4 cursor-pointer hover:bg-accent/50 transition-colors ${
+                        isOverdue
+                          ? "border-red-500 bg-red-50 dark:bg-red-900/10"
+                          : priorityColors[complaint.priority || "Low"]
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm leading-tight">
+                            {complaint.title}
                           </p>
+                          {isOverdue && (
+                            <Badge className="bg-red-500 text-white text-xs">
+                              Overdue
+                            </Badge>
+                          )}
                         </div>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Complaint Details</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <h4 className="font-medium mb-2">
-                              #{complaint.id} - {complaint.title}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              {complaint.description}
-                            </p>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-sm font-medium">Status</p>
-                              <Badge className={statusColors[complaint.status]}>
-                                {complaint.status}
-                              </Badge>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Priority</p>
-                              <Badge variant="outline">
-                                {complaint.priority}
-                              </Badge>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Category</p>
-                              <p className="text-sm">{complaint.category}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">
-                                Assigned Staff
-                              </p>
-                              <p className="text-sm">
-                                {complaint.assignedStaff || "Unassigned"}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Submitted</p>
-                              <p className="text-sm">
-                                {format(complaint.submittedDate, "MMM d, yyyy")}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Deadline</p>
-                              <p className="text-sm">
-                                {complaint.deadline
-                                  ? format(complaint.deadline, "MMM d, yyyy")
-                                  : "Not set"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                        <Badge
+                          className={`${
+                            statusColors[complaint.status]
+                          } text-xs ml-2`}
+                        >
+                          {complaint.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {getStatusIcon(complaint.status)}
+                        <span>{complaint.category}</span>
+                        <span>•</span>
+                        <span>{complaint.priority}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Assigned to: {complaint.assignedStaff || "Unassigned"}
+                      </p>
+                    </div>
                   );
                 })}
               </div>
@@ -630,6 +569,17 @@ export default function CalendarView({
           </Card>
         </div>
       )}
+      <RoleBasedComplaintModal
+        complaint={selectedComplaint}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onUpdate={(id, updates) => {
+          setAllComplaints((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+          );
+        }}
+        fetchLatest={false}
+      />
     </div>
   );
 }
