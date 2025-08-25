@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
-import { updateProfileApi, changePasswordApi } from "@/lib/api";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { updateProfileApi, changePasswordApi, uploadAvatarApi, saveCloudAvatarApi, resetAvatarApi } from "@/lib/api";
+import { getProfileStatsApi } from "@/lib/api.profile.stats";
+import { uploadAvatarFile } from "@/lib/cloudinaryAvatar";
 import {
   Card,
   CardContent,
@@ -33,6 +35,8 @@ import {
   Shield,
   Lock,
   CheckCircle,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -76,32 +80,85 @@ export function Profile() {
     };
   }, [user]);
 
-  // Basic placeholder stats (could be replaced with real stats API)
+  interface UserWithAvatar {
+    avatarUrl?: string;
+  }
+  const userWithAvatar = user as typeof user & UserWithAvatar;
+
+  // Build absolute avatar URL if backend returned a relative path like /uploads/avatars/xyz.png
+  const assetBase = (import.meta.env.VITE_API_BASE || "http://localhost:5000/api").replace(/\/api$/, "");
+  const avatarSrc = userWithAvatar?.avatarUrl
+    ? userWithAvatar.avatarUrl.startsWith("http")
+      ? userWithAvatar.avatarUrl
+      : `${assetBase}${userWithAvatar.avatarUrl}`
+    : undefined;
+
+  // Stats state
+  const [stats, setStats] = useState({
+    totalComplaints: 0,
+    resolvedComplaints: 0,
+    inProgressComplaints: 0,
+    pendingComplaints: 0,
+    successRate: 0,
+  });
+
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      try {
+        const data = await getProfileStatsApi();
+        if (!ignore) {
+          setStats({
+            totalComplaints: data.totalComplaints || 0,
+            resolvedComplaints: data.resolvedComplaints || 0,
+            inProgressComplaints: data.inProgressComplaints || 0,
+            pendingComplaints: data.pendingComplaints || 0,
+            successRate: data.successRate || 0,
+          });
+        }
+      } catch (_) {
+        // Silently ignore stats load failure
+      }
+    }
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const performanceData = useMemo(() => {
     if (user?.role === "staff") {
       return {
-        totalAssigned: 0,
-        resolved: 0,
-        inProgress: 0,
-        pending: 0,
-        resolutionRate: 0,
+        totalAssigned: 0, // could be replaced with staff-specific API later
+        resolved: stats.resolvedComplaints,
+        inProgress: stats.inProgressComplaints,
+        pending: stats.pendingComplaints,
+        resolutionRate: stats.successRate,
         averageRating: 0,
         averageResolutionTime: "-",
         satisfactionRating: 0,
-        completionRate: 0,
+        completionRate: stats.successRate,
       };
     }
     return {
-      totalComplaints: 0,
-      resolved: 0,
-      inProgress: 0,
-      pending: 0,
-      resolutionRate: 0,
+      totalComplaints: stats.totalComplaints,
+      resolved: stats.resolvedComplaints,
+      inProgress: stats.inProgressComplaints,
+      pending: stats.pendingComplaints,
+      resolutionRate: stats.successRate,
     };
-  }, [user]);
+  }, [user, stats]);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Progress animation state
+  const [uploadPctDisplay, setUploadPctDisplay] = useState<number | null>(null);
+  const [uploadPctTarget, setUploadPctTarget] = useState<number | null>(null);
+  const progressAnimRef = useRef<number | null>(null);
+  const fallbackSimIntervalRef = useRef<number | null>(null);
+  const completedRef = useRef<boolean>(false); // prevent double 0->100 runs
   const [formData, setFormData] = useState({
     name: profileData.name,
     phone: profileData.phone,
@@ -185,7 +242,11 @@ export function Profile() {
         oldPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
       toast({
         title: "Password Updated",
         description: "Your password has been successfully changed.",
@@ -203,6 +264,134 @@ export function Profile() {
       setIsLoading(false);
     }
   };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Maximum size is 2MB",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setIsLoading(true);
+      completedRef.current = false;
+      let finalUrl: string | undefined;
+      // Attempt direct Cloudinary unsigned upload first
+      try {
+        const direct = await uploadAvatarFile(file, {
+          onProgress: (p) => {
+            setUploadPctTarget(p);
+            if (uploadPctDisplay === null) setUploadPctDisplay(0);
+            if (p >= 100) completedRef.current = true;
+          },
+        });
+        // Persist with backend (stores publicId and handles old delete)
+        const saved = await saveCloudAvatarApi({
+          avatarUrl: direct.url,
+          publicId: direct.publicId,
+        });
+        finalUrl = saved.avatarUrl;
+        completedRef.current = true;
+      } catch (directErr) {
+        // Fallback to backend multipart pipeline
+        console.warn("[Profile] Direct Cloudinary avatar upload failed, falling back:", directErr);
+        // simulate progress to ~90% while backend processes
+        if (uploadPctDisplay === null) setUploadPctDisplay(0);
+        setUploadPctTarget(15);
+        if (fallbackSimIntervalRef.current) window.clearInterval(fallbackSimIntervalRef.current);
+        fallbackSimIntervalRef.current = window.setInterval(() => {
+          setUploadPctTarget((prev) => {
+            if (prev == null) return 0;
+            if (prev < 90) return prev + 2.5;
+            return prev;
+          });
+        }, 160);
+        const legacy = await uploadAvatarApi(file);
+        finalUrl = legacy.avatarUrl;
+        completedRef.current = true; // will jump to 100 in finally
+      }
+      if (finalUrl) {
+        auth.updateUserProfile?.({ avatarUrl: finalUrl });
+        toast({ title: "Avatar Updated", description: "Profile picture changed." });
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not upload avatar";
+      toast({
+        title: "Upload Failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      if (fallbackSimIntervalRef.current) {
+        window.clearInterval(fallbackSimIntervalRef.current);
+        fallbackSimIntervalRef.current = null;
+      }
+      // Only force to 100 if not already reached (prevents second count)
+      if (!completedRef.current) {
+        if (uploadPctDisplay === null) setUploadPctDisplay(0);
+        setUploadPctTarget(100);
+        completedRef.current = true;
+      }
+      // Clear progress after short delay
+      setTimeout(() => {
+        setUploadPctTarget(null);
+        setUploadPctDisplay(null);
+        completedRef.current = false;
+      }, 1000);
+    }
+  };
+
+  const handleAvatarReset = async () => {
+    try {
+      setIsLoading(true);
+      await resetAvatarApi();
+      auth.updateUserProfile?.({ avatarUrl: "" });
+      toast({ title: "Avatar Reset", description: "Reverted to default profile picture." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not reset avatar";
+      toast({ title: "Reset Failed", description: message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Animate progress toward target smoothly
+  // Intentionally depend only on target to avoid restarting animation each display tick
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (uploadPctTarget == null || uploadPctDisplay == null) return;
+    if (progressAnimRef.current) cancelAnimationFrame(progressAnimRef.current);
+    const step = () => {
+      setUploadPctDisplay((curr) => {
+        if (curr == null) return null;
+        if (uploadPctTarget == null) return curr;
+        if (curr >= uploadPctTarget) return curr; // stop advancing
+        const delta = Math.max(0.5, (uploadPctTarget - curr) * 0.18 + 0.4);
+        const next = Math.min(uploadPctTarget, curr + delta);
+        return next;
+      });
+      // Continue only if not reached target yet
+      progressAnimRef.current = requestAnimationFrame(step);
+    };
+    progressAnimRef.current = requestAnimationFrame(step);
+    return () => {
+      if (progressAnimRef.current) cancelAnimationFrame(progressAnimRef.current);
+    };
+  }, [uploadPctTarget]);
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -274,15 +463,86 @@ export function Profile() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col items-center text-center space-y-4">
-                  <Avatar className="h-24 w-24 bg-muted">
-                    {user?.role === "admin" ? (
-                      <Shield className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-                    ) : user?.role === "staff" ? (
-                      <UserCheck className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-                    ) : (
-                      <User className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <div
+                    className={`relative ${
+                      (user?.role === "student" || user?.role === "user") && !isLoading
+                        ? "cursor-pointer"
+                        : ""
+                    }`}
+                    onClick={() => {
+                      if (
+                        user?.role === "student" ||
+                        user?.role === "user"
+                      ) {
+                        if (!isLoading) fileInputRef.current?.click();
+                      }
+                    }}
+                    title={
+                      user?.role === "student" || user?.role === "user"
+                        ? isLoading
+                          ? "Uploading..."
+                          : "Change profile picture"
+                        : undefined
+                    }
+                    aria-label={
+                      user?.role === "student" || user?.role === "user"
+                        ? "Change profile picture"
+                        : undefined
+                    }
+                  >
+                    <Avatar className="h-24 w-24 bg-muted overflow-hidden">
+                      {avatarSrc ? (
+                        <AvatarImage
+                          src={avatarSrc}
+                          alt={profileData.name}
+                          className="object-cover"
+                        />
+                      ) : user?.role === "admin" ? (
+                        <Shield className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      ) : user?.role === "staff" ? (
+                        <UserCheck className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      ) : (
+                        <User className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      )}
+                      <AvatarFallback className="hidden" />
+                    </Avatar>
+                    {(user?.role === "student" || user?.role === "user") && (
+                      <>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarChange}
+                          disabled={isLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isLoading) fileInputRef.current?.click();
+                          }}
+                          className="absolute -bottom-2 -right-2 bg-white/95 rounded-full p-2 shadow hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          aria-label="Change profile picture"
+                        >
+                          <Pencil className="h-5 w-5 text-gray-700" />
+                        </button>
+                      </>
                     )}
-                  </Avatar>
+                  </div>
+                  {uploadPctDisplay !== null && (
+                    <div className="w-full mt-2">
+                      <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-200"
+                          style={{ width: `${Math.min(100, Math.round(uploadPctDisplay))}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Uploading {Math.min(100, Math.round(uploadPctDisplay))}%
+                      </p>
+                    </div>
+                  )}
 
                   <div>
                     <h3 className="text-lg font-semibold">
@@ -296,6 +556,21 @@ export function Profile() {
                     </div>
                   </div>
                 </div>
+                {(user?.role === "student" || user?.role === "user") && (
+                  <div className="pt-2 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isLoading || !userWithAvatar?.avatarUrl}
+                      onClick={handleAvatarReset}
+                      className="flex items-center gap-1"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset Avatar
+                    </Button>
+                  </div>
+                )}
 
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex items-center gap-2 text-sm">

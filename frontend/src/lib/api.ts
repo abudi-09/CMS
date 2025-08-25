@@ -91,6 +91,45 @@ export async function changePasswordApi(payload: {
   if (!res.ok) throw new Error(data.error || "Failed to change password");
   return data;
 }
+
+// Upload avatar (multipart/form-data)
+export async function uploadAvatarApi(file: File) {
+  const form = new FormData();
+  form.append("avatar", file);
+  const res = await fetch(`${API_BASE}/profile/avatar`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to upload avatar");
+  return data as { message: string; avatarUrl: string };
+}
+// Reset avatar to default
+export async function resetAvatarApi() {
+  const res = await fetch(`${API_BASE}/profile/avatar`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reset avatar");
+  return data as { message: string; avatarUrl: string };
+}
+// Persist a Cloudinary-uploaded avatar (direct upload path)
+export async function saveCloudAvatarApi(payload: {
+  avatarUrl: string;
+  publicId: string;
+}) {
+  const res = await fetch(`${API_BASE}/profile/avatar/cloud`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to save cloud avatar");
+  return data as { message: string; avatarUrl: string };
+}
 // Fetch all staff (admin)
 export async function getAllStaffApi() {
   const res = await fetch(`${API_BASE}/admin/all-staff`, {
