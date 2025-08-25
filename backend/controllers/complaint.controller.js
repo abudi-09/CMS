@@ -54,7 +54,7 @@ export const createComplaint = async (req, res) => {
         priority: complaint.priority,
         department: complaint.department,
         submittedBy: complaint.submittedBy?.toString(),
-  evidenceFile: complaint.evidenceFile || null,
+        evidenceFile: complaint.evidenceFile || null,
       });
     } catch (_) {}
     // Log activity
@@ -67,8 +67,8 @@ export const createComplaint = async (req, res) => {
       details: { title, category, complaintCode: complaint.complaintCode },
     });
     const response = {
-      id: complaint.complaintCode, // human friendly code
-      mongoId: complaint._id,      // underlying ObjectId
+      id: complaint._id.toString(), // real database id
+      complaintCode: complaint.complaintCode, // human-friendly code
       title: complaint.title,
       category: complaint.category,
       description: complaint.description,
@@ -78,7 +78,9 @@ export const createComplaint = async (req, res) => {
       submittedDate: complaint.createdAt,
       lastUpdated: complaint.updatedAt,
     };
-    res.status(201).json({ message: "Complaint submitted", complaint: response });
+    res
+      .status(201)
+      .json({ message: "Complaint submitted", complaint: response });
   } catch (err) {
     console.error("Create complaint error:", err.message, err.stack);
     res
@@ -91,6 +93,9 @@ export const createComplaint = async (req, res) => {
 // 2. User views/filter/search their complaints with feedback support
 export const getMyComplaints = async (req, res) => {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     const { status, department, search } = req.query;
 
     const filters = {
@@ -103,32 +108,65 @@ export const getMyComplaints = async (req, res) => {
       filters.title = { $regex: search, $options: "i" };
     }
 
-    const complaints = await Complaint.find(filters)
-      .populate("assignedTo", "name email")
-      .sort({ updatedAt: -1 });
+    let complaints;
+    try {
+      complaints = await Complaint.find(filters)
+        .populate("assignedTo", "name email")
+        .sort({ updatedAt: -1 });
+    } catch (innerErr) {
+      console.error("[getMyComplaints] Query failure:", innerErr);
+      throw innerErr;
+    }
 
-    const formatted = complaints.map((c) => ({
-      id: c.complaintCode || c._id,
-      title: c.title,
-      status: c.status,
-      department: c.department,
-      category: c.category,
-      submittedDate: c.createdAt,
-      lastUpdated: c.updatedAt,
-      assignedTo: c.assignedTo?.name || null,
-      deadline: c.deadline || null,
-      sourceRole: c.sourceRole,
-      assignedByRole: c.assignedByRole,
-      assignmentPath: c.assignmentPath || [],
-      submittedTo: c.submittedTo || null,
-      feedback: c.status === "Resolved" ? c.feedback || null : null,
-      isEscalated: c.isEscalated || false,
-    }));
+    const formatted = complaints
+      .map((c, idx) => {
+        if (!c) {
+          console.warn(`[getMyComplaints] Null complaint at index ${idx}`);
+          return null;
+        }
+        let idString = "";
+        try {
+          idString = c._id ? c._id.toString() : "";
+        } catch (e) {
+          console.error(
+            "[getMyComplaints] _id toString failed for complaint",
+            c?._id,
+            e
+          );
+        }
+        return {
+          id: idString,
+          complaintCode: c.complaintCode || null,
+          title: c.title || "Untitled Complaint",
+          status: c.status || "Pending",
+          department: c.department || null,
+          category: c.category || null,
+          submittedDate: c.createdAt || null,
+          lastUpdated: c.updatedAt || null,
+          assignedTo: c.assignedTo?.name || null,
+          deadline: c.deadline || null,
+          sourceRole: c.sourceRole || null,
+          assignedByRole: c.assignedByRole || null,
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? c.assignmentPath
+            : [],
+          submittedTo: c.submittedTo || null,
+          feedback: c.status === "Resolved" ? c.feedback || null : null,
+          isEscalated: !!c.isEscalated,
+        };
+      })
+      .filter(Boolean);
 
     res.status(200).json(formatted);
   } catch (err) {
-    console.error("Get my complaints error:", err.message);
-    res.status(500).json({ error: "Failed to fetch complaints" });
+    console.error(
+      "Get my complaints error:",
+      err && err.message,
+      err && err.stack
+    );
+    res
+      .status(500)
+      .json({ error: "Failed to fetch complaints", details: err?.message });
   }
 };
 
@@ -139,7 +177,8 @@ export const getAllComplaints = async (req, res) => {
       .populate("submittedBy", "name")
       .populate("assignedTo", "name");
     const formatted = complaints.map((c) => ({
-      id: c.complaintCode || c._id,
+      id: c._id.toString(),
+      complaintCode: c.complaintCode,
       title: c.title,
       status: c.status,
       department: c.department,
@@ -213,6 +252,42 @@ export const assignComplaint = async (req, res) => {
     res.status(200).json({ message, complaint });
   } catch (err) {
     res.status(500).json({ error: "Failed to (re)assign complaint" });
+  }
+};
+
+// 4b. Admin approves a pending complaint (without assigning yet)
+export const approveComplaint = async (req, res) => {
+  try {
+    const complaintId = req.params.id;
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (complaint.status !== "Pending") {
+      return res
+        .status(400)
+        .json({ error: "Only pending complaints can be approved" });
+    }
+    // Mark as in progress to signal it's been accepted for handling
+    complaint.status = "In Progress";
+    complaint.assignedByRole = normalizeUserRole(req.user.role);
+    if (!complaint.assignmentPath) complaint.assignmentPath = [];
+    if (!complaint.assignmentPath.includes(req.user.role)) {
+      complaint.assignmentPath.push(normalizeUserRole(req.user.role));
+    }
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Complaint Approved",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { status: complaint.status },
+    });
+
+    res.status(200).json({ message: "Complaint approved", complaint });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to approve complaint" });
   }
 };
 

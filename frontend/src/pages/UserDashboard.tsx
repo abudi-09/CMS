@@ -1,6 +1,5 @@
-// For demo/testing: import mockComplaint
-import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getMyComplaintsApi } from "@/lib/api";
 import { useComplaints } from "@/context/ComplaintContext";
 import {
   Card,
@@ -26,96 +25,82 @@ import { Complaint } from "@/components/ComplaintCard";
 // Note: API hooks available but not used in this mock-driven demo
 
 export function UserDashboard() {
-  // MOCK DATA ENABLED BY DEFAULT
-  // Overdue: complaints 1, 3, 6; Not overdue: 2, 4, 5
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const now = new Date();
-  const demoComplaints = [
-    {
-      ...baseMockComplaint,
-      id: "user-mock1",
-      title: "WiFi not working in hostel",
-      description: "The WiFi in hostel block B has been down for 3 days.",
-      priority: "High",
-      status: "Pending",
-      assignedStaff: "Jane Staff",
-      submittedBy: "Current User",
-      submittedDate: new Date(now.getTime() - 2 * 86400000),
-      assignedDate: new Date(now.getTime() - 2 * 86400000),
-      lastUpdated: new Date(now.getTime() - 1 * 43200000),
-      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    },
-    {
-      ...baseMockComplaint,
-      id: "user-mock2",
-      title: "Broken AC in Lecture Hall",
-      description: "The air conditioning in Hall A-101 is broken.",
-      priority: "Critical",
-      status: "In Progress",
-      assignedStaff: "Mike Tech",
-      submittedBy: "Current User",
-      submittedDate: new Date(now.getTime() - 3 * 86400000),
-      assignedDate: new Date(now.getTime() - 3 * 86400000),
-      lastUpdated: new Date(now.getTime() - 2 * 43200000),
-      deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
-    },
-    {
-      ...baseMockComplaint,
-      id: "user-mock3",
-      title: "Projector not working",
-      description: "Projector in Room 204 is not turning on.",
-      priority: "Medium",
-      status: "Resolved",
-      assignedStaff: "Sarah Fixit",
-      submittedBy: "Current User",
-      submittedDate: new Date(now.getTime() - 4 * 86400000),
-      assignedDate: new Date(now.getTime() - 4 * 86400000),
-      lastUpdated: new Date(now.getTime() - 3 * 43200000),
-      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-    },
-    {
-      ...baseMockComplaint,
-      id: "user-mock4",
-      title: "Cafeteria food quality",
-      description: "Food quality in cafeteria has declined.",
-      priority: "High",
-      status: "Pending",
-      assignedStaff: "Chef Tony",
-      submittedBy: "Current User",
-      submittedDate: new Date(now.getTime() - 1 * 86400000),
-      assignedDate: new Date(now.getTime() - 1 * 86400000),
-      lastUpdated: new Date(now.getTime() - 1 * 43200000),
-      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-    },
-    {
-      ...baseMockComplaint,
-      id: "user-mock5",
-      title: "Library computers slow",
-      description: "Library computers are extremely slow.",
-      priority: "Low",
-      status: "Closed",
-      assignedStaff: "Libby Tech",
-      submittedBy: "Current User",
-      submittedDate: new Date(now.getTime() - 5 * 86400000),
-      assignedDate: new Date(now.getTime() - 5 * 86400000),
-      lastUpdated: new Date(now.getTime() - 4 * 43200000),
-      deadline: new Date(now.getTime() + 1 * 86400000), // not overdue
-    },
-    {
-      ...baseMockComplaint,
-      id: "user-mock6",
-      title: "Leaking roof in dorm",
-      description: "There is a leak in the roof of Dorm 3.",
-      priority: "Medium",
-      status: "Pending",
-      assignedStaff: "Maintenance Bob",
-      submittedBy: "Current User",
-      submittedDate: new Date(now.getTime() - 6 * 86400000),
-      assignedDate: new Date(now.getTime() - 6 * 86400000),
-      lastUpdated: new Date(now.getTime() - 5 * 43200000),
-      deadline: new Date(now.getTime() - 3 * 86400000), // overdue
-    },
-  ];
-  const complaints = demoComplaints;
+
+  const loadComplaints = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getMyComplaintsApi();
+      interface DTO {
+        id?: string;
+        _id?: string;
+        complaintCode?: string;
+        title?: string;
+        subject?: string;
+        description?: string;
+        category?: string;
+        department?: string;
+        status?: string;
+        priority?: string;
+        submittedBy?: { fullName?: string; name?: string } | null;
+        assignedTo?: { fullName?: string; name?: string; role?: string } | null;
+        assignedByRole?: string | null;
+        assignmentPath?: string[];
+        assignedAt?: string;
+        createdAt?: string;
+        updatedAt?: string;
+        deadline?: string;
+        feedback?: { rating: number; comment: string } | null;
+        resolutionNote?: string;
+        evidenceFile?: string;
+        isEscalated?: boolean;
+        sourceRole?: string;
+        submittedTo?: string;
+        department?: string;
+      }
+      const arr: DTO[] = Array.isArray(data) ? (data as DTO[]) : [];
+      const mapped: Complaint[] = arr.map((c: DTO) => ({
+        id: c.id || c._id || c.complaintCode || "",
+        title: c.title || c.subject || "Untitled Complaint",
+        description: c.description || "No description provided",
+        category: c.category || c.department || "General",
+        status: (c.status || "Pending") as Complaint["status"],
+        priority: (c.priority || "Medium") as Complaint["priority"],
+        submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+        assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
+        assignedStaffRole: c.assignedTo?.role,
+        assignedByRole: c.assignedByRole || null,
+        assignmentPath: c.assignmentPath || [],
+        submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
+        lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+        assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
+        deadline: c.deadline ? new Date(c.deadline) : undefined,
+        feedback: c.feedback
+          ? { rating: c.feedback.rating, comment: c.feedback.comment }
+          : undefined,
+        resolutionNote: c.resolutionNote,
+        evidenceFile: c.evidenceFile,
+        isEscalated: !!c.isEscalated,
+        sourceRole: c.sourceRole,
+        submittedTo: c.submittedTo,
+        department: c.department,
+      }));
+      setComplaints(mapped);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg || "Failed to load complaints");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadComplaints();
+  }, []);
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
@@ -137,20 +122,7 @@ export function UserDashboard() {
     updateComplaint(complaintId, updates);
   };
 
-  const myComplaints = complaints
-    .filter((c) => c.submittedBy === "Current User")
-    .map((c) => ({
-      ...c,
-      status: c.status as
-        | "Unassigned"
-        | "Assigned"
-        | "In Progress"
-        | "Resolved"
-        | "Closed"
-        | "Overdue"
-        | "Pending",
-      priority: c.priority as "High" | "Critical" | "Medium" | "Low",
-    }));
+  const myComplaints = complaints; // already user-specific from backend
   function isOverdue(complaint: Complaint) {
     if (!complaint.deadline) return false;
     return (
@@ -185,8 +157,31 @@ export function UserDashboard() {
         </p>
       </div>
 
-      {/* Summary Cards */}
-      <SummaryCards complaints={myComplaints} userRole="user" />
+      {/* Loading / Error */}
+      {loading && (
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle>Loading complaints...</CardTitle>
+            <CardDescription>Please wait while we fetch data.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+      {error && !loading && (
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-destructive">Failed to load</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={loadComplaints}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      {!loading && !error && (
+        <SummaryCards complaints={myComplaints} userRole="user" />
+      )}
 
       {/* Quick Actions */}
       <div className="w-full pb-2">
@@ -243,6 +238,15 @@ export function UserDashboard() {
             <Button
               variant="outline"
               size="sm"
+              onClick={loadComplaints}
+              aria-label="Refresh complaints"
+              className="w-full sm:w-auto min-h-11"
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => navigate("/my-complaints")}
               aria-label="View all complaints"
               className="w-full sm:w-auto min-h-11"
@@ -281,7 +285,7 @@ export function UserDashboard() {
         <div className="w-full overflow-x-auto">
           <div className="block w-full max-w-full">
             <ComplaintTable
-              complaints={recentComplaints}
+              complaints={!loading && !error ? recentComplaints : []}
               onView={handleViewComplaint}
               userRole="user"
               title="My Recent Complaints"
@@ -289,6 +293,11 @@ export function UserDashboard() {
               showOverdueColumn
               isOverdueFn={isOverdue}
             />
+            {!loading && !error && recentComplaints.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-4 px-2">
+                You haven't submitted any complaints yet.
+              </p>
+            )}
           </div>
         </div>
       </div>

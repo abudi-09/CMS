@@ -49,53 +49,7 @@ const statusColors = {
   Closed: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
 };
 
-const mockComplaints: Complaint[] = [
-  {
-    id: "C1001",
-    title: "Leaking faucet in restroom",
-    description: "The faucet in the main restroom is leaking.",
-    category: "Facilities",
-    priority: "High",
-    status: "Pending",
-    submittedBy: "John Doe",
-    assignedStaff: "Staff A",
-    submittedDate: new Date(Date.now() - 86400000 * 2),
-    lastUpdated: new Date(Date.now() - 86400000 * 1),
-    isEscalated: false,
-    evidenceFile: "",
-    feedback: null,
-  },
-  {
-    id: "C1002",
-    title: "WiFi not working",
-    description: "WiFi is down in the library area.",
-    category: "IT",
-    priority: "Medium",
-    status: "In Progress",
-    submittedBy: "Jane Smith",
-    assignedStaff: "Staff B",
-    submittedDate: new Date(Date.now() - 86400000 * 3),
-    lastUpdated: new Date(Date.now() - 86400000 * 2),
-    isEscalated: true,
-    evidenceFile: "",
-    feedback: null,
-  },
-  {
-    id: "C1003",
-    title: "Library AC not working",
-    description: "AC in library is broken since last week.",
-    category: "Facilities",
-    priority: "Critical",
-    status: "Resolved",
-    submittedBy: "Alice Brown",
-    assignedStaff: "Staff C",
-    submittedDate: new Date(Date.now() - 86400000 * 7),
-    lastUpdated: new Date(Date.now() - 86400000 * 1),
-    isEscalated: false,
-    evidenceFile: "",
-    feedback: { rating: 4, comment: "Resolved quickly, thanks!" },
-  },
-];
+// Removed mock fallback data: component will now render empty state when no complaints provided.
 
 export function ComplaintTable({
   complaints,
@@ -118,7 +72,7 @@ export function ComplaintTable({
   const [localPriorityFilter, setLocalPriorityFilter] =
     useState<string>(priorityFilter);
 
-  // Use mock data for user dashboard, otherwise use provided complaints
+  // Use provided complaints only (no mock fallback)
   // Type guard for staff object
   type Staff = { name?: string; email?: string };
   const getStaffDisplay = (staff: unknown) => {
@@ -130,13 +84,8 @@ export function ComplaintTable({
     }
     return "Assigned";
   };
-  // Prefer provided complaints; if none provided and role is user, fall back to mock for demo
-  const complaintsData =
-    complaints && complaints.length > 0
-      ? complaints
-      : userRole === "user"
-      ? mockComplaints
-      : [];
+  // If none provided, remain empty so dashboard shows true empty state
+  const complaintsData = complaints || [];
   const categories = Array.from(new Set(complaintsData.map((c) => c.category)));
   const allowedStatuses = ["Pending", "In Progress", "Resolved", "Closed"];
   const showAssignedStaff = showAssignedStaffColumn;
