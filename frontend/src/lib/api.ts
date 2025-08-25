@@ -747,3 +747,53 @@ export async function getAllUsersApi(opts?: {
   if (!res.ok) throw new Error(data.error || "Failed to fetch users");
   return data as UserDto[];
 }
+
+// Lightweight API client used by other api helper modules (e.g. categoryApi)
+// Provides consistent error handling and credential inclusion.
+// Allow any serialisable JSON body (kept loose to avoid friction in callers)
+type JsonBody = Record<string, unknown> | unknown[] | undefined;
+type ParsedJson = unknown;
+
+async function request<T = ParsedJson>(
+  method: string,
+  path: string,
+  body?: JsonBody
+): Promise<T> {
+  const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+  const res = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data: ParsedJson = null;
+  try {
+    data = await res.json();
+  } catch (_) {
+    // ignore json parse error, keep data null
+  }
+  if (!res.ok) {
+    let message = `Request failed (${method} ${path})`;
+    if (data && typeof data === "object") {
+      const maybeErr = data as { error?: unknown; message?: unknown };
+      if (maybeErr.error && typeof maybeErr.error === "string") {
+        message = maybeErr.error;
+      } else if (maybeErr.message && typeof maybeErr.message === "string") {
+        message = maybeErr.message;
+      }
+    }
+    throw new Error(message);
+  }
+  return (data ?? undefined) as T;
+}
+
+export const apiClient = {
+  get: <T = ParsedJson>(path: string) => request<T>("GET", path),
+  post: <T = ParsedJson>(path: string, body?: unknown) =>
+    request<T>("POST", path, body as JsonBody),
+  patch: <T = ParsedJson>(path: string, body?: unknown) =>
+    request<T>("PATCH", path, body as JsonBody),
+  put: <T = ParsedJson>(path: string, body?: unknown) =>
+    request<T>("PUT", path, body as JsonBody),
+  delete: <T = ParsedJson>(path: string) => request<T>("DELETE", path),
+};

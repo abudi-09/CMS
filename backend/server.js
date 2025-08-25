@@ -15,6 +15,7 @@ import feedbackRoutes from "./routes/feedback.routes.js";
 import activityLogRoutes from "./routes/activityLog.routes.js";
 import approvalRoutes from "./routes/approval.routes.js";
 import usersRoutes from "./routes/users.route.js";
+import categoryRoutes from "./routes/category.routes.js";
 import { checkEscalations } from "./utils/escalation.js";
 const app = express();
 app.use(corsMiddleware);
@@ -30,6 +31,7 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/activity-logs", activityLogRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/categories", categoryRoutes); // category management (admin guarded in route file)
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
