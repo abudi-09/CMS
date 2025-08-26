@@ -610,7 +610,7 @@ export function MyAssignedComplaints() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
           My Assigned Complaints
         </h1>
         <p className="text-muted-foreground">
@@ -619,17 +619,17 @@ export function MyAssignedComplaints() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <Card
           onClick={applyRecentFilter}
           className="cursor-pointer hover:shadow"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
             <CardTitle className="text-sm font-medium">
               Recently Assigned
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <div className="text-2xl font-bold">{recentTop3.length}</div>
             <p className="text-xs text-muted-foreground">Top 3 newest</p>
           </CardContent>
@@ -638,10 +638,10 @@ export function MyAssignedComplaints() {
           onClick={applyInProgressFilter}
           className="cursor-pointer hover:shadow"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
             <CardTitle className="text-sm font-medium">In Progress</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <div className="text-2xl font-bold">{inProgressCount}</div>
             <p className="text-xs text-muted-foreground">Working now</p>
           </CardContent>
@@ -650,12 +650,12 @@ export function MyAssignedComplaints() {
           onClick={applyResolvedThisMonthFilter}
           className="cursor-pointer hover:shadow"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
             <CardTitle className="text-sm font-medium">
               Resolved This Month
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <div className="text-2xl font-bold">{resolvedThisMonthCount}</div>
             <p className="text-xs text-muted-foreground">This calendar month</p>
           </CardContent>
@@ -664,10 +664,10 @@ export function MyAssignedComplaints() {
           onClick={applyOverdueFilter}
           className="cursor-pointer hover:shadow"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
             <CardTitle className="text-sm font-medium">Overdue</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <div className="text-2xl font-bold">{overdueCount}</div>
             <p className="text-xs text-muted-foreground">Past deadline</p>
           </CardContent>
@@ -676,7 +676,7 @@ export function MyAssignedComplaints() {
 
       {/* Main Content */}
       <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
-        <CardHeader>
+        <CardHeader className="p-3 sm:p-4 md:p-6">
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             Assigned Complaints ({filtered.length})
@@ -685,19 +685,25 @@ export function MyAssignedComplaints() {
           {/* Tabs: category groups per requirements */}
           <div className="pt-2">
             <Tabs value={categoryTab} onValueChange={onCategoryTabChange}>
-              <TabsList className="flex flex-wrap gap-2">
-                <TabsTrigger value="direct">
-                  Direct Complaints from Students
+              <TabsList className="flex gap-2 overflow-x-auto md:overflow-visible whitespace-nowrap md:whitespace-normal -mx-2 px-2 py-1">
+                <TabsTrigger className="shrink-0" value="direct">
+                  Direct Complaints
                 </TabsTrigger>
-                <TabsTrigger value="assignedByHod">Assigned by HOD</TabsTrigger>
-                <TabsTrigger value="accepted">Accepted</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected</TabsTrigger>
+                <TabsTrigger className="shrink-0" value="assignedByHod">
+                  Assigned by HOD
+                </TabsTrigger>
+                <TabsTrigger className="shrink-0" value="accepted">
+                  Accepted
+                </TabsTrigger>
+                <TabsTrigger className="shrink-0" value="rejected">
+                  Rejected
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           {/* Search and Filter Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+          <div className="flex flex-col md:flex-row gap-4 pt-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -708,7 +714,7 @@ export function MyAssignedComplaints() {
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col md:flex-row gap-2">
               <div className="flex items-center gap-2 min-w-0 sm:min-w-[180px]">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -761,10 +767,10 @@ export function MyAssignedComplaints() {
           </div>
         </CardHeader>
 
-        <CardContent>
-          {/* Desktop Table */}
-          <div className="hidden lg:block rounded-md border overflow-x-auto bg-transparent">
-            <Table className="bg-transparent">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          {/* Desktop/Tablet Table */}
+          <div className="hidden md:block rounded-md border overflow-x-auto bg-transparent">
+            <Table className="bg-transparent min-w-[760px]">
               <style>{`
                 .my-assigned-table tr,
                 .my-assigned-table th,
@@ -939,7 +945,7 @@ export function MyAssignedComplaints() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="lg:hidden space-y-4">
+          <div className="md:hidden space-y-4">
             {filtered.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {searchTerm ||
