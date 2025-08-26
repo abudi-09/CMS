@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -33,6 +33,22 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Build absolute avatar URL if backend returned a relative path
+  const assetBase = (import.meta.env.VITE_API_BASE || "http://localhost:5000/api").replace(/\/api$/, "");
+  const avatarSrc = user?.avatarUrl
+    ? user.avatarUrl.startsWith("http")
+      ? user.avatarUrl
+      : `${assetBase}${user.avatarUrl}`
+    : undefined;
+
+  const initials = useMemo(() => {
+    if (!user) return "";
+    const raw = (user.fullName || user.name || "").trim();
+    if (!raw) return "U";
+    const parts = raw.split(/\s+/).filter(Boolean);
+    return parts.slice(0, 2).map(p => p[0]?.toUpperCase()).join("");
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -78,17 +94,21 @@ export function Layout({ children }: LayoutProps) {
                     className="relative h-9 w-9 rounded-full p-0"
                     aria-label="User menu"
                   >
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs font-medium">
-                        {(() => {
-                          const nm = (user?.name || user?.fullName || "").trim();
-                          if (!nm) return <User className="h-4 w-4 text-muted-foreground" />;
-                          return nm
-                            .split(/\s+/)
-                            .slice(0, 2)
-                            .map((n) => n[0]?.toUpperCase())
-                            .join("");
-                        })()}
+                    {/* Key forces remount so Radix Avatar recalculates fallback visibility after avatar removed */}
+                    <Avatar key={user?.avatarUrl || "no-avatar"} className="h-8 w-8 bg-muted overflow-hidden relative">
+                      {avatarSrc && (
+                        <AvatarImage
+                          src={avatarSrc}
+                          alt={(user?.fullName || user?.name || "User avatar") as string}
+                          className="object-cover"
+                          onError={(e) => {
+                            // Hide broken image so fallback shows immediately
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      )}
+                      <AvatarFallback className="flex items-center justify-center h-full w-full text-[11px] font-semibold uppercase tracking-wide select-none text-gray-800 dark:text-gray-200">
+                        {initials}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
