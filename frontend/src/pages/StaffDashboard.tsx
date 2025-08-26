@@ -139,6 +139,36 @@ export function StaffDashboard() {
   const [showLogModal, setShowLogModal] = useState(false);
   const [logComplaintId, setLogComplaintId] = useState<string | null>(null);
   const [logs, setLogs] = useState([]);
+  // Accepted/Rejected tracking synced with My Assigned tabs
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("myAssignedAccepted");
+      if (!raw) return new Set<string>();
+      const arr = JSON.parse(raw) as string[];
+      return new Set(arr);
+    } catch (e) {
+      // ignore malformed localStorage content
+      return new Set<string>();
+    }
+  });
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("myAssignedRejected");
+      if (!raw) return new Set<string>();
+      const arr = JSON.parse(raw) as string[];
+      return new Set(arr);
+    } catch (e) {
+      // ignore malformed localStorage content
+      return new Set<string>();
+    }
+  });
+  const persistSet = (key: string, set: Set<string>) => {
+    try {
+      localStorage.setItem(key, JSON.stringify([...set]));
+    } catch (e) {
+      // ignore storage errors
+    }
+  };
 
   // Hardcoded mock audit log data for each complaint
   type AuditLog = {
@@ -250,6 +280,31 @@ export function StaffDashboard() {
     });
   };
 
+  // Quick actions: Accept / Reject a pending complaint
+  const acceptComplaintQuick = (id: string) => {
+    setAcceptedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      persistSet("myAssignedAccepted", next);
+      return next;
+    });
+    // Optional: update local complaint status if desired
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, status: "In Progress" } : c))
+    );
+    toast({ title: "Accepted", description: `Complaint #${id} accepted.` });
+  };
+  const rejectComplaintQuick = (id: string) => {
+    setRejectedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      persistSet("myAssignedRejected", next);
+      return next;
+    });
+    // Optional: keep status as Pending or set to a custom 'Rejected' status if supported elsewhere
+    toast({ title: "Rejected", description: `Complaint #${id} rejected.` });
+  };
+
   // Calculate stats for summary cards
   const stats = {
     assigned: complaints.length,
@@ -325,9 +380,14 @@ export function StaffDashboard() {
     Closed: "bg-gray-100 text-gray-800 border-gray-200",
   } as const;
 
-  // Show only 3 most recent complaints on the dashboard
-  // If staff want to see more, they must go to the My Assigned page
-  const recentComplaints = [...complaints]
+  // Pending-only recent complaints: show the 3 most recent, excluding accepted/rejected
+  const recentComplaints = complaints
+    .filter(
+      (c) =>
+        c.status === "Pending" &&
+        !acceptedIds.has(c.id) &&
+        !rejectedIds.has(c.id)
+    )
     .sort((a, b) => {
       const aDate = new Date(a.assignedDate || a.submittedDate).valueOf() || 0;
       const bDate = new Date(b.assignedDate || b.submittedDate).valueOf() || 0;
@@ -625,6 +685,25 @@ export function StaffDashboard() {
                       </TableCell>
                       <TableCell className="text-right flex gap-2 justify-end">
                         <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => acceptComplaintQuick(complaint.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          aria-label={`Accept complaint ${complaint.title}`}
+                          title="Accept"
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => rejectComplaintQuick(complaint.id)}
+                          aria-label={`Reject complaint ${complaint.title}`}
+                          title="Reject"
+                        >
+                          Reject
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewAndUpdate(complaint)}
@@ -728,6 +807,22 @@ export function StaffDashboard() {
                     </div>
 
                     <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => acceptComplaintQuick(complaint.id)}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => rejectComplaintQuick(complaint.id)}
+                        className="flex-1"
+                      >
+                        Reject
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

@@ -900,7 +900,7 @@ export function MyAssignedComplaints() {
                                 variant="default"
                                 size="sm"
                                 onClick={() => acceptComplaint(complaint.id)}
-                                className="ml-2"
+                                className="ml-2 bg-green-600 hover:bg-green-700 text-white"
                               >
                                 <ThumbsUp className="h-4 w-4 mr-1" />
                                 Re-accept
@@ -908,25 +908,17 @@ export function MyAssignedComplaints() {
                             ) : (
                               <>
                                 <Button
-                                  variant={
-                                    acceptedIds.has(complaint.id)
-                                      ? "default"
-                                      : "outline"
-                                  }
+                                  variant="default"
                                   size="sm"
                                   onClick={() => acceptComplaint(complaint.id)}
                                   disabled={acceptedIds.has(complaint.id)}
-                                  className="ml-2"
+                                  className="ml-2 bg-green-600 hover:bg-green-700 text-white disabled:opacity-70"
                                 >
                                   <ThumbsUp className="h-4 w-4 mr-1" />
                                   Accept
                                 </Button>
                                 <Button
-                                  variant={
-                                    rejectedIds.has(complaint.id)
-                                      ? "destructive"
-                                      : "outline"
-                                  }
+                                  variant="destructive"
                                   size="sm"
                                   onClick={() => rejectComplaint(complaint.id)}
                                   disabled={rejectedIds.has(complaint.id)}
@@ -1083,7 +1075,7 @@ export function MyAssignedComplaints() {
                             size="sm"
                             variant="default"
                             onClick={() => acceptComplaint(complaint.id)}
-                            className="flex-1"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                           >
                             <ThumbsUp className="h-4 w-4 mr-2" />
                             Re-accept
@@ -1091,15 +1083,11 @@ export function MyAssignedComplaints() {
                         ) : (
                           <>
                             <Button
-                              variant={
-                                acceptedIds.has(complaint.id)
-                                  ? "default"
-                                  : "outline"
-                              }
+                              variant="default"
                               size="sm"
                               onClick={() => acceptComplaint(complaint.id)}
                               disabled={acceptedIds.has(complaint.id)}
-                              className="flex-1"
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-70"
                             >
                               <ThumbsUp className="h-4 w-4 mr-2" />
                               {acceptedIds.has(complaint.id)
@@ -1107,11 +1095,7 @@ export function MyAssignedComplaints() {
                                 : "Accept"}
                             </Button>
                             <Button
-                              variant={
-                                rejectedIds.has(complaint.id)
-                                  ? "destructive"
-                                  : "outline"
-                              }
+                              variant="destructive"
                               size="sm"
                               onClick={() => rejectComplaint(complaint.id)}
                               disabled={rejectedIds.has(complaint.id)}
