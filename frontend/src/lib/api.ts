@@ -230,6 +230,25 @@ export async function reactivateDeanApi(deanId: string) {
   return data;
 }
 
+// Public: list active staff in the authenticated user's department (approved + active)
+export async function listMyDepartmentActiveStaffApi() {
+  const res = await fetch(`${API_BASE}/staff/department/active`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
 // Dean stage: HOD approvals
 export async function getDeanPendingHodApi() {
   const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {

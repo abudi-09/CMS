@@ -16,6 +16,7 @@ import activityLogRoutes from "./routes/activityLog.routes.js";
 import approvalRoutes from "./routes/approval.routes.js";
 import usersRoutes from "./routes/users.route.js";
 import categoryRoutes from "./routes/category.routes.js";
+import staffRoutes from "./routes/staff.routes.js";
 import { checkEscalations } from "./utils/escalation.js";
 import path from "path";
 import fs from "fs";
@@ -34,6 +35,7 @@ app.use("/api/activity-logs", activityLogRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/categories", categoryRoutes); // category management (admin guarded in route file)
+app.use("/api/staff", staffRoutes);
 // Static serving for uploaded avatars
 const uploadsPath = path.join(process.cwd(), "backend", "uploads");
 fs.mkdirSync(uploadsPath, { recursive: true });

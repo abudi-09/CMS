@@ -40,6 +40,7 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 import { useAuth } from "@/components/auth/AuthContext";
 import { uploadEvidenceFile } from "@/lib/cloudinary";
+import { listMyDepartmentActiveStaffApi } from "@/lib/api";
 
 // Categories now come from context
 
@@ -60,7 +61,12 @@ export function SubmitComplaint() {
   ];
   const { addComplaint } = useComplaints();
   const { categories } = useContext(CategoryContext); // student-visible categories (may exclude staff/hod/dean/admin specific ones)
-  interface RoleCategory { _id: string; name: string; roles?: string[]; status?: string; }
+  interface RoleCategory {
+    _id: string;
+    name: string;
+    roles?: string[];
+    status?: string;
+  }
   const [targetCategories, setTargetCategories] = useState<RoleCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const { user } = useAuth();
@@ -99,6 +105,11 @@ export function SubmitComplaint() {
   const [showDetailModal, setShowDetailModal] = useReactState(false);
   const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
+  // Recipient options for staff (filtered by department, approved, active)
+  const [staffOptions, setStaffOptions] = useState<
+    Array<{ id: string; fullName: string }>
+  >([]);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
   // Remove old submitTo, use formData.role
   // If you have user context, import/use it here
   // Example: const { user } = useAuth();
@@ -112,7 +123,10 @@ export function SubmitComplaint() {
     setLoadingCategories(true);
     try {
       const backendRole = role; // role keys match backend (hod, staff, dean, admin)
-      const data = await fetchCategoriesApi({ role: backendRole, status: "active" });
+      const data = await fetchCategoriesApi({
+        role: backendRole,
+        status: "active",
+      });
       setTargetCategories(Array.isArray(data) ? data : []);
     } catch (err) {
       setTargetCategories([]);
@@ -126,6 +140,39 @@ export function SubmitComplaint() {
     if (formData.role) loadTargetCategories(formData.role);
     else setTargetCategories([]);
   }, [formData.role]);
+
+  // Load staff recipients for direct-to-staff flow with strict filters
+  useEffect(() => {
+    const loadStaffRecipients = async () => {
+      if (formData.role !== "staff" || !currentDepartment) {
+        setStaffOptions([]);
+        return;
+      }
+      setRecipientsLoading(true);
+      try {
+        const users = await listMyDepartmentActiveStaffApi();
+        const filtered = (users || [])
+          .filter((u) => (u.department || "") === currentDepartment)
+          .map((u) => ({
+            id: u._id,
+            fullName: u.fullName || u.name || u.username || "",
+          }))
+          // remove empties or duplicates by id
+          .filter((o) => o.id && o.fullName)
+          .reduce((acc: Array<{ id: string; fullName: string }>, cur) => {
+            if (!acc.find((x) => x.id === cur.id)) acc.push(cur);
+            return acc;
+          }, []);
+        setStaffOptions(filtered);
+      } catch (err) {
+        // Fallback to empty; UI will show no recipients
+        setStaffOptions([]);
+      } finally {
+        setRecipientsLoading(false);
+      }
+    };
+    loadStaffRecipients();
+  }, [formData.role, currentDepartment]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +198,20 @@ export function SubmitComplaint() {
       });
       return;
     }
+    // Extra validation for direct-to-staff submissions
+    if (formData.role === "staff") {
+      const inList = staffOptions.some((s) => s.id === formData.recipient);
+      if (!inList) {
+        toast({
+          title: "Invalid recipient",
+          description:
+            "Please select an approved staff member from your department.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       let evidenceFileUrl = uploadedEvidenceUrl;
@@ -161,8 +222,8 @@ export function SubmitComplaint() {
             onProgress: (p) => setUploadProgress(p),
             folder: "complaints_evidence",
           });
-            evidenceFileUrl = result.url;
-            setUploadedEvidenceUrl(result.url);
+          evidenceFileUrl = result.url;
+          setUploadedEvidenceUrl(result.url);
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : "Upload failed";
           setUploadError(message);
@@ -213,7 +274,7 @@ export function SubmitComplaint() {
         submittedBy: formData.anonymous
           ? "Anonymous"
           : user?.username || "Current User",
-  evidenceFile: evidenceFileUrl,
+        evidenceFile: evidenceFileUrl,
         submittedTo,
         department: user?.department || "Unknown Department",
         // Who created the complaint (role)
@@ -271,10 +332,10 @@ export function SubmitComplaint() {
       deadline: "",
       anonymous: false,
     });
-  setEvidenceFile(null);
-  setUploadedEvidenceUrl("");
-  setUploadProgress(0);
-  setUploadError("");
+    setEvidenceFile(null);
+    setUploadedEvidenceUrl("");
+    setUploadProgress(0);
+    setUploadError("");
     setComplaintId("");
   };
 
@@ -505,16 +566,26 @@ export function SubmitComplaint() {
                   required
                 >
                   <SelectTrigger className="rounded-lg">
-                    <SelectValue placeholder={loadingCategories ? "Loading..." : "Select complaint category"} />
+                    <SelectValue
+                      placeholder={
+                        loadingCategories
+                          ? "Loading..."
+                          : "Select complaint category"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {(!loadingCategories ? targetCategories : []).map((c: RoleCategory) => (
-                      <SelectItem key={c._id} value={c.name}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
+                    {(!loadingCategories ? targetCategories : []).map(
+                      (c: RoleCategory) => (
+                        <SelectItem key={c._id} value={c.name}>
+                          {c.name}
+                        </SelectItem>
+                      )
+                    )}
                     {!loadingCategories && targetCategories.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">No categories for this role</div>
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        No categories for this role
+                      </div>
                     )}
                   </SelectContent>
                 </Select>
@@ -539,16 +610,32 @@ export function SubmitComplaint() {
                   required
                 >
                   <SelectTrigger className="rounded-lg">
-                    <SelectValue placeholder="Select recipient" />
+                    <SelectValue
+                      placeholder={
+                        formData.role === "staff"
+                          ? recipientsLoading
+                            ? "Loading recipients..."
+                            : staffOptions.length > 0
+                            ? "Select staff in your department"
+                            : "No eligible staff found"
+                          : "Select recipient"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {getRecipients(formData.role, currentDepartment).map(
-                      (person) => (
-                        <SelectItem key={person.id} value={person.id}>
-                          {person.fullName}
-                        </SelectItem>
-                      )
-                    )}
+                    {formData.role === "staff"
+                      ? staffOptions.map((person) => (
+                          <SelectItem key={person.id} value={person.id}>
+                            {person.fullName}
+                          </SelectItem>
+                        ))
+                      : getRecipients(formData.role, currentDepartment).map(
+                          (p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.fullName}
+                            </SelectItem>
+                          )
+                        )}
                   </SelectContent>
                 </Select>
                 {touched.recipient && !formData.recipient && (
@@ -606,12 +693,16 @@ export function SubmitComplaint() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                       <Upload className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm truncate max-w-[200px]">{evidenceFile.name}</span>
+                      <span className="text-sm truncate max-w-[200px]">
+                        {evidenceFile.name}
+                      </span>
                       {uploadedEvidenceUrl && (
                         <span className="text-xs text-green-600">Uploaded</span>
                       )}
                       {!uploadedEvidenceUrl && uploadProgress > 0 && (
-                        <span className="text-xs text-blue-600">{uploadProgress}%</span>
+                        <span className="text-xs text-blue-600">
+                          {uploadProgress}%
+                        </span>
                       )}
                       <Button
                         type="button"
@@ -629,14 +720,16 @@ export function SubmitComplaint() {
                         ×
                       </Button>
                     </div>
-                    {!uploadedEvidenceUrl && evidenceFile && uploadProgress > 0 && (
-                      <div className="w-full h-2 bg-muted rounded overflow-hidden">
-                        <div
-                          className="h-full bg-primary transition-all"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
-                      </div>
-                    )}
+                    {!uploadedEvidenceUrl &&
+                      evidenceFile &&
+                      uploadProgress > 0 && (
+                        <div className="w-full h-2 bg-muted rounded overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      )}
                     {uploadError && (
                       <div className="text-xs text-red-600 flex items-center gap-2">
                         <span>{uploadError}</span>
@@ -648,12 +741,18 @@ export function SubmitComplaint() {
                             if (!evidenceFile) return;
                             try {
                               setUploadError("");
-                              const result = await uploadEvidenceFile(evidenceFile, {
-                                onProgress: (p) => setUploadProgress(p),
-                              });
+                              const result = await uploadEvidenceFile(
+                                evidenceFile,
+                                {
+                                  onProgress: (p) => setUploadProgress(p),
+                                }
+                              );
                               setUploadedEvidenceUrl(result.url);
                             } catch (err: unknown) {
-                              const message = err instanceof Error ? err.message : 'Retry failed';
+                              const message =
+                                err instanceof Error
+                                  ? err.message
+                                  : "Retry failed";
                               setUploadError(message);
                             }
                           }}
@@ -662,24 +761,32 @@ export function SubmitComplaint() {
                         </Button>
                       </div>
                     )}
-                    {!uploadedEvidenceUrl && evidenceFile && uploadProgress === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Evidence will upload automatically on submit.
-                      </p>
-                    )}
+                    {!uploadedEvidenceUrl &&
+                      evidenceFile &&
+                      uploadProgress === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Evidence will upload automatically on submit.
+                        </p>
+                      )}
                     {uploadedEvidenceUrl && (
                       <div className="space-y-1">
                         <p className="text-xs text-green-600 break-all">
-                          Uploaded. <a
+                          Uploaded.{" "}
+                          <a
                             href={uploadedEvidenceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="underline text-blue-600"
-                          >Open full file</a>
+                          >
+                            Open full file
+                          </a>
                         </p>
                         {evidenceFile?.type.startsWith("image/") && (
                           <img
-                            src={uploadedEvidenceUrl.replace(/\/upload\//, "/upload/c_thumb,w_200,h_200,g_auto,f_auto,q_auto/")}
+                            src={uploadedEvidenceUrl.replace(
+                              /\/upload\//,
+                              "/upload/c_thumb,w_200,h_200,g_auto,f_auto,q_auto/"
+                            )}
                             alt="Evidence preview"
                             className="h-32 w-32 object-cover rounded border"
                             loading="lazy"

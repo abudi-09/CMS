@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useAuth } from "@/components/auth/AuthContext";
 
 // Mock data for all complaints (half overdue, half not overdue)
 const now = new Date();
@@ -218,11 +219,12 @@ const mockAllComplaints: Complaint[] = [
 ];
 
 export default function AllComplaints() {
+  const { user } = useAuth();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [complaints] = useState<Complaint[]>(mockAllComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>(mockAllComplaints);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -240,12 +242,81 @@ export default function AllComplaints() {
     setShowDetailModal(true);
   };
 
-  // Calculate summary stats
+  // Infer submitter's department for demo data
+  const nameToDept: Record<string, string> = useMemo(
+    () => ({
+      "John Doe": "IT",
+      "Jane Smith": "Cafeteria",
+      "Mike Johnson": "Facilities",
+      "Sarah Johnson": "IT",
+      "David Wilson": "Facilities",
+      "Emma Davis": "Finance",
+      "Lily Adams": "Facilities",
+      "Paul Green": "Academic",
+      "Test User": "General",
+      "Edge Case": "General",
+      "Edge Case 2": "General",
+    }),
+    []
+  );
+
+  type MinimalUser = {
+    fullName?: string;
+    name?: string;
+    role?: string;
+    department?: string;
+    workingPlace?: string;
+  };
+
+  const normalize = (s?: string | null) => (s || "").toLowerCase();
+  const matchesUser = useCallback(
+    (c: Complaint) => {
+      const u = (user || {}) as MinimalUser;
+      const uName = u.fullName || u.name || "";
+      return normalize(c.submittedBy) === normalize(uName);
+    },
+    [user]
+  );
+  const getSubmitterDept = useCallback(
+    (c: Complaint) => {
+      // Prefer an explicit field if your real API supplies it (e.g., c.submitterDepartment)
+      // Fallback to demo mapping by submitter name
+      return (
+        (c as { submitterDepartment?: string }).submitterDepartment ||
+        nameToDept[c.submittedBy] ||
+        ""
+      );
+    },
+    [nameToDept]
+  );
+  const role = normalize(((user || {}) as MinimalUser).role);
+  const myDept =
+    ((user || {}) as MinimalUser).department ||
+    ((user || {}) as MinimalUser).workingPlace ||
+    "";
+
+  // Role-based visibility filter (hierarchical)
+  const visibleComplaints = useMemo(() => {
+    // If not authenticated, show all (demo)
+    if (!user) return complaints;
+    if (role === "admin") return complaints; // all
+    if (role === "dean") return complaints; // simplified: all depts
+    if (role === "headofdepartment" || role === "hod") {
+      return complaints.filter(
+        (c) => matchesUser(c) || getSubmitterDept(c) === myDept
+      );
+    }
+    // staff and other roles: only own
+    return complaints.filter(matchesUser);
+  }, [user, role, myDept, complaints, matchesUser, getSubmitterDept]);
+
+  // Calculate summary stats for the visible set
   const stats = {
-    total: complaints.length,
-    pending: complaints.filter((c) => c.status === "Pending").length,
-    inProgress: complaints.filter((c) => c.status === "In Progress").length,
-    resolved: complaints.filter((c) => c.status === "Resolved").length,
+    total: visibleComplaints.length,
+    pending: visibleComplaints.filter((c) => c.status === "Pending").length,
+    inProgress: visibleComplaints.filter((c) => c.status === "In Progress")
+      .length,
+    resolved: visibleComplaints.filter((c) => c.status === "Resolved").length,
   };
 
   // Reset to first page whenever filters/search/sort change
@@ -274,8 +345,8 @@ export default function AllComplaints() {
       complaint.status !== "Resolved"
     );
   };
-  // Filter complaints
-  let filteredComplaints = complaints.filter((complaint) => {
+  // Filter complaints (from role-based visible set)
+  let filteredComplaints = visibleComplaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -317,7 +388,9 @@ export default function AllComplaints() {
     setPrioritySort(prioritySort === "desc" ? "asc" : "desc");
   };
 
-  const categories = Array.from(new Set(complaints.map((c) => c.category)));
+  const categories = Array.from(
+    new Set(visibleComplaints.map((c) => c.category))
+  );
 
   // (pagination reset handled in useEffect above)
 
@@ -369,6 +442,32 @@ export default function AllComplaints() {
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400";
     }
   };
+
+  // Listen for status changes coming from other pages (e.g., My Assigned -> Resolved)
+  useEffect(() => {
+    const onStatusChanged = (e: Event) => {
+      try {
+        const { id, status } = (e as CustomEvent).detail || {};
+        if (!id || !status) return;
+        setComplaints((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, status, lastUpdated: new Date() } : c
+          )
+        );
+      } catch {
+        // no-op
+      }
+    };
+    window.addEventListener(
+      "complaint:status-changed",
+      onStatusChanged as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        "complaint:status-changed",
+        onStatusChanged as EventListener
+      );
+  }, []);
 
   return (
     <div className="space-y-6">

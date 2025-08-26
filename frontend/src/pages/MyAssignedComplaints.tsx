@@ -247,6 +247,37 @@ export function MyAssignedComplaints() {
       // Consider 'Closed' with a rejection note as rejected
       else if (st === "Closed") {
         rejectComplaint(complaintId);
+      } else if (st === "Resolved") {
+        // Resolved complaints should not appear on My Assigned
+        // Remove from local accepted/rejected sets to avoid showing in those tabs
+        setAcceptedIds((prev) => {
+          if (!prev.has(complaintId)) return prev;
+          const next = new Set(prev);
+          next.delete(complaintId);
+          persistSets("myAssignedAccepted", next);
+          return next;
+        });
+        setRejectedIds((prev) => {
+          if (!prev.has(complaintId)) return prev;
+          const next = new Set(prev);
+          next.delete(complaintId);
+          persistSets("myAssignedRejected", next);
+          return next;
+        });
+        // Optional: notify other views (e.g., All Complaints) to refresh
+        try {
+          window.dispatchEvent(
+            new CustomEvent("complaint:status-changed", {
+              detail: { id: complaintId, status: "Resolved" },
+            })
+          );
+        } catch {
+          // no-op: best-effort event
+        }
+        toast({
+          title: "Complaint Resolved",
+          description: `Complaint #${complaintId} moved to All Complaints`,
+        });
       }
     }
 
@@ -396,6 +427,9 @@ export function MyAssignedComplaints() {
     } else {
       categoryBase = myAssignedComplaints.filter((c) => rejectedIds.has(c.id));
     }
+
+    // Enforce rule: Resolved complaints must not appear on My Assigned
+    categoryBase = categoryBase.filter((c) => c.status !== "Resolved");
 
     let base = categoryBase.filter((complaint) => {
       const matchesSearch =
@@ -725,7 +759,6 @@ export function MyAssignedComplaints() {
                     <SelectItem value="All">All Status</SelectItem>
                     <SelectItem value="Pending">Pending</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Resolved">Resolved</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
