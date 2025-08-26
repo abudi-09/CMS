@@ -31,6 +31,8 @@ import {
   Search,
   Filter,
   ArrowUpDown,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -143,8 +145,10 @@ export function MyAssignedComplaints() {
         : baseMockComplaint.assignedStaff,
       submittedBy: submitters[i],
       sourceRole: "student",
-      assignedByRole: "student",
-      assignmentPath: ["student", "staff"],
+      // Make some demo complaints come via HoD so they show in Assigned by HOD tab
+      assignedByRole: i % 4 === 1 ? "headOfDepartment" : "student",
+      assignmentPath:
+        i % 4 === 1 ? ["student", "headOfDepartment"] : ["student", "staff"],
       submittedDate: new Date(Date.now() - (i + 1) * 86400000),
       assignedDate: new Date(Date.now() - (i + 1) * 86400000),
       lastUpdated: new Date(Date.now() - i * 43200000),
@@ -170,15 +174,9 @@ export function MyAssignedComplaints() {
   // Pagination
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  // Tabs state and handler
-  type TabKey =
-    | "All"
-    | "Pending"
-    | "In Progress"
-    | "Resolved"
-    | "Closed"
-    | "Overdue";
-  const [activeTab, setActiveTab] = useState<TabKey>("All");
+  // Category tabs (per requirements)
+  type CategoryTab = "direct" | "assignedByHod" | "accepted" | "rejected";
+  const [categoryTab, setCategoryTab] = useState<CategoryTab>("direct");
   // Track opened complaints to hide NEW badge once viewed
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => {
     try {
@@ -238,6 +236,20 @@ export function MyAssignedComplaints() {
         c.id === complaintId ? { ...c, ...updates, lastUpdated: new Date() } : c
       )
     );
+
+    // If backend/modal changed status, sync accepted/rejected tabs
+    if (updates.status) {
+      const st = updates.status;
+      // Consider 'In Progress' as accepted by staff
+      if (st === "In Progress") {
+        acceptComplaint(complaintId);
+      }
+      // Consider 'Closed' with a rejection note as rejected
+      else if (st === "Closed") {
+        rejectComplaint(complaintId);
+      }
+    }
+
     toast({
       title: "Complaint Updated",
       description: `Complaint #${complaintId} has been updated successfully`,
@@ -288,8 +300,104 @@ export function MyAssignedComplaints() {
     return diffMs <= twoDays && !openedIds.has(complaint.id);
   };
 
+  // Accept/Reject local state (persisted)
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("myAssignedAccepted");
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("myAssignedRejected");
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const persistSets = (key: string, set: Set<string>) => {
+    try {
+      localStorage.setItem(key, JSON.stringify([...set]));
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const acceptComplaint = (id: string) => {
+    setAcceptedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      persistSets("myAssignedAccepted", next);
+      return next;
+    });
+    setRejectedIds((prev) => {
+      if (prev.has(id)) {
+        const next = new Set(prev);
+        next.delete(id);
+        persistSets("myAssignedRejected", next);
+        return next;
+      }
+      return prev;
+    });
+    toast({ title: "Accepted", description: `Complaint #${id} accepted.` });
+  };
+  const rejectComplaint = (id: string) => {
+    setRejectedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      persistSets("myAssignedRejected", next);
+      return next;
+    });
+    setAcceptedIds((prev) => {
+      if (prev.has(id)) {
+        const next = new Set(prev);
+        next.delete(id);
+        persistSets("myAssignedAccepted", next);
+        return next;
+      }
+      return prev;
+    });
+    toast({ title: "Rejected", description: `Complaint #${id} rejected.` });
+  };
+
+  const isAssignedByHod = (c: Complaint) => {
+    const arb = (c.assignedByRole || "").toLowerCase();
+    const ap = (c.assignmentPath || []).map((r) => r.toLowerCase());
+    return (
+      arb === "headofdepartment" ||
+      arb === "hod" ||
+      ap.includes("headofdepartment") ||
+      ap.includes("hod")
+    );
+  };
+  const isDirectFromStudents = (c: Complaint) => {
+    const src = (c.sourceRole || "").toLowerCase();
+    const arb = (c.assignedByRole || "").toLowerCase();
+    return src === "student" && (!arb || arb === "student");
+  };
+
   React.useEffect(() => {
-    let base = myAssignedComplaints.filter((complaint) => {
+    // Determine category base first
+    let categoryBase: Complaint[];
+    if (categoryTab === "direct") {
+      // Exclude complaints that have been accepted or rejected already
+      categoryBase = myAssignedComplaints
+        .filter(isDirectFromStudents)
+        .filter((c) => !acceptedIds.has(c.id) && !rejectedIds.has(c.id));
+    } else if (categoryTab === "assignedByHod") {
+      categoryBase = myAssignedComplaints
+        .filter(isAssignedByHod)
+        .filter((c) => !acceptedIds.has(c.id) && !rejectedIds.has(c.id));
+    } else if (categoryTab === "accepted") {
+      categoryBase = myAssignedComplaints.filter((c) => acceptedIds.has(c.id));
+    } else {
+      categoryBase = myAssignedComplaints.filter((c) => rejectedIds.has(c.id));
+    }
+
+    let base = categoryBase.filter((complaint) => {
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -337,6 +445,9 @@ export function MyAssignedComplaints() {
     setPage(1);
   }, [
     myAssignedComplaints,
+    categoryTab,
+    acceptedIds,
+    rejectedIds,
     searchTerm,
     statusFilter,
     priorityFilter,
@@ -454,23 +565,16 @@ export function MyAssignedComplaints() {
     setOverdueFilter("Overdue");
     setSortingMode("date");
   };
-  const onTabChange = (v: string) => {
-    const tab = v as TabKey;
-    setActiveTab(tab);
+  const onCategoryTabChange = (v: string) => {
+    const tab = v as CategoryTab;
+    setCategoryTab(tab);
     setQuickFilter(null);
     setSearchTerm("");
     setPriorityFilter("All");
     setSortingMode("date");
-    if (tab === "All") {
-      setStatusFilter("All");
-      setOverdueFilter("All");
-    } else if (tab === "Overdue") {
-      setStatusFilter("All");
-      setOverdueFilter("Overdue");
-    } else {
-      setStatusFilter(tab);
-      setOverdueFilter("All");
-    }
+    // Keep status/overdue filters user-adjustable; don't force reset beyond basics
+    setStatusFilter("All");
+    setOverdueFilter("All");
   };
 
   // Auto-escalate overdue items to HoD visibility on first render/filter run
@@ -578,26 +682,16 @@ export function MyAssignedComplaints() {
             Assigned Complaints ({filtered.length})
           </CardTitle>
 
-          {/* Tabs: filter by status (below summary cards, inside table header) */}
+          {/* Tabs: category groups per requirements */}
           <div className="pt-2">
-            <Tabs value={activeTab} onValueChange={onTabChange}>
+            <Tabs value={categoryTab} onValueChange={onCategoryTabChange}>
               <TabsList className="flex flex-wrap gap-2">
-                <TabsTrigger value="All">
-                  All ({myAssignedComplaints.length})
+                <TabsTrigger value="direct">
+                  Direct Complaints from Students
                 </TabsTrigger>
-                <TabsTrigger value="Pending">
-                  Pending ({pendingCount})
-                </TabsTrigger>
-                <TabsTrigger value="In Progress">
-                  In Progress ({inProgressCount})
-                </TabsTrigger>
-                <TabsTrigger value="Resolved">
-                  Resolved ({resolvedCount})
-                </TabsTrigger>
-                <TabsTrigger value="Closed">Closed ({closedCount})</TabsTrigger>
-                <TabsTrigger value="Overdue">
-                  Overdue ({overdueCount})
-                </TabsTrigger>
+                <TabsTrigger value="assignedByHod">Assigned by HOD</TabsTrigger>
+                <TabsTrigger value="accepted">Accepted</TabsTrigger>
+                <TabsTrigger value="rejected">Rejected</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -680,23 +774,27 @@ export function MyAssignedComplaints() {
               `}</style>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-sm">Title</TableHead>
-                  <TableHead className="text-sm">Category</TableHead>
-                  <TableHead className="text-sm">Priority</TableHead>
-                  <TableHead className="text-sm">Submitted By</TableHead>
-                  <TableHead className="text-sm">Status</TableHead>
-                  <TableHead className="text-sm">Overdue</TableHead>
-                  <TableHead className="text-sm">Date Assigned</TableHead>
-                  <TableHead className="text-sm">Deadline</TableHead>
-                  <TableHead className="text-sm">Last Updated</TableHead>
-                  <TableHead className="text-right text-sm">Action</TableHead>
+                  <TableHead className="text-sm align-middle">Title</TableHead>
+                  <TableHead className="text-sm align-middle">
+                    Category
+                  </TableHead>
+                  <TableHead className="text-sm align-middle">
+                    Priority
+                  </TableHead>
+                  <TableHead className="text-sm align-middle">Status</TableHead>
+                  <TableHead className="text-sm align-middle">
+                    Overdue
+                  </TableHead>
+                  <TableHead className="text-right text-sm align-middle">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={6}
                       className="text-center py-8 text-muted-foreground"
                     >
                       {searchTerm ||
@@ -747,15 +845,7 @@ export function MyAssignedComplaints() {
                             {complaint.priority}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium text-sm">
-                              {complaint.submittedBy}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="align-middle">
                           <Badge
                             className={`text-xs ${
                               statusColors[complaint.status]
@@ -765,7 +855,7 @@ export function MyAssignedComplaints() {
                             {complaint.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-middle">
                           {isOverdue(complaint) ? (
                             <Badge
                               className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
@@ -782,31 +872,72 @@ export function MyAssignedComplaints() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell>
-                          {(
-                            complaint.assignedDate || complaint.submittedDate
-                          ).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          {complaint.deadline
-                            ? complaint.deadline.toLocaleDateString()
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          {complaint.lastUpdated
-                            ? complaint.lastUpdated.toLocaleDateString()
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewComplaint(complaint)}
-                            className="hover:bg-primary/10 dark:hover:bg-hover-blue/10"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View & Update
-                          </Button>
+                        <TableCell className="text-right align-middle">
+                          <div className="inline-flex gap-2 items-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewComplaint(complaint)}
+                              className="hover:bg-primary/10 dark:hover:bg-hover-blue/10"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View & Update
+                            </Button>
+
+                            {/* Actions depend on active category tab */}
+                            {categoryTab === "accepted" ? (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => rejectComplaint(complaint.id)}
+                                className="ml-2"
+                              >
+                                <ThumbsDown className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            ) : categoryTab === "rejected" ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => acceptComplaint(complaint.id)}
+                                className="ml-2"
+                              >
+                                <ThumbsUp className="h-4 w-4 mr-1" />
+                                Re-accept
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  variant={
+                                    acceptedIds.has(complaint.id)
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  size="sm"
+                                  onClick={() => acceptComplaint(complaint.id)}
+                                  disabled={acceptedIds.has(complaint.id)}
+                                  className="ml-2"
+                                >
+                                  <ThumbsUp className="h-4 w-4 mr-1" />
+                                  Accept
+                                </Button>
+                                <Button
+                                  variant={
+                                    rejectedIds.has(complaint.id)
+                                      ? "destructive"
+                                      : "outline"
+                                  }
+                                  size="sm"
+                                  onClick={() => rejectComplaint(complaint.id)}
+                                  disabled={rejectedIds.has(complaint.id)}
+                                  className="ml-2"
+                                >
+                                  <ThumbsDown className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -892,30 +1023,10 @@ export function MyAssignedComplaints() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">
-                            Submitted By:
+                            Category:
                           </span>
                           <span className="font-medium ml-2">
-                            {complaint.submittedBy}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">
-                            Date Assigned:
-                          </span>
-                          <span className="font-medium ml-2">
-                            {(
-                              complaint.assignedDate || complaint.submittedDate
-                            ).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">
-                            Deadline:
-                          </span>
-                          <span className="font-medium ml-2">
-                            {complaint.deadline
-                              ? complaint.deadline.toLocaleDateString()
-                              : "-"}
+                            {complaint.category}
                           </span>
                         </div>
                         <div>
@@ -956,6 +1067,63 @@ export function MyAssignedComplaints() {
                           <Eye className="h-4 w-4 mr-2" />
                           View & Update
                         </Button>
+
+                        {categoryTab === "accepted" ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => rejectComplaint(complaint.id)}
+                            className="flex-1"
+                          >
+                            <ThumbsDown className="h-4 w-4 mr-2" />
+                            Reject
+                          </Button>
+                        ) : categoryTab === "rejected" ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => acceptComplaint(complaint.id)}
+                            className="flex-1"
+                          >
+                            <ThumbsUp className="h-4 w-4 mr-2" />
+                            Re-accept
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant={
+                                acceptedIds.has(complaint.id)
+                                  ? "default"
+                                  : "outline"
+                              }
+                              size="sm"
+                              onClick={() => acceptComplaint(complaint.id)}
+                              disabled={acceptedIds.has(complaint.id)}
+                              className="flex-1"
+                            >
+                              <ThumbsUp className="h-4 w-4 mr-2" />
+                              {acceptedIds.has(complaint.id)
+                                ? "Accepted"
+                                : "Accept"}
+                            </Button>
+                            <Button
+                              variant={
+                                rejectedIds.has(complaint.id)
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                              size="sm"
+                              onClick={() => rejectComplaint(complaint.id)}
+                              disabled={rejectedIds.has(complaint.id)}
+                              className="flex-1"
+                            >
+                              <ThumbsDown className="h-4 w-4 mr-2" />
+                              {rejectedIds.has(complaint.id)
+                                ? "Rejected"
+                                : "Reject"}
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </Card>

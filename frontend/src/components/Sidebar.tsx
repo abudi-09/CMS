@@ -35,6 +35,7 @@ export function Sidebar({ className }: SidebarProps) {
   const staffMenuItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: FileText, label: "My Assigned", href: "/my-assigned" },
+    { icon: FileText, label: "All Complaints", href: "/all-complaints" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
     { icon: GraduationCap, label: "My Performance", href: "/my-performance" },
     { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
@@ -132,7 +133,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <div className={cn("flex flex-col h-full p-4", className)}>
-  {/* Removed role heading and welcome text as per request */}
+      {/* Removed role heading and welcome text as per request */}
 
       <nav className="space-y-2 flex-1">
         {menuItems.map((item) => {

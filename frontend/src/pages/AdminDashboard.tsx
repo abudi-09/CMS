@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Filter } from "lucide-react";
+import { MessageSquare, Filter, FileText, User, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -217,6 +217,44 @@ export function AdminDashboard() {
     };
     // only run when user resolves / on mount
   }, [user]);
+
+  // Quick Access Box for Admins (same as Staff Dashboard)
+  const quickAccess = (
+    <Card className="border-2 border-primary/10 bg-gradient-to-r from-white to-muted/5 dark:from-gray-800 dark:to-gray-800 shadow-lg">
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle className="text-sm font-medium">Quick Access</CardTitle>
+        <div className="text-xs text-muted-foreground">Shortcuts</div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-2"
+            onClick={() => navigate("/my-assigned")}
+          >
+            <FileText className="h-4 w-4" />
+            My Assigned
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-2"
+            onClick={() => navigate("/all-complaints")}
+          >
+            <User className="h-4 w-4" />
+            All Complaints
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-2"
+            onClick={() => navigate("/calendar-view")}
+          >
+            <Calendar className="h-4 w-4" />
+            Calendar View
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   // Listen for in-page dean signup events and notify admins
   useEffect(() => {

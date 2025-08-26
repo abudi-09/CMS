@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ActivityLogTable } from "@/components/ActivityLogTable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -29,6 +36,8 @@ import {
   User,
   Search,
   Filter,
+  Calendar,
+  MessageSquare,
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
@@ -43,7 +52,6 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// Mock data for staff - showing only assigned complaints (mix of overdue and not overdue)
 const today = new Date();
 const mockStaffComplaints: Complaint[] = [
   {
@@ -117,6 +125,7 @@ const mockStaffComplaints: Complaint[] = [
 ];
 
 export function StaffDashboard() {
+  const navigate = useNavigate();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -316,6 +325,16 @@ export function StaffDashboard() {
     Closed: "bg-gray-100 text-gray-800 border-gray-200",
   } as const;
 
+  // Show only 3 most recent complaints on the dashboard
+  // If staff want to see more, they must go to the My Assigned page
+  const recentComplaints = [...complaints]
+    .sort((a, b) => {
+      const aDate = new Date(a.assignedDate || a.submittedDate).valueOf() || 0;
+      const bDate = new Date(b.assignedDate || b.submittedDate).valueOf() || 0;
+      return bDate - aDate;
+    })
+    .slice(0, 3);
+
   return (
     <div className="space-y-6">
       <div>
@@ -388,6 +407,62 @@ export function StaffDashboard() {
           </CardContent>
         </Card>
       </div>
+      {/* Quick Actions (match Admin style) */}
+      <div className="grid md:grid-cols-3 gap-6">
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => navigate("/my-assigned")}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              My Assigned
+            </CardTitle>
+            <CardDescription>Your assigned complaints</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" className="w-full">
+              Open
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => navigate("/all-complaints")}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              All Complaints
+            </CardTitle>
+            <CardDescription>Browse all complaints</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" className="w-full">
+              View Complaints
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => navigate("/calendar-view")}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Calendar View
+            </CardTitle>
+            <CardDescription>See complaints by date</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" className="w-full">
+              Open Calendar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* My Assigned Complaints Section */}
       <Card>
@@ -452,7 +527,7 @@ export function StaffDashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-2 sm:p-4">
-          {/* Desktop Table */}
+          {/* Desktop Table (dashboard shows only recentComplaints) */}
           <div className="rounded-md border w-full overflow-x-auto hidden lg:block">
             <Table className="w-full min-w-max max-w-full">
               <TableHeader>
@@ -460,10 +535,7 @@ export function StaffDashboard() {
                   <TableHead scope="col">Title</TableHead>
                   <TableHead scope="col">Category</TableHead>
                   <TableHead scope="col">Priority</TableHead>
-                  <TableHead scope="col">Submitted By</TableHead>
                   <TableHead scope="col">Status</TableHead>
-                  <TableHead scope="col">Date Assigned</TableHead>
-                  <TableHead scope="col">Deadline</TableHead>
                   <TableHead scope="col">Overdue</TableHead>
                   <TableHead scope="col" className="text-right">
                     Action
@@ -471,22 +543,18 @@ export function StaffDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedComplaints.length === 0 ? (
+                {recentComplaints.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={6}
                       className="text-center py-8 text-muted-foreground"
                       aria-live="polite"
                     >
-                      {searchTerm ||
-                      statusFilter !== "All" ||
-                      priorityFilter !== "All"
-                        ? "No complaints match your search criteria"
-                        : "No complaints assigned to you yet"}
+                      {"No recent complaints assigned to you"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pagedComplaints.map((complaint) => (
+                  recentComplaints.map((complaint) => (
                     <TableRow key={complaint.id} className="hover:bg-muted/50">
                       <TableCell className="max-w-xs">
                         <div
@@ -530,20 +598,6 @@ export function StaffDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User
-                            className="h-4 w-4 text-muted-foreground"
-                            aria-label="Submitted By"
-                          />
-                          <span
-                            className="font-medium"
-                            title={complaint.submittedBy}
-                          >
-                            {complaint.submittedBy}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <Badge
                           className={statusColors[complaint.status]}
                           variant="outline"
@@ -551,14 +605,6 @@ export function StaffDashboard() {
                         >
                           {complaint.status}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {complaint.submittedDate.toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {complaint.deadline
-                          ? complaint.deadline.toLocaleDateString()
-                          : "-"}
                       </TableCell>
                       <TableCell>
                         {isOverdue(complaint) ? (
@@ -597,18 +643,14 @@ export function StaffDashboard() {
             </Table>
           </div>
 
-          {/* Mobile Cards */}
+          {/* Mobile Cards (dashboard shows only recentComplaints) */}
           <div className="lg:hidden space-y-4">
-            {pagedComplaints.length === 0 ? (
+            {recentComplaints.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {searchTerm ||
-                statusFilter !== "All" ||
-                priorityFilter !== "All"
-                  ? "No complaints match your search criteria"
-                  : "No complaints assigned to you yet"}
+                {"No recent complaints assigned to you"}
               </div>
             ) : (
-              pagedComplaints.map((complaint) => (
+              recentComplaints.map((complaint) => (
                 <Card key={complaint.id} className="p-4 shadow-md rounded-2xl">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
@@ -671,19 +713,9 @@ export function StaffDashboard() {
                         </span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">
-                          Submitted By:
-                        </span>
+                        <span className="text-muted-foreground">Priority:</span>
                         <span className="font-medium ml-2">
-                          {complaint.submittedBy}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Deadline:</span>
-                        <span className="font-medium ml-2">
-                          {complaint.deadline
-                            ? complaint.deadline.toLocaleDateString()
-                            : "-"}
+                          {complaint.priority}
                         </span>
                       </div>
                     </div>
@@ -710,6 +742,16 @@ export function StaffDashboard() {
                 </Card>
               ))
             )}
+          </div>
+
+          {/* Footer: link to full My Assigned page to view all complaints */}
+          <div className="flex justify-end mt-4 pr-2">
+            <Button
+              variant="ghost"
+              onClick={() => (window.location.href = "/my-assigned")}
+            >
+              View all assigned complaints
+            </Button>
           </div>
         </CardContent>
       </Card>
