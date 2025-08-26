@@ -36,7 +36,6 @@ app.use("/api/approvals", approvalRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/categories", categoryRoutes); // category management (admin guarded in route file)
 app.use("/api/staff", staffRoutes);
-// Static serving for uploaded avatars
 const uploadsPath = path.join(process.cwd(), "backend", "uploads");
 fs.mkdirSync(uploadsPath, { recursive: true });
 app.use("/uploads", express.static(uploadsPath));
@@ -44,7 +43,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   connectMongoDB();
-  // Run escalation check every hour
   setInterval(() => {
     checkEscalations();
   }, 60 * 60 * 1000);
