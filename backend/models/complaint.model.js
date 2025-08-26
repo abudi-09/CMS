@@ -1,8 +1,20 @@
 import mongoose from "mongoose";
 
+function generateComplaintCode() {
+  return `CMP-${Date.now().toString(36).toUpperCase()}-${Math.random()
+    .toString(36)
+    .slice(2, 6)
+    .toUpperCase()}`;
+}
+
 const complaintSchema = new mongoose.Schema(
   {
-    _id: { type: String },
+    complaintCode: {
+      type: String,
+      unique: true,
+      default: generateComplaintCode,
+      index: true,
+    },
     title: {
       type: String,
       required: true,
