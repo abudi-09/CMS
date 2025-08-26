@@ -18,6 +18,7 @@ export const getMe = async (req, res) => {
       phone,
       address,
       bio,
+  avatarUrl,
     } = req.user;
     res.status(200).json({
       _id,
@@ -31,6 +32,7 @@ export const getMe = async (req, res) => {
       phone: phone || "",
       address: address || "",
       bio: bio || "",
+  avatarUrl: avatarUrl || "",
     });
   } catch (error) {
     res.status(500).json({ error: "Internal Server Error" });
@@ -264,6 +266,7 @@ export const login = async (req, res) => {
   phone: user.phone || "",
   address: user.address || "",
   bio: user.bio || "",
+  avatarUrl: user.avatarUrl || "",
     });
   } catch (error) {
     console.log("Error in login controller", error.message);

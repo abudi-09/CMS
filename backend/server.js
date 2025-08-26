@@ -17,6 +17,8 @@ import approvalRoutes from "./routes/approval.routes.js";
 import usersRoutes from "./routes/users.route.js";
 import categoryRoutes from "./routes/category.routes.js";
 import { checkEscalations } from "./utils/escalation.js";
+import path from "path";
+import fs from "fs";
 const app = express();
 app.use(corsMiddleware);
 app.use(express.json());
@@ -32,6 +34,10 @@ app.use("/api/activity-logs", activityLogRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/categories", categoryRoutes); // category management (admin guarded in route file)
+// Static serving for uploaded avatars
+const uploadsPath = path.join(process.cwd(), "backend", "uploads");
+fs.mkdirSync(uploadsPath, { recursive: true });
+app.use("/uploads", express.static(uploadsPath));
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

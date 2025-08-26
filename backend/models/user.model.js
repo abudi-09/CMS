@@ -108,6 +108,16 @@ const userSchema = new mongoose.Schema(
         return this.role === "student" || this.role === "admin";
       },
     },
+    avatarUrl: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+    avatarPublicId: {
+      type: String,
+      required: false,
+      trim: true,
+    },
   },
   {
     timestamps: true,

@@ -44,6 +44,7 @@ interface User {
   phone?: string;
   address?: string;
   bio?: string;
+  avatarUrl?: string;
 }
 
 interface AuthContextType {
@@ -122,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           phone: me.phone,
           address: me.address,
           bio: me.bio,
+          avatarUrl: me.avatarUrl,
         });
         // Fetch staff data depending on role
         if (me.role === "admin") {
@@ -189,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       else if (rawRole === "dean") role = "dean";
       else if (rawRole === "admin") role = "admin";
+      const successWithAvatar = success as LoginSuccess & { avatarUrl?: string };
       setUser({
         id: success._id,
         username: success.username || "",
@@ -201,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: success.phone,
         address: success.address,
         bio: success.bio,
+        avatarUrl: successWithAvatar.avatarUrl,
       });
       return { ...success, role };
     } catch (err: unknown) {
