@@ -398,14 +398,16 @@ export function StaffDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Staff Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+          Staff Dashboard
+        </h1>
         <p className="text-muted-foreground">
           Manage your assigned complaints efficiently
         </p>
       </div>
 
       {/* Enhanced Summary Cards - responsive: 1/2/4 grid, stacked on mobile */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <Card className="hover:shadow-md transition-shadow w-full">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -468,19 +470,19 @@ export function StaffDashboard() {
         </Card>
       </div>
       {/* Quick Actions (match Admin style) */}
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => navigate("/my-assigned")}
         >
-          <CardHeader>
+          <CardHeader className="p-3 sm:p-4 md:p-6">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               My Assigned
             </CardTitle>
             <CardDescription>Your assigned complaints</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <Button variant="outline" className="w-full">
               Open
             </Button>
@@ -491,14 +493,14 @@ export function StaffDashboard() {
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => navigate("/all-complaints")}
         >
-          <CardHeader>
+          <CardHeader className="p-3 sm:p-4 md:p-6">
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
               All Complaints
             </CardTitle>
             <CardDescription>Browse all complaints</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <Button variant="outline" className="w-full">
               View Complaints
             </Button>
@@ -509,14 +511,14 @@ export function StaffDashboard() {
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => navigate("/calendar-view")}
         >
-          <CardHeader>
+          <CardHeader className="p-3 sm:p-4 md:p-6">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               Calendar View
             </CardTitle>
             <CardDescription>See complaints by date</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-4 md:p-6">
             <Button variant="outline" className="w-full">
               Open Calendar
             </Button>
@@ -526,14 +528,14 @@ export function StaffDashboard() {
 
       {/* My Assigned Complaints Section */}
       <Card>
-        <CardHeader>
+        <CardHeader className="p-3 sm:p-4 md:p-6">
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             My Assigned Complaints
           </CardTitle>
 
           {/* Search and Filter Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+          <div className="flex flex-col md:flex-row gap-4 pt-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -543,7 +545,7 @@ export function StaffDashboard() {
                 className="pl-10"
               />
             </div>
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col md:flex-row gap-2">
               <div className="flex items-center gap-2 min-w-0 sm:min-w-[180px]">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -586,10 +588,10 @@ export function StaffDashboard() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-2 sm:p-4">
+        <CardContent className="p-2 sm:p-4 md:p-6">
           {/* Desktop Table (dashboard shows only recentComplaints) */}
-          <div className="rounded-md border w-full overflow-x-auto hidden lg:block">
-            <Table className="w-full min-w-max max-w-full">
+          <div className="rounded-md border w-full overflow-x-auto hidden md:block">
+            <Table className="w-full min-w-[760px] max-w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">Title</TableHead>
@@ -723,7 +725,7 @@ export function StaffDashboard() {
           </div>
 
           {/* Mobile Cards (dashboard shows only recentComplaints) */}
-          <div className="lg:hidden space-y-4">
+          <div className="md:hidden space-y-4">
             {recentComplaints.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {"No recent complaints assigned to you"}
