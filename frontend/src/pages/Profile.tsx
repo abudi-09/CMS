@@ -1,5 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { updateProfileApi, changePasswordApi, uploadAvatarApi, saveCloudAvatarApi, resetAvatarApi } from "@/lib/api";
+import {
+  updateProfileApi,
+  changePasswordApi,
+  uploadAvatarApi,
+  saveCloudAvatarApi,
+  resetAvatarApi,
+} from "@/lib/api";
 import { getProfileStatsApi } from "@/lib/api.profile.stats";
 import { uploadAvatarFile } from "@/lib/cloudinaryAvatar";
 import {
@@ -86,7 +92,9 @@ export function Profile() {
   const userWithAvatar = user as typeof user & UserWithAvatar;
 
   // Build absolute avatar URL if backend returned a relative path like /uploads/avatars/xyz.png
-  const assetBase = (import.meta.env.VITE_API_BASE || "http://localhost:5000/api").replace(/\/api$/, "");
+  const assetBase = (
+    import.meta.env.VITE_API_BASE || "http://localhost:5000/api"
+  ).replace(/\/api$/, "");
   const avatarSrc = userWithAvatar?.avatarUrl
     ? userWithAvatar.avatarUrl.startsWith("http")
       ? userWithAvatar.avatarUrl
@@ -153,6 +161,8 @@ export function Profile() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Allow avatar editing for all authenticated roles now (previously only student/user)
+  const canEditAvatar = !!user?.role; // if needed, could refine with explicit list
   // Progress animation state
   const [uploadPctDisplay, setUploadPctDisplay] = useState<number | null>(null);
   const [uploadPctTarget, setUploadPctTarget] = useState<number | null>(null);
@@ -306,11 +316,15 @@ export function Profile() {
         completedRef.current = true;
       } catch (directErr) {
         // Fallback to backend multipart pipeline
-        console.warn("[Profile] Direct Cloudinary avatar upload failed, falling back:", directErr);
+        console.warn(
+          "[Profile] Direct Cloudinary avatar upload failed, falling back:",
+          directErr
+        );
         // simulate progress to ~90% while backend processes
         if (uploadPctDisplay === null) setUploadPctDisplay(0);
         setUploadPctTarget(15);
-        if (fallbackSimIntervalRef.current) window.clearInterval(fallbackSimIntervalRef.current);
+        if (fallbackSimIntervalRef.current)
+          window.clearInterval(fallbackSimIntervalRef.current);
         fallbackSimIntervalRef.current = window.setInterval(() => {
           setUploadPctTarget((prev) => {
             if (prev == null) return 0;
@@ -324,7 +338,10 @@ export function Profile() {
       }
       if (finalUrl) {
         auth.updateUserProfile?.({ avatarUrl: finalUrl });
-        toast({ title: "Avatar Updated", description: "Profile picture changed." });
+        toast({
+          title: "Avatar Updated",
+          description: "Profile picture changed.",
+        });
       }
     } catch (err) {
       const message =
@@ -360,18 +377,24 @@ export function Profile() {
       setIsLoading(true);
       await resetAvatarApi();
       auth.updateUserProfile?.({ avatarUrl: "" });
-      toast({ title: "Avatar Reset", description: "Reverted to default profile picture." });
+      toast({
+        title: "Avatar Reset",
+        description: "Reverted to default profile picture.",
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not reset avatar";
-      toast({ title: "Reset Failed", description: message, variant: "destructive" });
+      const message =
+        err instanceof Error ? err.message : "Could not reset avatar";
+      toast({
+        title: "Reset Failed",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Animate progress toward target smoothly
-  // Intentionally depend only on target to avoid restarting animation each display tick
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Animate progress toward target smoothly (we intentionally depend only on target; ignoring display to avoid restart loops)
   useEffect(() => {
     if (uploadPctTarget == null || uploadPctDisplay == null) return;
     if (progressAnimRef.current) cancelAnimationFrame(progressAnimRef.current);
@@ -389,8 +412,10 @@ export function Profile() {
     };
     progressAnimRef.current = requestAnimationFrame(step);
     return () => {
-      if (progressAnimRef.current) cancelAnimationFrame(progressAnimRef.current);
+      if (progressAnimRef.current)
+        cancelAnimationFrame(progressAnimRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- uploadPctDisplay intentionally excluded to prevent animation restart loops
   }, [uploadPctTarget]);
 
   const getRoleBadgeVariant = (role: string) => {
@@ -465,48 +490,39 @@ export function Profile() {
                 <div className="flex flex-col items-center text-center space-y-4">
                   <div
                     className={`relative ${
-                      (user?.role === "student" || user?.role === "user") && !isLoading
-                        ? "cursor-pointer"
-                        : ""
+                      canEditAvatar && !isLoading ? "cursor-pointer" : ""
                     }`}
                     onClick={() => {
-                      if (
-                        user?.role === "student" ||
-                        user?.role === "user"
-                      ) {
-                        if (!isLoading) fileInputRef.current?.click();
-                      }
+                      if (canEditAvatar && !isLoading)
+                        fileInputRef.current?.click();
                     }}
                     title={
-                      user?.role === "student" || user?.role === "user"
+                      canEditAvatar
                         ? isLoading
                           ? "Uploading..."
                           : "Change profile picture"
                         : undefined
                     }
                     aria-label={
-                      user?.role === "student" || user?.role === "user"
-                        ? "Change profile picture"
-                        : undefined
+                      canEditAvatar ? "Change profile picture" : undefined
                     }
                   >
-                    <Avatar className="h-24 w-24 bg-muted overflow-hidden">
-                      {avatarSrc ? (
+                    <Avatar key={userWithAvatar?.avatarUrl || "no-avatar"} className="h-24 w-24 bg-muted overflow-hidden relative">
+                      {avatarSrc && (
                         <AvatarImage
                           src={avatarSrc}
                           alt={profileData.name}
                           className="object-cover"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                          }}
                         />
-                      ) : user?.role === "admin" ? (
-                        <Shield className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-                      ) : user?.role === "staff" ? (
-                        <UserCheck className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-                      ) : (
-                        <User className="h-10 w-10 text-primary absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
                       )}
-                      <AvatarFallback className="hidden" />
+                      <AvatarFallback className="flex items-center justify-center h-full w-full text-2xl font-semibold uppercase tracking-wide select-none text-gray-800 dark:text-gray-200">
+                        {getInitials(profileData.name || user?.fullName || user?.name || "U")}
+                      </AvatarFallback>
                     </Avatar>
-                    {(user?.role === "student" || user?.role === "user") && (
+                    {canEditAvatar && (
                       <>
                         <input
                           ref={fileInputRef}
@@ -535,7 +551,12 @@ export function Profile() {
                       <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary transition-all duration-200"
-                          style={{ width: `${Math.min(100, Math.round(uploadPctDisplay))}%` }}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.round(uploadPctDisplay)
+                            )}%`,
+                          }}
                         ></div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -556,7 +577,7 @@ export function Profile() {
                     </div>
                   </div>
                 </div>
-                {(user?.role === "student" || user?.role === "user") && (
+                {canEditAvatar && (
                   <div className="pt-2 flex justify-center">
                     <Button
                       type="button"
