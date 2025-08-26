@@ -78,6 +78,9 @@ interface AuthContextType {
   getAllStaff: () => User[];
   setUserName?: (name: string) => void;
   updateUserProfile?: (updates: Partial<User>) => void;
+  getLogoutReason?: () => string | null;
+  clearLogoutReason?: () => void;
+  logoutWithReason?: (reason: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingStaff, setPendingStaff] = useState<User[]>([]);
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [logoutReason, setLogoutReason] = useState<string | null>(null);
 
   // Restore user session and fetch staff data
   useEffect(() => {
@@ -99,9 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Try to restore user session
         const me = await getMeApi();
 
-         // Normalize backend role to internal union
-
-     
+        // Normalize backend role to internal union
 
         const rawRole = (me.role || "").toLowerCase();
         let normRole: UserRole = "user";
@@ -163,6 +165,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSessionAndFetchStaff();
   }, []);
 
+  // Listen for global forced logout events (e.g., from API layer)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ reason?: string }>;
+      const reason = ce.detail?.reason || "Account Deactivated by the admin";
+      setUser(null);
+      setLogoutReason(reason);
+    };
+    window.addEventListener(
+      "auth:logout-with-reason",
+      handler as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        "auth:logout-with-reason",
+        handler as EventListener
+      );
+  }, []);
+
   const login = async (
     email: string,
     password: string
@@ -188,10 +209,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else if (rawRole === "staff") role = "staff";
       else if (rawRole === "hod" || rawRole === "headofdepartment")
         role = "headOfDepartment";
-
       else if (rawRole === "dean") role = "dean";
       else if (rawRole === "admin") role = "admin";
-      const successWithAvatar = success as LoginSuccess & { avatarUrl?: string };
+      const successWithAvatar = success as LoginSuccess & {
+        avatarUrl?: string;
+      };
       setUser({
         id: success._id,
         username: success.username || "",
@@ -286,6 +308,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setLogoutReason((prev) => prev ?? null);
+  };
+
+  const logoutWithReason = (reason: string) => {
+    setUser(null);
+    setLogoutReason(reason || "Account Deactivated by the admin");
   };
 
   const setUserName = (name: string) => {
@@ -310,6 +338,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getAllStaff,
         setUserName,
         updateUserProfile,
+        getLogoutReason: () => logoutReason,
+        clearLogoutReason: () => setLogoutReason(null),
+        logoutWithReason,
       }}
     >
       {children}

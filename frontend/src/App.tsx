@@ -5,8 +5,9 @@ import i18n from "./i18n";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth/AuthContext";
+import { toast } from "@/hooks/use-toast";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Login } from "@/pages/Login";
 import { Signup } from "@/pages/Signup";
@@ -109,7 +110,28 @@ function SplashScreen() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isCheckingAuth } = useAuth();
+  const {
+    isAuthenticated,
+    isCheckingAuth,
+    getLogoutReason,
+    clearLogoutReason,
+  } = useAuth();
+  const navigate = useNavigate();
+
+  // Immediately redirect deactivated users and show toast; prevents any dashboard render
+  const reason = getLogoutReason?.() || null;
+  if (reason) {
+    // Synchronously schedule redirect and toast
+    queueMicrotask(() => {
+      toast({
+        title: "",
+        description: reason,
+        variant: "destructive",
+      });
+      clearLogoutReason?.();
+      navigate("/login", { replace: true });
+    });
+  }
 
   if (isCheckingAuth) {
     return <SplashScreen />;

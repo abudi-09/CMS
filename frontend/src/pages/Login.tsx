@@ -27,8 +27,9 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
-  const { login } = useAuth();
+  const { login, getLogoutReason, clearLogoutReason } = useAuth();
   const navigate = useNavigate();
+  const logoutReason = getLogoutReason?.() || null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,13 +65,12 @@ export function Login() {
         (result as { error?: string }).error === "inactive-account"
       ) {
         toast({
-          title: "Access Denied",
-          description: `⚠️ ${
-            (result as { message?: string }).message ||
-            "Your account has been deactivated by the Admin. You no longer have access to the system."
-          }`,
+          title: "",
+          description: "👉 You are deactivated by Admin.",
           variant: "destructive",
         });
+        // Ensure we stay on the login page and do not render any dashboard
+        navigate("/login", { replace: true });
         return;
       } else if (
         result !== null &&
@@ -199,6 +199,13 @@ export function Login() {
               <CardDescription>
                 Sign in to your account to continue
               </CardDescription>
+              {logoutReason && (
+                <Alert className="mt-3" variant="destructive">
+                  <AlertDescription>
+                    {logoutReason || "Account Deactivated by the admin"}
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">

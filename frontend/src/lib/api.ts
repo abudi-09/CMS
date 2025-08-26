@@ -44,15 +44,15 @@ export async function rejectStaffApi(staffId: string) {
   return data;
 }
 // Get current user (session persistence)
-export async function getMeApi() {
-  const res = await fetch(`${API_BASE}/auth/me`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Not authenticated");
-  return data;
+export type MeResponse = LoginSuccess & {
+  avatarUrl?: string;
+  workingPlace?: string;
+  status?: string;
+  registeredDate?: string | Date;
+};
+
+export async function getMeApi(): Promise<MeResponse> {
+  return apiClient.get<MeResponse>("/auth/me");
 }
 
 // Update profile (basic fields like name)
@@ -715,6 +715,7 @@ export type UserDto = {
   name?: string;
   email: string;
   role: string;
+  previousRole?: string;
   isActive?: boolean;
   isApproved?: boolean;
   department?: string;
@@ -764,6 +765,19 @@ async function request<T = ParsedJson>(
     data = await res.json();
   } catch (_) {
     // ignore json parse error, keep data null
+  }
+  // Special handling: bubble up inactive-account for global handling
+  if (res.status === 403 && data && typeof data === "object") {
+    const maybe = data as { error?: string; message?: string };
+    if (maybe.error === "inactive-account") {
+      // Dispatch a global event so AuthContext can clear session
+      const evt = new CustomEvent("auth:logout-with-reason", {
+        detail: { reason: "👉 You are deactivated by Admin." },
+      });
+      window.dispatchEvent(evt);
+      // Throw a recognizable error
+      throw new Error("inactive-account");
+    }
   }
   if (!res.ok) {
     let message = `Request failed (${method} ${path})`;

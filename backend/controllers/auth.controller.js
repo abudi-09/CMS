@@ -18,7 +18,7 @@ export const getMe = async (req, res) => {
       phone,
       address,
       bio,
-  avatarUrl,
+      avatarUrl,
     } = req.user;
     res.status(200).json({
       _id,
@@ -32,7 +32,7 @@ export const getMe = async (req, res) => {
       phone: phone || "",
       address: address || "",
       bio: bio || "",
-  avatarUrl: avatarUrl || "",
+      avatarUrl: avatarUrl || "",
     });
   } catch (error) {
     res.status(500).json({ error: "Internal Server Error" });
@@ -242,6 +242,14 @@ export const login = async (req, res) => {
       });
     }
 
+    // Block login if admin account is deactivated
+    if (user.role === "admin" && user.isApproved && !user.isActive) {
+      return res.status(403).json({
+        error: "inactive-account",
+        message: "You are deactivated by Admin.",
+      });
+    }
+
     const isPasswordCorrect = await bcrypt.compare(
       password,
       user?.password || ""
@@ -253,9 +261,9 @@ export const login = async (req, res) => {
     generateTokenAndSetCookie(user._id, res);
     res.status(200).json({
       _id: user._id,
-  fullName: user.fullName || user.name,
+      fullName: user.fullName || user.name,
       username: user.username,
-  name: user.name,
+      name: user.name,
       email: user.email,
       role: user.role,
       isApproved: user.isApproved,
@@ -263,10 +271,10 @@ export const login = async (req, res) => {
       workingPlace: user.workingPlace,
       status: user.status,
       registeredDate: user.registeredDate,
-  phone: user.phone || "",
-  address: user.address || "",
-  bio: user.bio || "",
-  avatarUrl: user.avatarUrl || "",
+      phone: user.phone || "",
+      address: user.address || "",
+      bio: user.bio || "",
+      avatarUrl: user.avatarUrl || "",
     });
   } catch (error) {
     console.log("Error in login controller", error.message);

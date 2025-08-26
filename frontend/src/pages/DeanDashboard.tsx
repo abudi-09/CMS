@@ -8,7 +8,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SummaryCards } from "@/components/SummaryCards";
 // Replacing ComplaintTable with a custom pending-style table to match Assign & Reassign page
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
@@ -21,15 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Clock,
-  MessageSquare,
-  UserCheck,
-  Users,
-  FileText,
-  User,
-  Calendar,
-} from "lucide-react";
+import { Clock, MessageSquare, UserCheck, Users } from "lucide-react";
 import { getDeanPendingHodApi } from "@/lib/api";
 
 // Mock data for demo
@@ -224,41 +215,7 @@ export function DeanDashboard() {
           Manage All department's and complaints
         </p>
       </div>
-      {/* Quick Access Box */}
-      <Card className="border-2 border-primary/10 bg-gradient-to-r from-white to-muted/5 dark:from-gray-800 dark:to-gray-800 shadow-lg">
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Quick Access</CardTitle>
-          <div className="text-xs text-muted-foreground">Shortcuts</div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              variant="outline"
-              className="flex-1 flex items-center justify-center gap-2"
-              onClick={() => navigate("/my-assigned")}
-            >
-              <FileText className="h-4 w-4" />
-              My Assigned
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 flex items-center justify-center gap-2"
-              onClick={() => navigate("/all-complaints")}
-            >
-              <User className="h-4 w-4" />
-              All Complaints
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 flex items-center justify-center gap-2"
-              onClick={() => navigate("/calendar-view")}
-            >
-              <Calendar className="h-4 w-4" />
-              Calendar View
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
       {/* Department Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summaryData.map((card) => (

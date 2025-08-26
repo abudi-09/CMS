@@ -75,6 +75,8 @@ export function RoleBasedComplaintModal({
   const [rejectReason, setRejectReason] = useState("");
   const [feedback, setFeedback] = useState({ rating: 0, comment: "" });
   const [isLoading, setIsLoading] = useState(false);
+  // Reflect local acceptance so staff can work after accepting from list
+  const [locallyAccepted, setLocallyAccepted] = useState(false);
   // Helper  for  type-safe staff display
   function getStaffDisplay(staff: unknown): string {
     if (!staff) return "Unassigned";
@@ -122,6 +124,29 @@ export function RoleBasedComplaintModal({
     }
     setStaffUpdate("");
   }, [liveComplaint]);
+
+  // Load local acceptance state (synced from My Assigned / Dashboard quick actions)
+  useEffect(() => {
+    try {
+      const id = complaint?.id;
+      if (!id) {
+        setLocallyAccepted(false);
+        return;
+      }
+      const raw =
+        typeof window !== "undefined"
+          ? localStorage.getItem("myAssignedAccepted")
+          : null;
+      if (!raw) {
+        setLocallyAccepted(false);
+        return;
+      }
+      const setArr: string[] = JSON.parse(raw);
+      setLocallyAccepted(Array.isArray(setArr) && setArr.includes(id));
+    } catch {
+      setLocallyAccepted(false);
+    }
+  }, [open, complaint?.id]);
 
   const handleApprove = async () => {
     if (!complaint) return;
@@ -200,7 +225,12 @@ export function RoleBasedComplaintModal({
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      onUpdate?.(complaint.id, { resolutionNote: staffUpdate });
+      const ts = new Date();
+      const prefix = ts.toLocaleString();
+      const existing = liveComplaint?.resolutionNote?.trim();
+      const newEntry = `• ${prefix}: ${staffUpdate.trim()}`;
+      const combined = existing ? `${existing}\n${newEntry}` : newEntry;
+      onUpdate?.(complaint.id, { resolutionNote: combined });
       toast({
         title: "Update Added",
         description: "Your update has been added to the complaint",
@@ -395,7 +425,10 @@ export function RoleBasedComplaintModal({
                     <div className="mt-2 space-y-2">
                       {/* Attempt inline preview if image */}
                       {/(png|jpe?g|gif|webp|svg)$/i.test(
-                        liveComplaint.evidenceFile.split("?")[0].split(".").pop() || ""
+                        liveComplaint.evidenceFile
+                          .split("?")[0]
+                          .split(".")
+                          .pop() || ""
                       ) ? (
                         <div className="border rounded p-2 bg-muted/30">
                           <img
@@ -418,7 +451,8 @@ export function RoleBasedComplaintModal({
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <Download className="h-4 w-4 mr-1" /> View / Download
+                            <Download className="h-4 w-4 mr-1" /> View /
+                            Download
                           </a>
                         </Button>
                         <Input
@@ -760,80 +794,83 @@ export function RoleBasedComplaintModal({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {complaint.status === "Pending" && (
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={handleApprove}
-                        disabled={isLoading}
-                        className="flex-1 bg-success hover:bg-success/90"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Accept & Start Working
-                      </Button>
-                      <Button
-                        onClick={handleReject}
-                        disabled={isLoading}
-                        variant="destructive"
-                        className="flex-1"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Reject Complaint
-                      </Button>
+                  {!(
+                    liveComplaint.status === "In Progress" || locallyAccepted
+                  ) && (
+                    <div className="text-sm text-muted-foreground">
+                      Accept this complaint from the main list to start working.
+                      Once accepted, you can update progress or resolve it here.
                     </div>
                   )}
 
-                  {complaint.status === "In Progress" && (
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={handleResolve}
-                        disabled={isLoading}
-                        className="flex-1 bg-success hover:bg-success/90"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark Resolved
-                      </Button>
-                      <Button
-                        onClick={handleReject}
-                        disabled={isLoading}
-                        variant="destructive"
-                        className="flex-1"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Reject Complaint
-                      </Button>
-                    </div>
+                  {(liveComplaint.status === "In Progress" ||
+                    locallyAccepted) && (
+                    <>
+                      <div>
+                        <Label className="mb-2">Update Status</Label>
+                        <select
+                          className="w-full border rounded px-3 py-2"
+                          value={
+                            liveComplaint.status === "In Progress"
+                              ? "In Progress"
+                              : liveComplaint.status
+                          }
+                          onChange={(e) =>
+                            setLiveComplaint({
+                              ...liveComplaint,
+                              status: e.target.value as Complaint["status"],
+                            })
+                          }
+                        >
+                          <option value="In Progress">In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                          <option value="Closed">Closed</option>
+                        </select>
+                        <Button
+                          className="mt-2 w-full"
+                          disabled={isLoading}
+                          onClick={() => {
+                            const newStatus = liveComplaint.status;
+                            setIsLoading(true);
+                            Promise.resolve(
+                              onUpdate?.(liveComplaint.id, {
+                                status: newStatus,
+                                lastUpdated: new Date(),
+                              })
+                            )
+                              .then(() => {
+                                toast({
+                                  title: "Status updated",
+                                  description: `Updated to ${newStatus}.`,
+                                });
+                              })
+                              .finally(() => setIsLoading(false));
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </Button>
+                      </div>
+
+                      <div>
+                        <Label>Add Progress Update</Label>
+                        <Textarea
+                          placeholder="Provide updates on the complaint progress..."
+                          value={staffUpdate}
+                          onChange={(e) => setStaffUpdate(e.target.value)}
+                          rows={3}
+                        />
+                        <Button
+                          onClick={handleAddUpdate}
+                          disabled={isLoading || !staffUpdate.trim()}
+                          className="mt-2 w-full"
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Add Update
+                        </Button>
+                      </div>
+                    </>
                   )}
-
-                  {/* Rejection reason (required for reject) */}
-                  <div className="space-y-2">
-                    <Label>Rejection Reason (required to reject)</Label>
-                    <Textarea
-                      placeholder="Provide a brief reason for rejection..."
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <Label>Add Progress Update</Label>
-                    <Textarea
-                      placeholder="Provide updates on the complaint progress..."
-                      value={staffUpdate}
-                      onChange={(e) => setStaffUpdate(e.target.value)}
-                      rows={3}
-                    />
-                    <Button
-                      onClick={handleAddUpdate}
-                      disabled={isLoading || !staffUpdate.trim()}
-                      className="mt-2 w-full"
-                    >
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Add Update
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             )}

@@ -17,6 +17,16 @@ export const protectRoute = async (req, res, next) => {
     if (user && typeof user.role === "string") {
       user.role = normalizeUserRole(user.role);
     }
+
+    // Immediately block access for any deactivated account
+    // This ensures that once an admin (or relevant authority) deactivates a user,
+    // all protected API calls return 403 without waiting for re-login.
+    if (user && user.isActive === false) {
+      return res.status(403).json({
+        error: "inactive-account",
+        message: "Account Deactivated by the admin",
+      });
+    }
     req.user = user;
     next();
   } catch (error) {

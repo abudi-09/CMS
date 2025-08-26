@@ -45,6 +45,23 @@ const userSchema = new mongoose.Schema(
       default: "student",
       set: normalizeRole,
     },
+    // Stores the role held before promotion to admin, to allow reversion
+    previousRole: {
+      type: String,
+      enum: CANONICAL_ROLES,
+      required: false,
+    },
+    // Preserve prior profile attributes to restore on reversion from admin
+    previousDepartment: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+    previousWorkingPlace: {
+      type: String,
+      required: false,
+      trim: true,
+    },
     isApproved: {
       type: Boolean,
       default: function () {

@@ -22,6 +22,7 @@ import {
 import { Search, UserPlus, UserMinus, UserCheck, Users } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/components/auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { getAllUsersApi, UserDto } from "@/lib/api";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from "@/hooks/use-toast";
@@ -46,10 +47,12 @@ type AdminRow = {
   username?: string;
   isApproved?: boolean;
   isRejected?: boolean;
+  previousRole?: string;
 };
 
 export default function AdminManagement() {
-  const { user: authUser } = useAuth();
+  const { user: authUser, logout } = useAuth();
+  const navigate = useNavigate();
   const canManage = authUser?.role === "admin"; // Only admins can manage
 
   const [users, setUsers] = useState<AdminRow[]>([]);
@@ -74,6 +77,8 @@ export default function AdminManagement() {
   const [page, setPage] = useState(1);
   const pageSize = 5;
   useEffect(() => setPage(1), [search, statusView, departmentFilter]);
+
+  // Note: Role edits via generic selector were removed per policy.
 
   // Simple audit log (front-end only; wire to backend later)
   type Audit = { ts: Date; actor: string; action: string; target: string };
@@ -184,9 +189,12 @@ export default function AdminManagement() {
         });
         return;
       }
+      // Set previousRole to the user's current role so Revert appears immediately
       setUsers((prev) =>
         prev.map((u) =>
-          u._id === id ? { ...u, role: "admin", isActive: true } : u
+          u._id === id
+            ? { ...u, previousRole: u.role, role: "admin", isActive: true }
+            : u
         )
       );
       toast({
@@ -200,6 +208,76 @@ export default function AdminManagement() {
       toast({
         title: "Error",
         description: message || "Failed to promote user.",
+      });
+    }
+  };
+
+  // Change role (promote/demote/revert)
+  const setUserRole = async (userId: string, newRole?: string) => {
+    if (!canManage) return;
+    if (!newRole) {
+      toast({ title: "Role Required", description: "Select a role to apply." });
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/users/${userId}/promote?role=${encodeURIComponent(newRole)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        }
+      );
+      const text = await res.text();
+      const body = text
+        ? (() => {
+            try {
+              return JSON.parse(text);
+            } catch {
+              return { message: text };
+            }
+          })()
+        : undefined;
+      if (!res.ok) {
+        // If backend returns the allowed previousRole, auto-retry once using that
+        const suggested = (body as { previousRole?: string } | undefined)
+          ?.previousRole;
+        if (suggested && suggested !== newRole) {
+          return await setUserRole(userId, suggested);
+        }
+        toast({
+          title: "Error",
+          description: body?.error || body?.message || "Failed to update role.",
+        });
+        return;
+      }
+      // Update local table
+      const prev = users.find((u) => u._id === userId)?.role || "";
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => (u._id === userId ? { ...u, role: newRole } : u))
+      );
+      toast({
+        title: "Success",
+        description: `Role updated to ${mapRoleLabel(newRole)}.`,
+      });
+      const target = users.find((u) => u._id === userId);
+      logAudit(
+        `Set Role: ${prev} -> ${newRole}`,
+        target ? target.email : userId
+      );
+      // If admin changed their own role to non-admin, end session immediately
+      if (authUser?.id === userId && newRole !== "admin") {
+        const evt = new CustomEvent("auth:logout-with-reason", {
+          detail: { reason: "👉 Your role has been updated by Admin." },
+        });
+        window.dispatchEvent(evt);
+        logout();
+        navigate("/login", { replace: true });
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({
+        title: "Error",
+        description: message || "Failed to update role.",
       });
     }
   };
@@ -237,6 +315,17 @@ export default function AdminManagement() {
           body = { message: text };
         }
       }
+      if (res.status === 403 && body?.error === "inactive-account") {
+        // If the acting user has been deactivated, force logout and redirect
+        toast({
+          title: "Access Revoked",
+          description: body?.message || "Account Deactivated by the admin",
+          variant: "destructive",
+        });
+        logout();
+        navigate("/login");
+        return;
+      }
       if (!res.ok) {
         const fallback =
           type === "activate"
@@ -266,6 +355,11 @@ export default function AdminManagement() {
           description: "User deactivated successfully",
         });
         logAudit("Deactivate User", userId);
+        if (authUser?.id === userId) {
+          // If admin deactivated themselves, end session
+          logout();
+          navigate("/login");
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -303,6 +397,7 @@ export default function AdminManagement() {
             name: u.fullName || u.name || u.username || u.email,
             email: u.email,
             role: u.role,
+            previousRole: u.previousRole,
             isActive: u.isActive,
             isApproved: (u as unknown as { isApproved?: boolean }).isApproved,
             isRejected: (u as unknown as { isRejected?: boolean }).isRejected,
@@ -347,6 +442,7 @@ export default function AdminManagement() {
             name: u.fullName || u.name || u.username || u.email,
             email: u.email,
             role: u.role,
+            previousRole: u.previousRole,
             isActive: u.isActive,
             isApproved: (u as unknown as { isApproved?: boolean }).isApproved,
             isRejected: (u as unknown as { isRejected?: boolean }).isRejected,
@@ -586,6 +682,17 @@ export default function AdminManagement() {
                                 Admin
                               </Button>
                             )}
+                            {user.role === "admin" && user.previousRole && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setUserRole(user._id, user.previousRole)
+                                }
+                              >
+                                Revert to Previous
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -668,6 +775,15 @@ export default function AdminManagement() {
                           >
                             <UserPlus className="h-4 w-4 mr-2" /> Promote to
                             Admin
+                          </Button>
+                        )}
+                        {u.role === "admin" && u.previousRole && (
+                          <Button
+                            className="w-full min-h-11"
+                            variant="outline"
+                            onClick={() => setUserRole(u._id, u.previousRole)}
+                          >
+                            Revert to Previous
                           </Button>
                         )}
                       </div>
