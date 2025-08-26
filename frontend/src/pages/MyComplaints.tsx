@@ -31,8 +31,38 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// For demo/testing: import mockComplaint
-import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
+import { getMyComplaintsApi } from "@/lib/api";
+
+interface ExtendedComplaint extends Complaint {
+  friendlyCode?: string;
+}
+
+interface BackendComplaintDTO {
+  id?: string;
+  _id?: string;
+  complaintCode?: string;
+  title?: string;
+  subject?: string;
+  description?: string;
+  category?: string;
+  department?: string;
+  status?: string;
+  sourceRole?: string;
+  submittedBy?: { fullName?: string; name?: string } | null;
+  assignedTo?: { fullName?: string; name?: string; role?: string } | null;
+  assignedByRole?: string | null;
+  assignmentPath?: string[];
+  assignedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  deadline?: string;
+  priority?: "Low" | "Medium" | "High" | "Critical";
+  feedback?: { rating: number; comment: string } | null;
+  resolutionNote?: string;
+  evidenceFile?: string;
+  isEscalated?: boolean;
+  submittedTo?: string;
+}
 
 const statusColors = {
   Pending: "bg-warning/10 text-warning border-warning/20",
@@ -43,69 +73,60 @@ const statusColors = {
 };
 
 export function MyComplaints() {
-  // MOCK DATA ENABLED BY DEFAULT
-  const demoComplaints: Complaint[] = Array.from({ length: 6 }).map((_, i) => ({
-    ...baseMockComplaint,
-    id: `my-mock${i + 1}`,
-    title: [
-      "WiFi not working in hostel",
-      "Broken AC in Lecture Hall",
-      "Projector not working",
-      "Cafeteria food quality",
-      "Library computers slow",
-      "Leaking roof in dorm",
-    ][i],
-    description: [
-      "The WiFi in hostel block B has been down for 3 days.",
-      "The air conditioning in Hall A-101 is broken.",
-      "Projector in Room 204 is not turning on.",
-      "Food quality in cafeteria has declined.",
-      "Library computers are extremely slow.",
-      "There is a leak in the roof of Dorm 3.",
-    ][i],
-    priority: ["High", "Critical", "Medium", "High", "Low", "Medium"][i] as
-      | "High"
-      | "Critical"
-      | "Medium"
-      | "Low",
-    status: [
-      "Pending",
-      "In Progress",
-      "Resolved",
-      "Pending",
-      "Closed",
-      "Pending",
-    ][i] as
-      | "Pending"
-      | "In Progress"
-      | "Resolved"
-      | "Closed"
-      | "Unassigned"
-      | "Assigned"
-      | "Overdue",
-    assignedStaff: [
-      "Jane Staff",
-      "Mike Tech",
-      "Sarah Fixit",
-      "Chef Tony",
-      "Libby Tech",
-      "Maintenance Bob",
-    ][i],
-    submittedBy: "John Doe",
-    submittedDate: new Date(Date.now() - (i + 1) * 86400000),
-    assignedDate: new Date(Date.now() - (i + 1) * 86400000),
-    lastUpdated: new Date(Date.now() - i * 43200000),
-    deadline: [
-      // Mix deadlines: past = overdue (unless Resolved/Closed), future = not overdue
-      new Date(Date.now() - 2 * 86400000), // 1: Pending -> overdue
-      new Date(Date.now() + 3 * 86400000), // 2: In Progress -> not overdue
-      new Date(Date.now() + 7 * 86400000), // 3: Resolved -> not overdue
-      new Date(Date.now() - 5 * 86400000), // 4: Pending -> overdue
-      new Date(Date.now() - 1 * 86400000), // 5: Closed (past but not overdue due to status)
-      new Date(Date.now() + 1 * 86400000), // 6: Pending -> not overdue
-    ][i],
-  }));
-  const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
+  const [complaints, setComplaints] = useState<ExtendedComplaint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch real complaints from backend
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = (await getMyComplaintsApi()) as unknown;
+        const arr: BackendComplaintDTO[] = Array.isArray(data) ? (data as BackendComplaintDTO[]) : [];
+        const mapped: ExtendedComplaint[] = arr.map((c) => ({
+          id: c.id || c._id || c.complaintCode || "", // real db id preferred
+          title: (c.title || c.subject || "").trim() || "Untitled Complaint",
+          description: c.description || "No description provided",
+            category: (c.category || c.department || "").trim() || "General",
+          status: (c.status as Complaint["status"]) || "Pending",
+          submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+          sourceRole: c.sourceRole,
+          assignedStaff:
+            c.assignedTo?.fullName || c.assignedTo?.name || "",
+          assignedStaffRole: c.assignedTo?.role,
+          assignedByRole: c.assignedByRole || null,
+          assignmentPath: c.assignmentPath || [],
+          assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
+          submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+          priority: c.priority || "Medium",
+          feedback: c.feedback
+            ? { rating: c.feedback.rating, comment: c.feedback.comment }
+            : undefined,
+          resolutionNote: c.resolutionNote,
+          evidenceFile: c.evidenceFile,
+          isEscalated: c.isEscalated,
+          submittedTo: c.submittedTo,
+          department: c.department,
+          friendlyCode: c.complaintCode,
+        }));
+        if (!cancelled) setComplaints(mapped);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!cancelled) setError(message || "Failed to load complaints");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -206,69 +227,136 @@ export function MyComplaints() {
         </p>
       </div>
 
-      {/* Search and Filter Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Search & Filter
-          </CardTitle>
-          <CardDescription>
-            Find specific complaints or filter by status
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by title, description, or category..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+      {loading && (
+        <Card>
+          <CardContent className="p-6 text-center text-muted-foreground">
+            Loading complaints...
+          </CardContent>
+        </Card>
+      )}
+
+      {error && !loading && (
+        <Card>
+          <CardContent className="p-6 text-center text-red-600">
+            {error}
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // retry
+                  setLoading(true);
+                  setError(null);
+                  (async () => {
+                    try {
+                      const data = (await getMyComplaintsApi()) as unknown;
+                      const arr: BackendComplaintDTO[] = Array.isArray(data) ? (data as BackendComplaintDTO[]) : [];
+                      const mapped: ExtendedComplaint[] = arr.map((c) => ({
+                        id: c.id || c._id || c.complaintCode || "",
+                        title: (c.title || c.subject || "").trim() || "Untitled Complaint",
+                        description: c.description || "No description provided",
+                        category: (c.category || c.department || "").trim() || "General",
+                        status: (c.status as Complaint["status"]) || "Pending",
+                        submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+                        sourceRole: c.sourceRole,
+                        assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
+                        assignedStaffRole: c.assignedTo?.role,
+                        assignedByRole: c.assignedByRole || null,
+                        assignmentPath: c.assignmentPath || [],
+                        assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
+                        submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
+                        deadline: c.deadline ? new Date(c.deadline) : undefined,
+                        lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+                        priority: c.priority || "Medium",
+                        feedback: c.feedback ? { rating: c.feedback.rating, comment: c.feedback.comment } : undefined,
+                        resolutionNote: c.resolutionNote,
+                        evidenceFile: c.evidenceFile,
+                        isEscalated: c.isEscalated,
+                        submittedTo: c.submittedTo,
+                        department: c.department,
+                        friendlyCode: c.complaintCode,
+                      }));
+                      setComplaints(mapped);
+                    } catch (e: unknown) {
+                      const message = e instanceof Error ? e.message : String(e);
+                      setError(message || "Failed to load complaints");
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }}
+              >
+                Retry
+              </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Pending">
-                  <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-2 align-middle"></span>
-                  Pending
-                </SelectItem>
-                <SelectItem value="In Progress">
-                  <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-2 align-middle"></span>
-                  In Progress
-                </SelectItem>
-                <SelectItem value="Resolved">
-                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 align-middle"></span>
-                  Resolved
-                </SelectItem>
-                <SelectItem value="Closed">
-                  <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2 align-middle"></span>
-                  Closed
-                </SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Search and Filter Controls */}
+      {!loading && !error && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Search & Filter
+            </CardTitle>
+            <CardDescription>
+              Find specific complaints or filter by status
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by title, description, or category..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
 
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="Critical">Critical</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Pending">
+                    <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-2 align-middle"></span>
+                    Pending
+                  </SelectItem>
+                  <SelectItem value="In Progress">
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-2 align-middle"></span>
+                    In Progress
+                  </SelectItem>
+                  <SelectItem value="Resolved">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 align-middle"></span>
+                    Resolved
+                  </SelectItem>
+                  <SelectItem value="Closed">
+                    <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2 align-middle"></span>
+                    Closed
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Complaints Table */}
       <Card>
@@ -336,6 +424,9 @@ export function MyComplaints() {
                           <div className="font-medium">{complaint.title}</div>
                           <div className="text-sm text-muted-foreground">
                             ID: {complaint.id}
+                            {complaint.friendlyCode && (
+                              <span className="ml-2">[{complaint.friendlyCode}]</span>
+                            )}
                           </div>
                         </td>
                         <td className="p-3">
@@ -434,6 +525,9 @@ export function MyComplaints() {
                           </h3>
                           <p className="text-xs text-muted-foreground mt-1">
                             ID: {complaint.id}
+                            {complaint.friendlyCode && (
+                              <span className="ml-1">[{complaint.friendlyCode}]</span>
+                            )}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
@@ -518,7 +612,7 @@ export function MyComplaints() {
       </Card>
 
       {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {!loading && !error && totalPages > 1 && (
         <div className="px-4 md:px-0">
           <Pagination>
             <PaginationContent>
@@ -600,7 +694,7 @@ export function MyComplaints() {
       )}
 
       {/* Modals */}
-      {selectedComplaint && (
+      {!loading && selectedComplaint && (
         <RoleBasedComplaintModal
           complaint={selectedComplaint}
           open={showDetailModal}
@@ -608,13 +702,14 @@ export function MyComplaints() {
           onUpdate={() => {}} // User view only
         />
       )}
-
-      <FeedbackModal
-        complaint={selectedComplaint}
-        open={showFeedbackModal}
-        onOpenChange={setShowFeedbackModal}
-        onSubmit={handleFeedbackSubmit}
-      />
+      {!loading && (
+        <FeedbackModal
+          complaint={selectedComplaint}
+          open={showFeedbackModal}
+          onOpenChange={setShowFeedbackModal}
+          onSubmit={handleFeedbackSubmit}
+        />
+      )}
     </div>
   );
 }

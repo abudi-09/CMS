@@ -9,6 +9,7 @@ import {
   giveFeedback,
   getAllFeedback,
   getAssignedComplaints,
+  approveComplaint,
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -27,6 +28,7 @@ router.post("/feedback/:id", protectRoute, giveFeedback);
 // ADMIN
 router.get("/all", protectRoute, adminOnly, getAllComplaints);
 router.put("/assign/:id", protectRoute, adminOnly, assignComplaint);
+router.put("/approve/:id", protectRoute, adminOnly, approveComplaint);
 router.get("/feedback/all", protectRoute, adminOnly, getAllFeedback);
 
 // STAFF

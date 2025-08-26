@@ -392,10 +392,43 @@ export function RoleBasedComplaintModal({
                 {liveComplaint.evidenceFile && (
                   <div>
                     <Label className="text-sm font-medium">Evidence</Label>
-                    <Button variant="outline" size="sm" className="mt-1 w-full">
-                      <Download className="h-4 w-4" />
-                      Download Evidence File
-                    </Button>
+                    <div className="mt-2 space-y-2">
+                      {/* Attempt inline preview if image */}
+                      {/(png|jpe?g|gif|webp|svg)$/i.test(
+                        liveComplaint.evidenceFile.split("?")[0].split(".").pop() || ""
+                      ) ? (
+                        <div className="border rounded p-2 bg-muted/30">
+                          <img
+                            src={liveComplaint.evidenceFile}
+                            alt="Evidence"
+                            className="max-h-60 object-contain mx-auto rounded"
+                            loading="lazy"
+                          />
+                        </div>
+                      ) : null}
+                      <div className="flex gap-2">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          <a
+                            href={liveComplaint.evidenceFile}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Download className="h-4 w-4 mr-1" /> View / Download
+                          </a>
+                        </Button>
+                        <Input
+                          readOnly
+                          value={liveComplaint.evidenceFile}
+                          className="text-xs"
+                          onFocus={(e) => e.currentTarget.select()}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
                 {/* Staff Update visible to all users if exists, but only if assigned */}
