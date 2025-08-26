@@ -218,9 +218,15 @@ export default function CalendarView({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  // Local complaints and modal state
+  const [allComplaints, setAllComplaints] = useState(mockComplaints);
+  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
+    null
+  );
+  const [modalOpen, setModalOpen] = useState(false);
 
   // Only show assigned complaints for staff, all for admin
-  const filteredComplaints = mockComplaints.filter((complaint) => {
+  const filteredComplaints = allComplaints.filter((complaint) => {
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;
     const matchesPriority =

@@ -40,7 +40,9 @@ export const useComplaints = () => {
         const payload: APIComplaintPayload = {
           title: complaint.title,
           description: complaint.description,
-          department: complaint.category,
+          // Keep department from caller (usually user's department)
+          department: complaint.department || "",
+          // Backend requires category; map from selected category
           category: complaint.category,
           priority: complaint.priority,
           deadline: complaint.deadline,
@@ -74,8 +76,10 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
       // Ensure the complaint has all required fields for the API
       const savedComplaint = await submitComplaintApi({
         ...complaint,
-        department: complaint.category, // Map category to department for backend
-        // Optionally add default values for omitted fields if needed
+        // Keep the caller-provided department (user's department)
+        department: complaint.department || "",
+        // Ensure category is present for backend
+        category: complaint.category,
       });
       setComplaints((prev) => [savedComplaint, ...prev]);
       return savedComplaint;

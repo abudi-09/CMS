@@ -1,4 +1,5 @@
 import Complaint from "../models/complaint.model.js";
+import mongoose from "mongoose";
 import ActivityLog from "../models/activityLog.model.js";
 import User, {
   normalizeRole as normalizeUserRole,
@@ -30,6 +31,8 @@ export const createComplaint = async (req, res) => {
       ? assignmentPath.map((r) => normalizeUserRole(r))
       : undefined;
     const complaint = new Complaint({
+      // Complaint schema defines _id as String, so we must provide one
+      _id: new mongoose.Types.ObjectId().toString(),
       title,
       category,
       description,

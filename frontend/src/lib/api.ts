@@ -389,52 +389,6 @@ export async function signupApi(formData: {
 export const API_BASE =
   import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
-// Lightweight fetch wrapper used by various feature APIs
-export const apiClient = {
-  async get(path: string) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: "GET",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || `GET ${path} failed`);
-    return data;
-  },
-  async post(path: string, body?: unknown) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || `POST ${path} failed`);
-    return data;
-  },
-  async patch(path: string, body?: unknown) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || `PATCH ${path} failed`);
-    return data;
-  },
-  async delete(path: string) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: "DELETE",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || `DELETE ${path} failed`);
-    return data;
-  },
-};
-
 export type LoginSuccess = {
   _id: string;
   username?: string;
