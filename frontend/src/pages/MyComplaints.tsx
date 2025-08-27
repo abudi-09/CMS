@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -77,56 +77,70 @@ export function MyComplaints() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch real complaints from backend
-  useEffect(() => {
-    let cancelled = false;
+  // Role mapping helpers (component scope so they can be reused in effects and handlers)
   type RoleU = "student" | "staff" | "headOfDepartment" | "dean" | "admin";
-    const roleGuard = (r?: string | null): RoleU | undefined => {
-      switch ((r || "").toLowerCase()) {
-        case "student":
-          return "student";
-        case "staff":
-          return "staff";
-        case "headofdepartment":
-        case "hod":
-          return "headOfDepartment";
-        case "dean":
-          return "dean";
-        case "admin":
-          return "admin";
-        default:
-          return undefined;
-      }
-    };
-    const pathGuard = (arr?: string[] | null): Array<RoleU | "staff"> => {
+  type RoleNoStaff = Exclude<RoleU, "staff">;
+  const roleGuard = useCallback((r?: string | null): RoleU | undefined => {
+    switch ((r || "").toLowerCase()) {
+      case "student":
+        return "student";
+      case "staff":
+        return "staff";
+      case "headofdepartment":
+      case "hod":
+        return "headOfDepartment";
+      case "dean":
+        return "dean";
+      case "admin":
+        return "admin";
+      default:
+        return undefined;
+    }
+  }, []);
+  const roleGuardNoStaff = useCallback(
+    (r?: string | null): RoleNoStaff | undefined => {
+      const g = roleGuard(r);
+      return g && g !== "staff" ? (g as RoleNoStaff) : undefined;
+    },
+    [roleGuard]
+  );
+  const pathGuard = useCallback(
+    (arr?: string[] | null): Array<RoleU | "staff"> => {
       const out: Array<RoleU | "staff"> = [];
       for (const x of Array.isArray(arr) ? arr : []) {
         const g = roleGuard(x);
         if (g) out.push(g);
       }
       return out;
-    };
+    },
+    [roleGuard]
+  );
+
+  // Fetch real complaints from backend
+  useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
         const data = (await getMyComplaintsApi()) as unknown;
-        const arr: BackendComplaintDTO[] = Array.isArray(data) ? (data as BackendComplaintDTO[]) : [];
+        const arr: BackendComplaintDTO[] = Array.isArray(data)
+          ? (data as BackendComplaintDTO[])
+          : [];
         const mapped: ExtendedComplaint[] = arr.map((c) => ({
           id: c.id || c._id || c.complaintCode || "", // real db id preferred
           title: (c.title || c.subject || "").trim() || "Untitled Complaint",
           description: c.description || "No description provided",
-            category: (c.category || c.department || "").trim() || "General",
+          category: (c.category || c.department || "").trim() || "General",
           status: (c.status as Complaint["status"]) || "Pending",
           submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
           sourceRole: roleGuard(c.sourceRole),
-          assignedStaff:
-            c.assignedTo?.fullName || c.assignedTo?.name || "",
+          assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
           // staff role for assignee cannot be 'student'; fallback to 'staff' when ambiguous
           assignedStaffRole:
             (roleGuard(c.assignedTo?.role) as Exclude<RoleU, "student">) ||
             ("staff" as const),
-          assignedByRole: roleGuard(c.assignedByRole),
+          assignedByRole: roleGuardNoStaff(c.assignedByRole),
           assignmentPath: pathGuard(c.assignmentPath),
           assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
           submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
@@ -155,7 +169,7 @@ export function MyComplaints() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [roleGuard, roleGuardNoStaff, pathGuard]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -181,9 +195,7 @@ export function MyComplaints() {
                 lastUpdated: new Date(),
                 resolutionNote:
                   typeof detail.note === "string" && detail.note
-                    ? [c.resolutionNote, detail.note]
-                        .filter(Boolean)
-                        .join("\n")
+                    ? [c.resolutionNote, detail.note].filter(Boolean).join("\n")
                     : c.resolutionNote,
               }
             : c
@@ -314,29 +326,50 @@ export function MyComplaints() {
                   (async () => {
                     try {
                       const data = (await getMyComplaintsApi()) as unknown;
-                      const arr: BackendComplaintDTO[] = Array.isArray(data) ? (data as BackendComplaintDTO[]) : [];
+                      const arr: BackendComplaintDTO[] = Array.isArray(data)
+                        ? (data as BackendComplaintDTO[])
+                        : [];
                       const mapped: ExtendedComplaint[] = arr.map((c) => ({
                         id: c.id || c._id || c.complaintCode || "",
-                        title: (c.title || c.subject || "").trim() || "Untitled Complaint",
+                        title:
+                          (c.title || c.subject || "").trim() ||
+                          "Untitled Complaint",
                         description: c.description || "No description provided",
-                        category: (c.category || c.department || "").trim() || "General",
+                        category:
+                          (c.category || c.department || "").trim() ||
+                          "General",
                         status: (c.status as Complaint["status"]) || "Pending",
-                        submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+                        submittedBy:
+                          c.submittedBy?.fullName ||
+                          c.submittedBy?.name ||
+                          "You",
                         sourceRole: roleGuard(c.sourceRole),
-                        assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
+                        assignedStaff:
+                          c.assignedTo?.fullName || c.assignedTo?.name || "",
                         assignedStaffRole:
                           (roleGuard(c.assignedTo?.role) as Exclude<
                             RoleU,
                             "student"
                           >) || ("staff" as const),
-                        assignedByRole: roleGuard(c.assignedByRole),
+                        assignedByRole: roleGuardNoStaff(c.assignedByRole),
                         assignmentPath: pathGuard(c.assignmentPath),
-                        assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
-                        submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
+                        assignedDate: c.assignedAt
+                          ? new Date(c.assignedAt)
+                          : undefined,
+                        submittedDate: c.createdAt
+                          ? new Date(c.createdAt)
+                          : new Date(),
                         deadline: c.deadline ? new Date(c.deadline) : undefined,
-                        lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+                        lastUpdated: c.updatedAt
+                          ? new Date(c.updatedAt)
+                          : new Date(),
                         priority: c.priority || "Medium",
-                        feedback: c.feedback ? { rating: c.feedback.rating, comment: c.feedback.comment } : undefined,
+                        feedback: c.feedback
+                          ? {
+                              rating: c.feedback.rating,
+                              comment: c.feedback.comment,
+                            }
+                          : undefined,
                         resolutionNote: c.resolutionNote,
                         evidenceFile: c.evidenceFile,
                         isEscalated: c.isEscalated,
@@ -346,7 +379,8 @@ export function MyComplaints() {
                       }));
                       setComplaints(mapped);
                     } catch (e: unknown) {
-                      const message = e instanceof Error ? e.message : String(e);
+                      const message =
+                        e instanceof Error ? e.message : String(e);
                       setError(message || "Failed to load complaints");
                     } finally {
                       setLoading(false);
@@ -494,7 +528,9 @@ export function MyComplaints() {
                           <div className="text-sm text-muted-foreground">
                             ID: {complaint.id}
                             {complaint.friendlyCode && (
-                              <span className="ml-2">[{complaint.friendlyCode}]</span>
+                              <span className="ml-2">
+                                [{complaint.friendlyCode}]
+                              </span>
                             )}
                           </div>
                         </td>
@@ -595,7 +631,9 @@ export function MyComplaints() {
                           <p className="text-xs text-muted-foreground mt-1">
                             ID: {complaint.id}
                             {complaint.friendlyCode && (
-                              <span className="ml-1">[{complaint.friendlyCode}]</span>
+                              <span className="ml-1">
+                                [{complaint.friendlyCode}]
+                              </span>
                             )}
                           </p>
                         </div>

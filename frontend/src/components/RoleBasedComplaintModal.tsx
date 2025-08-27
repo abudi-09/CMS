@@ -83,32 +83,62 @@ export function RoleBasedComplaintModal({
   const [logs, setLogs] = useState<ActivityLog[]>([]);
 
   // Helper: Normalize a backend complaint payload into our client Complaint shape, preserving fallback fields
-  function normalizeBackendComplaint(input: unknown, fallback?: Complaint | null): Complaint | null {
+  function normalizeBackendComplaint(
+    input: unknown,
+    fallback?: Complaint | null
+  ): Complaint | null {
     if (!input || typeof input !== "object") return fallback ?? null;
     const obj = input as Record<string, unknown>;
     const submittedBy = (obj.submittedBy as Record<string, unknown>) || {};
     const assignedTo = (obj.assignedTo as Record<string, unknown>) || {};
     const id = (obj._id as string) || (obj.id as string) || fallback?.id || "";
     const title = (obj.title as string) || fallback?.title || "";
-    const description = (obj.description as string) || fallback?.description || "";
+    const description =
+      (obj.description as string) || fallback?.description || "";
     const category = (obj.category as string) || fallback?.category || "";
-    const status = (obj.status as Complaint["status"]) || fallback?.status || "Pending";
-    const priority = (obj.priority as Complaint["priority"]) || fallback?.priority || "Medium";
-    const submittedByName = (submittedBy.name as string) || (submittedBy.email as string) || fallback?.submittedBy || "User";
-    const assignedStaffName = (assignedTo.name as string) || (assignedTo.email as string) || fallback?.assignedStaff;
-    const assignedAt = obj.assignedAt ? new Date(String(obj.assignedAt)) : fallback?.assignedDate;
-    const createdAt = obj.createdAt ? new Date(String(obj.createdAt)) : fallback?.submittedDate || new Date();
-    const updatedAt = obj.updatedAt ? new Date(String(obj.updatedAt)) : fallback?.lastUpdated || new Date();
-    const deadline = obj.deadline ? new Date(String(obj.deadline)) : fallback?.deadline;
-    const resolutionNote = (obj.resolutionNote as string) || fallback?.resolutionNote;
-    const feedback = (obj.feedback as Complaint["feedback"]) || fallback?.feedback;
-    const sourceRole = (obj.sourceRole as Complaint["sourceRole"]) || fallback?.sourceRole;
-    const assignedByRole = (obj.assignedByRole as Complaint["assignedByRole"]) || fallback?.assignedByRole;
+    const status =
+      (obj.status as Complaint["status"]) || fallback?.status || "Pending";
+    const priority =
+      (obj.priority as Complaint["priority"]) || fallback?.priority || "Medium";
+    const submittedByName =
+      (submittedBy.name as string) ||
+      (submittedBy.email as string) ||
+      fallback?.submittedBy ||
+      "User";
+    const assignedStaffName =
+      (assignedTo.name as string) ||
+      (assignedTo.email as string) ||
+      fallback?.assignedStaff;
+    const assignedAt = obj.assignedAt
+      ? new Date(String(obj.assignedAt))
+      : fallback?.assignedDate;
+    const createdAt = obj.createdAt
+      ? new Date(String(obj.createdAt))
+      : fallback?.submittedDate || new Date();
+    const updatedAt = obj.updatedAt
+      ? new Date(String(obj.updatedAt))
+      : fallback?.lastUpdated || new Date();
+    const deadline = obj.deadline
+      ? new Date(String(obj.deadline))
+      : fallback?.deadline;
+    const resolutionNote =
+      (obj.resolutionNote as string) || fallback?.resolutionNote;
+    const feedback =
+      (obj.feedback as Complaint["feedback"]) || fallback?.feedback;
+    const sourceRole =
+      (obj.sourceRole as Complaint["sourceRole"]) || fallback?.sourceRole;
+    const assignedByRole =
+      (obj.assignedByRole as Complaint["assignedByRole"]) ||
+      fallback?.assignedByRole;
     const assignmentPath = Array.isArray(obj.assignmentPath)
-      ? (obj.assignmentPath as Array<"student" | "headOfDepartment" | "dean" | "admin" | "staff">)
+      ? (obj.assignmentPath as Array<
+          "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+        >)
       : fallback?.assignmentPath || [];
     const evidenceFile = (obj.evidenceFile as string) || fallback?.evidenceFile;
-    const isEscalated = Boolean(obj.isEscalated ?? fallback?.isEscalated ?? false);
+    const isEscalated = Boolean(
+      obj.isEscalated ?? fallback?.isEscalated ?? false
+    );
     const submittedTo = (obj.submittedTo as string) || fallback?.submittedTo;
 
     return {
@@ -279,7 +309,9 @@ export function RoleBasedComplaintModal({
         if (cancelled) return;
         if (fresh) {
           // Non-destructive merge to preserve any transient local fields
-          setLiveComplaint((prev) => normalizeBackendComplaint(fresh, prev || complaint));
+          setLiveComplaint((prev) =>
+            normalizeBackendComplaint(fresh, prev || complaint)
+          );
         }
         setLogs(logData as ActivityLog[]);
       } catch {
@@ -298,11 +330,17 @@ export function RoleBasedComplaintModal({
         loadLogsAndLatest();
       }
     };
-    window.addEventListener("complaint:status-changed", onStatusEvent as EventListener);
+    window.addEventListener(
+      "complaint:status-changed",
+      onStatusEvent as EventListener
+    );
     return () => {
       cancelled = true;
       if (timer) window.clearInterval(timer);
-      window.removeEventListener("complaint:status-changed", onStatusEvent as EventListener);
+      window.removeEventListener(
+        "complaint:status-changed",
+        onStatusEvent as EventListener
+      );
     };
   }, [open, complaint, complaint?.id, fetchLatest]);
 
@@ -418,7 +456,8 @@ export function RoleBasedComplaintModal({
       const ts = new Date();
       const prefix = ts.toLocaleString();
       const existing = liveComplaint?.resolutionNote?.trim();
-      const newEntry = `• ${prefix}: ${staffUpdate.trim()}`;
+      const safeNote = staffUpdate.trim().slice(0, 1000);
+      const newEntry = `• ${prefix}: ${safeNote}`;
       const combined = existing ? `${existing}\n${newEntry}` : newEntry;
       onUpdate?.(complaint.id, {
         resolutionNote: combined,
@@ -558,7 +597,8 @@ export function RoleBasedComplaintModal({
   // Assigned (if any assignee exists)
   if (liveComplaint.assignedStaff) {
     let assignDesc = `Assigned to ${staffName}`;
-    if (viaHod) assignDesc = `Assigned by HOD to ${staffName}`;
+    if (directToStaff) assignDesc = `Sent directly to ${staffName}`;
+    else if (viaHod) assignDesc = `Assigned by HOD to ${staffName}`;
     else if (assignedByAdmin) assignDesc = `Assigned by Admin to ${staffName}`;
     derivedSteps.push({
       label: "Assigned",
@@ -585,14 +625,15 @@ export function RoleBasedComplaintModal({
     const ts = log.timestamp ? new Date(log.timestamp) : undefined;
     const who = log.user?.name || log.user?.email || staffName || "Staff";
     const details = (log.details || {}) as Record<string, unknown>;
-    const descr = typeof details.description === "string" ? details.description : undefined;
+    const descr =
+      typeof details.description === "string" ? details.description : undefined;
     if (action.includes("status updated to in progress")) {
       return {
-        label: "Accepted",
+        label: "In Progress",
         role: "staff",
         icon: <Settings className="h-4 w-4" />,
         time: ts,
-        desc: descr ? descr : `Accepted by ${who}`,
+        desc: descr ? descr : `Currently under review by Staff.`,
       };
     }
     if (action.includes("status updated to resolved")) {
@@ -627,7 +668,10 @@ export function RoleBasedComplaintModal({
   };
   // Add logs in chronological order (oldest first)
   [...logs]
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
     .forEach((l) => {
       const mapped = statusLogToStep(l);
       if (mapped) logSteps.push(mapped);
@@ -708,13 +752,10 @@ export function RoleBasedComplaintModal({
     });
   }
 
-  // Final timeline: submitted/assigned first, then all updates sorted chronologically
-  const timelineSteps = [
-    ...derivedSteps,
-    ...logSteps.sort(
-      (a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0)
-    ),
-  ];
+  // Final timeline: combine all steps and sort by time DESC (latest first)
+  const timelineSteps = [...derivedSteps, ...logSteps].sort(
+    (a, b) => (b.time?.getTime?.() || 0) - (a.time?.getTime?.() || 0)
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1016,7 +1057,7 @@ export function RoleBasedComplaintModal({
           <CardContent>
             <div className="relative pl-6 border-l-2 border-muted-foreground/20 space-y-8">
               {/* Timeline steps - always use liveComplaint for latest backend state */}
-              {timelineSteps.map((step, idx, arr) => (
+              {timelineSteps.map((step, idx) => (
                 <div
                   key={step.label}
                   className="flex items-start gap-4 relative"
@@ -1024,7 +1065,7 @@ export function RoleBasedComplaintModal({
                   <div className="absolute -left-6 top-0">
                     <div
                       className={`rounded-full bg-background border-2 border-primary flex items-center justify-center w-7 h-7 ${
-                        idx === arr.length - 1 ? "border-success" : ""
+                        idx === 0 ? "border-success" : ""
                       }`}
                     >
                       {step.icon}
@@ -1040,7 +1081,9 @@ export function RoleBasedComplaintModal({
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {step.time ? new Date(step.time).toLocaleString() : ""}
                     </div>
-                    <div className="text-sm mt-1">{step.desc}</div>
+                    <div className="text-sm mt-1 whitespace-pre-wrap break-words">
+                      {step.desc}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1212,9 +1255,14 @@ export function RoleBasedComplaintModal({
                         <Textarea
                           placeholder="Provide updates on the complaint progress..."
                           value={staffUpdate}
-                          onChange={(e) => setStaffUpdate(e.target.value)}
+                          onChange={(e) =>
+                            setStaffUpdate(e.target.value.slice(0, 1000))
+                          }
                           rows={3}
                         />
+                        <div className="text-xs text-muted-foreground mt-1 text-right">
+                          {staffUpdate.length}/1000
+                        </div>
                         <Button
                           onClick={handleAddUpdate}
                           disabled={isLoading || !staffUpdate.trim()}
@@ -1263,11 +1311,14 @@ export function RoleBasedComplaintModal({
                         onChange={(e) =>
                           setLiveComplaint({
                             ...liveComplaint,
-                            resolutionNote: e.target.value,
+                            resolutionNote: e.target.value.slice(0, 1000),
                           })
                         }
                         rows={3}
                       />
+                      <div className="text-xs text-muted-foreground mt-1 text-right">
+                        {(liveComplaint.resolutionNote || "").length}/1000
+                      </div>
                     </div>
                     <Button
                       className="mt-2 w-full"
@@ -1330,11 +1381,14 @@ export function RoleBasedComplaintModal({
                       onChange={(e) =>
                         setLiveComplaint({
                           ...liveComplaint,
-                          resolutionNote: e.target.value,
+                          resolutionNote: e.target.value.slice(0, 1000),
                         })
                       }
                       rows={3}
                     />
+                    <div className="text-xs text-muted-foreground mt-1 text-right">
+                      {(liveComplaint.resolutionNote || "").length}/1000
+                    </div>
                   </div>
                   <Button
                     className="mt-2 w-full"
@@ -1399,11 +1453,14 @@ export function RoleBasedComplaintModal({
                       onChange={(e) =>
                         setLiveComplaint({
                           ...liveComplaint,
-                          resolutionNote: e.target.value,
+                          resolutionNote: e.target.value.slice(0, 1000),
                         })
                       }
                       rows={3}
                     />
+                    <div className="text-xs text-muted-foreground mt-1 text-right">
+                      {(liveComplaint.resolutionNote || "").length}/1000
+                    </div>
                   </div>
                   <Button
                     className="mt-2 w-full"
