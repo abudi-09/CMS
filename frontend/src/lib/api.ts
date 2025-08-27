@@ -694,6 +694,8 @@ export interface Complaint {
   assignmentPath?: Array<
     "student" | "headOfDepartment" | "dean" | "admin" | "staff"
   >;
+  // When submitting directly to staff
+  recipientStaffId?: string;
 }
 
 export async function submitComplaintApi(complaint: Complaint) {
@@ -705,6 +707,54 @@ export async function submitComplaintApi(complaint: Complaint) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to submit complaint");
+  return data.complaint || data;
+}
+
+// Staff: list complaints assigned to current user
+export async function getAssignedComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/assigned`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch assigned complaints");
+  return data as Array<{
+    id: string;
+    title: string;
+    category: string;
+    status: string;
+    submittedDate: string | Date;
+    lastUpdated: string | Date;
+    submittedBy: { name?: string; email?: string };
+    shortDescription?: string;
+    fullDescription?: string;
+    isEscalated?: boolean;
+    deadline?: string | Date | null;
+    sourceRole?: string;
+    assignedByRole?: string;
+    assignmentPath?: string[];
+  }>;
+}
+
+// Staff: update status of an assigned complaint
+export async function updateComplaintStatusApi(
+  complaintId: string,
+  status: "Pending" | "In Progress" | "Resolved" | "Closed",
+  description?: string
+) {
+  const res = await fetch(
+    `${API_BASE}/complaints/update-status/${complaintId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status, description }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to update status");
   return data.complaint || data;
 }
 

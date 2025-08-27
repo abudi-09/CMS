@@ -295,6 +295,9 @@ export function SubmitComplaint() {
           formData.role === "staff" && formData.deadline
             ? new Date(formData.deadline)
             : undefined,
+        // Important: tell backend which staff to assign to immediately
+        recipientStaffId:
+          formData.role === "staff" ? formData.recipient : undefined,
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);

@@ -1,6 +1,7 @@
 // For demo/testing: import mockComplaint
-import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
-import { useState } from "react";
+// Demo mock removed; complaints will be loaded from backend
+// import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ import {
 // Removed useComplaints to avoid requiring ComplaintProvider for this page's local mock state
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { getAssignedComplaintsApi, updateComplaintStatusApi } from "@/lib/api";
 import React from "react";
 
 // Import the Complaint type from the context to ensure type compatibility
@@ -57,109 +59,12 @@ import type { Complaint } from "@/components/ComplaintCard";
 export function MyAssignedComplaints() {
   // MOCK DATA ENABLED BY DEFAULT
   const { user } = useAuth();
-  // Generate multiple mock complaints for demo
-  // Demo data: mix of overdue and not overdue (expanded)
-  const priorities: Complaint["priority"][] = [
-    "High",
-    "Critical",
-    "Medium",
-    "High",
-    "Low",
-    "Medium",
-    "Critical",
-    "Low",
-    "High",
-    "Medium",
-  ];
-  // Set deadlines: some in the past (overdue), some in the future (not overdue)
-  const deadlines = [
-    new Date(Date.now() - 2 * 86400000), // overdue
-    new Date(Date.now() + 2 * 86400000), // not overdue
-    new Date(Date.now() - 1 * 86400000), // overdue
-    new Date(Date.now() + 5 * 86400000), // not overdue
-    new Date(Date.now() - 3 * 86400000), // overdue
-    new Date(Date.now() + 7 * 86400000), // not overdue
-    new Date(Date.now() + 10 * 86400000), // not overdue
-    new Date(Date.now() + 1 * 86400000), // not overdue
-    new Date(Date.now() + 3 * 86400000), // not overdue
-    new Date(Date.now() + 15 * 86400000), // not overdue
-  ];
-  const titles = [
-    "WiFi not working in hostel",
-    "Broken AC in Lecture Hall",
-    "Projector not working",
-    "Cafeteria food quality",
-    "Library computers slow",
-    "Leaking roof in dorm",
-    "Elevator malfunction",
-    "Printer out of service",
-    "Noisy construction",
-    "Lights flickering in corridor",
-  ];
-  const descriptions = [
-    "The WiFi in hostel block B has been down for 3 days.",
-    "The air conditioning in Hall A-101 is broken.",
-    "Projector in Room 204 is not turning on.",
-    "Food quality in cafeteria has declined.",
-    "Library computers are extremely slow.",
-    "There is a leak in the roof of Dorm 3.",
-    "Elevator in Admin Block is stuck on 2nd floor.",
-    "Printer in Lab 5 is out of service.",
-    "Construction noise near library is disruptive.",
-    "Corridor lights are flickering intermittently.",
-  ];
-  const statuses: Complaint["status"][] = [
-    "Pending",
-    "In Progress",
-    "Resolved",
-    "Pending",
-    "Closed",
-    "Pending",
-    "Pending",
-    "Pending",
-    "In Progress",
-    "Pending",
-  ];
-  const submitters = [
-    "John Doe",
-    "Alice Smith",
-    "Bob Johnson",
-    "Mary Lee",
-    "Chris Evans",
-    "Sara Kim",
-    "David Park",
-    "Linda Green",
-    "Tom Hardy",
-    "Priya Patel",
-  ];
-  const demoComplaints: Complaint[] = Array.from({ length: 10 }).map(
-    (_, i) => ({
-      ...baseMockComplaint,
-      id: `mock${i + 1}`,
-      title: titles[i],
-      description: descriptions[i],
-      priority: priorities[i],
-      status: statuses[i],
-      assignedStaff: user
-        ? user.fullName || user.name
-        : baseMockComplaint.assignedStaff,
-      submittedBy: submitters[i],
-      sourceRole: "student",
-      // Make some demo complaints come via HoD so they show in Assigned by HOD tab
-      assignedByRole: i % 4 === 1 ? "headOfDepartment" : "student",
-      assignmentPath:
-        i % 4 === 1 ? ["student", "headOfDepartment"] : ["student", "staff"],
-      submittedDate: new Date(Date.now() - (i + 1) * 86400000),
-      assignedDate: new Date(Date.now() - (i + 1) * 86400000),
-      lastUpdated: new Date(Date.now() - i * 43200000),
-      deadline: deadlines[i],
-    })
-  );
-  const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
+  // Complaints will be loaded from backend; remove demo generation
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -189,6 +94,70 @@ export function MyAssignedComplaints() {
     }
   });
   // Local update function replacing context update for demo/mock state
+  // Load assigned complaints from backend for staff user
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!user || user.role !== "staff") return;
+      try {
+        const data = await getAssignedComplaintsApi();
+        if (cancelled) return;
+        const name = user.fullName ?? user.name ?? "";
+        const mapped: Complaint[] = (data || []).map((d: unknown) => {
+          const obj = (d ?? {}) as Record<string, unknown>;
+          const sb = obj.submittedBy as Record<string, unknown> | undefined;
+          const submittedByName =
+            (sb && typeof sb.name === "string" && sb.name) ||
+            (sb && typeof sb.email === "string" && sb.email) ||
+            "User";
+          return {
+            id: String((obj.id as string) || (obj._id as string) || ""),
+            title: String(obj.title || ""),
+            description: String(
+              (obj.fullDescription as string) ||
+                (obj.shortDescription as string) ||
+                ""
+            ),
+            category: String(obj.category || ""),
+            status:
+              (obj.status as Complaint["status"] as Complaint["status"]) ||
+              "Pending",
+            priority:
+              (obj.priority as Complaint["priority"] as Complaint["priority"]) ||
+              "Medium",
+            submittedBy: submittedByName,
+            assignedStaff: name || undefined,
+            assignedStaffRole: "staff",
+            assignedDate: obj.assignedAt
+              ? new Date(String(obj.assignedAt))
+              : undefined,
+            submittedDate: obj.submittedDate
+              ? new Date(String(obj.submittedDate))
+              : new Date(),
+            lastUpdated: obj.lastUpdated
+              ? new Date(String(obj.lastUpdated))
+              : new Date(),
+            deadline: obj.deadline ? new Date(String(obj.deadline)) : undefined,
+            sourceRole: obj.sourceRole as Complaint["sourceRole"],
+            assignedByRole: obj.assignedByRole as Complaint["assignedByRole"],
+            assignmentPath: Array.isArray(obj.assignmentPath)
+              ? (obj.assignmentPath as Array<
+                  "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+                >)
+              : [],
+            isEscalated: !!obj.isEscalated,
+          };
+        });
+        setComplaints(mapped);
+      } catch {
+        setComplaints([]);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   // Only show complaints assigned to the current staff user; if no user (demo), show all mock complaints
   const myAssignedComplaints = React.useMemo(() => {
@@ -200,19 +169,7 @@ export function MyAssignedComplaints() {
     );
   }, [complaints, user]);
 
-  // When user becomes available, reassign mock complaints to the logged-in user so they remain visible
-  React.useEffect(() => {
-    if (!user) return;
-    const name = user.fullName ?? user.name;
-    if (!name) return;
-    setComplaints((prev) =>
-      prev.map((c) =>
-        typeof c.id === "string" && c.id.startsWith("mock")
-          ? { ...c, assignedStaff: name }
-          : c
-      )
-    );
-  }, [user]);
+  // No demo reassignment — complaints are loaded from backend for staff users
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -230,7 +187,10 @@ export function MyAssignedComplaints() {
     });
   };
 
-  const handleUpdate = (complaintId: string, updates: Partial<Complaint>) => {
+  const handleUpdate = async (
+    complaintId: string,
+    updates: Partial<Complaint>
+  ) => {
     setComplaints((prev) =>
       prev.map((c) =>
         c.id === complaintId ? { ...c, ...updates, lastUpdated: new Date() } : c
@@ -240,6 +200,34 @@ export function MyAssignedComplaints() {
     // If backend/modal changed status, sync accepted/rejected tabs
     if (updates.status) {
       const st = updates.status;
+      // Push status to backend
+      try {
+        // Only send valid backend statuses
+        const allowed = [
+          "Pending",
+          "In Progress",
+          "Resolved",
+          "Closed",
+        ] as const;
+        type Allowed = (typeof allowed)[number];
+        const isAllowed = (s: string): s is Allowed =>
+          (allowed as readonly string[]).includes(s);
+        if (isAllowed(st)) {
+          // If a resolution note was provided via modal, forward it as the optional description
+          const description =
+            typeof updates.resolutionNote === "string"
+              ? updates.resolutionNote
+              : undefined;
+          await updateComplaintStatusApi(complaintId, st, description);
+        }
+      } catch (err) {
+        // Surface non-blocking error
+        toast({
+          title: "Failed to update",
+          description: "Could not sync status to server",
+          variant: "destructive",
+        });
+      }
       // Consider 'In Progress' as accepted by staff
       if (st === "In Progress") {
         acceptComplaint(complaintId);
@@ -271,6 +259,23 @@ export function MyAssignedComplaints() {
               detail: { id: complaintId, status: "Resolved" },
             })
           );
+          // Also upsert into global list if it's not present yet
+          const c = (myAssignedComplaints || []).find(
+            (x) => x.id === complaintId
+          );
+          if (c) {
+            window.dispatchEvent(
+              new CustomEvent("complaint:upsert", {
+                detail: {
+                  complaint: {
+                    ...c,
+                    status: "Resolved",
+                    lastUpdated: new Date(),
+                  },
+                },
+              })
+            );
+          }
         } catch {
           // no-op: best-effort event
         }
@@ -357,7 +362,8 @@ export function MyAssignedComplaints() {
     }
   };
 
-  const acceptComplaint = (id: string) => {
+  const acceptComplaint = async (id: string) => {
+    // Immediately mark as accepted in UI
     setAcceptedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -373,9 +379,35 @@ export function MyAssignedComplaints() {
       }
       return prev;
     });
-    toast({ title: "Accepted", description: `Complaint #${id} accepted.` });
+    try {
+      await updateComplaintStatusApi(id, "In Progress");
+      // reflect status in local list
+      setComplaints((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: "In Progress" } : c))
+      );
+      // Emit realtime event for student views
+      try {
+        window.dispatchEvent(
+          new CustomEvent("complaint:status-changed", {
+            detail: { id, status: "In Progress" },
+          })
+        );
+      } catch {
+        // best-effort event dispatch; ignore
+      }
+      toast({ title: "Accepted", description: `Complaint #${id} accepted.` });
+    } catch (e: unknown) {
+      toast({
+        title: "Accept failed",
+        description:
+          e && typeof e === "object" && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Could not update status",
+        variant: "destructive",
+      });
+    }
   };
-  const rejectComplaint = (id: string) => {
+  const rejectComplaint = async (id: string) => {
     setRejectedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -391,7 +423,33 @@ export function MyAssignedComplaints() {
       }
       return prev;
     });
-    toast({ title: "Rejected", description: `Complaint #${id} rejected.` });
+    try {
+      const note = "Rejected by staff";
+      await updateComplaintStatusApi(id, "Closed", note);
+      setComplaints((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: "Closed" } : c))
+      );
+      // Emit realtime event for student views
+      try {
+        window.dispatchEvent(
+          new CustomEvent("complaint:status-changed", {
+            detail: { id, status: "Closed", note },
+          })
+        );
+      } catch {
+        // best-effort event dispatch; ignore
+      }
+      toast({ title: "Rejected", description: `Complaint #${id} rejected.` });
+    } catch (e: unknown) {
+      toast({
+        title: "Reject failed",
+        description:
+          e && typeof e === "object" && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Could not update status",
+        variant: "destructive",
+      });
+    }
   };
 
   const isAssignedByHod = (c: Complaint) => {
@@ -611,35 +669,7 @@ export function MyAssignedComplaints() {
     setOverdueFilter("All");
   };
 
-  // Auto-escalate overdue items to HoD visibility on first render/filter run
-  React.useEffect(() => {
-    // Demo-only escalation: when overdue, escalate to HoD visibility so HoD can handle/reassign
-    setComplaints((prev) =>
-      prev.map((c) => {
-        const isMine =
-          c.assignedStaff &&
-          user &&
-          (c.assignedStaff === user.fullName || c.assignedStaff === user.name);
-        if (
-          isMine &&
-          isOverdue(c) &&
-          c.assignedStaffRole !== "headOfDepartment"
-        ) {
-          return {
-            ...c,
-            assignedStaffRole: "headOfDepartment",
-            assignedStaff: "Head of Department",
-            status:
-              c.status === "Resolved" || c.status === "Closed"
-                ? c.status
-                : "In Progress",
-            lastUpdated: new Date(),
-          } as Complaint;
-        }
-        return c;
-      })
-    );
-  }, [user, escalationKey]);
+  // Note: no auto-escalation side-effects here; escalation is handled by backend if applicable.
 
   return (
     <div className="space-y-6">
@@ -762,7 +792,6 @@ export function MyAssignedComplaints() {
                   </SelectContent>
                 </Select>
               </div>
-
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                 <SelectTrigger className="min-w-0 sm:min-w-[150px] rounded-lg">
                   <SelectValue placeholder="All Priority" />

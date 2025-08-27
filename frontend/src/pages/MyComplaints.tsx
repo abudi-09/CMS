@@ -80,6 +80,32 @@ export function MyComplaints() {
   // Fetch real complaints from backend
   useEffect(() => {
     let cancelled = false;
+  type RoleU = "student" | "staff" | "headOfDepartment" | "dean" | "admin";
+    const roleGuard = (r?: string | null): RoleU | undefined => {
+      switch ((r || "").toLowerCase()) {
+        case "student":
+          return "student";
+        case "staff":
+          return "staff";
+        case "headofdepartment":
+        case "hod":
+          return "headOfDepartment";
+        case "dean":
+          return "dean";
+        case "admin":
+          return "admin";
+        default:
+          return undefined;
+      }
+    };
+    const pathGuard = (arr?: string[] | null): Array<RoleU | "staff"> => {
+      const out: Array<RoleU | "staff"> = [];
+      for (const x of Array.isArray(arr) ? arr : []) {
+        const g = roleGuard(x);
+        if (g) out.push(g);
+      }
+      return out;
+    };
     async function load() {
       setLoading(true);
       setError(null);
@@ -93,12 +119,15 @@ export function MyComplaints() {
             category: (c.category || c.department || "").trim() || "General",
           status: (c.status as Complaint["status"]) || "Pending",
           submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
-          sourceRole: c.sourceRole,
+          sourceRole: roleGuard(c.sourceRole),
           assignedStaff:
             c.assignedTo?.fullName || c.assignedTo?.name || "",
-          assignedStaffRole: c.assignedTo?.role,
-          assignedByRole: c.assignedByRole || null,
-          assignmentPath: c.assignmentPath || [],
+          // staff role for assignee cannot be 'student'; fallback to 'staff' when ambiguous
+          assignedStaffRole:
+            (roleGuard(c.assignedTo?.role) as Exclude<RoleU, "student">) ||
+            ("staff" as const),
+          assignedByRole: roleGuard(c.assignedByRole),
+          assignmentPath: pathGuard(c.assignmentPath),
           assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
           submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
           deadline: c.deadline ? new Date(c.deadline) : undefined,
@@ -135,6 +164,42 @@ export function MyComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  // Listen for global complaint status changes to keep list in sync in real-time
+  useEffect(() => {
+    const onStatusChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { id?: string; status?: Complaint["status"]; note?: string }
+        | undefined;
+      if (!detail?.id) return;
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === detail.id
+            ? {
+                ...c,
+                status: (detail.status as Complaint["status"]) || c.status,
+                lastUpdated: new Date(),
+                resolutionNote:
+                  typeof detail.note === "string" && detail.note
+                    ? [c.resolutionNote, detail.note]
+                        .filter(Boolean)
+                        .join("\n")
+                    : c.resolutionNote,
+              }
+            : c
+        )
+      );
+    };
+    window.addEventListener(
+      "complaint:status-changed",
+      onStatusChanged as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        "complaint:status-changed",
+        onStatusChanged as EventListener
+      );
+  }, []);
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -257,11 +322,15 @@ export function MyComplaints() {
                         category: (c.category || c.department || "").trim() || "General",
                         status: (c.status as Complaint["status"]) || "Pending",
                         submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
-                        sourceRole: c.sourceRole,
+                        sourceRole: roleGuard(c.sourceRole),
                         assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
-                        assignedStaffRole: c.assignedTo?.role,
-                        assignedByRole: c.assignedByRole || null,
-                        assignmentPath: c.assignmentPath || [],
+                        assignedStaffRole:
+                          (roleGuard(c.assignedTo?.role) as Exclude<
+                            RoleU,
+                            "student"
+                          >) || ("staff" as const),
+                        assignedByRole: roleGuard(c.assignedByRole),
+                        assignmentPath: pathGuard(c.assignmentPath),
                         assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
                         submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
                         deadline: c.deadline ? new Date(c.deadline) : undefined,

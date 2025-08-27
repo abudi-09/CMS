@@ -458,15 +458,33 @@ export default function AllComplaints() {
         // no-op
       }
     };
+    const onUpsert = (e: Event) => {
+      try {
+        const { complaint } = (e as CustomEvent).detail || {};
+        if (!complaint || !complaint.id) return;
+        setComplaints((prev) => {
+          const exists = prev.some((c) => c.id === complaint.id);
+          if (exists) {
+            return prev.map((c) => (c.id === complaint.id ? complaint : c));
+          }
+          return [complaint, ...prev];
+        });
+      } catch {
+        // no-op
+      }
+    };
     window.addEventListener(
       "complaint:status-changed",
       onStatusChanged as EventListener
     );
-    return () =>
+    window.addEventListener("complaint:upsert", onUpsert as EventListener);
+    return () => {
       window.removeEventListener(
         "complaint:status-changed",
         onStatusChanged as EventListener
       );
+      window.removeEventListener("complaint:upsert", onUpsert as EventListener);
+    };
   }, []);
 
   return (

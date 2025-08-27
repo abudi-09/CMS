@@ -51,78 +51,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { getAssignedComplaintsApi, updateComplaintStatusApi } from "@/lib/api";
+import { useAuth } from "@/components/auth/AuthContext";
+import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
+import type { ActivityLog } from "@/components/ActivityLogTable";
 
 const today = new Date();
-const mockStaffComplaints: Complaint[] = [
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources for research and assignments. This is affecting productivity significantly.",
-    category: "IT & Technology",
-    status: "In Progress",
-    priority: "High",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-    deadline: new Date(today.getTime() - 2 * 86400000), // overdue
-  },
-  {
-    id: "CMP-004",
-    title: "Classroom projector not working",
-    description:
-      "The projector in room C-305 has been malfunctioning for the past week. Teachers are unable to present slides and conduct effective lectures.",
-    category: "IT & Technology",
-    status: "Pending",
-    priority: "Critical",
-    submittedBy: "Sarah Johnson",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-20"),
-    lastUpdated: new Date("2024-01-20"),
-    deadline: new Date(today.getTime() + 2 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-006",
-    title: "Network connectivity issues in lab",
-    description:
-      "The computer lab on the 3rd floor has been experiencing intermittent internet connectivity issues. Students can't access online resources for their assignments.",
-    category: "IT & Technology",
-    status: "Resolved",
-    priority: "Medium",
-    submittedBy: "Mike Wilson",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-12"),
-    lastUpdated: new Date("2024-01-19"),
-    deadline: new Date(today.getTime() - 1 * 86400000), // overdue
-  },
-  {
-    id: "CMP-007",
-    title: "Elevator malfunction",
-    description: "Elevator in Admin Block is stuck on 2nd floor.",
-    category: "Facilities",
-    status: "Pending",
-    priority: "High",
-    submittedBy: "Linda Green",
-    assignedStaff: "Facilities Team",
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-23"),
-    deadline: new Date(today.getTime() + 5 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-008",
-    title: "Printer out of service",
-    description: "Printer in Lab 5 is out of service.",
-    category: "IT & Technology",
-    status: "Pending",
-    priority: "Low",
-    submittedBy: "Tom Hardy",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-25"),
-    lastUpdated: new Date("2024-01-26"),
-    deadline: new Date(today.getTime() + 7 * 86400000), // not overdue
-  },
-];
+// Complaints will be loaded from the backend; remove demo/mock data
 
 export function StaffDashboard() {
   const navigate = useNavigate();
@@ -130,15 +65,68 @@ export function StaffDashboard() {
     null
   );
   const [showActionModal, setShowActionModal] = useState(false);
-  const [complaints, setComplaints] =
-    useState<Complaint[]>(mockStaffComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const { user } = useAuth();
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      if (!user || user.role !== "staff") return;
+      try {
+        const data = await getAssignedComplaintsApi();
+        if (ignore) return;
+        const mapped: Complaint[] = (data || []).map((c: unknown) => {
+          const obj = c as Record<string, unknown>;
+          const submittedByField = obj["submittedBy"];
+          let submittedByName: string | undefined;
+          if (submittedByField && typeof submittedByField === "object") {
+            const s = submittedByField as Record<string, unknown>;
+            submittedByName =
+              (typeof s.name === "string" && s.name) ||
+              (typeof s.email === "string" && s.email) ||
+              undefined;
+          } else if (typeof submittedByField === "string") {
+            submittedByName = submittedByField;
+          }
+          return {
+            id: String(obj["id"] ?? obj["_id"] ?? ""),
+            title: String(obj["title"] ?? ""),
+            description: String(
+              obj["fullDescription"] ?? obj["shortDescription"] ?? ""
+            ),
+            category: String(obj["category"] ?? ""),
+            status: (String(obj["status"]) as Complaint["status"]) || "Pending",
+            priority:
+              (String(obj["priority"]) as Complaint["priority"]) || "Medium",
+            submittedBy: String(submittedByName ?? "User"),
+            assignedStaff: user.fullName || user.name || "Me",
+            submittedDate: obj["submittedDate"]
+              ? new Date(String(obj["submittedDate"]))
+              : new Date(),
+            lastUpdated: obj["lastUpdated"]
+              ? new Date(String(obj["lastUpdated"]))
+              : new Date(),
+            deadline: obj["deadline"]
+              ? new Date(String(obj["deadline"]))
+              : undefined,
+          } as Complaint;
+        });
+        setComplaints(mapped);
+      } catch (err) {
+        // keep empty list on failure
+      }
+    }
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [user]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
   // Activity Log modal state
   const [showLogModal, setShowLogModal] = useState(false);
   const [logComplaintId, setLogComplaintId] = useState<string | null>(null);
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   // Accepted/Rejected tracking synced with My Assigned tabs
   const [acceptedIds, setAcceptedIds] = useState<Set<string>>(() => {
     try {
@@ -170,92 +158,44 @@ export function StaffDashboard() {
     }
   };
 
-  // Hardcoded mock audit log data for each complaint
-  type AuditLog = {
-    _id: string;
-    action: string;
-    user: { name: string; email: string };
-    role: string;
-    timestamp: string;
-    details: Record<string, unknown>;
-  };
-
-  const mockAuditLogs: Record<string, AuditLog[]> = {
-    "CMP-001": [
-      {
-        _id: "log1",
-        action: "Complaint Submitted",
-        user: { name: "John Doe", email: "john@example.com" },
-        role: "user",
-        timestamp: new Date("2024-01-15T09:00:00Z").toISOString(),
-        details: { complaintId: "CMP-001" },
-      },
-      {
-        _id: "log2",
-        action: "Status Updated to In Progress",
-        user: { name: "IT Support Team", email: "it@example.com" },
-        role: "staff",
-        timestamp: new Date("2024-01-16T10:00:00Z").toISOString(),
-        details: { status: "In Progress" },
-      },
-      {
-        _id: "log3",
-        action: "Feedback Given",
-        user: { name: "Sarah Johnson", email: "sarah@example.com" },
-        role: "user",
-        timestamp: new Date("2024-01-18T12:00:00Z").toISOString(),
-        details: { rating: 5, comment: "Great job!" },
-      },
-    ],
-    "CMP-004": [
-      {
-        _id: "log4",
-        action: "Complaint Submitted",
-        user: { name: "Sarah Johnson", email: "sarah@example.com" },
-        role: "user",
-        timestamp: new Date("2024-01-20T08:30:00Z").toISOString(),
-        details: { complaintId: "CMP-004" },
-      },
-      {
-        _id: "log5",
-        action: "Status Updated to Pending",
-        user: { name: "IT Support Team", email: "it@example.com" },
-        role: "staff",
-        timestamp: new Date("2024-01-20T09:00:00Z").toISOString(),
-        details: { status: "Pending" },
-      },
-    ],
-    "CMP-006": [
-      {
-        _id: "log6",
-        action: "Complaint Submitted",
-        user: { name: "Mike Wilson", email: "mike@example.com" },
-        role: "user",
-        timestamp: new Date("2024-01-12T11:00:00Z").toISOString(),
-        details: { complaintId: "CMP-006" },
-      },
-      {
-        _id: "log7",
-        action: "Status Updated to Resolved",
-        user: { name: "IT Support Team", email: "it@example.com" },
-        role: "staff",
-        timestamp: new Date("2024-01-19T14:00:00Z").toISOString(),
-        details: { status: "Resolved" },
-      },
-    ],
-  };
-
-  const handleViewLogs = (complaintId: string) => {
+  const handleViewLogs = async (complaintId: string) => {
     setShowLogModal(true);
     setLogComplaintId(complaintId);
-    // For demo, show mock logs for the selected complaint
-    setLogs(mockAuditLogs[complaintId] || []);
+    try {
+      const data = await getActivityLogsForComplaint(complaintId);
+      setLogs(data as ActivityLog[]);
+    } catch (e) {
+      setLogs([]);
+      toast({
+        title: "Failed to load activity logs",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleViewAndUpdate = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowActionModal(true);
   };
+
+  // Load logs when the action modal opens for a specific complaint
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLogs() {
+      if (!showActionModal || !selectedComplaint) return;
+      try {
+        const data = await getActivityLogsForComplaint(selectedComplaint.id);
+        if (!cancelled) setLogs(data as ActivityLog[]);
+      } catch {
+        if (!cancelled) setLogs([]);
+      }
+    }
+    loadLogs();
+    return () => {
+      cancelled = true;
+    };
+  }, [showActionModal, selectedComplaint]);
 
   const handleStatusSubmit = (
     complaintId: string,
@@ -281,28 +221,48 @@ export function StaffDashboard() {
   };
 
   // Quick actions: Accept / Reject a pending complaint
-  const acceptComplaintQuick = (id: string) => {
+  const acceptComplaintQuick = async (id: string) => {
+    // Persist locally for Accepted tab parity with My Assigned
     setAcceptedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       persistSet("myAssignedAccepted", next);
       return next;
     });
-    // Optional: update local complaint status if desired
-    setComplaints((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: "In Progress" } : c))
-    );
-    toast({ title: "Accepted", description: `Complaint #${id} accepted.` });
+    try {
+      await updateComplaintStatusApi(id, "In Progress");
+      setComplaints((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: "In Progress" } : c))
+      );
+      toast({ title: "Accepted", description: `Complaint #${id} accepted.` });
+    } catch (e) {
+      toast({
+        title: "Accept failed",
+        description: "Could not update status on server",
+        variant: "destructive",
+      });
+    }
   };
-  const rejectComplaintQuick = (id: string) => {
+  const rejectComplaintQuick = async (id: string) => {
     setRejectedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       persistSet("myAssignedRejected", next);
       return next;
     });
-    // Optional: keep status as Pending or set to a custom 'Rejected' status if supported elsewhere
-    toast({ title: "Rejected", description: `Complaint #${id} rejected.` });
+    try {
+      await updateComplaintStatusApi(id, "Closed", "Rejected by staff");
+      setComplaints((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: "Closed" } : c))
+      );
+      toast({ title: "Rejected", description: `Complaint #${id} rejected.` });
+    } catch (e) {
+      toast({
+        title: "Reject failed",
+        description: "Could not update status on server",
+        variant: "destructive",
+      });
+    }
   };
 
   // Calculate stats for summary cards
@@ -380,14 +340,8 @@ export function StaffDashboard() {
     Closed: "bg-gray-100 text-gray-800 border-gray-200",
   } as const;
 
-  // Pending-only recent complaints: show the 3 most recent, excluding accepted/rejected
-  const recentComplaints = complaints
-    .filter(
-      (c) =>
-        c.status === "Pending" &&
-        !acceptedIds.has(c.id) &&
-        !rejectedIds.has(c.id)
-    )
+  // Recently assigned: show the 3 most recent complaints regardless of status
+  const recentComplaints = [...complaints]
     .sort((a, b) => {
       const aDate = new Date(a.assignedDate || a.submittedDate).valueOf() || 0;
       const bDate = new Date(b.assignedDate || b.submittedDate).valueOf() || 0;
@@ -951,11 +905,7 @@ export function StaffDashboard() {
         {/* Activity Log Table integrated into modal */}
         <div className="mt-6">
           <h3 className="text-lg font-semibold mb-4">Activity Log</h3>
-          <ActivityLogTable
-            logs={
-              selectedComplaint ? mockAuditLogs[selectedComplaint.id] || [] : []
-            }
-          />
+          <ActivityLogTable logs={logs} />
         </div>
       </RoleBasedComplaintModal>
 

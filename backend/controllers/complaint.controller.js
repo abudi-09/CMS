@@ -20,6 +20,8 @@ export const createComplaint = async (req, res) => {
       sourceRole,
       assignedByRole,
       assignmentPath,
+      // Optional: when user selects a specific staff for direct complaints
+      recipientStaffId,
     } = req.body;
 
     // Normalize any role-like strings to canonical roles to satisfy Complaint schema enums
@@ -46,6 +48,34 @@ export const createComplaint = async (req, res) => {
       assignmentPath: normalizedAssignmentPath,
       submittedBy: req.user._id,
     });
+
+    // If this is a direct-to-staff submission, set assignment immediately
+    if (recipientStaffId) {
+      const staff = await User.findById(recipientStaffId).select(
+        "role isApproved isActive department"
+      );
+      if (!staff)
+        return res.status(400).json({ error: "Recipient staff not found" });
+      if (staff.role !== "staff" || !staff.isApproved || !staff.isActive)
+        return res
+          .status(400)
+          .json({ error: "Recipient is not an active approved staff" });
+      // Enforce same department for students
+      if (
+        req.user.role === "student" &&
+        department &&
+        staff.department &&
+        staff.department !== department
+      ) {
+        return res
+          .status(400)
+          .json({ error: "Recipient must be in your department" });
+      }
+      complaint.assignedTo = staff._id;
+      complaint.assignedAt = new Date();
+      // Keep complaint status Pending until staff accepts; staff can move it to In Progress
+      complaint.status = "Pending";
+    }
 
     await complaint.save();
     try {
@@ -80,6 +110,7 @@ export const createComplaint = async (req, res) => {
       status: complaint.status,
       submittedDate: complaint.createdAt,
       lastUpdated: complaint.updatedAt,
+      assignedTo: complaint.assignedTo,
     };
     res
       .status(201)
@@ -300,7 +331,7 @@ export const updateComplaintStatus = async (req, res) => {
     const complaintId = req.params.id;
     const { status, description } = req.body;
 
-    if (!["Pending", "In Progress", "Resolved"].includes(status)) {
+    if (!["Pending", "In Progress", "Resolved", "Closed"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
@@ -319,6 +350,13 @@ export const updateComplaintStatus = async (req, res) => {
     }
 
     complaint.status = status;
+    if (description) {
+      const ts = new Date().toISOString();
+      const prefix = `[${ts}]`;
+      complaint.resolutionNote = complaint.resolutionNote
+        ? `${complaint.resolutionNote}\n${prefix} ${description}`
+        : `${prefix} ${description}`;
+    }
     await complaint.save();
 
     // Log activity
@@ -350,12 +388,13 @@ export const getAssignedComplaints = async (req, res) => {
       .sort({ updatedAt: -1 }); // Most recently updated first
 
     const formatted = complaints.map((c) => ({
-      id: c._id,
+      id: c._id.toString(),
       title: c.title,
       category: c.category,
       status: c.status,
       submittedDate: c.createdAt,
       lastUpdated: c.updatedAt,
+      assignedAt: c.assignedAt || null,
       submittedBy: {
         name: c.submittedBy.name,
         email: c.submittedBy.email,

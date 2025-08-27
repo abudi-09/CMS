@@ -10,7 +10,7 @@ type ComplaintContextType = {
     complaint: Omit<
       Complaint,
       "id" | "status" | "submittedDate" | "lastUpdated"
-    >
+    > & { recipientStaffId?: string }
   ) => Promise<Complaint>;
   updateComplaint: (id: string, updates: Partial<Complaint>) => void;
 };
@@ -34,7 +34,7 @@ export const useComplaints = () => {
         complaint: Omit<
           Complaint,
           "id" | "status" | "submittedDate" | "lastUpdated"
-        >
+        > & { recipientStaffId?: string }
       ) => {
         // Mirror provider behavior by delegating to API and mapping category->department
         const payload: APIComplaintPayload = {
@@ -51,6 +51,7 @@ export const useComplaints = () => {
           sourceRole: complaint.sourceRole,
           assignedByRole: complaint.assignedByRole ?? null,
           assignmentPath: complaint.assignmentPath,
+          recipientStaffId: complaint.recipientStaffId,
         };
         const savedComplaint = await submitComplaintApi(payload);
         return savedComplaint as Complaint;
@@ -70,7 +71,7 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
     complaint: Omit<
       Complaint,
       "id" | "status" | "submittedDate" | "lastUpdated"
-    >
+    > & { recipientStaffId?: string }
   ) => {
     try {
       // Ensure the complaint has all required fields for the API
@@ -80,6 +81,7 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
         department: complaint.department || "",
         // Ensure category is present for backend
         category: complaint.category,
+        recipientStaffId: complaint.recipientStaffId,
       });
       setComplaints((prev) => [savedComplaint, ...prev]);
       return savedComplaint;
