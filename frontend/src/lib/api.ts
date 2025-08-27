@@ -868,6 +868,85 @@ export async function getRoleCountsApi() {
   };
 }
 
+// Staff performance stats
+export type StaffStats = {
+  assigned: number;
+  pending: number;
+  inProgress: number;
+  resolved: number;
+};
+
+export async function getMyStaffStatsApi(): Promise<StaffStats> {
+  const res = await fetch(`${API_BASE}/stats/staffs`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch staff stats");
+  return data as StaffStats;
+}
+
+// Optional: recent activity for staff (resolved/in-progress assigned to me)
+export type AssignedComplaintLite = {
+  id: string;
+  title: string;
+  status: string;
+  submittedDate?: string | Date;
+  assignedAt?: string | Date;
+  lastUpdated?: string | Date;
+  resolvedAt?: string | Date;
+  category?: string;
+  feedback?: { rating?: number; comment?: string } | null;
+};
+
+export async function listMyAssignedComplaintsApi(): Promise<
+  AssignedComplaintLite[]
+> {
+  const res = await fetch(`${API_BASE}/complaints/assigned`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data: unknown = await res.json();
+  if (!res.ok) {
+    const errMsg =
+      typeof data === "object" &&
+      data !== null &&
+      "error" in (data as Record<string, unknown>)
+        ? String(
+            (data as Record<string, unknown>)["error"] ??
+              "Failed to fetch assigned complaints"
+          )
+        : "Failed to fetch assigned complaints";
+    throw new Error(errMsg);
+  }
+  // Map to a minimal shape; backend may include more fields
+  const arr = Array.isArray(data) ? (data as ReadonlyArray<unknown>) : [];
+  return arr.map((raw) => {
+    const c = (raw ?? {}) as Record<string, unknown>;
+    return {
+      id: String(c["id"] ?? c["_id"] ?? ""),
+      title: String(c["title"] ?? ""),
+      status: String(c["status"] ?? ""),
+      submittedDate:
+        (c["submittedDate"] as string | Date | undefined) ??
+        (c["createdAt"] as string | Date | undefined),
+      assignedAt: c["assignedAt"] as string | Date | undefined,
+      lastUpdated:
+        (c["lastUpdated"] as string | Date | undefined) ??
+        (c["updatedAt"] as string | Date | undefined),
+      resolvedAt: c["resolvedAt"] as string | Date | undefined,
+      category:
+        typeof c["category"] === "string"
+          ? (c["category"] as string)
+          : undefined,
+      feedback:
+        (c["feedback"] as { rating?: number; comment?: string } | null) ?? null,
+    } as AssignedComplaintLite;
+  });
+}
+
 // Admin: fetch users with optional role and department filters
 export type UserDto = {
   isRejected: unknown;

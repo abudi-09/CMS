@@ -241,10 +241,6 @@ export function StaffFeedback() {
                         </h3>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <p className="text-xs md:text-sm text-muted-foreground">
-                            ID: {String(it.complaintId)}
-                          </p>
-                          <span className="text-muted-foreground">•</span>
-                          <p className="text-xs md:text-sm text-muted-foreground">
                             By:{" "}
                             {it.submittedBy?.name ||
                               it.submittedBy?.email ||

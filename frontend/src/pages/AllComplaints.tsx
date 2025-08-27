@@ -775,9 +775,7 @@ export default function AllComplaints() {
                       <div className="font-medium truncate">
                         {complaint.title}
                       </div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        #{complaint.id}
-                      </div>
+                      {/* Complaint ID hidden per request */}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -872,9 +870,7 @@ export default function AllComplaints() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <h3 className="font-medium text-sm">{complaint.title}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        #{complaint.id}
-                      </p>
+                      {/* Complaint ID hidden per request */}
                     </div>
                     <div className="flex gap-2 ml-2">
                       <Badge

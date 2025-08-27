@@ -123,7 +123,7 @@ export function StaffDashboard() {
     };
   }, [user]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  // removed status filter per request
   const [priorityFilter, setPriorityFilter] = useState("All");
   // Activity Log modal state
   const [showLogModal, setShowLogModal] = useState(false);
@@ -297,8 +297,6 @@ export function StaffDashboard() {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All" || complaint.status === statusFilter;
     const matchesPriority =
       priorityFilter === "All" || complaint.priority === priorityFilter;
     const matchesOverdue =
@@ -307,7 +305,7 @@ export function StaffDashboard() {
         : overdueFilter === "Overdue"
         ? isOverdue(complaint)
         : !isOverdue(complaint);
-    return matchesSearch && matchesStatus && matchesPriority && matchesOverdue;
+    return matchesSearch && matchesPriority && matchesOverdue;
   });
 
   // Pagination: 5 per page, reset on filter/search change
@@ -322,7 +320,7 @@ export function StaffDashboard() {
   );
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, priorityFilter, overdueFilter]);
+  }, [searchTerm, priorityFilter, overdueFilter]);
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {
     const maxToShow = 5;
@@ -503,21 +501,6 @@ export function StaffDashboard() {
               />
             </div>
             <div className="flex flex-col md:flex-row gap-2">
-              <div className="flex items-center gap-2 min-w-0 sm:min-w-[180px]">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All Status</SelectItem>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Resolved">Resolved</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                 <SelectTrigger className="min-w-0 sm:min-w-[150px]">
                   <SelectValue placeholder="Filter by Priority" />

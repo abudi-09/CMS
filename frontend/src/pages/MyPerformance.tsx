@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -25,8 +24,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -35,73 +32,198 @@ import {
   Line,
   ResponsiveContainer,
 } from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AssignedComplaintLite,
+  StaffStats,
+  getFeedbackByRoleApi,
+  getMyStaffStatsApi,
+  listMyAssignedComplaintsApi,
+} from "@/lib/api";
 
-// Mock data - replace with real data from your backend
-const performanceData = {
-  totalAssigned: 45,
-  totalResolved: 38,
-  pending: 7,
-  averageResolutionTime: "2.3 days",
-  averageRating: 4.2,
-  timelinessScore: 85,
-};
-
-const categoryData = [
-  { name: "Academic", value: 15, color: "#8884d8" },
-  { name: "IT Support", value: 12, color: "#82ca9d" },
-  { name: "Facility", value: 8, color: "#ffc658" },
-  { name: "Administrative", value: 10, color: "#ff7300" },
-];
-
-const trendData = [
-  { month: "Jan", resolved: 8 },
-  { month: "Feb", resolved: 12 },
-  { month: "Mar", resolved: 10 },
-  { month: "Apr", resolved: 15 },
-  { month: "May", resolved: 18 },
-  { month: "Jun", resolved: 14 },
-];
-
-const statusData = [
-  { name: "Resolved", value: 38, color: "#10b981" },
-  { name: "In Progress", value: 5, color: "#f59e0b" },
-  { name: "Overdue", value: 2, color: "#ef4444" },
-];
-
-const recentActivity = [
-  {
-    id: "CMP-001",
-    title: "Network connectivity issue in Lab 3",
-    status: "Resolved",
-    dateAssigned: "2024-01-15",
-    dateResolved: "2024-01-17",
-    rating: 5,
-  },
-  {
-    id: "CMP-002",
-    title: "Projector not working in Room 205",
-    status: "In Progress",
-    dateAssigned: "2024-01-18",
-    dateResolved: "-",
-    rating: null,
-  },
-  {
-    id: "CMP-003",
-    title: "Air conditioning problem in Library",
-    status: "Resolved",
-    dateAssigned: "2024-01-12",
-    dateResolved: "2024-01-14",
-    rating: 4,
-  },
-];
+function formatDuration(ms: number | undefined): string {
+  if (!ms || ms <= 0) return "-";
+  const d = Math.floor(ms / (24 * 3600_000));
+  const h = Math.floor((ms % (24 * 3600_000)) / 3600_000);
+  const m = Math.floor((ms % 3600_000) / 60_000);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
 
 export default function MyPerformance() {
+  const [stats, setStats] = useState<StaffStats | null>(null);
+  const [assigned, setAssigned] = useState<AssignedComplaintLite[]>([]);
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, number | null>>(
+    {}
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+        const [s, a, fb] = await Promise.all([
+          getMyStaffStatsApi(),
+          listMyAssignedComplaintsApi(),
+          getFeedbackByRoleApi().catch(() => []),
+        ]);
+        if (cancelled) return;
+        setStats(s);
+        const sorted = [...a].sort((x, y) => {
+          const lx = x.lastUpdated ? new Date(x.lastUpdated).getTime() : 0;
+          const ly = y.lastUpdated ? new Date(y.lastUpdated).getTime() : 0;
+          return ly - lx;
+        });
+        setAssigned(sorted);
+        const map: Record<string, number | null> = {};
+        for (const item of fb as Array<{
+          complaintId: string;
+          feedback?: { rating?: number };
+        }>) {
+          if (item && typeof item.complaintId === "string") {
+            const r = item.feedback?.rating;
+            if (typeof r === "number") map[item.complaintId] = r;
+          }
+        }
+        setFeedbackMap(map);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const averageRating = useMemo(() => {
+    const values = Object.values(feedbackMap).filter(
+      (v): v is number => typeof v === "number"
+    );
+    if (values.length === 0) return null;
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    return Math.round(avg * 10) / 10;
+  }, [feedbackMap]);
+
+  const avgResolutionMs = useMemo(() => {
+    const resolvedItems = assigned.filter(
+      (c) => c.resolvedAt && c.submittedDate
+    );
+    if (resolvedItems.length === 0) return undefined;
+    const sum = resolvedItems.reduce((acc, c) => {
+      const end = new Date(c.resolvedAt as string).getTime();
+      const start = new Date(c.submittedDate as string).getTime();
+      return acc + Math.max(0, end - start);
+    }, 0);
+    return Math.floor(sum / resolvedItems.length);
+  }, [assigned]);
+
+  const statusData = useMemo(() => {
+    const resolved = stats?.resolved ?? 0;
+    const inProgress = stats?.inProgress ?? 0;
+    const pending = stats?.pending ?? 0;
+    return [
+      { name: "Resolved", value: resolved, color: "#10b981" },
+      { name: "In Progress", value: inProgress, color: "#f59e0b" },
+      { name: "Pending", value: pending, color: "#3b82f6" },
+    ];
+  }, [stats]);
+
+  const trendData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of assigned) {
+      if (!c.resolvedAt) continue;
+      const d = new Date(c.resolvedAt as string);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}`;
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    const now = new Date();
+    const series: Array<{ month: string; resolved: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}`;
+      series.push({
+        month: dt.toLocaleString(undefined, { month: "short" }),
+        resolved: map.get(key) ?? 0,
+      });
+    }
+    return series;
+  }, [assigned]);
+
+  const categoryData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of assigned) {
+      const key = (c.category || "Uncategorized").toString();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const palette = [
+      "#8884d8",
+      "#82ca9d",
+      "#ffc658",
+      "#ff7300",
+      "#00C49F",
+      "#FFBB28",
+      "#3b82f6",
+      "#f59e0b",
+      "#10b981",
+      "#ef4444",
+    ];
+    return Array.from(counts.entries()).map(([name, value], idx) => ({
+      name,
+      value,
+      color: palette[idx % palette.length],
+    }));
+  }, [assigned]);
+
+  const totalAssigned = stats?.assigned ?? 0;
+  const totalResolved = stats?.resolved ?? 0;
+  const totalPending = stats?.pending ?? 0;
+  const timelinessScore = undefined as number | undefined;
+
+  const recentActivity = assigned.slice(0, 10).map((c) => {
+    const dateAssigned = c.assignedAt
+      ? new Date(c.assignedAt).toLocaleDateString()
+      : "-";
+    let dateResolved = "-";
+    if (c.resolvedAt) {
+      dateResolved = new Date(c.resolvedAt).toLocaleDateString();
+    } else if (c.status === "Resolved" && c.lastUpdated) {
+      // Fallback in case status is Resolved but resolvedAt wasn't populated
+      dateResolved = new Date(c.lastUpdated).toLocaleDateString();
+    }
+    const rating =
+      typeof c.feedback?.rating === "number"
+        ? c.feedback.rating
+        : feedbackMap[c.id] ?? null;
+    return {
+      id: c.id,
+      title: c.title,
+      status: c.status,
+      dateAssigned,
+      dateResolved,
+      rating,
+    };
+  });
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2 mb-6">
         <Activity className="h-6 w-6 text-primary" />
         <h1 className="text-3xl font-bold">My Performance Dashboard</h1>
       </div>
+      {error && <div className="text-sm text-red-600">{error}</div>}
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -114,7 +236,7 @@ export default function MyPerformance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {performanceData.totalAssigned}
+              {loading ? "-" : totalAssigned}
             </div>
           </CardContent>
         </Card>
@@ -128,7 +250,7 @@ export default function MyPerformance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {performanceData.totalResolved}
+              {loading ? "-" : totalResolved}
             </div>
           </CardContent>
         </Card>
@@ -140,7 +262,7 @@ export default function MyPerformance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {performanceData.pending}
+              {loading ? "-" : totalPending}
             </div>
           </CardContent>
         </Card>
@@ -154,7 +276,7 @@ export default function MyPerformance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {performanceData.averageResolutionTime}
+              {loading ? "-" : formatDuration(avgResolutionMs)}
             </div>
           </CardContent>
         </Card>
@@ -166,7 +288,7 @@ export default function MyPerformance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {performanceData.averageRating}/5
+              {averageRating ? `${averageRating}/5` : "-"}
             </div>
           </CardContent>
         </Card>
@@ -178,7 +300,9 @@ export default function MyPerformance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {performanceData.timelinessScore}%
+              {typeof timelinessScore === "number"
+                ? `${timelinessScore}%`
+                : "-"}
             </div>
           </CardContent>
         </Card>
@@ -186,7 +310,7 @@ export default function MyPerformance() {
 
       {/* Visual Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Complaints by Category */}
+        {/* Complaints by Category (placeholder) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -206,7 +330,7 @@ export default function MyPerformance() {
                   dataKey="value"
                 >
                   {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-cat-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -282,10 +406,10 @@ export default function MyPerformance() {
         <CardContent>
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
-            {recentActivity.map((c) => (
-              <Card key={c.id} className="p-4">
+            {recentActivity.map((c, idx) => (
+              <Card key={`${c.id}-${idx}`} className="p-4">
                 <div className="flex items-start justify-between">
-                  <div className="text-sm font-semibold">#{c.id}</div>
+                  <div className="text-sm font-semibold">{c.title}</div>
                   <Badge
                     className={
                       c.status === "Resolved"
@@ -295,9 +419,6 @@ export default function MyPerformance() {
                   >
                     {c.status}
                   </Badge>
-                </div>
-                <div className="mt-1 text-sm text-foreground line-clamp-2">
-                  {c.title}
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div>
@@ -329,7 +450,6 @@ export default function MyPerformance() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Complaint ID</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date Assigned</TableHead>
@@ -338,12 +458,14 @@ export default function MyPerformance() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentActivity.map((complaint) => (
-                  <TableRow key={complaint.id} className="hover:bg-muted/50">
+                {recentActivity.map((complaint, idx) => (
+                  <TableRow
+                    key={`${complaint.id}-${idx}`}
+                    className="hover:bg-muted/50"
+                  >
                     <TableCell className="font-medium">
-                      {complaint.id}
+                      {complaint.title}
                     </TableCell>
-                    <TableCell>{complaint.title}</TableCell>
                     <TableCell>
                       <Badge
                         className={
