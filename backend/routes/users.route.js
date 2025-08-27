@@ -4,6 +4,7 @@ import {
   activateUser,
   deactivateUser,
   promoteUser,
+  getActiveHodForMyDepartment,
 } from "../controllers/users.controller.js";
 
 const router = express.Router();
@@ -23,5 +24,13 @@ router.patch("/:id/deactivate", protectRoute, adminOnly, deactivateUser);
 // New: PATCH /api/users/:id/promote?role=staff|admin|... or body { role }
 //   Example: PATCH /api/users/64f.../promote?role=hod
 router.patch("/:id/promote", protectRoute, adminOnly, promoteUser);
+
+// NEW ROUTE: Get active HoD for the logged-in user's department
+// This matches the path used in the frontend's listMyDepartmentHodApi function.
+router.get(
+  "/department/hod/active",
+  protectRoute,
+  getActiveHodForMyDepartment
+);
 
 export default router;

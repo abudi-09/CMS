@@ -249,6 +249,27 @@ export async function listMyDepartmentActiveStaffApi() {
   }>;
 }
 
+// NEW: Public: list active HoD in the authenticated user's department (approved + active)
+export async function listMyDepartmentHodApi() {
+  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
+  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch Head of Department");
+  // The backend should return an array, even if it only contains one HoD
+  return data as Array<{
+    _id: string;
+    name?: string;
+    fullName?: string;
+    username?: string;
+    email: string;
+    department: string;
+  }>;
+}
+
 // Dean stage: HOD approvals
 export async function getDeanPendingHodApi() {
   const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
