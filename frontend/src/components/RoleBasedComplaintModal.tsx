@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Complaint } from "@/components/ComplaintCard";
 import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
+import { submitComplaintFeedbackApi } from "@/lib/api";
 import type { ActivityLog } from "@/components/ActivityLogTable";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -411,17 +412,25 @@ export function RoleBasedComplaintModal({
 
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await submitComplaintFeedbackApi(complaint.id, feedback);
+      const updated = { ...(liveComplaint as Complaint), feedback };
+      setLiveComplaint(updated);
       onUpdate?.(complaint.id, { feedback });
+      // Broadcast so other views (e.g., staff All Complaints) can reflect feedback
+      window.dispatchEvent(
+        new CustomEvent("complaint:upsert", { detail: { complaint: updated } })
+      );
       toast({
         title: "Feedback Submitted",
         description: "Thank you for your feedback!",
       });
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to submit feedback";
       toast({
         title: "Error",
-        description: "Failed to submit feedback",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -762,6 +771,34 @@ export function RoleBasedComplaintModal({
                     <div className="mt-1 p-3 bg-info/5 border border-info/20 rounded-lg text-sm">
                       {liveComplaint.resolutionNote}
                     </div>
+                  </div>
+                )}
+
+                {liveComplaint.feedback && user.role !== "user" && (
+                  <div>
+                    <Label className="text-sm font-medium">
+                      Student Feedback
+                    </Label>
+                    <div className="mt-2 flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < (liveComplaint.feedback!.rating || 0)
+                              ? "text-warning fill-current"
+                              : "text-muted-foreground"
+                          }`}
+                        />
+                      ))}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({liveComplaint.feedback.rating}/5)
+                      </span>
+                    </div>
+                    {liveComplaint.feedback.comment && (
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-sm">
+                        {liveComplaint.feedback.comment}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

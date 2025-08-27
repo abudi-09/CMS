@@ -357,6 +357,9 @@ export const updateComplaintStatus = async (req, res) => {
         ? `${complaint.resolutionNote}\n${prefix} ${description}`
         : `${prefix} ${description}`;
     }
+    if (status === "Resolved") {
+      complaint.resolvedAt = new Date();
+    }
     await complaint.save();
 
     // Log activity
@@ -434,7 +437,7 @@ export const giveFeedback = async (req, res) => {
 
     const { rating, comment } = req.body;
 
-    complaint.feedback = { rating, comment };
+    complaint.feedback = { rating, comment, submittedAt: new Date() };
     await complaint.save();
 
     // Log activity
@@ -457,7 +460,8 @@ export const getAllFeedback = async (req, res) => {
   try {
     const complaints = await Complaint.find({
       status: "Resolved",
-      "feedback.comment": { $exists: true },
+      // consider feedback exists (rating) for completeness; comment may be optional
+      "feedback.rating": { $exists: true },
     })
       .populate("submittedBy", "name email")
       .populate("assignedTo", "name email");
@@ -474,5 +478,127 @@ export const getAllFeedback = async (req, res) => {
     res.status(200).json(feedbackList);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch feedback" });
+  }
+};
+
+// Hierarchical access: staff/hod/dean/admin
+export const getFeedbackByRole = async (req, res) => {
+  try {
+    const role = req.user?.role;
+    if (!role) return res.status(401).json({ error: "Unauthorized" });
+
+    let filters = { status: "Resolved", "feedback.rating": { $exists: true } };
+    let assignedToIn = null;
+
+    if (role === "staff") {
+      // Only their own assigned complaints
+      filters = { ...filters, assignedTo: req.user._id };
+    } else if (role === "hod") {
+      // Own + all staff in same department
+      const dept = req.user.department;
+      const staffInDept = await User.find({
+        role: "staff",
+        department: dept,
+      }).select("_id");
+      const ids = [req.user._id, ...staffInDept.map((u) => u._id)];
+      assignedToIn = ids;
+    } else if (role === "dean" || role === "admin") {
+      // All resolved with feedback
+      // no extra filter
+    } else {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const query = Complaint.find(
+      assignedToIn ? { ...filters, assignedTo: { $in: assignedToIn } } : filters
+    )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email role department");
+
+    const complaints = await query.sort({ resolvedAt: -1, updatedAt: -1 });
+
+    const feedbackList = complaints.map((c) => ({
+      complaintId: c._id,
+      title: c.title,
+      complaintCode: c.complaintCode,
+      submittedBy: c.submittedBy,
+      assignedTo: c.assignedTo,
+      feedback: c.feedback,
+      resolvedAt: c.resolvedAt || c.updatedAt,
+      submittedAt: c.createdAt,
+      avgResolutionMs:
+        c.resolvedAt && c.createdAt
+          ? new Date(c.resolvedAt).getTime() - new Date(c.createdAt).getTime()
+          : undefined,
+      category: c.category,
+      department: c.department,
+    }));
+
+    res.status(200).json(feedbackList);
+  } catch (err) {
+    console.error("getFeedbackByRole error:", err?.message);
+    res.status(500).json({ error: "Failed to fetch feedback" });
+  }
+};
+
+// Staff: get feedback for complaints assigned to the logged-in staff
+export const getMyFeedback = async (req, res) => {
+  try {
+    if (req.user.role !== "staff") {
+      return res.status(403).json({ error: "Access denied: Staff only" });
+    }
+    const complaints = await Complaint.find({
+      assignedTo: req.user._id,
+      status: "Resolved",
+      "feedback.rating": { $exists: true },
+    })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email");
+
+    const feedbackList = complaints.map((c) => ({
+      complaintId: c._id,
+      title: c.title,
+      complaintCode: c.complaintCode,
+      submittedBy: c.submittedBy,
+      assignedTo: c.assignedTo,
+      feedback: c.feedback,
+      resolvedAt: c.resolvedAt || c.updatedAt,
+      submittedAt: c.createdAt,
+      avgResolutionMs:
+        c.resolvedAt && c.createdAt
+          ? new Date(c.resolvedAt).getTime() - new Date(c.createdAt).getTime()
+          : undefined,
+      category: c.category,
+      department: c.department,
+    }));
+
+    res.status(200).json(feedbackList);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch staff feedback" });
+  }
+};
+
+// Staff: mark a feedback as reviewed
+export const markFeedbackReviewed = async (req, res) => {
+  try {
+    if (!["staff", "hod", "dean", "admin"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const { id } = req.params; // complaint id
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (!complaint.feedback || typeof complaint.feedback.rating !== "number") {
+      return res.status(400).json({ error: "No feedback on this complaint" });
+    }
+    complaint.feedback.reviewed = true;
+    complaint.feedback.reviewedAt = new Date();
+    complaint.feedback.reviewedBy = req.user._id;
+    await complaint.save();
+    return res
+      .status(200)
+      .json({ message: "Feedback marked as reviewed", complaint });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to mark reviewed" });
   }
 };

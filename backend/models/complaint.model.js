@@ -69,6 +69,14 @@ const complaintSchema = new mongoose.Schema(
     feedback: {
       rating: { type: Number },
       comment: { type: String },
+      submittedAt: { type: Date, default: null },
+      reviewed: { type: Boolean, default: false },
+      reviewedAt: { type: Date, default: null },
+      reviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
     },
     priority: {
       type: String,
@@ -97,6 +105,10 @@ const complaintSchema = new mongoose.Schema(
     },
     resolutionNote: {
       type: String,
+      default: null,
+    },
+    resolvedAt: {
+      type: Date,
       default: null,
     },
   },

@@ -758,6 +758,99 @@ export async function updateComplaintStatusApi(
   return data.complaint || data;
 }
 
+// User: submit feedback for a resolved complaint
+export async function submitComplaintFeedbackApi(
+  complaintId: string,
+  feedback: { rating: number; comment: string }
+) {
+  const res = await fetch(`${API_BASE}/complaints/feedback/${complaintId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(feedback),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to submit feedback");
+  return data.complaint || data;
+}
+
+// Staff: list feedback on complaints assigned to current staff
+export async function getStaffFeedbackApi() {
+  const res = await fetch(`${API_BASE}/complaints/feedback/my`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch feedback");
+  return data as Array<{
+    complaintId: string;
+    title: string;
+    complaintCode?: string;
+    submittedBy?: { name?: string; email?: string };
+    assignedTo?: { name?: string; email?: string };
+    feedback: {
+      rating: number;
+      comment?: string;
+      reviewed?: boolean;
+      submittedAt?: string | Date;
+    };
+    resolvedAt?: string | Date;
+    submittedAt?: string | Date;
+    avgResolutionMs?: number;
+    category?: string;
+    department?: string;
+  }>;
+}
+
+export async function markFeedbackReviewedApi(complaintId: string) {
+  const res = await fetch(
+    `${API_BASE}/complaints/feedback/reviewed/${complaintId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to mark reviewed");
+  return data.complaint || data;
+}
+
+// Role-aware: staff/hod/dean/admin
+export async function getFeedbackByRoleApi() {
+  const res = await fetch(`${API_BASE}/complaints/feedback/by-role`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch feedback");
+  return data as Array<{
+    complaintId: string;
+    title: string;
+    complaintCode?: string;
+    submittedBy?: { name?: string; email?: string };
+    assignedTo?: {
+      name?: string;
+      email?: string;
+      role?: string;
+      department?: string;
+    };
+    feedback: {
+      rating: number;
+      comment?: string;
+      reviewed?: boolean;
+      submittedAt?: string | Date;
+    };
+    resolvedAt?: string | Date;
+    submittedAt?: string | Date;
+    avgResolutionMs?: number;
+    category?: string;
+    department?: string;
+  }>;
+}
+
 // Admin: fetch role counts summary
 export async function getRoleCountsApi() {
   const res = await fetch(`${API_BASE}/stats/roles`, {

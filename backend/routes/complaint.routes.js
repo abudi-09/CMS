@@ -10,6 +10,9 @@ import {
   getAllFeedback,
   getAssignedComplaints,
   approveComplaint,
+  getMyFeedback,
+  markFeedbackReviewed,
+  getFeedbackByRole,
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -34,6 +37,10 @@ router.get("/feedback/all", protectRoute, adminOnly, getAllFeedback);
 // STAFF
 router.put("/update-status/:id", protectRoute, updateComplaintStatus);
 router.get("/assigned", protectRoute, staffOnly, getAssignedComplaints);
+router.get("/feedback/my", protectRoute, staffOnly, getMyFeedback);
+// Role-aware hierarchical feedback
+router.get("/feedback/by-role", protectRoute, getFeedbackByRole);
+router.put("/feedback/reviewed/:id", protectRoute, markFeedbackReviewed);
 
 // GET single complaint by ID (must be last)
 router.get("/:id", protectRoute, getComplaint);

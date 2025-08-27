@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -178,6 +178,17 @@ export function MyComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [lastResolvedId, setLastResolvedId] = useState<string | null>(null);
+  const complaintsRef = useRef<ExtendedComplaint[]>([]);
+  const lastResolvedIdRef = useRef<string | null>(null);
+
+  // keep refs in sync
+  useEffect(() => {
+    complaintsRef.current = complaints;
+  }, [complaints]);
+  useEffect(() => {
+    lastResolvedIdRef.current = lastResolvedId;
+  }, [lastResolvedId]);
 
   // Listen for global complaint status changes to keep list in sync in real-time
   useEffect(() => {
@@ -201,6 +212,19 @@ export function MyComplaints() {
             : c
         )
       );
+      // If this complaint just resolved, prompt for feedback once
+      if (detail.status === "Resolved") {
+        const justResolved = complaintsRef.current.find(
+          (c) => c.id === detail.id
+        );
+        const alreadyPrompted = lastResolvedIdRef.current === detail.id;
+        if (justResolved && !justResolved.feedback && !alreadyPrompted) {
+          setSelectedComplaint(justResolved);
+          setLastResolvedId(detail.id);
+          lastResolvedIdRef.current = detail.id;
+          setShowFeedbackModal(true);
+        }
+      }
     };
     window.addEventListener(
       "complaint:status-changed",
@@ -230,6 +254,14 @@ export function MyComplaints() {
     setComplaints((prev) =>
       prev.map((c) => (c.id === complaintId ? { ...c, feedback } : c))
     );
+    // Let other views refresh (e.g., staff can see feedback in details)
+    const updated = complaints.find((c) => c.id === complaintId);
+    if (updated) {
+      const evt = new CustomEvent("complaint:upsert", {
+        detail: { complaint: { ...updated, feedback } },
+      });
+      window.dispatchEvent(evt);
+    }
   };
 
   const isOverdue = (c: Complaint) =>
@@ -282,6 +314,95 @@ export function MyComplaints() {
   useEffect(() => {
     setPage(1);
   }, [searchTerm, statusFilter, priorityFilter]);
+
+  // Poll periodically for status changes to Resolved and prompt for feedback once
+  useEffect(() => {
+    let cancelled = false;
+    const getPrompted = (): Set<string> => {
+      try {
+        const raw = localStorage.getItem("feedbackPromptedIds");
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw);
+        return new Set(Array.isArray(arr) ? arr : []);
+      } catch {
+        return new Set();
+      }
+    };
+    const savePrompted = (setIds: Set<string>) => {
+      try {
+        localStorage.setItem(
+          "feedbackPromptedIds",
+          JSON.stringify(Array.from(setIds))
+        );
+      } catch {
+        // ignore
+      }
+    };
+    async function tick() {
+      try {
+        const data = (await getMyComplaintsApi()) as unknown;
+        const arr: BackendComplaintDTO[] = Array.isArray(data)
+          ? (data as BackendComplaintDTO[])
+          : [];
+        const mapped: ExtendedComplaint[] = arr.map((c) => ({
+          id: c.id || c._id || c.complaintCode || "",
+          title: (c.title || c.subject || "").trim() || "Untitled Complaint",
+          description: c.description || "No description provided",
+          category: (c.category || c.department || "").trim() || "General",
+          status: (c.status as Complaint["status"]) || "Pending",
+          submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+          sourceRole: roleGuard(c.sourceRole),
+          assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
+          assignedStaffRole:
+            (roleGuard(c.assignedTo?.role) as Exclude<RoleU, "student">) ||
+            ("staff" as const),
+          assignedByRole: roleGuardNoStaff(c.assignedByRole),
+          assignmentPath: pathGuard(c.assignmentPath),
+          assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
+          submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+          priority: c.priority || "Medium",
+          feedback: c.feedback
+            ? { rating: c.feedback.rating, comment: c.feedback.comment }
+            : undefined,
+          resolutionNote: c.resolutionNote,
+          evidenceFile: c.evidenceFile,
+          isEscalated: c.isEscalated,
+          submittedTo: c.submittedTo,
+          department: c.department,
+          friendlyCode: c.complaintCode,
+        }));
+        if (!cancelled) setComplaints(mapped);
+        // Prompt for first eligible complaint
+        const prompted = getPrompted();
+        const candidate = mapped
+          .filter((c) => c.status === "Resolved" && !c.feedback && c.id)
+          .sort(
+            (a, b) =>
+              (b.lastUpdated?.getTime?.() || 0) -
+              (a.lastUpdated?.getTime?.() || 0)
+          )[0];
+        if (candidate && !prompted.has(candidate.id)) {
+          setSelectedComplaint(candidate);
+          setShowFeedbackModal(true);
+          setLastResolvedId(candidate.id);
+          lastResolvedIdRef.current = candidate.id;
+          prompted.add(candidate.id);
+          savePrompted(prompted);
+        }
+      } catch {
+        // ignore transient errors
+      }
+    }
+    // initial tick and interval
+    tick();
+    const intervalId = window.setInterval(tick, 20000) as unknown as number;
+    return () => {
+      cancelled = true;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [pathGuard, roleGuard, roleGuardNoStaff]);
 
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {

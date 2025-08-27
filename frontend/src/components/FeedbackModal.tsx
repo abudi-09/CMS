@@ -1,19 +1,34 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Complaint } from "./ComplaintCard";
+import { submitComplaintFeedbackApi } from "@/lib/api";
 
 interface FeedbackModalProps {
   complaint: Complaint | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (complaintId: string, feedback: { rating: number; comment: string }) => void;
+  onSubmit: (
+    complaintId: string,
+    feedback: { rating: number; comment: string }
+  ) => void;
 }
 
-export function FeedbackModal({ complaint, open, onOpenChange, onSubmit }: FeedbackModalProps) {
+export function FeedbackModal({
+  complaint,
+  open,
+  onOpenChange,
+  onSubmit,
+}: FeedbackModalProps) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [hoveredStar, setHoveredStar] = useState(0);
@@ -22,24 +37,25 @@ export function FeedbackModal({ complaint, open, onOpenChange, onSubmit }: Feedb
 
   const handleSubmit = async () => {
     if (!complaint || rating === 0) return;
-    
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    onSubmit(complaint.id, { rating, comment });
-    
-    toast({
-      title: "Feedback Submitted",
-      description: "Thank you for your feedback. It helps us improve our services.",
-    });
-    
-    // Reset form
-    setRating(0);
-    setComment("");
-    setIsSubmitting(false);
-    onOpenChange(false);
+    try {
+      await submitComplaintFeedbackApi(complaint.id, { rating, comment });
+      onSubmit(complaint.id, { rating, comment });
+      toast({
+        title: "Feedback Submitted",
+        description:
+          "Thank you for your feedback. It helps us improve our services.",
+      });
+      // Reset form
+      setRating(0);
+      setComment("");
+      onOpenChange(false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to submit feedback";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -66,13 +82,13 @@ export function FeedbackModal({ complaint, open, onOpenChange, onSubmit }: Feedb
             How was your experience with the resolution of your complaint?
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-6">
           <div className="text-sm">
             <div className="font-medium mb-1">Complaint:</div>
             <div className="text-muted-foreground">{complaint.title}</div>
           </div>
-          
+
           <div className="space-y-3">
             <div className="text-sm font-medium">Rate your experience *</div>
             <div className="flex gap-1">
@@ -89,9 +105,11 @@ export function FeedbackModal({ complaint, open, onOpenChange, onSubmit }: Feedb
                   onMouseLeave={() => setHoveredStar(0)}
                   onClick={() => setRating(star)}
                 >
-                  <Star className={`h-6 w-6 ${
-                    star <= (hoveredStar || rating) ? "fill-current" : ""
-                  }`} />
+                  <Star
+                    className={`h-6 w-6 ${
+                      star <= (hoveredStar || rating) ? "fill-current" : ""
+                    }`}
+                  />
                 </button>
               ))}
             </div>
@@ -105,21 +123,23 @@ export function FeedbackModal({ complaint, open, onOpenChange, onSubmit }: Feedb
               </div>
             )}
           </div>
-          
+
           <div className="space-y-2">
-            <label className="text-sm font-medium">Additional Comments (Optional)</label>
+            <label className="text-sm font-medium">
+              Additional Comments (Optional)
+            </label>
             <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Share any additional thoughts about your experience..."
               className="min-h-20"
-              maxLength={500}
+              maxLength={1000}
             />
             <div className="text-xs text-muted-foreground text-right">
-              {comment.length}/500 characters
+              {comment.length}/1000 characters
             </div>
           </div>
-          
+
           <div className="flex gap-3">
             <Button
               variant="outline"
