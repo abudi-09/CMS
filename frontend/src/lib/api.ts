@@ -897,6 +897,7 @@ export type AssignedComplaintLite = {
   lastUpdated?: string | Date;
   resolvedAt?: string | Date;
   category?: string;
+  deadline?: string | Date;
   feedback?: { rating?: number; comment?: string } | null;
 };
 
@@ -941,6 +942,7 @@ export async function listMyAssignedComplaintsApi(): Promise<
         typeof c["category"] === "string"
           ? (c["category"] as string)
           : undefined,
+      deadline: c["deadline"] as string | Date | undefined,
       feedback:
         (c["feedback"] as { rating?: number; comment?: string } | null) ?? null,
     } as AssignedComplaintLite;

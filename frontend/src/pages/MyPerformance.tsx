@@ -112,16 +112,50 @@ export default function MyPerformance() {
   }, [feedbackMap]);
 
   const avgResolutionMs = useMemo(() => {
-    const resolvedItems = assigned.filter(
-      (c) => c.resolvedAt && c.submittedDate
+    const candidates = assigned.filter(
+      (c) =>
+        c.submittedDate &&
+        (c.resolvedAt || (c.status === "Resolved" && c.lastUpdated))
     );
-    if (resolvedItems.length === 0) return undefined;
-    const sum = resolvedItems.reduce((acc, c) => {
-      const end = new Date(c.resolvedAt as string).getTime();
+    if (candidates.length === 0) return undefined;
+    const sum = candidates.reduce((acc, c) => {
       const start = new Date(c.submittedDate as string).getTime();
+      const end = c.resolvedAt
+        ? new Date(c.resolvedAt as string).getTime()
+        : new Date(c.lastUpdated as string).getTime();
       return acc + Math.max(0, end - start);
     }, 0);
-    return Math.floor(sum / resolvedItems.length);
+    return Math.floor(sum / candidates.length);
+  }, [assigned]);
+
+  // Timeliness: % of resolved complaints finished on/before their deadline.
+  // If there's no deadline, optionally compare against a default SLA (e.g., 72h) or skip.
+  const timelinessScore = useMemo(() => {
+    const defaultSlaMs = 72 * 3600_000; // 72 hours fallback SLA when no explicit deadline
+    let considered = 0;
+    let onTime = 0;
+    for (const c of assigned) {
+      const isResolved =
+        c.resolvedAt || (c.status === "Resolved" && c.lastUpdated);
+      if (!isResolved) continue; // only resolved contribute
+      const start = c.submittedDate
+        ? new Date(c.submittedDate as string).getTime()
+        : undefined;
+      const end = c.resolvedAt
+        ? new Date(c.resolvedAt as string).getTime()
+        : new Date(c.lastUpdated as string).getTime();
+      if (!start) continue;
+      considered++;
+      if (c.deadline) {
+        const dl = new Date(c.deadline as string).getTime();
+        if (end <= dl) onTime++;
+      } else {
+        // Use default SLA window from submitted date
+        if (end - start <= defaultSlaMs) onTime++;
+      }
+    }
+    if (considered === 0) return undefined;
+    return Math.round((onTime / considered) * 100);
   }, [assigned]);
 
   const statusData = useMemo(() => {
@@ -190,7 +224,6 @@ export default function MyPerformance() {
   const totalAssigned = stats?.assigned ?? 0;
   const totalResolved = stats?.resolved ?? 0;
   const totalPending = stats?.pending ?? 0;
-  const timelinessScore = undefined as number | undefined;
 
   const recentActivity = assigned.slice(0, 10).map((c) => {
     const dateAssigned = c.assignedAt
