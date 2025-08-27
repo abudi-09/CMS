@@ -96,7 +96,9 @@ export function StaffDashboard() {
             category: String(obj["category"] ?? ""),
             status: (String(obj["status"]) as Complaint["status"]) || "Pending",
             priority:
-              (String(obj["priority"]) as Complaint["priority"]) || "Medium",
+              typeof obj["priority"] === "string" && obj["priority"]
+                ? (obj["priority"] as Complaint["priority"])
+                : "Medium",
             submittedBy: String(submittedByName ?? "User"),
             assignedStaff: user.fullName || user.name || "Me",
             submittedDate: obj["submittedDate"]
@@ -340,8 +342,9 @@ export function StaffDashboard() {
     Closed: "bg-gray-100 text-gray-800 border-gray-200",
   } as const;
 
-  // Recently assigned: show the 3 most recent complaints regardless of status
+  // Recently assigned: show the 3 most recent complaints that are still Pending
   const recentComplaints = [...complaints]
+    .filter((c) => c.status === "Pending")
     .sort((a, b) => {
       const aDate = new Date(a.assignedDate || a.submittedDate).valueOf() || 0;
       const bDate = new Date(b.assignedDate || b.submittedDate).valueOf() || 0;

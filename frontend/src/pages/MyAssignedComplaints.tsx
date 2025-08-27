@@ -93,7 +93,7 @@ export function MyAssignedComplaints() {
       return new Set();
     }
   });
-  // Local update function replacing context update for demo/mock state
+
   // Load assigned complaints from backend for staff user
   useEffect(() => {
     let cancelled = false;
@@ -107,24 +107,21 @@ export function MyAssignedComplaints() {
           const obj = (d ?? {}) as Record<string, unknown>;
           const sb = obj.submittedBy as Record<string, unknown> | undefined;
           const submittedByName =
-            (sb && typeof sb.name === "string" && sb.name) ||
-            (sb && typeof sb.email === "string" && sb.email) ||
+            (sb && typeof sb?.name === "string" && (sb.name as string)) ||
+            (sb && typeof sb?.email === "string" && (sb.email as string)) ||
             "User";
           return {
             id: String((obj.id as string) || (obj._id as string) || ""),
             title: String(obj.title || ""),
             description: String(
               (obj.fullDescription as string) ||
+                (obj.description as string) ||
                 (obj.shortDescription as string) ||
                 ""
             ),
             category: String(obj.category || ""),
-            status:
-              (obj.status as Complaint["status"] as Complaint["status"]) ||
-              "Pending",
-            priority:
-              (obj.priority as Complaint["priority"] as Complaint["priority"]) ||
-              "Medium",
+            status: (obj.status as Complaint["status"]) || "Pending",
+            priority: (obj.priority as Complaint["priority"]) || "Medium",
             submittedBy: submittedByName,
             assignedStaff: name || undefined,
             assignedStaffRole: "staff",
@@ -191,6 +188,17 @@ export function MyAssignedComplaints() {
     complaintId: string,
     updates: Partial<Complaint>
   ) => {
+    // Type guard for server responses that may include either id or _id
+    const isIdLike = (
+      val: unknown
+    ): val is Record<string, unknown> & { id?: string; _id?: string } => {
+      return (
+        !!val &&
+        typeof val === "object" &&
+        ("id" in (val as object) || "_id" in (val as object))
+      );
+    };
+
     setComplaints((prev) =>
       prev.map((c) =>
         c.id === complaintId ? { ...c, ...updates, lastUpdated: new Date() } : c
@@ -200,7 +208,8 @@ export function MyAssignedComplaints() {
     // If backend/modal changed status, sync accepted/rejected tabs
     if (updates.status) {
       const st = updates.status;
-      // Push status to backend
+      // Push status to backend; prefer using server response when available
+      let updatedComplaintFromServer: unknown = null;
       try {
         // Only send valid backend statuses
         const allowed = [
@@ -218,7 +227,13 @@ export function MyAssignedComplaints() {
             typeof updates.resolutionNote === "string"
               ? updates.resolutionNote
               : undefined;
-          await updateComplaintStatusApi(complaintId, st, description);
+          // Try to use server returned complaint object so All Complaints gets full details
+          const resp = await updateComplaintStatusApi(
+            complaintId,
+            st,
+            description
+          );
+          updatedComplaintFromServer = isIdLike(resp) ? resp : null;
         }
       } catch (err) {
         // Surface non-blocking error
@@ -252,26 +267,136 @@ export function MyAssignedComplaints() {
           persistSets("myAssignedRejected", next);
           return next;
         });
-        // Optional: notify other views (e.g., All Complaints) to refresh
+
         try {
+          // Notify other views of the status change
           window.dispatchEvent(
             new CustomEvent("complaint:status-changed", {
               detail: { id: complaintId, status: "Resolved" },
             })
           );
-          // Also upsert into global list if it's not present yet
-          const c = (myAssignedComplaints || []).find(
-            (x) => x.id === complaintId
-          );
-          if (c) {
+
+          // Mapper to normalize arbitrary backend complaint to client shape
+          const mapServerToClient = (
+            input: unknown,
+            fallback?: Complaint | null
+          ): Complaint | null => {
+            if (!input || typeof input !== "object") return fallback || null;
+            const obj = input as Record<string, unknown>;
+            const id = String(
+              (obj.id as string) || (obj._id as string) || fallback?.id || ""
+            );
+            const sb = obj.submittedBy as Record<string, unknown> | undefined;
+            const at = obj.assignedTo as Record<string, unknown> | undefined;
+            const asg = obj.assignedStaff as
+              | string
+              | Record<string, unknown>
+              | undefined;
+            const submittedByName =
+              (sb && typeof sb.name === "string" && (sb.name as string)) ||
+              (sb && typeof sb.email === "string" && (sb.email as string)) ||
+              fallback?.submittedBy ||
+              "User";
+            const assignedStaffName =
+              (typeof asg === "string" && asg) ||
+              (asg &&
+                typeof (asg as Record<string, unknown>).name === "string" &&
+                ((asg as Record<string, unknown>).name as string)) ||
+              (asg &&
+                typeof (asg as Record<string, unknown>).email === "string" &&
+                ((asg as Record<string, unknown>).email as string)) ||
+              (at && typeof at.name === "string" && (at.name as string)) ||
+              (at && typeof at.email === "string" && (at.email as string)) ||
+              (fallback?.assignedStaff as string | undefined);
+
+            const hasEscalated = Object.prototype.hasOwnProperty.call(
+              obj,
+              "isEscalated"
+            );
+            const isEscalated = hasEscalated
+              ? Boolean(obj["isEscalated"] as unknown as boolean)
+              : fallback?.isEscalated ?? false;
+
+            return {
+              id,
+              title: String(obj.title || fallback?.title || ""),
+              description: String(
+                (obj.fullDescription as string) ||
+                  (obj.description as string) ||
+                  (obj.shortDescription as string) ||
+                  fallback?.description ||
+                  ""
+              ),
+              category: String(obj.category || fallback?.category || ""),
+              status: ((obj.status as Complaint["status"]) ||
+                (fallback?.status as Complaint["status"]) ||
+                "Pending") as Complaint["status"],
+              priority: ((obj.priority as Complaint["priority"]) ||
+                (fallback?.priority as Complaint["priority"]) ||
+                "Medium") as Complaint["priority"],
+              submittedBy: submittedByName,
+              assignedStaff: assignedStaffName,
+              assignedStaffRole: fallback?.assignedStaffRole,
+              assignedByRole:
+                (obj.assignedByRole as Complaint["assignedByRole"]) ||
+                fallback?.assignedByRole,
+              assignmentPath: Array.isArray(obj.assignmentPath)
+                ? (obj.assignmentPath as Array<
+                    "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+                  >)
+                : fallback?.assignmentPath || [],
+              assignedDate: obj.assignedAt
+                ? new Date(String(obj.assignedAt))
+                : fallback?.assignedDate,
+              submittedDate: obj.createdAt
+                ? new Date(String(obj.createdAt))
+                : obj.submittedDate
+                ? new Date(String(obj.submittedDate))
+                : fallback?.submittedDate || new Date(),
+              lastUpdated: obj.updatedAt
+                ? new Date(String(obj.updatedAt))
+                : obj.lastUpdated
+                ? new Date(String(obj.lastUpdated))
+                : fallback?.lastUpdated || new Date(),
+              deadline: obj.deadline
+                ? new Date(String(obj.deadline))
+                : fallback?.deadline,
+              resolutionNote:
+                (obj.resolutionNote as string) ||
+                (fallback?.resolutionNote as string | undefined),
+              feedback:
+                (obj.feedback as Complaint["feedback"]) || fallback?.feedback,
+              evidenceFile:
+                (obj.evidenceFile as string) || fallback?.evidenceFile,
+              isEscalated,
+              sourceRole:
+                (obj.sourceRole as Complaint["sourceRole"]) ||
+                fallback?.sourceRole,
+              submittedTo: (obj.submittedTo as string) || fallback?.submittedTo,
+              department: fallback?.department,
+            };
+          };
+
+          const localFallback =
+            (myAssignedComplaints || []).find((x) => x.id === complaintId) ||
+            null;
+          // If server returned a full complaint object, upsert that so All Complaints
+          // receives full details (resolutionNote, timeline, etc.). Otherwise fall back
+          // to the local object with updated status.
+          const serverComplaint = isIdLike(updatedComplaintFromServer)
+            ? mapServerToClient(updatedComplaintFromServer, localFallback)
+            : localFallback
+            ? { ...localFallback, status: "Resolved", lastUpdated: new Date() }
+            : null;
+
+          if (serverComplaint) {
+            // Remove from assigned list locally so it disappears from My Assigned
+            setComplaints((prev) => prev.filter((c) => c.id !== complaintId));
+
             window.dispatchEvent(
               new CustomEvent("complaint:upsert", {
                 detail: {
-                  complaint: {
-                    ...c,
-                    status: "Resolved",
-                    lastUpdated: new Date(),
-                  },
+                  complaint: serverComplaint,
                 },
               })
             );
@@ -279,6 +404,7 @@ export function MyAssignedComplaints() {
         } catch {
           // no-op: best-effort event
         }
+
         toast({
           title: "Complaint Resolved",
           description: `Complaint #${complaintId} moved to All Complaints`,

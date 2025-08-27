@@ -43,6 +43,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useAuth } from "@/components/auth/AuthContext";
+import { getAssignedComplaintsApi } from "@/lib/api";
 
 // Mock data for all complaints (half overdue, half not overdue)
 const now = new Date();
@@ -277,6 +278,14 @@ export default function AllComplaints() {
     },
     [user]
   );
+  const matchesAssignedStaff = useCallback(
+    (c: Complaint) => {
+      const u = (user || {}) as MinimalUser;
+      const uName = u.fullName || u.name || "";
+      return normalize(c.assignedStaff || "") === normalize(uName);
+    },
+    [user]
+  );
   const getSubmitterDept = useCallback(
     (c: Complaint) => {
       // Prefer an explicit field if your real API supplies it (e.g., c.submitterDepartment)
@@ -295,6 +304,91 @@ export default function AllComplaints() {
     ((user || {}) as MinimalUser).workingPlace ||
     "";
 
+  // For staff: load complaints assigned to them so new direct submissions appear immediately
+  useEffect(() => {
+    let cancelled = false;
+    // No outer mutable needed; keep the interval id constant within this effect
+    async function loadAssignedForStaff() {
+      if (!user) return;
+      const roleNorm = normalize(((user || {}) as MinimalUser).role);
+      if (roleNorm !== "staff") return;
+      try {
+        const data = await getAssignedComplaintsApi();
+        if (cancelled) return;
+        const staffName =
+          ((user || {}) as MinimalUser).fullName ||
+          ((user || {}) as MinimalUser).name ||
+          "";
+        const mapped: Complaint[] = (data || []).map((d: unknown) => {
+          const obj = (d ?? {}) as Record<string, unknown>;
+          const sb = obj.submittedBy as Record<string, unknown> | undefined;
+          const submittedByName =
+            (sb && typeof sb.name === "string" && (sb.name as string)) ||
+            (sb && typeof sb.email === "string" && (sb.email as string)) ||
+            "User";
+          return {
+            id: String((obj.id as string) || (obj._id as string) || ""),
+            title: String(obj.title || ""),
+            description: String(
+              (obj.fullDescription as string) ||
+                (obj.description as string) ||
+                (obj.shortDescription as string) ||
+                ""
+            ),
+            category: String(obj.category || ""),
+            status: (obj.status as Complaint["status"]) || "Pending",
+            priority: (obj.priority as Complaint["priority"]) || "Medium",
+            submittedBy: submittedByName,
+            assignedStaff: staffName || undefined,
+            assignedStaffRole: "staff",
+            assignedByRole: obj.assignedByRole as Complaint["assignedByRole"],
+            assignmentPath: Array.isArray(obj.assignmentPath)
+              ? (obj.assignmentPath as Array<
+                  "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+                >)
+              : [],
+            assignedDate: obj.assignedAt
+              ? new Date(String(obj.assignedAt))
+              : undefined,
+            submittedDate: obj.submittedDate
+              ? new Date(String(obj.submittedDate))
+              : new Date(),
+            lastUpdated: obj.lastUpdated
+              ? new Date(String(obj.lastUpdated))
+              : new Date(),
+            deadline: obj.deadline ? new Date(String(obj.deadline)) : undefined,
+            feedback: (obj.feedback as Complaint["feedback"]) || undefined,
+            resolutionNote: (obj.resolutionNote as string) || undefined,
+            evidenceFile: (obj.evidenceFile as string) || undefined,
+            isEscalated: Boolean(obj.isEscalated ?? false),
+            sourceRole: obj.sourceRole as Complaint["sourceRole"],
+            submittedTo: (obj.submittedTo as string) || undefined,
+            department: ((user || {}) as MinimalUser).department,
+          };
+        });
+        setComplaints((prev) => {
+          // Merge by id: update if exists, else add
+          const byId = new Map<string, Complaint>();
+          for (const c of prev) byId.set(c.id, c);
+          for (const c of mapped) byId.set(c.id, c);
+          return Array.from(byId.values());
+        });
+      } catch {
+        // ignore fetch errors; keep current state
+      }
+    }
+    loadAssignedForStaff();
+    // Refresh periodically while page is open to capture new direct submissions
+    const intervalId = window.setInterval(
+      loadAssignedForStaff,
+      10000
+    ) as unknown as number;
+    return () => {
+      cancelled = true;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [user]);
+
   // Role-based visibility filter (hierarchical)
   const visibleComplaints = useMemo(() => {
     // If not authenticated, show all (demo)
@@ -306,9 +400,17 @@ export default function AllComplaints() {
         (c) => matchesUser(c) || getSubmitterDept(c) === myDept
       );
     }
-    // staff and other roles: only own
-    return complaints.filter(matchesUser);
-  }, [user, role, myDept, complaints, matchesUser, getSubmitterDept]);
+    // staff and other roles: show complaints assigned to this staff member
+    return complaints.filter(matchesAssignedStaff);
+  }, [
+    user,
+    role,
+    myDept,
+    complaints,
+    matchesUser,
+    getSubmitterDept,
+    matchesAssignedStaff,
+  ]);
 
   // Calculate summary stats for the visible set
   const stats = {

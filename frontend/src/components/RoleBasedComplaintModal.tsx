@@ -53,9 +53,7 @@ export function RoleBasedComplaintModal({
   children,
   fetchLatest = true,
 }: RoleBasedComplaintModalProps) {
-  // Local state for live backend complaint
-  // For development, you can use mockComplaint as the initial value:
-  // const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(mockComplaint);
+  // Local state for live backend complaint (initialized with incoming complaint)
   const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(
     complaint
   );
@@ -77,13 +75,22 @@ export function RoleBasedComplaintModal({
   const [rejectReason, setRejectReason] = useState("");
   const [feedback, setFeedback] = useState({ rating: 0, comment: "" });
   const [isLoading, setIsLoading] = useState(false);
-  // Reflect local acceptance so staff can work after accepting from list
   const [locallyAccepted, setLocallyAccepted] = useState(false);
-  // Activity logs for timeline/status updates
   const [logs, setLogs] = useState<ActivityLog[]>([]);
 
-  // Helper: Normalize a backend complaint payload into our client Complaint shape, preserving fallback fields
-  function normalizeBackendComplaint(
+  // Helper for type-safe staff display (string or object)
+  function getStaffDisplay(staff: unknown): string {
+    if (!staff) return "Unassigned";
+    if (typeof staff === "string") return staff;
+    if (typeof staff === "object" && staff !== null) {
+      // @ts-expect-error: staff may be an object with name/email
+      return staff.name || staff.email || "Unassigned";
+    }
+    return "Unassigned";
+  }
+
+  // Helper: Normalize a backend complaint payload into our client Complaint shape
+  function mapToClientComplaint(
     input: unknown,
     fallback?: Complaint | null
   ): Complaint | null {
@@ -123,8 +130,7 @@ export function RoleBasedComplaintModal({
       : fallback?.deadline;
     const resolutionNote =
       (obj.resolutionNote as string) || fallback?.resolutionNote;
-    const feedback =
-      (obj.feedback as Complaint["feedback"]) || fallback?.feedback;
+    const fb = (obj.feedback as Complaint["feedback"]) || fallback?.feedback;
     const sourceRole =
       (obj.sourceRole as Complaint["sourceRole"]) || fallback?.sourceRole;
     const assignedByRole =
@@ -158,7 +164,7 @@ export function RoleBasedComplaintModal({
       deadline,
       lastUpdated: updatedAt,
       priority,
-      feedback,
+      feedback: fb,
       resolutionNote,
       evidenceFile,
       isEscalated,
@@ -166,107 +172,9 @@ export function RoleBasedComplaintModal({
       department: fallback?.department,
     };
   }
-  // Helper  for  type-safe staff display
-  function getStaffDisplay(staff: unknown): string {
-    if (!staff) return "Unassigned";
-    if (typeof staff === "string") return staff;
-    if (typeof staff === "object" && staff !== null) {
-      // @ts-expect-error: staff may be an object with name/email, but TS can't infer this from unknown
-      return staff.name || staff.email || "Assigned";
-    }
-    return "Assigned";
-  }
 
-  // Fetch latest complaint from backend when modal opens or complaint changes
   useEffect(() => {
     let ignore = false;
-    const mapToClientComplaint = (
-      input: unknown,
-      fallback?: Complaint | null
-    ): Complaint | null => {
-      if (!input || typeof input !== "object") return fallback ?? null;
-      const obj = input as Record<string, unknown>;
-      const submittedBy = (obj.submittedBy as Record<string, unknown>) || {};
-      const assignedTo = (obj.assignedTo as Record<string, unknown>) || {};
-      const id =
-        (obj._id as string) || (obj.id as string) || fallback?.id || "";
-      const title = (obj.title as string) || fallback?.title || "";
-      const description =
-        (obj.description as string) || (fallback?.description ?? "");
-      const category = (obj.category as string) || (fallback?.category ?? "");
-      const status =
-        (obj.status as Complaint["status"]) || fallback?.status || "Pending";
-      const priority =
-        (obj.priority as Complaint["priority"]) ||
-        fallback?.priority ||
-        "Medium";
-      const submittedByName =
-        (submittedBy.name as string) ||
-        (submittedBy.email as string) ||
-        fallback?.submittedBy ||
-        "User";
-      const assignedStaffName =
-        (assignedTo.name as string) ||
-        (assignedTo.email as string) ||
-        fallback?.assignedStaff;
-      const assignedAt = obj.assignedAt
-        ? new Date(String(obj.assignedAt))
-        : fallback?.assignedDate;
-      const createdAt = obj.createdAt
-        ? new Date(String(obj.createdAt))
-        : fallback?.submittedDate || new Date();
-      const updatedAt = obj.updatedAt
-        ? new Date(String(obj.updatedAt))
-        : fallback?.lastUpdated || new Date();
-      const deadline = obj.deadline
-        ? new Date(String(obj.deadline))
-        : fallback?.deadline;
-      const resolutionNote =
-        (obj.resolutionNote as string) || fallback?.resolutionNote;
-      const feedback =
-        (obj.feedback as Complaint["feedback"]) || fallback?.feedback;
-      const sourceRole =
-        (obj.sourceRole as Complaint["sourceRole"]) || fallback?.sourceRole;
-      const assignedByRole =
-        (obj.assignedByRole as Complaint["assignedByRole"]) ||
-        fallback?.assignedByRole;
-      const assignmentPath = Array.isArray(obj.assignmentPath)
-        ? (obj.assignmentPath as Array<
-            "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-          >)
-        : fallback?.assignmentPath || [];
-      const evidenceFile =
-        (obj.evidenceFile as string) || fallback?.evidenceFile;
-      const isEscalated = Boolean(
-        obj.isEscalated ?? fallback?.isEscalated ?? false
-      );
-      const submittedTo = (obj.submittedTo as string) || fallback?.submittedTo;
-
-      return {
-        id,
-        title,
-        description,
-        category,
-        status,
-        submittedBy: submittedByName,
-        sourceRole,
-        assignedStaff: assignedStaffName,
-        assignedStaffRole: fallback?.assignedStaffRole,
-        assignedByRole,
-        assignmentPath,
-        assignedDate: assignedAt,
-        submittedDate: createdAt,
-        deadline,
-        lastUpdated: updatedAt,
-        priority,
-        feedback,
-        resolutionNote,
-        evidenceFile,
-        isEscalated,
-        submittedTo,
-        department: fallback?.department,
-      };
-    };
     async function fetchComplaint() {
       if (!fetchLatest) {
         setLiveComplaint(complaint);
@@ -310,7 +218,7 @@ export function RoleBasedComplaintModal({
         if (fresh) {
           // Non-destructive merge to preserve any transient local fields
           setLiveComplaint((prev) =>
-            normalizeBackendComplaint(fresh, prev || complaint)
+            mapToClientComplaint(fresh, prev || complaint)
           );
         }
         setLogs(logData as ActivityLog[]);
@@ -350,7 +258,6 @@ export function RoleBasedComplaintModal({
     } else {
       setFeedback({ rating: 0, comment: "" });
     }
-    setStaffUpdate("");
   }, [liveComplaint]);
 
   // Load local acceptance state (synced from My Assigned / Dashboard quick actions)
@@ -439,7 +346,15 @@ export function RoleBasedComplaintModal({
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 800));
-      onUpdate?.(complaint.id, { status: "Resolved" });
+      // If there's a pending staff update, treat it as the optional resolution description
+      const note = staffUpdate.trim();
+      onUpdate?.(
+        complaint.id,
+        note
+          ? { status: "Resolved", resolutionNote: note }
+          : { status: "Resolved" }
+      );
+      if (note) setStaffUpdate("");
       toast({ title: "Resolved", description: "Complaint marked resolved." });
       onOpenChange(false);
     } finally {
@@ -459,8 +374,19 @@ export function RoleBasedComplaintModal({
       const safeNote = staffUpdate.trim().slice(0, 1000);
       const newEntry = `• ${prefix}: ${safeNote}`;
       const combined = existing ? `${existing}\n${newEntry}` : newEntry;
+      // Update local UI to reflect appended note history immediately
+      setLiveComplaint((prev) =>
+        prev
+          ? {
+              ...prev,
+              resolutionNote: combined,
+              lastUpdated: ts,
+            }
+          : prev
+      );
+      // Send only the new note to backend as description via parent onUpdate handler
       onUpdate?.(complaint.id, {
-        resolutionNote: combined,
+        resolutionNote: safeNote,
         status: liveComplaint?.status || "In Progress",
         lastUpdated: ts,
       });
@@ -578,15 +504,31 @@ export function RoleBasedComplaintModal({
     return `Complaint submitted by ${submittedByName}`;
   })();
 
-  const derivedSteps: Array<{
-    label: string;
+  // Build timeline as individual entries; dedupe by stable key; chronological order
+  type TimelineEntry = {
+    key: string; // stable key to dedupe identical updates within a render
+    label:
+      | "Submitted"
+      | "Assigned"
+      | "Pending"
+      | "In Progress"
+      | "Resolved"
+      | "Closed";
     role: string;
     icon: JSX.Element;
-    time: Date | undefined;
-    desc: string;
-  }> = [];
+    time?: Date;
+    desc: string; // optional description (may be empty)
+  };
+
+  const timelineEntries: TimelineEntry[] = [];
+
   // Submitted
-  derivedSteps.push({
+  timelineEntries.push({
+    key: `submitted|${
+      liveComplaint.submittedDate
+        ? new Date(liveComplaint.submittedDate).toISOString()
+        : ""
+    }`,
     label: "Submitted",
     role: "student",
     icon: <User className="h-4 w-4" />,
@@ -594,168 +536,120 @@ export function RoleBasedComplaintModal({
     desc: submittedDesc,
   });
 
-  // Assigned (if any assignee exists)
+  // Assigned
   if (liveComplaint.assignedStaff) {
     let assignDesc = `Assigned to ${staffName}`;
     if (directToStaff) assignDesc = `Sent directly to ${staffName}`;
     else if (viaHod) assignDesc = `Assigned by HOD to ${staffName}`;
     else if (assignedByAdmin) assignDesc = `Assigned by Admin to ${staffName}`;
-    derivedSteps.push({
+    const assignedTime =
+      liveComplaint.assignedDate || liveComplaint.submittedDate;
+    const assignedIso = assignedTime
+      ? new Date(assignedTime).toISOString()
+      : "";
+    timelineEntries.push({
+      key: `assigned|${assignedIso}|${staffName}`,
       label: "Assigned",
       role: viaHod ? "hod" : assignedByAdmin ? "admin" : "system",
       icon: <UserCheck className="h-4 w-4" />,
-      time: liveComplaint.assignedDate || liveComplaint.submittedDate,
+      time: assignedTime,
       desc: assignDesc,
     });
   }
 
-  // Convert activity logs into timeline steps
-  const logSteps: Array<{
-    label: string;
-    role: string;
-    icon: JSX.Element;
-    time: Date | undefined;
-    desc: string;
-  }> = [];
-  const hasAcceptedLog = logs.some((l) =>
-    (l.action || "").toLowerCase().includes("status updated to in progress")
+  // Map action to status label and icon
+  const statusIcon = (status: string) => {
+    switch (status) {
+      case "In Progress":
+        return <Settings className="h-4 w-4" />;
+      case "Resolved":
+        return <CheckCircle className="h-4 w-4 text-success" />;
+      case "Closed":
+        return <X className="h-4 w-4 text-destructive" />;
+      case "Pending":
+        return <Clock className="h-4 w-4" />;
+      default:
+        return <Settings className="h-4 w-4" />;
+    }
+  };
+
+  // Extract staff updates from activity logs
+  const sortedLogs = [...logs].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
-  const statusLogToStep = (log: ActivityLog) => {
-    const action = (log.action || "").toLowerCase();
-    const ts = log.timestamp ? new Date(log.timestamp) : undefined;
-    const who = log.user?.name || log.user?.email || staffName || "Staff";
+  for (const log of sortedLogs) {
+    const action = log.action || "";
+    const m = action.match(/status updated to\s+(.+)/i);
+    if (!m) continue;
+    const raw = (m[1] || "").trim();
+    const norm = raw.toLowerCase();
+    const status =
+      norm === "in progress"
+        ? "In Progress"
+        : norm === "resolved"
+        ? "Resolved"
+        : norm === "closed"
+        ? "Closed"
+        : norm === "pending"
+        ? "Pending"
+        : ((raw.charAt(0).toUpperCase() +
+            raw.slice(1)) as TimelineEntry["label"]); // fallback title case
+    const time = new Date(log.timestamp);
     const details = (log.details || {}) as Record<string, unknown>;
     const descr =
-      typeof details.description === "string" ? details.description : undefined;
-    if (action.includes("status updated to in progress")) {
-      return {
-        label: "In Progress",
-        role: "staff",
-        icon: <Settings className="h-4 w-4" />,
-        time: ts,
-        desc: descr ? descr : `Currently under review by Staff.`,
-      };
-    }
-    if (action.includes("status updated to resolved")) {
-      return {
-        label: "Resolved",
-        role: "staff",
-        icon: <CheckCircle className="h-4 w-4 text-success" />,
-        time: ts,
-        desc: descr ? descr : "Complaint marked as resolved.",
-      };
-    }
-    if (action.includes("status updated to closed")) {
-      return {
-        label: "Closed",
-        role: "staff",
-        icon: <X className="h-4 w-4 text-destructive" />,
-        time: ts,
-        desc: descr ? descr : `Closed by ${who}`,
-      };
-    }
-    if (action.includes("status updated")) {
-      const to = action.split("status updated to ")[1] || "updated";
-      return {
-        label: `Status: ${to.toUpperCase()}`,
-        role: "staff",
-        icon: <Clock className="h-4 w-4" />,
-        time: ts,
-        desc: descr || `Status changed to ${to}`,
-      };
-    }
-    return null;
-  };
-  // Add logs in chronological order (oldest first)
-  [...logs]
-    .sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    )
-    .forEach((l) => {
-      const mapped = statusLogToStep(l);
-      if (mapped) logSteps.push(mapped);
+      typeof details.description === "string" ? details.description : "";
+    const normalizedDesc = (descr || "").trim();
+    const secondEpoch = isNaN(time.getTime())
+      ? 0
+      : Math.floor(time.getTime() / 1000);
+    const contentKey = log._id
+      ? `logid|${log._id}`
+      : `log|${status}|${normalizedDesc}|${secondEpoch}`;
+    timelineEntries.push({
+      key: contentKey,
+      label: status as TimelineEntry["label"],
+      role: log.role || "staff",
+      icon: statusIcon(status),
+      time,
+      desc: descr,
     });
+  }
 
-  // Parse resolutionNote for additional progress notes (each line may start with a timestamp prefix)
-  if (liveComplaint.resolutionNote) {
-    const lines = String(liveComplaint.resolutionNote)
-      .split(/\n+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    for (const line of lines) {
-      // Try to extract [ISO] or bullet prefix
-      let time: Date | undefined;
-      let text = line.replace(/^•\s*/, "");
-      const isoMatch = text.match(/^\[(.*?)\]\s*(.*)$/);
-      if (isoMatch) {
-        const [, iso, rest] = isoMatch;
-        const d = new Date(iso);
-        if (!isNaN(d.getTime())) time = d;
-        text = rest || text;
-      } else {
-        // Try split by first colon to separate timestamp-ish content
-        const parts = text.split(": ");
-        if (parts.length > 1) {
-          const d = new Date(parts[0]);
-          if (!isNaN(d.getTime())) {
-            time = d;
-            text = parts.slice(1).join(": ");
-          }
-        }
-      }
-      logSteps.push({
-        label: "Status Update",
+  // Optional: if current status has no corresponding log, add a synthetic entry at lastUpdated
+  if (liveComplaint.lastUpdated && liveComplaint.status) {
+    const lastUpdatedDate = new Date(liveComplaint.lastUpdated);
+    const hasNearbyStatus = timelineEntries.some((e) => {
+      if (
+        e.label !== (liveComplaint.status as TimelineEntry["label"]) ||
+        !e.time
+      )
+        return false;
+      const delta = Math.abs(e.time.getTime() - lastUpdatedDate.getTime());
+      return delta <= 5000; // within 5 seconds considered the same event
+    });
+    if (!hasNearbyStatus) {
+      const secondEpoch = Math.floor(lastUpdatedDate.getTime() / 1000);
+      timelineEntries.push({
+        key: `synthetic|${liveComplaint.status}|${secondEpoch}`,
+        label: liveComplaint.status as TimelineEntry["label"],
         role: "staff",
-        icon: <MessageSquare className="h-4 w-4" />,
-        time,
-        desc: text,
+        icon: statusIcon(liveComplaint.status),
+        time: lastUpdatedDate,
+        desc: "",
       });
     }
   }
 
-  // If no activity log captured acceptance/resolution, include derived fallbacks
-  if (liveComplaint.status === "In Progress" && !hasAcceptedLog) {
-    logSteps.push({
-      label: "Accepted",
-      role: "staff",
-      icon: <Settings className="h-4 w-4" />,
-      time: liveComplaint.lastUpdated,
-      desc: `Accepted by ${staffName}`,
-    });
-  }
-  if (
-    liveComplaint.status === "Resolved" &&
-    !logSteps.some((s) => s.label === "Resolved")
-  ) {
-    logSteps.push({
-      label: "Resolved",
-      role: "staff",
-      icon: <CheckCircle className="h-4 w-4 text-success" />,
-      time: liveComplaint.lastUpdated,
-      desc: "Complaint marked as resolved.",
-    });
-  }
-  if (
-    liveComplaint.status === "Closed" &&
-    !logSteps.some((s) => s.label === "Closed")
-  ) {
-    const reason = liveComplaint.resolutionNote?.includes("Rejected")
-      ? `: ${liveComplaint.resolutionNote}`
-      : "";
-    logSteps.push({
-      label: "Closed",
-      role: "staff",
-      icon: <X className="h-4 w-4 text-destructive" />,
-      time: liveComplaint.lastUpdated,
-      desc: `Closed by ${staffName}${reason}`,
-    });
-  }
-
-  // Final timeline: combine all steps and sort by time DESC (latest first)
-  const timelineSteps = [...derivedSteps, ...logSteps].sort(
-    (a, b) => (b.time?.getTime?.() || 0) - (a.time?.getTime?.() || 0)
-  );
+  // Dedupe by entry key (stable within a render)
+  const seenKeys = new Set<string>();
+  const timelineSteps = timelineEntries
+    .filter((e) => {
+      const key = e.key || `${e.label}|${e.time ? e.time.toISOString() : ""}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    })
+    .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1059,7 +953,12 @@ export function RoleBasedComplaintModal({
               {/* Timeline steps - always use liveComplaint for latest backend state */}
               {timelineSteps.map((step, idx) => (
                 <div
-                  key={step.label}
+                  key={
+                    step.key ||
+                    `${step.label}|${
+                      step.time ? new Date(step.time).toISOString() : idx
+                    }`
+                  }
                   className="flex items-start gap-4 relative"
                 >
                   <div className="absolute -left-6 top-0">
