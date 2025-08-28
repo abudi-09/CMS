@@ -20,6 +20,92 @@ export async function assignComplaintApi(
   if (!res.ok) throw new Error(data.error || "Failed to assign complaint");
   return data.complaint || data;
 }
+
+// Dean or Admin: list all complaints (dean enabled via backend)
+export async function listAllComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/all`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch complaints");
+  return data as Array<{
+    id: string;
+    complaintCode?: string;
+    title: string;
+    status: string;
+    department?: string | null;
+    category?: string | null;
+    submittedDate?: string;
+    lastUpdated?: string;
+    assignedTo?: string | null;
+    submittedBy?: string | null;
+    deadline?: string | null;
+    sourceRole?: string | null;
+    assignedByRole?: string | null;
+    assignmentPath?: string[];
+    submittedTo?: string | null;
+    feedback?: unknown;
+    isEscalated?: boolean;
+  }>;
+}
+
+// Dean or Admin: complaint stats summary
+export async function getComplaintStatsApi() {
+  const res = await fetch(`${API_BASE}/stats/complaints`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch stats");
+  return data as {
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    unassigned: number;
+  };
+}
+
+// Dean: stats excluding complaints submitted to Admin
+export async function getDeanVisibleComplaintStatsApi() {
+  const res = await fetch(`${API_BASE}/stats/complaints/dean-visible`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch dean-visible stats");
+  return data as {
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    unassigned: number;
+  };
+}
+
+// HoD: department-scoped complaint stats
+export async function getHodComplaintStatsApi() {
+  const res = await fetch(`${API_BASE}/stats/complaints/department`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch department stats");
+  return data as {
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    unassigned: number;
+  };
+}
 // Approve staff (admin)
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {

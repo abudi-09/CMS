@@ -19,6 +19,34 @@ export const getComplaintStats = async (req, res) => {
   }
 };
 
+// Department-scoped complaint stats (for HoD)
+export const getDepartmentComplaintStats = async (req, res) => {
+  try {
+    const dept = req.user?.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for HoD stats" });
+    }
+
+    const [total, pending, inProgress, resolved, unassigned] =
+      await Promise.all([
+        Complaint.countDocuments({ department: dept }),
+        Complaint.countDocuments({ department: dept, status: "Pending" }),
+        Complaint.countDocuments({
+          department: dept,
+          status: "In Progress",
+        }),
+        Complaint.countDocuments({ department: dept, status: "Resolved" }),
+        Complaint.countDocuments({ department: dept, assignedTo: null }),
+      ]);
+
+    res.status(200).json({ total, pending, inProgress, resolved, unassigned });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch department stats" });
+  }
+};
+
 // Feedback Stats //
 export const getFeedbackStats = async (req, res) => {
   try {
@@ -124,5 +152,53 @@ export const getRoleCounts = async (req, res) => {
     res.status(200).json({ deans, departmentHeads, students, staff });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch role counts" });
+  }
+};
+
+// Dean-visible complaint stats: exclude complaints that were sent to Admin
+export const getDeanVisibleComplaintStats = async (req, res) => {
+  try {
+    // First, let's get the total count without any filter to see if there are complaints
+    const totalAll = await Complaint.countDocuments();
+    console.log("Total complaints in DB:", totalAll);
+
+    // Simple filter: exclude complaints where submittedTo contains "admin" (case insensitive)
+    const excludeAdminFilter = {
+      $or: [
+        { submittedTo: { $exists: false } },
+        { submittedTo: null },
+        { submittedTo: { $not: /admin/i } },
+      ],
+    };
+
+    console.log(
+      "Simplified dean stats filter:",
+      JSON.stringify(excludeAdminFilter, null, 2)
+    );
+
+    const [total, pending, inProgress, resolved, unassigned] =
+      await Promise.all([
+        Complaint.countDocuments(excludeAdminFilter),
+        Complaint.countDocuments({ ...excludeAdminFilter, status: "Pending" }),
+        Complaint.countDocuments({
+          ...excludeAdminFilter,
+          status: "In Progress",
+        }),
+        Complaint.countDocuments({ ...excludeAdminFilter, status: "Resolved" }),
+        Complaint.countDocuments({ ...excludeAdminFilter, assignedTo: null }),
+      ]);
+
+    console.log("Dean stats counts:", {
+      total,
+      pending,
+      inProgress,
+      resolved,
+      unassigned,
+    });
+
+    res.status(200).json({ total, pending, inProgress, resolved, unassigned });
+  } catch (err) {
+    console.error("Dean stats error:", err);
+    res.status(500).json({ error: "Failed to fetch dean-visible stats" });
   }
 };

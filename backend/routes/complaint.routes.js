@@ -18,6 +18,7 @@ import { getComplaint } from "../controllers/getComplaint.js";
 import {
   protectRoute,
   adminOnly,
+  adminOrDean,
   staffOnly,
 } from "../middleware/protectRoute.js";
 
@@ -28,10 +29,10 @@ router.post("/submit", protectRoute, createComplaint);
 router.get("/my-complaints", protectRoute, getMyComplaints);
 router.post("/feedback/:id", protectRoute, giveFeedback);
 
-// ADMIN
-router.get("/all", protectRoute, adminOnly, getAllComplaints);
-router.put("/assign/:id", protectRoute, adminOnly, assignComplaint);
-router.put("/approve/:id", protectRoute, adminOnly, approveComplaint);
+// ADMIN or DEAN
+router.get("/all", protectRoute, adminOrDean, getAllComplaints);
+router.put("/assign/:id", protectRoute, adminOrDean, assignComplaint);
+router.put("/approve/:id", protectRoute, adminOrDean, approveComplaint);
 router.get("/feedback/all", protectRoute, adminOnly, getAllFeedback);
 
 // STAFF

@@ -48,6 +48,12 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  listAllComplaintsApi,
+  listMyDepartmentActiveStaffApi,
+  assignComplaintApi,
+} from "@/lib/api";
+import { getComplaintApi } from "@/lib/getComplaintApi";
 // Use ComplaintType for all references to Complaint
 
 const statusColors = {
@@ -223,8 +229,116 @@ export function DeanAssignComplaints() {
       deadline: new Date(now.getTime() + 5 * 86400000),
     },
   ];
-  const [complaints, setComplaints] =
-    useReactState<ComplaintType[]>(demoComplaints);
+  const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [staffOptions, setStaffOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  type RawComplaint = {
+    id: string;
+    complaintCode?: string;
+    title?: string;
+    description?: string;
+    category?: string;
+    department?: string;
+    status: "Pending" | "In Progress" | "Resolved" | "Closed";
+    submittedBy?: string;
+    submittedDate?: string | Date;
+    lastUpdated?: string | Date;
+    assignedTo?: string | { name?: string } | null;
+    assignedByRole?: string | null;
+    assignmentPath?: string[];
+    deadline?: string | Date | null;
+    priority?: "Low" | "Medium" | "High" | "Critical";
+    feedback?: unknown;
+    isEscalated?: boolean;
+    submittedTo?: string | null;
+    sourceRole?:
+      | "student"
+      | "staff"
+      | "dean"
+      | "headOfDepartment"
+      | "hod"
+      | "admin";
+  };
+  type DeptStaff = {
+    _id: string;
+    fullName?: string;
+    name?: string;
+    username?: string;
+    email: string;
+  };
+
+  // Load real complaints and eligible staff
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        setLoading(true);
+        const [allRaw, staffRaw] = await Promise.all([
+          listAllComplaintsApi(),
+          listMyDepartmentActiveStaffApi(),
+        ]);
+        const all = allRaw as unknown as RawComplaint[];
+        const staff = staffRaw as unknown as DeptStaff[];
+        if (!mounted) return;
+        const mapped = (all as RawComplaint[])
+          .filter((c) => c && c.id && c.status) // basic sanity
+          .map((c) => ({
+            id: c.id,
+            title: c.title || c.complaintCode || "Complaint",
+            description: c.description || "",
+            category: c.category || c.department || "General",
+            status: c.status,
+            submittedBy: c.submittedBy || "",
+            sourceRole: c.sourceRole,
+            assignedStaff:
+              typeof c.assignedTo === "string"
+                ? c.assignedTo
+                : (c.assignedTo as { name?: string } | null)?.name || undefined,
+            assignedStaffRole:
+              c.assignedByRole === "dean"
+                ? "dean"
+                : c.assignedByRole === "hod"
+                ? "headOfDepartment"
+                : undefined,
+            assignedByRole: c.assignedByRole || undefined,
+            assignmentPath: Array.isArray(c.assignmentPath)
+              ? (c.assignmentPath as string[])
+              : [],
+            submittedDate: c.submittedDate
+              ? new Date(c.submittedDate)
+              : new Date(),
+            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+            deadline: c.deadline ? new Date(c.deadline) : undefined,
+            priority: c.priority || "Medium",
+            feedback: c.feedback || undefined,
+            isEscalated: !!c.isEscalated,
+            submittedTo: c.submittedTo || undefined,
+            department: c.department || undefined,
+          })) as ComplaintType[];
+        setComplaints(mapped);
+        setStaffOptions(
+          (staff || []).map((s) => ({
+            id: s._id,
+            name: s.fullName || s.name || s.username || s.email,
+          }))
+        );
+      } catch (e) {
+        // fall back to demo
+        setComplaints(demoComplaints);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    const t = setInterval(load, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all");
@@ -259,49 +373,73 @@ export function DeanAssignComplaints() {
     setAssigningStaffId("");
     setReassigningRow(null);
   };
-  const handleStaffAssignment = (complaintId: string, staffId: string) => {
-    const staff = getAllStaff().find((s) => s.id === staffId);
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              assignedStaff: staff?.fullName || staff?.name || "Unknown",
-              assignedStaffRole: "headOfDepartment",
-              assignedByRole: "dean",
-              assignmentPath: Array.isArray(c.assignmentPath)
-                ? Array.from(
-                    new Set([
-                      ...(c.assignmentPath || []),
-                      "dean",
-                      "headOfDepartment",
-                    ])
-                  )
-                : ["dean", "headOfDepartment"],
-              lastUpdated: new Date(),
-              deadline: assigningDeadline
-                ? new Date(assigningDeadline)
-                : c.deadline,
-              // Dean "accepts" -> use "In Progress" to stay within ComplaintType
-              status:
-                c.status === "Unassigned" || c.status === "Pending"
-                  ? "In Progress"
-                  : c.status,
-            }
-          : c
-      )
-    );
-    toast({
-      title: "Assigned",
-      description: `Assigned to ${staff?.fullName || staff?.name}${
-        assigningDeadline
-          ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
-          : ""
-      }`,
-    });
-    setReassigningRow(null);
-    setAssigningStaffId("");
-    setAssigningDeadline("");
+  const handleStaffAssignment = async (
+    complaintId: string,
+    staffId: string
+  ) => {
+    try {
+      const body: {
+        staffId: string;
+        assignedByRole: "dean";
+        assignmentPath: string[];
+        deadline?: string;
+      } = {
+        staffId,
+        assignedByRole: "dean",
+        assignmentPath: ["dean", "staff"],
+      };
+      if (assigningDeadline) body.deadline = assigningDeadline;
+      await assignComplaintApi(complaintId, staffId, assigningDeadline, {
+        assignedByRole: "dean",
+        assignmentPath: ["dean", "staff"],
+      });
+      const updated = await getComplaintApi(complaintId);
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === complaintId
+            ? {
+                ...c,
+                assignedStaff:
+                  updated?.assignedTo?.name ||
+                  staffOptions.find((s) => s.id === staffId)?.name ||
+                  c.assignedStaff,
+                assignedStaffRole: "headOfDepartment",
+                assignedByRole: "dean",
+                assignmentPath: Array.isArray(updated.assignmentPath)
+                  ? updated.assignmentPath
+                  : c.assignmentPath,
+                lastUpdated: new Date(),
+                deadline: updated.deadline
+                  ? new Date(updated.deadline)
+                  : c.deadline,
+                status: "In Progress",
+              }
+            : c
+        )
+      );
+      toast({
+        title: "Assigned",
+        description: `Assigned successfully${
+          assigningDeadline
+            ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
+            : ""
+        }`,
+      });
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? String((e as { message?: unknown }).message || "")
+          : "Unable to assign complaint";
+      toast({
+        title: "Assign failed",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setReassigningRow(null);
+      setAssigningStaffId("");
+      setAssigningDeadline("");
+    }
   };
 
   const handleResolve = (complaintId: string) => {
@@ -309,36 +447,51 @@ export function DeanAssignComplaints() {
   };
 
   const handleReject = (complaintId: string) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? { ...c, status: "Closed", lastUpdated: new Date() }
-          : c
-      )
-    );
-    toast({ title: "Rejected", description: "Complaint rejected and closed." });
+    // No direct reject endpoint; skip for now
+    toast({
+      title: "Not supported",
+      description: "Use admin to close complaints.",
+    });
   };
 
-  const handleReapprove = (complaintId: string) => {
-    const assignee =
-      (user?.fullName as string) ||
-      (user?.name as string) ||
-      (user?.email as string) ||
-      "Dean";
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              status: "In Progress",
-              assignedStaff: assignee,
-              assignedStaffRole: "dean",
-              lastUpdated: new Date(),
-            }
-          : c
-      )
-    );
-    toast({ title: "Re-approved", description: "Moved back to Accepted." });
+  const handleReapprove = async (complaintId: string) => {
+    try {
+      await fetch(`/api/complaints/approve/${complaintId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ assignToSelf: true }),
+      });
+      const updated = await getComplaintApi(complaintId);
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === complaintId
+            ? {
+                ...c,
+                status: updated.status || "In Progress",
+                assignedStaff:
+                  (user?.fullName as string) ||
+                  (user?.name as string) ||
+                  (user?.email as string) ||
+                  "Dean",
+                assignedStaffRole: "dean",
+                lastUpdated: new Date(),
+              }
+            : c
+        )
+      );
+      toast({ title: "Re-approved", description: "Assigned to you." });
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? String((e as { message?: unknown }).message || "")
+          : "Failed to approve";
+      toast({
+        title: "Approve failed",
+        description: msg,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleModalUpdate = (
@@ -655,7 +808,7 @@ export function DeanAssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {/* Dean can accept to solve, resolve, reject, and assign to HoD */}
+                        {/* Dean can accept to solve and assign to HoD */}
                         {!complaint.assignedStaff &&
                           (complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
@@ -700,13 +853,11 @@ export function DeanAssignComplaints() {
                                 <SelectValue placeholder="Select assignee" />
                               </SelectTrigger>
                               <SelectContent>
-                                {getAllStaff()
-                                  .filter((s) => s.role === "headOfDepartment")
-                                  .map((staff) => (
-                                    <SelectItem key={staff.id} value={staff.id}>
-                                      {staff.fullName || staff.name}
-                                    </SelectItem>
-                                  ))}
+                                {staffOptions.map((staff) => (
+                                  <SelectItem key={staff.id} value={staff.id}>
+                                    {staff.name}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <Input
@@ -892,13 +1043,11 @@ export function DeanAssignComplaints() {
                             <SelectValue placeholder="Select assignee" />
                           </SelectTrigger>
                           <SelectContent>
-                            {getAllStaff()
-                              .filter((s) => s.role === "headOfDepartment")
-                              .map((staff) => (
-                                <SelectItem key={staff.id} value={staff.id}>
-                                  {staff.fullName || staff.name}
-                                </SelectItem>
-                              ))}
+                            {staffOptions.map((staff) => (
+                              <SelectItem key={staff.id} value={staff.id}>
+                                {staff.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <Input

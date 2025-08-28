@@ -246,6 +246,21 @@ export const assignComplaint = async (req, res) => {
       return res.status(400).json({ error: "Invalid staff member" });
     }
 
+    // If dean is assigning, enforce same-department assignment
+    if (req.user.role === "dean") {
+      // Dean can only assign staff within their own department
+      if (!req.user.department || !staff.department) {
+        return res
+          .status(400)
+          .json({ error: "Department information missing for assignment" });
+      }
+      if (String(staff.department) !== String(req.user.department)) {
+        return res
+          .status(403)
+          .json({ error: "Can only assign staff in your department" });
+      }
+    }
+
     const complaint = await Complaint.findById(complaintId);
     if (!complaint) {
       return res.status(404).json({ error: "Complaint not found" });
@@ -263,6 +278,13 @@ export const assignComplaint = async (req, res) => {
       complaint.assignmentPath = assignmentPath.map((r) =>
         normalizeUserRole(r)
       );
+    // Ensure dean is recorded in assignment path when dean assigns
+    if (req.user.role === "dean") {
+      if (!Array.isArray(complaint.assignmentPath))
+        complaint.assignmentPath = [];
+      if (!complaint.assignmentPath.includes("dean"))
+        complaint.assignmentPath.push("dean");
+    }
 
     // Optional: Add reassignment history here if needed
     await complaint.save();
@@ -293,6 +315,7 @@ export const assignComplaint = async (req, res) => {
 export const approveComplaint = async (req, res) => {
   try {
     const complaintId = req.params.id;
+    const { note, assignToSelf } = req.body || {};
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
@@ -308,6 +331,18 @@ export const approveComplaint = async (req, res) => {
     if (!complaint.assignmentPath.includes(req.user.role)) {
       complaint.assignmentPath.push(normalizeUserRole(req.user.role));
     }
+    // If approver wants to take ownership
+    if (assignToSelf === true) {
+      complaint.assignedTo = req.user._id;
+      complaint.assignedAt = new Date();
+    }
+    if (note && String(note).trim()) {
+      const ts = new Date().toISOString();
+      const prefix = `[${ts}]`;
+      complaint.resolutionNote = complaint.resolutionNote
+        ? `${complaint.resolutionNote}\n${prefix} ${note}`
+        : `${prefix} ${note}`;
+    }
     await complaint.save();
 
     await ActivityLog.create({
@@ -316,7 +351,7 @@ export const approveComplaint = async (req, res) => {
       action: "Complaint Approved",
       complaint: complaint._id,
       timestamp: new Date(),
-      details: { status: complaint.status },
+      details: { status: complaint.status, assignToSelf: !!assignToSelf },
     });
 
     res.status(200).json({ message: "Complaint approved", complaint });

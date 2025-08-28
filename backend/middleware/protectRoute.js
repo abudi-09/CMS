@@ -42,6 +42,18 @@ export const adminOnly = (req, res, next) => {
     return res.status(403).json({ error: "Access denied: Admins only" });
   }
 };
+
+// Allow either Admin or Dean
+export const adminOrDean = (req, res, next) => {
+  const role = req.user?.role && normalizeUserRole(req.user.role);
+  if (role === "admin" || role === "dean") {
+    next();
+  } else {
+    return res
+      .status(403)
+      .json({ error: "Access denied: Admins or Deans only" });
+  }
+};
 export const staffOnly = (req, res, next) => {
   const role = req.user?.role && normalizeUserRole(req.user.role);
   if (role === "staff" && req.user.isApproved) {

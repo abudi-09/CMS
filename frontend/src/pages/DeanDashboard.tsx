@@ -21,83 +21,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Clock, MessageSquare, UserCheck, Users } from "lucide-react";
-import { getDeanPendingHodApi } from "@/lib/api";
+import {
+  getDeanPendingHodApi,
+  listAllComplaintsApi,
+  getDeanVisibleComplaintStatsApi,
+} from "@/lib/api";
 
-// Mock data for demo
-const now = new Date();
-const mockComplaints: Complaint[] = [
-  {
-    id: "d1",
-    title: "Lab PC not working",
-    status: "Pending",
-    priority: "High",
-    deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-    submittedBy: "Student A",
-    assignedStaff: undefined,
-    category: "IT",
-    description: "PC in Lab 1 is not booting.",
-    submittedDate: new Date(now.getTime() - 3 * 86400000),
-    assignedDate: new Date(now.getTime() - 2 * 86400000),
-    lastUpdated: new Date(now.getTime() - 1 * 86400000),
-  },
-  {
-    id: "d2",
-    title: "Projector issue",
-    status: "In Progress",
-    priority: "Medium",
-    deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
-    submittedBy: "Student B",
-    assignedStaff: "Head of Department - Facilities",
-    assignedStaffRole: "headOfDepartment",
-    category: "Facilities",
-    description: "Projector in Room 204 flickers.",
-    submittedDate: new Date(now.getTime() - 2 * 86400000),
-    assignedDate: new Date(now.getTime() - 1 * 86400000),
-    lastUpdated: new Date(now.getTime() - 1 * 43200000),
-  },
-  {
-    id: "d3",
-    title: "Wi-Fi outage in Library",
-    status: "Pending",
-    priority: "High",
-    deadline: new Date(now.getTime() + 1 * 86400000), // not overdue
-    submittedBy: "Student C",
-    assignedStaff: undefined,
-    category: "IT",
-    description: "Library Wi-Fi is down on the 2nd floor.",
-    submittedDate: new Date(now.getTime() - 1 * 86400000),
-    assignedDate: undefined,
-    lastUpdated: new Date(now.getTime() - 6 * 3600000),
-  },
-  {
-    id: "d4",
-    title: "Course syllabus update requested",
-    status: "Pending",
-    priority: "Low",
-    deadline: new Date(now.getTime() + 5 * 86400000), // not overdue
-    submittedBy: "Student D",
-    assignedStaff: undefined,
-    category: "Academic",
-    description: "Students are requesting an updated syllabus for CS101.",
-    submittedDate: new Date(now.getTime() - 4 * 86400000),
-    assignedDate: undefined,
-    lastUpdated: new Date(now.getTime() - 2 * 86400000),
-  },
-  {
-    id: "d5",
-    title: "Air conditioning not working",
-    status: "Pending",
-    priority: "Critical",
-    deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    submittedBy: "Staff Z",
-    assignedStaff: undefined,
-    category: "Facilities",
-    description: "AC in Lecture Hall A is not functioning.",
-    submittedDate: new Date(now.getTime() - 2 * 86400000),
-    assignedDate: undefined,
-    lastUpdated: new Date(now.getTime() - 12 * 3600000),
-  },
-];
+// Utilities
+const toDate = (d?: string | Date | null) => (d ? new Date(d) : new Date());
 
 // Pending dean approvals (fetched from backend)
 // Shape used in UI
@@ -110,6 +41,14 @@ export function DeanDashboard() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [pendingStaff, setPendingStaff] = useState<PendingStaff[]>([]);
+  const [summaryData, setSummaryData] = useState<
+    { label: string; value: number }[]
+  >([
+    { label: "Total Complaints", value: 0 },
+    { label: "Pending", value: 0 },
+    { label: "In Progress", value: 0 },
+    { label: "Resolved", value: 0 },
+  ]);
 
   const fetchPending = useCallback(async () => {
     try {
@@ -144,7 +83,81 @@ export function DeanDashboard() {
     return () => window.removeEventListener("hod:updated", handler);
   }, [fetchPending]);
   // Local state to allow Accept/Reject updates in the dashboard table
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+
+  // Load real complaints and stats for dean
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        console.log("Loading dean dashboard data...");
+        const [rawComplaints, stats] = await Promise.all([
+          listAllComplaintsApi(),
+          getDeanVisibleComplaintStatsApi(),
+        ]);
+        console.log("Dean stats response:", stats);
+        console.log("Raw complaints count:", rawComplaints.length);
+        if (cancelled) return;
+        type Raw = {
+          id: string;
+          title: string;
+          status?: string;
+          priority?: "Low" | "Medium" | "High" | "Critical";
+          deadline?: string | null;
+          submittedBy?: string | null;
+          assignedTo?: string | null;
+          category?: string | null;
+          description?: string | null;
+          submittedDate?: string | null;
+          lastUpdated?: string | null;
+          createdAt?: string | null;
+          updatedAt?: string | null;
+          feedback?: { rating?: number; comment?: string } | null;
+          isEscalated?: boolean;
+          department?: string | null;
+        };
+        const mapped: Complaint[] = (rawComplaints as Raw[]).map((c) => ({
+          id: c.id,
+          title: c.title,
+          status: (c.status as Complaint["status"]) || "Pending",
+          priority: c.priority || "Medium",
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          submittedBy: c.submittedBy || "",
+          assignedStaff: c.assignedTo || undefined,
+          // Backend doesn't send role; leave undefined
+          category: c.category || "General",
+          description: c.description || "",
+          submittedDate: toDate(c.submittedDate || c.createdAt || undefined),
+          assignedDate: undefined,
+          lastUpdated: toDate(c.lastUpdated || c.updatedAt || undefined),
+          feedback: (c.feedback as Complaint["feedback"]) || undefined,
+          isEscalated: !!c.isEscalated,
+          department: c.department || undefined,
+        }));
+        setComplaints(mapped);
+        setSummaryData([
+          { label: "Total Complaints", value: stats.total ?? 0 },
+          { label: "Pending", value: stats.pending ?? 0 },
+          { label: "In Progress", value: stats.inProgress ?? 0 },
+          { label: "Resolved", value: stats.resolved ?? 0 },
+        ]);
+        console.log("Summary data set:", [
+          { label: "Total Complaints", value: stats.total ?? 0 },
+          { label: "Pending", value: stats.pending ?? 0 },
+          { label: "In Progress", value: stats.inProgress ?? 0 },
+          { label: "Resolved", value: stats.resolved ?? 0 },
+        ]);
+      } catch (err) {
+        console.error("Failed to load dean dashboard data", err);
+      }
+    }
+    load();
+    const id = window.setInterval(load, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   const statusColors = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -199,13 +212,7 @@ export function DeanDashboard() {
     );
   };
 
-  // Department summary cards mock
-  const summaryData = [
-    { label: "Total Students", value: 120 },
-    { label: "Total Departments", value: 4 },
-    { label: "Total Complaints", value: 8 },
-    { label: "Resolved Complaints", value: 4 },
-  ];
+  // Summary cards now reflect live complaint stats
 
   return (
     <div className="space-y-8">

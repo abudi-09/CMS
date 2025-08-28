@@ -34,6 +34,7 @@ import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useComplaints } from "@/context/ComplaintContext";
+import { getHodComplaintStatsApi } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -192,6 +193,48 @@ export function HoDDashboard() {
 
   const { pendingStaff, getAllStaff, user } = useAuth();
   const navigate = useNavigate();
+  // Backend department-scoped stats
+  const [deptStats, setDeptStats] = useState({
+    total: 0,
+    pending: 0,
+    inProgress: 0,
+    resolved: 0,
+  });
+
+  // Load department stats from backend (HoD only)
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const s = await getHodComplaintStatsApi();
+        if (cancelled) return;
+        setDeptStats({
+          total: s.total ?? 0,
+          pending: s.pending ?? 0,
+          inProgress: s.inProgress ?? 0,
+          resolved: s.resolved ?? 0,
+        });
+      } catch {
+        // keep previous stats
+      }
+    }
+    load();
+    const id = window.setInterval(load, 30000);
+    // Also update on status-change events fired elsewhere in the app
+    const handler = () => load();
+    window.addEventListener(
+      "complaint:status-changed",
+      handler as EventListener
+    );
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(
+        "complaint:status-changed",
+        handler as EventListener
+      );
+    };
+  }, []);
 
   // New staff signup notifications for HODs
   const [newStaffNotifications, setNewStaffNotifications] = useState<
@@ -442,8 +485,41 @@ export function HoDDashboard() {
         </p>
       </div>
 
-      {/* Summary Cards */}
-      <SummaryCards complaints={complaints} userRole="admin" />
+      {/* Summary Cards - department scoped for HoD */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-2">
+            <CardTitle>Total Complaints</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{deptStats.total}</div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-2">
+            <CardTitle>Pending</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{deptStats.pending}</div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-2">
+            <CardTitle>In Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{deptStats.inProgress}</div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-2">
+            <CardTitle>Resolved</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{deptStats.resolved}</div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Pending Staff Notifications */}
       {pendingStaff.length > 0 && (
