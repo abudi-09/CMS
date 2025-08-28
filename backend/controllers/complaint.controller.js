@@ -362,15 +362,42 @@ export const updateComplaintStatus = async (req, res) => {
     }
     await complaint.save();
 
-    // Log activity
-    await ActivityLog.create({
-      user: req.user._id,
-      role: req.user.role,
-      action: `Status Updated to ${status}`,
+    // Check if the last activity log has the same status and user
+    const lastLog = await ActivityLog.findOne({
       complaint: complaint._id,
-      timestamp: new Date(),
-      details: { description },
-    });
+      user: req.user._id,
+    }).sort({ timestamp: -1 });
+
+    let activityLog;
+    if (lastLog && lastLog.action === `Status Updated to ${status}`) {
+      // Update the existing log with new timestamp and append description if provided
+      const updatedDetails = { ...lastLog.details };
+      if (description) {
+        updatedDetails.description = updatedDetails.description
+          ? `${
+              updatedDetails.description
+            }\n[${new Date().toISOString()}] ${description}`
+          : description;
+      }
+      activityLog = await ActivityLog.findByIdAndUpdate(
+        lastLog._id,
+        {
+          timestamp: new Date(),
+          details: updatedDetails,
+        },
+        { new: true }
+      );
+    } else {
+      // Create new activity log
+      activityLog = await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: `Status Updated to ${status}`,
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: { description: description || "" },
+      });
+    }
 
     res.status(200).json({ message: "Status updated", complaint });
   } catch (err) {

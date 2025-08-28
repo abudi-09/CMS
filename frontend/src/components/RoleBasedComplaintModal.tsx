@@ -34,6 +34,7 @@ import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
 import { submitComplaintFeedbackApi } from "@/lib/api";
 import type { ActivityLog } from "@/components/ActivityLogTable";
 import { useToast } from "@/hooks/use-toast";
+import { formatTimelineDescription } from "@/utils/timelineUtils";
 import { useAuth } from "@/components/auth/AuthContext";
 
 interface RoleBasedComplaintModalProps {
@@ -608,19 +609,31 @@ export function RoleBasedComplaintModal({
     const descr =
       typeof details.description === "string" ? details.description : "";
     const normalizedDesc = (descr || "").trim();
+
+    // Handle consolidated descriptions (multiple updates in one log)
+    const descriptions = normalizedDesc.includes("\n[")
+      ? normalizedDesc.split("\n").filter((d) => d.trim())
+      : [normalizedDesc];
+
     const secondEpoch = isNaN(time.getTime())
       ? 0
       : Math.floor(time.getTime() / 1000);
     const contentKey = log._id
       ? `logid|${log._id}`
       : `log|${status}|${normalizedDesc}|${secondEpoch}`;
+
     timelineEntries.push({
       key: contentKey,
       label: status as TimelineEntry["label"],
       role: log.role || "staff",
       icon: statusIcon(status),
       time,
-      desc: descr,
+      desc:
+        descriptions.length > 1
+          ? descriptions
+              .map((d, idx) => `${idx + 1}. ${d.replace(/^\[.*?\]\s*/, "")}`)
+              .join("\n")
+          : normalizedDesc,
     });
   }
 
@@ -1010,7 +1023,23 @@ export function RoleBasedComplaintModal({
                       {step.time ? new Date(step.time).toLocaleString() : ""}
                     </div>
                     <div className="text-sm mt-1 whitespace-pre-wrap break-words">
-                      {step.desc}
+                      {step.desc ? (
+                        step.desc.includes("\n") ? (
+                          <div className="space-y-1">
+                            {step.desc.split("\n").map((line, lineIdx) => (
+                              <div key={lineIdx} className="text-sm">
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          step.desc
+                        )
+                      ) : (
+                        <span className="text-muted-foreground italic">
+                          Status updated
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
