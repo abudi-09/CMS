@@ -40,10 +40,7 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 import { useAuth } from "@/components/auth/AuthContext";
 import { uploadEvidenceFile } from "@/lib/cloudinary";
-import {
-  listMyDepartmentActiveStaffApi,
-  listActiveDeansPublicApi,
-} from "@/lib/api";
+import { listMyDepartmentActiveStaffApi } from "@/lib/api";
 
 // Categories now come from context
 
@@ -113,9 +110,6 @@ export function SubmitComplaint() {
     Array<{ id: string; fullName: string }>
   >([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
-  const [deanOptions, setDeanOptions] = useState<
-    Array<{ id: string; fullName: string }>
-  >([]);
   // Remove old submitTo, use formData.role
   // If you have user context, import/use it here
   // Example: const { user } = useAuth();
@@ -179,29 +173,6 @@ export function SubmitComplaint() {
     };
     loadStaffRecipients();
   }, [formData.role, currentDepartment]);
-
-  // Load dean recipients: only approved and active deans
-  useEffect(() => {
-    const loadDeanRecipients = async () => {
-      if (formData.role !== "dean") {
-        setDeanOptions([]);
-        return;
-      }
-      setRecipientsLoading(true);
-      try {
-        const list = await listActiveDeansPublicApi();
-        const mapped = (list || [])
-          .map((u) => ({ id: u._id, fullName: u.name || u.email }))
-          .filter((o) => o.id && o.fullName);
-        setDeanOptions(mapped);
-      } catch {
-        setDeanOptions([]);
-      } finally {
-        setRecipientsLoading(false);
-      }
-    };
-    loadDeanRecipients();
-  }, [formData.role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -657,12 +628,6 @@ export function SubmitComplaint() {
                   <SelectContent>
                     {formData.role === "staff"
                       ? staffOptions.map((person) => (
-                          <SelectItem key={person.id} value={person.id}>
-                            {person.fullName}
-                          </SelectItem>
-                        ))
-                      : formData.role === "dean"
-                      ? deanOptions.map((person) => (
                           <SelectItem key={person.id} value={person.id}>
                             {person.fullName}
                           </SelectItem>
