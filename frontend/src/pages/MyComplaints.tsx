@@ -49,7 +49,11 @@ interface BackendComplaintDTO {
   status?: string;
   sourceRole?: string;
   submittedBy?: { fullName?: string; name?: string } | null;
-  assignedTo?: { fullName?: string; name?: string; role?: string } | null;
+  // assignedTo may come as populated object or as a plain string name when sent directly to staff
+  assignedTo?:
+    | { fullName?: string; name?: string; role?: string }
+    | string
+    | null;
   assignedByRole?: string | null;
   assignmentPath?: string[];
   assignedAt?: string;
@@ -116,6 +120,15 @@ export function MyComplaints() {
     [roleGuard]
   );
 
+  // Normalize assignedTo into displayable name
+  const getAssignedToName = useCallback((c: BackendComplaintDTO): string => {
+    const a = c?.assignedTo as unknown;
+    if (!a) return "";
+    if (typeof a === "string") return a;
+    const obj = a as { fullName?: string; name?: string };
+    return obj.fullName || obj.name || "";
+  }, []);
+
   // Fetch real complaints from backend
   useEffect(() => {
     let cancelled = false;
@@ -135,11 +148,14 @@ export function MyComplaints() {
           status: (c.status as Complaint["status"]) || "Pending",
           submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
           sourceRole: roleGuard(c.sourceRole),
-          assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
+          assignedStaff: getAssignedToName(c),
           // staff role for assignee cannot be 'student'; fallback to 'staff' when ambiguous
           assignedStaffRole:
-            (roleGuard(c.assignedTo?.role) as Exclude<RoleU, "student">) ||
-            ("staff" as const),
+            (roleGuard(
+              (typeof c.assignedTo === "object" && c.assignedTo
+                ? (c.assignedTo as { role?: string }).role
+                : undefined) as string | undefined
+            ) as Exclude<RoleU, "student">) || ("staff" as const),
           assignedByRole: roleGuardNoStaff(c.assignedByRole),
           assignmentPath: pathGuard(c.assignmentPath),
           assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
@@ -169,7 +185,7 @@ export function MyComplaints() {
     return () => {
       cancelled = true;
     };
-  }, [roleGuard, roleGuardNoStaff, pathGuard]);
+  }, [roleGuard, roleGuardNoStaff, pathGuard, getAssignedToName]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -352,10 +368,13 @@ export function MyComplaints() {
           status: (c.status as Complaint["status"]) || "Pending",
           submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
           sourceRole: roleGuard(c.sourceRole),
-          assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
+          assignedStaff: getAssignedToName(c),
           assignedStaffRole:
-            (roleGuard(c.assignedTo?.role) as Exclude<RoleU, "student">) ||
-            ("staff" as const),
+            (roleGuard(
+              (typeof c.assignedTo === "object" && c.assignedTo
+                ? (c.assignedTo as { role?: string }).role
+                : undefined) as string | undefined
+            ) as Exclude<RoleU, "student">) || ("staff" as const),
           assignedByRole: roleGuardNoStaff(c.assignedByRole),
           assignmentPath: pathGuard(c.assignmentPath),
           assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
@@ -402,7 +421,7 @@ export function MyComplaints() {
       cancelled = true;
       if (intervalId) window.clearInterval(intervalId);
     };
-  }, [pathGuard, roleGuard, roleGuardNoStaff]);
+  }, [pathGuard, roleGuard, roleGuardNoStaff, getAssignedToName]);
 
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {
@@ -465,13 +484,13 @@ export function MyComplaints() {
                           c.submittedBy?.name ||
                           "You",
                         sourceRole: roleGuard(c.sourceRole),
-                        assignedStaff:
-                          c.assignedTo?.fullName || c.assignedTo?.name || "",
+                        assignedStaff: getAssignedToName(c),
                         assignedStaffRole:
-                          (roleGuard(c.assignedTo?.role) as Exclude<
-                            RoleU,
-                            "student"
-                          >) || ("staff" as const),
+                          (roleGuard(
+                            (typeof c.assignedTo === "object" && c.assignedTo
+                              ? (c.assignedTo as { role?: string }).role
+                              : undefined) as string | undefined
+                          ) as Exclude<RoleU, "student">) || ("staff" as const),
                         assignedByRole: roleGuardNoStaff(c.assignedByRole),
                         assignmentPath: pathGuard(c.assignmentPath),
                         assignedDate: c.assignedAt

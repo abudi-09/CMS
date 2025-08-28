@@ -583,57 +583,56 @@ export function RoleBasedComplaintModal({
     }
   };
 
-  // Extract staff updates from activity logs
+  // Extract staff updates and consolidate to a single entry per status
   const sortedLogs = [...logs].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  type Consolidated = {
+    firstTime?: Date;
+    role?: string;
+    descs: string[];
+  };
+  const byStatus = new Map<TimelineEntry["label"], Consolidated>();
+  const normalizeStatus = (s: string): TimelineEntry["label"] => {
+    const norm = s.toLowerCase();
+    if (norm === "in progress") return "In Progress";
+    if (norm === "resolved") return "Resolved";
+    if (norm === "closed") return "Closed";
+    if (norm === "pending") return "Pending";
+    return (s.charAt(0).toUpperCase() + s.slice(1)) as TimelineEntry["label"];
+  };
+
   for (const log of sortedLogs) {
-    const action = log.action || "";
-    const m = action.match(/status updated to\s+(.+)/i);
+    const m = (log.action || "").match(/status updated to\s+(.+)/i);
     if (!m) continue;
-    const raw = (m[1] || "").trim();
-    const norm = raw.toLowerCase();
-    const status =
-      norm === "in progress"
-        ? "In Progress"
-        : norm === "resolved"
-        ? "Resolved"
-        : norm === "closed"
-        ? "Closed"
-        : norm === "pending"
-        ? "Pending"
-        : ((raw.charAt(0).toUpperCase() +
-            raw.slice(1)) as TimelineEntry["label"]); // fallback title case
+    const status = normalizeStatus((m[1] || "").trim());
     const time = new Date(log.timestamp);
     const details = (log.details || {}) as Record<string, unknown>;
-    const descr =
-      typeof details.description === "string" ? details.description : "";
-    const normalizedDesc = (descr || "").trim();
+    const rawDesc =
+      typeof details.description === "string" ? details.description.trim() : "";
+    const parts = rawDesc ? rawDesc.split("\n").filter(Boolean) : [];
 
-    // Handle consolidated descriptions (multiple updates in one log)
-    const descriptions = normalizedDesc.includes("\n[")
-      ? normalizedDesc.split("\n").filter((d) => d.trim())
-      : [normalizedDesc];
+    const cur = byStatus.get(status) || { descs: [] };
+    if (!cur.firstTime || time < cur.firstTime) cur.firstTime = time;
+    cur.role = cur.role || log.role || "staff";
+    cur.descs.push(...parts);
+    byStatus.set(status, cur);
+  }
 
-    const secondEpoch = isNaN(time.getTime())
-      ? 0
-      : Math.floor(time.getTime() / 1000);
-    const contentKey = log._id
-      ? `logid|${log._id}`
-      : `log|${status}|${normalizedDesc}|${secondEpoch}`;
-
+  for (const [status, grp] of byStatus.entries()) {
+    const cleaned = grp.descs
+      .map((d) => d.replace(/^\[.*?\]\s*/, "").trim())
+      .filter(Boolean);
+    const finalDesc = cleaned.length
+      ? cleaned.map((d, i) => `${i + 1}. ${d}`).join("\n")
+      : "";
     timelineEntries.push({
-      key: contentKey,
-      label: status as TimelineEntry["label"],
-      role: log.role || "staff",
+      key: `status|${status}`,
+      label: status,
+      role: grp.role || "staff",
       icon: statusIcon(status),
-      time,
-      desc:
-        descriptions.length > 1
-          ? descriptions
-              .map((d, idx) => `${idx + 1}. ${d.replace(/^\[.*?\]\s*/, "")}`)
-              .join("\n")
-          : normalizedDesc,
+      time: grp.firstTime,
+      desc: finalDesc,
     });
   }
 
@@ -662,13 +661,13 @@ export function RoleBasedComplaintModal({
     }
   }
 
-  // Dedupe by entry key (stable within a render)
-  const seenKeys = new Set<string>();
+  // Ensure one entry per status, chronologically sorted
+  const seen = new Set<string>();
   const timelineSteps = timelineEntries
     .filter((e) => {
-      const key = e.key || `${e.label}|${e.time ? e.time.toISOString() : ""}`;
-      if (seenKeys.has(key)) return false;
-      seenKeys.add(key);
+      const key = e.key || `${e.label}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     })
     .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0));

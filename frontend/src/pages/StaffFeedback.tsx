@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, FileText, Star, Clock } from "lucide-react";
-import { getFeedbackByRoleApi, markFeedbackReviewedApi } from "@/lib/api";
+import { getStaffFeedbackApi, markFeedbackReviewedApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -48,20 +48,52 @@ export function StaffFeedback() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    let intervalId: number | undefined;
+
+    const fetchData = async () => {
       setError(null);
       try {
-        const data = await getFeedbackByRoleApi();
+        const data = await getStaffFeedbackApi();
         if (!cancelled) setItems(data as StaffFeedbackItem[]);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+
+    // initial load
+    setLoading(true);
+    fetchData();
+
+    // poll every 12s when tab is visible
+    const startPolling = () => {
+      if (intervalId) return;
+      intervalId = window.setInterval(() => {
+        if (document.visibilityState === "visible") {
+          fetchData();
+        }
+      }, 12000);
+    };
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") startPolling();
+      else stopPolling();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    startPolling();
+
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      stopPolling();
     };
   }, []);
 

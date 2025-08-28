@@ -362,34 +362,30 @@ export const updateComplaintStatus = async (req, res) => {
     }
     await complaint.save();
 
-    // Check if the last activity log has the same status and user
-    const lastLog = await ActivityLog.findOne({
+    // Find the most recent activity log for this complaint with the same status action (any user)
+    const lastSameStatusLog = await ActivityLog.findOne({
       complaint: complaint._id,
-      user: req.user._id,
+      action: `Status Updated to ${status}`,
     }).sort({ timestamp: -1 });
 
-    let activityLog;
-    if (lastLog && lastLog.action === `Status Updated to ${status}`) {
-      // Update the existing log with new timestamp and append description if provided
-      const updatedDetails = { ...lastLog.details };
-      if (description) {
+    if (lastSameStatusLog) {
+      // Update existing log: bump timestamp and append note if provided
+      const updatedDetails = { ...(lastSameStatusLog.details || {}) };
+      if (description && description.trim()) {
         updatedDetails.description = updatedDetails.description
           ? `${
               updatedDetails.description
             }\n[${new Date().toISOString()}] ${description}`
           : description;
       }
-      activityLog = await ActivityLog.findByIdAndUpdate(
-        lastLog._id,
-        {
-          timestamp: new Date(),
-          details: updatedDetails,
-        },
+      await ActivityLog.findByIdAndUpdate(
+        lastSameStatusLog._id,
+        { timestamp: new Date(), details: updatedDetails },
         { new: true }
       );
     } else {
-      // Create new activity log
-      activityLog = await ActivityLog.create({
+      // Create a single entry for this status change
+      await ActivityLog.create({
         user: req.user._id,
         role: req.user.role,
         action: `Status Updated to ${status}`,
@@ -618,6 +614,16 @@ export const markFeedbackReviewed = async (req, res) => {
       return res.status(404).json({ error: "Complaint not found" });
     if (!complaint.feedback || typeof complaint.feedback.rating !== "number") {
       return res.status(400).json({ error: "No feedback on this complaint" });
+    }
+    // Staff can only review feedback for complaints they resolved (assignedTo themselves)
+    if (
+      req.user.role === "staff" &&
+      complaint.assignedTo &&
+      !complaint.assignedTo.equals(req.user._id)
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Access denied: Not resolver of this complaint" });
     }
     complaint.feedback.reviewed = true;
     complaint.feedback.reviewedAt = new Date();
