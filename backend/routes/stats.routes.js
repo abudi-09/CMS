@@ -8,6 +8,7 @@ import {
   getUserStats,
   getRoleCounts,
   getDeanVisibleComplaintStats,
+  getStudentCount,
 } from "../controllers/stats.controller.js";
 import Complaint from "../models/complaint.model.js";
 
@@ -88,6 +89,17 @@ router.get(
 router.get("/feedback", protectRoute, adminOnly, getFeedbackStats);
 router.get("/staff", protectRoute, adminOnly, getStaffmanagmentStats);
 router.get("/roles", protectRoute, adminOnly, getRoleCounts);
+// Admin or Dean: total student count (active students)
+router.get(
+  "/students/count",
+  protectRoute,
+  (req, res, next) => {
+    const role = req.user?.role;
+    if (role === "admin" || role === "dean") return next();
+    return res.status(403).json({ error: "Access denied" });
+  },
+  getStudentCount
+);
 // Staff-only stat endpoints
 router.get("/staffs", protectRoute, staffOnly, getStaffStats);
 // User stat endpoint

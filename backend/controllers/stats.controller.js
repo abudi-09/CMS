@@ -155,6 +155,18 @@ export const getRoleCounts = async (req, res) => {
   }
 };
 
+export const getStudentCount = async (req, res) => {
+  try {
+    const students = await User.countDocuments({
+      role: "student",
+      isActive: true,
+    });
+    res.status(200).json({ students });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch student count" });
+  }
+};
+
 // Dean-visible complaint stats: exclude complaints that were sent to Admin or escalated
 export const getDeanVisibleComplaintStats = async (req, res) => {
   try {

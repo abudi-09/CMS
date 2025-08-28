@@ -38,6 +38,7 @@ import {
 import {
   getDeanVisibleComplaintStatsApi,
   listAllComplaintsApi,
+  getStudentCountApi,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -149,7 +150,7 @@ export default function DeanAnalytics() {
     const load = async () => {
       setLoading(true);
       try {
-        const [stats, all] = await Promise.all([
+        const [stats, all, studentsResp] = await Promise.all([
           getDeanVisibleComplaintStatsApi().catch((e) => {
             throw new Error(
               e instanceof Error ? e.message : "Failed to fetch dean stats"
@@ -160,10 +161,16 @@ export default function DeanAnalytics() {
               e instanceof Error ? e.message : "Failed to fetch complaints"
             );
           }),
+          getStudentCountApi().catch(() => ({ students: null })),
         ]);
         if (cancelled) return;
         setSummary(stats);
         setComplaints(all);
+        setTotalStudents(
+          typeof studentsResp?.students === "number"
+            ? studentsResp.students
+            : null
+        );
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         toast({
@@ -182,7 +189,7 @@ export default function DeanAnalytics() {
   }, [toast]);
 
   // Compute datasets
-  const totalStudents = undefined; // not available; could be wired to a users endpoint later
+  const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const totalDepartments = useMemo(() => {
     const set = new Set(
       (complaints || []).map((c) => String(c.department || "")).filter(Boolean)
@@ -196,8 +203,13 @@ export default function DeanAnalytics() {
       const key = c.category || "Unknown";
       map.set(key, (map.get(key) || 0) + 1);
     });
-    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
   }, [complaints]);
+
+  // Hover-only interaction; no selection state needed
 
   const priorityDataDyn = useMemo(() => {
     const palette: Record<string, string> = {
@@ -265,6 +277,8 @@ export default function DeanAnalytics() {
   // Placeholder staff table derived from complaints if needed later
   const sortedStaff = staffPerformance; // keep mock until we add staff aggregation
 
+  // No selected state for hover-only tooltips
+
   return (
     <div className="space-y-8 p-6">
       <h1 className="text-3xl font-bold mb-2">Dean Analytics</h1>
@@ -323,7 +337,8 @@ export default function DeanAnalytics() {
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
-                  label
+                  // Hide labels by default; reveal name on click via center text
+                  label={false}
                 >
                   {categoryDataDyn.map((entry, index) => (
                     <Cell
@@ -332,8 +347,8 @@ export default function DeanAnalytics() {
                     />
                   ))}
                 </Pie>
+                {/* Show names on hover via default tooltip; keep legend hidden */}
                 <Tooltip />
-                <Legend />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>

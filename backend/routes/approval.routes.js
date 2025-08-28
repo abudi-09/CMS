@@ -31,6 +31,7 @@ import {
   adminRejectDean,
   adminDeactivateDean,
   adminReactivateDean,
+  publicGetActiveDeans,
 } from "../controllers/approval.controller.js";
 
 const router = express.Router();
@@ -140,6 +141,9 @@ router.put(
   adminOnly,
   adminReactivateDean
 );
+
+// Authenticated: list approved & active deans for student submission recipient selector
+router.get("/public/active-deans", protectRoute, publicGetActiveDeans);
 
 // Admin HoD routes removed in dean-only flow
 

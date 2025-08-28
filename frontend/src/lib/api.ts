@@ -106,6 +106,18 @@ export async function getHodComplaintStatsApi() {
     unassigned: number;
   };
 }
+
+// Admin or Dean: total student count (active students)
+export async function getStudentCountApi() {
+  const res = await fetch(`${API_BASE}/stats/students/count`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch student count");
+  return data as { students: number };
+}
 // Approve staff (admin)
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {
@@ -261,6 +273,23 @@ export async function getActiveDeansApi() {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to fetch active deans");
   return data;
+}
+
+// Authenticated: list approved & active deans for student submissions
+export async function listActiveDeansPublicApi() {
+  const res = await fetch(`${API_BASE}/approvals/public/active-deans`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch active deans");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    email: string;
+    workingPlace?: string;
+  }>;
 }
 
 export async function approveDeanApi(deanId: string) {

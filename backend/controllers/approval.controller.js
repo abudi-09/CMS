@@ -634,6 +634,30 @@ export const adminGetActiveDeans = async (req, res) => {
   }
 };
 
+// Public (any authenticated user): list only approved and active deans
+export const publicGetActiveDeans = async (req, res) => {
+  try {
+    const active = await User.find({
+      role: "dean",
+      isApproved: true,
+      isActive: true,
+      isRejected: { $ne: true },
+    })
+      .select("_id name email username workingPlace")
+      .lean();
+    // Map to a minimal shape safe for public use
+    const list = (active || []).map((u) => ({
+      _id: String(u._id),
+      name: u.name || u.username || u.email,
+      email: u.email,
+      workingPlace: u.workingPlace || "",
+    }));
+    res.status(200).json(list);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active deans" });
+  }
+};
+
 export const adminApproveDean = async (req, res) => {
   try {
     const { id } = req.params;
