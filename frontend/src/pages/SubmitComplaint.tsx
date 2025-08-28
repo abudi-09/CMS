@@ -40,7 +40,7 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 import { useAuth } from "@/components/auth/AuthContext";
 import { uploadEvidenceFile } from "@/lib/cloudinary";
-import { listMyDepartmentActiveStaffApi } from "@/lib/api";
+import { listMyDepartmentActiveStaffApi, listMyDepartmentHodApi } from "@/lib/api"; // Add listMyDepartmentHodApi
 
 // Categories now come from context
 
@@ -109,6 +109,10 @@ export function SubmitComplaint() {
   const [staffOptions, setStaffOptions] = useState<
     Array<{ id: string; fullName: string }>
   >([]);
+  // NEW: State for HoD recipients
+  const [hodOptions, setHodOptions] = useState<
+    Array<{ id: string; fullName: string }>
+  >([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   // Remove old submitTo, use formData.role
   // If you have user context, import/use it here
@@ -174,6 +178,40 @@ export function SubmitComplaint() {
     loadStaffRecipients();
   }, [formData.role, currentDepartment]);
 
+  // NEW: useEffect to load HoD recipients from the API
+  useEffect(() => {
+    const loadHodRecipients = async () => {
+      if (formData.role !== "hod") { // We don't need currentDepartment here anymore
+        setHodOptions([]);
+        return;
+      }
+      setRecipientsLoading(true);
+      try {
+        // This API call is already designed to get the HoD for the current user's department.
+        const users = await listMyDepartmentHodApi();
+        
+        // FIX: Remove the redundant frontend filter. Trust the API response directly.
+        const mappedUsers = (users || []).map((u) => ({
+            id: u._id,
+            fullName: u.fullName || u.name || u.username || "Unnamed HoD",
+          }));
+
+        setHodOptions(mappedUsers);
+      } catch (err) {
+        console.error("Failed to load HoD recipients:", err);
+        setHodOptions([]); // Fallback to empty on error
+        toast({
+          title: "Could not load recipients",
+          description: "There was a problem fetching the Head of Department.",
+          variant: "destructive",
+        });
+      } finally {
+        setRecipientsLoading(false);
+      }
+    };
+    loadHodRecipients();
+  }, [formData.role]); // FIX: Remove currentDepartment from dependency array
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched({
@@ -206,6 +244,19 @@ export function SubmitComplaint() {
           title: "Invalid recipient",
           description:
             "Please select an approved staff member from your department.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    // Extra validation for direct-to-hod submissions
+    if (formData.role === "hod") {
+      const inList = hodOptions.some((h) => h.id === formData.recipient);
+      if (!inList) {
+        toast({
+          title: "Invalid recipient",
+          description:
+            "Please select an approved Head of Department from your department.",
           variant: "destructive",
         });
         return;
@@ -615,30 +666,43 @@ export function SubmitComplaint() {
                   <SelectTrigger className="rounded-lg">
                     <SelectValue
                       placeholder={
-                        formData.role === "staff"
-                          ? recipientsLoading
-                            ? "Loading recipients..."
-                            : staffOptions.length > 0
+                        recipientsLoading
+                          ? "Loading recipients..."
+                          : formData.role === "staff"
+                          ? staffOptions.length > 0
                             ? "Select staff in your department"
                             : "No eligible staff found"
+                          : formData.role === "hod"
+                          ? hodOptions.length > 0
+                            ? "Select HoD in your department"
+                            : "No eligible HoD found"
                           : "Select recipient"
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {formData.role === "staff"
-                      ? staffOptions.map((person) => (
-                          <SelectItem key={person.id} value={person.id}>
-                            {person.fullName}
+                    {formData.role === "staff" &&
+                      staffOptions.map((person) => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.fullName}
+                        </SelectItem>
+                      ))}
+                    {formData.role === "hod" &&
+                      hodOptions.map((person) => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.fullName}
+                        </SelectItem>
+                      ))}
+                    {/* Keep other roles using the old mock data for now */}
+                    {(formData.role === "dean" ||
+                      formData.role === "admin") &&
+                      getRecipients(formData.role, currentDepartment).map(
+                        (p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.fullName}
                           </SelectItem>
-                        ))
-                      : getRecipients(formData.role, currentDepartment).map(
-                          (p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.fullName}
-                            </SelectItem>
-                          )
-                        )}
+                        )
+                      )}
                   </SelectContent>
                 </Select>
                 {touched.recipient && !formData.recipient && (
@@ -935,8 +999,10 @@ export function SubmitComplaint() {
   function getRecipients(role: string, currentDepartment: string) {
     switch (role) {
       case "staff":
+        // This is now handled by state, but we can leave it as a fallback
         return staffList.filter((s) => s.department === currentDepartment);
       case "hod":
+        // This is now handled by state, but we can leave it as a fallback
         return hodList.filter((h) => h.department === currentDepartment);
       case "dean":
         return [dean];
