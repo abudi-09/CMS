@@ -395,6 +395,7 @@ export const getAssignedComplaints = async (req, res) => {
       title: c.title,
       category: c.category,
       status: c.status,
+      priority: c.priority || "Medium",
       submittedDate: c.createdAt,
       lastUpdated: c.updatedAt,
       assignedAt: c.assignedAt || null,

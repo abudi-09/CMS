@@ -5,7 +5,11 @@ import {
   uploadAvatarApi,
   saveCloudAvatarApi,
   resetAvatarApi,
+  getMyStaffStatsApi,
+  listMyAssignedComplaintsApi,
+  getStaffFeedbackApi,
 } from "@/lib/api";
+import type { StaffStats, AssignedComplaintLite } from "@/lib/api";
 import { getProfileStatsApi } from "@/lib/api.profile.stats";
 import { uploadAvatarFile } from "@/lib/cloudinaryAvatar";
 import {
@@ -110,6 +114,17 @@ export function Profile() {
     successRate: 0,
   });
 
+  // Staff-specific performance data
+  const [staffPerf, setStaffPerf] = useState({
+    totalAssigned: 0,
+    resolved: 0,
+    inProgress: 0,
+    pending: 0,
+    resolutionRate: 0,
+    averageRating: 0,
+    averageResolutionTime: "-",
+  });
+
   useEffect(() => {
     let ignore = false;
     async function load() {
@@ -137,15 +152,15 @@ export function Profile() {
   const performanceData = useMemo(() => {
     if (user?.role === "staff") {
       return {
-        totalAssigned: 0, // could be replaced with staff-specific API later
-        resolved: stats.resolvedComplaints,
-        inProgress: stats.inProgressComplaints,
-        pending: stats.pendingComplaints,
-        resolutionRate: stats.successRate,
-        averageRating: 0,
-        averageResolutionTime: "-",
-        satisfactionRating: 0,
-        completionRate: stats.successRate,
+        totalAssigned: staffPerf.totalAssigned,
+        resolved: staffPerf.resolved,
+        inProgress: staffPerf.inProgress,
+        pending: staffPerf.pending,
+        resolutionRate: staffPerf.resolutionRate,
+        averageRating: staffPerf.averageRating,
+        averageResolutionTime: staffPerf.averageResolutionTime,
+        satisfactionRating: staffPerf.averageRating, // alias for now
+        completionRate: staffPerf.resolutionRate,
       };
     }
     return {
@@ -155,7 +170,98 @@ export function Profile() {
       pending: stats.pendingComplaints,
       resolutionRate: stats.successRate,
     };
-  }, [user, stats]);
+  }, [user, stats, staffPerf]);
+
+  // Helpers
+  const formatAvgDuration = (ms: number): string => {
+    if (!Number.isFinite(ms) || ms <= 0) return "-";
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remMin = minutes % 60;
+    if (hours < 24) return remMin ? `${hours}h ${remMin}m` : `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return remHours ? `${days}d ${remHours}h` : `${days}d`;
+  };
+
+  // Load staff workload + performance when role is staff
+  useEffect(() => {
+    if (user?.role !== "staff") return;
+    let ignore = false;
+    (async () => {
+      try {
+        type FeedbackItem = { feedback?: { rating?: number } | null };
+        const workload: StaffStats = await getMyStaffStatsApi().catch(() => ({
+          assigned: 0,
+          pending: 0,
+          inProgress: 0,
+          resolved: 0,
+        }));
+        const assigned: AssignedComplaintLite[] =
+          await listMyAssignedComplaintsApi().catch(() => []);
+        const feedback: FeedbackItem[] = await getStaffFeedbackApi().catch(
+          () => []
+        );
+
+        // Resolution rate
+        const totalAssigned = Math.max(0, Number(workload.assigned || 0));
+        const resolved = Math.max(0, Number(workload.resolved || 0));
+        const inProgress = Math.max(0, Number(workload.inProgress || 0));
+        const pending = Math.max(0, Number(workload.pending || 0));
+        const resolutionRate =
+          totalAssigned > 0 ? Math.round((resolved / totalAssigned) * 100) : 0;
+
+        // Average rating from feedback
+        const ratings: number[] = Array.isArray(feedback)
+          ? feedback
+              .map((f) => Number(f?.feedback?.rating))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+        const avgRating = ratings.length
+          ? Math.round(
+              (ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10
+            ) / 10
+          : 0;
+
+        // Average resolution time from assigned list (Resolved only)
+        const resolvedItems: AssignedComplaintLite[] = Array.isArray(assigned)
+          ? assigned.filter((c) => String(c.status) === "Resolved")
+          : [];
+        const durations = resolvedItems
+          .map((c) => {
+            const start = c.submittedDate
+              ? new Date(c.submittedDate).getTime()
+              : undefined;
+            const endRaw = c.resolvedAt ?? c.lastUpdated;
+            const end = endRaw ? new Date(endRaw).getTime() : undefined;
+            if (!start || !end || end < start) return null;
+            return end - start;
+          })
+          .filter((ms): ms is number => typeof ms === "number");
+        const avgMs = durations.length
+          ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+          : 0;
+
+        if (!ignore) {
+          setStaffPerf({
+            totalAssigned,
+            resolved,
+            inProgress,
+            pending,
+            resolutionRate,
+            averageRating: avgRating,
+            averageResolutionTime: formatAvgDuration(avgMs),
+          });
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [user?.role]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -415,7 +521,7 @@ export function Profile() {
       if (progressAnimRef.current)
         cancelAnimationFrame(progressAnimRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- uploadPctDisplay intentionally excluded to prevent animation restart loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uploadPctDisplay intentionally excluded to prevent animation restart loops
   }, [uploadPctTarget]);
 
   const getRoleBadgeVariant = (role: string) => {
@@ -507,19 +613,29 @@ export function Profile() {
                       canEditAvatar ? "Change profile picture" : undefined
                     }
                   >
-                    <Avatar key={userWithAvatar?.avatarUrl || "no-avatar"} className="h-24 w-24 bg-muted overflow-hidden relative">
+                    <Avatar
+                      key={userWithAvatar?.avatarUrl || "no-avatar"}
+                      className="h-24 w-24 bg-muted overflow-hidden relative"
+                    >
                       {avatarSrc && (
                         <AvatarImage
                           src={avatarSrc}
                           alt={profileData.name}
                           className="object-cover"
                           onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                            (
+                              e.currentTarget as HTMLImageElement
+                            ).style.display = "none";
                           }}
                         />
                       )}
                       <AvatarFallback className="flex items-center justify-center h-full w-full text-2xl font-semibold uppercase tracking-wide select-none text-gray-800 dark:text-gray-200">
-                        {getInitials(profileData.name || user?.fullName || user?.name || "U")}
+                        {getInitials(
+                          profileData.name ||
+                            user?.fullName ||
+                            user?.name ||
+                            "U"
+                        )}
                       </AvatarFallback>
                     </Avatar>
                     {canEditAvatar && (

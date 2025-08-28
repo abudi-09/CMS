@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
+import { useAuth } from "@/components/auth/AuthContext";
+import { getAssignedComplaintsApi } from "@/lib/api";
 import {
   format,
   isSameDay,
@@ -211,6 +213,8 @@ export default function CalendarView({
   role = "admin",
   staffName = "",
 }: CalendarViewProps) {
+  const { user } = useAuth();
+  const effectiveRole = user?.role === "staff" ? "staff" : role;
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewType, setViewType] = useState<"submission" | "deadline">(
     "submission"
@@ -224,6 +228,57 @@ export default function CalendarView({
     null
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load staff assigned complaints from backend when viewing as staff
+  useEffect(() => {
+    let cancelled = false;
+    async function loadForStaff() {
+      if (effectiveRole !== "staff") return;
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAssignedComplaintsApi();
+        if (cancelled) return;
+        const mapped: Complaint[] = data.map((c) => ({
+          id: c.id,
+          title: c.title,
+          description: c.fullDescription || c.shortDescription || "",
+          category: c.category,
+          status: (c.status as Complaint["status"]) || "Pending",
+          submittedBy: c.submittedBy?.name || "Unknown",
+          assignedStaff: "You",
+          submittedDate: new Date(c.submittedDate as string),
+          deadline: c.deadline ? new Date(c.deadline as string) : undefined,
+          lastUpdated: new Date(c.lastUpdated as string),
+          priority:
+            c.priority === "Low" ||
+            c.priority === "Medium" ||
+            c.priority === "High" ||
+            c.priority === "Critical"
+              ? c.priority
+              : "Medium",
+          // Optional extras not used by calendar list but present in shape
+          feedback: undefined,
+          resolutionNote: undefined,
+          evidenceFile: undefined,
+          isEscalated: c.isEscalated,
+          submittedTo: c.sourceRole,
+          department: c.category,
+        }));
+        setAllComplaints(mapped);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadForStaff();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveRole]);
 
   // Only show assigned complaints for staff, all for admin
   const filteredComplaints = allComplaints.filter((complaint) => {
@@ -233,8 +288,8 @@ export default function CalendarView({
       priorityFilter === "all" || complaint.priority === priorityFilter;
     const matchesCategory =
       categoryFilter === "all" || complaint.category === categoryFilter;
-    const matchesRole =
-      role === "admin" ? true : complaint.assignedStaff === staffName;
+    // When viewing as staff, we already fetched only their assignments.
+    const matchesRole = effectiveRole === "admin" ? true : true;
     return matchesStatus && matchesPriority && matchesCategory && matchesRole;
   });
 
@@ -311,8 +366,8 @@ export default function CalendarView({
                   <SelectItem value="deadline">Deadline Dates</SelectItem>
                 </SelectContent>
               </Select>
-              {/* Only show filters to admin, or allow for staff if needed */}
-              {role === "admin" && (
+              {/* Filters: admin sees status+priority+category; staff sees priority+category */}
+              {effectiveRole === "admin" ? (
                 <>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-full sm:w-40">
@@ -338,7 +393,7 @@ export default function CalendarView({
                       <SelectItem value="Low">Low</SelectItem>
                       <SelectItem value="Medium">Medium</SelectItem>
                       <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Urgent">Urgent</SelectItem>
+                      <SelectItem value="Critical">Critical</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -350,15 +405,65 @@ export default function CalendarView({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="IT Services">IT Services</SelectItem>
-                      <SelectItem value="Facilities">Facilities</SelectItem>
-                      <SelectItem value="Academic Affairs">
-                        Academic Affairs
-                      </SelectItem>
-                      <SelectItem value="Student Services">
-                        Student Services
-                      </SelectItem>
-                      <SelectItem value="Cafeteria">Cafeteria</SelectItem>
+                      {Array.from(
+                        new Set(
+                          allComplaints.map((c) => c.category).filter(Boolean)
+                        )
+                      ).map((cat) => (
+                        <SelectItem key={cat as string} value={cat as string}>
+                          {cat as string}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={priorityFilter}
+                    onValueChange={setPriorityFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={categoryFilter}
+                    onValueChange={setCategoryFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {Array.from(
+                        new Set(
+                          allComplaints.map((c) => c.category).filter(Boolean)
+                        )
+                      ).map((cat) => (
+                        <SelectItem key={cat as string} value={cat as string}>
+                          {cat as string}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </>
@@ -415,7 +520,11 @@ export default function CalendarView({
             </p>
           </CardHeader>
           <CardContent>
-            {selectedDateComplaints.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Loading...
+              </div>
+            ) : selectedDateComplaints.length === 0 ? (
               <div className="text-center py-8">
                 <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">
@@ -480,101 +589,103 @@ export default function CalendarView({
         </Card>
       </div>
 
-      {/* Monthly Summary */}
-      {/* Monthly Summary: Only show to admin */}
-      {role === "admin" && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <CalendarDays className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Total This Month</p>
-                  <p className="text-2xl font-bold">
-                    {
-                      filteredComplaints.filter((c) => {
-                        const compareDate =
-                          viewType === "submission"
-                            ? c.submittedDate
-                            : c.deadline;
-                        return (
-                          compareDate &&
-                          compareDate.getMonth() === selectedDate.getMonth() &&
-                          compareDate.getFullYear() ===
-                            selectedDate.getFullYear()
-                        );
-                      }).length
-                    }
-                  </p>
+      {/* Monthly Summary (role-aware, shows for both admin and staff) */}
+      {
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-2">
+                  <CalendarDays className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Total This Month</p>
+                    <p className="text-2xl font-bold">
+                      {
+                        filteredComplaints.filter((c) => {
+                          const compareDate =
+                            viewType === "submission"
+                              ? c.submittedDate
+                              : c.deadline;
+                          return (
+                            compareDate &&
+                            compareDate.getMonth() ===
+                              selectedDate.getMonth() &&
+                            compareDate.getFullYear() ===
+                              selectedDate.getFullYear()
+                          );
+                        }).length
+                      }
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="h-5 w-5 text-destructive" />
-                <div>
-                  <p className="text-sm font-medium">Overdue</p>
-                  <p className="text-2xl font-bold text-destructive">
-                    {
-                      mockComplaints.filter(
-                        (c) =>
-                          c.deadline &&
-                          c.deadline < new Date() &&
-                          c.status !== "Resolved" &&
-                          c.status !== "Closed"
-                      ).length
-                    }
-                  </p>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  <div>
+                    <p className="text-sm font-medium">Overdue</p>
+                    <p className="text-2xl font-bold text-destructive">
+                      {
+                        filteredComplaints.filter(
+                          (c) =>
+                            c.deadline &&
+                            c.deadline < new Date() &&
+                            c.status !== "Resolved" &&
+                            c.status !== "Closed"
+                        ).length
+                      }
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-yellow-500" />
-                <div>
-                  <p className="text-sm font-medium">Due Today</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {
-                      mockComplaints.filter(
-                        (c) => c.deadline && isSameDay(c.deadline, new Date())
-                      ).length
-                    }
-                  </p>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5 text-yellow-500" />
+                  <div>
+                    <p className="text-sm font-medium">Due Today</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {
+                        filteredComplaints.filter(
+                          (c) => c.deadline && isSameDay(c.deadline, new Date())
+                        ).length
+                      }
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="h-5 w-5 text-success" />
-                <div>
-                  <p className="text-sm font-medium">Resolved This Month</p>
-                  <p className="text-2xl font-bold text-success">
-                    {
-                      filteredComplaints.filter(
-                        (c) =>
-                          c.status === "Resolved" &&
-                          c.submittedDate.getMonth() ===
-                            selectedDate.getMonth() &&
-                          c.submittedDate.getFullYear() ===
-                            selectedDate.getFullYear()
-                      ).length
-                    }
-                  </p>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="h-5 w-5 text-success" />
+                  <div>
+                    <p className="text-sm font-medium">Resolved This Month</p>
+                    <p className="text-2xl font-bold text-success">
+                      {
+                        filteredComplaints.filter(
+                          (c) =>
+                            c.status === "Resolved" &&
+                            c.submittedDate.getMonth() ===
+                              selectedDate.getMonth() &&
+                            c.submittedDate.getFullYear() ===
+                              selectedDate.getFullYear()
+                        ).length
+                      }
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      }
       <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={modalOpen}
@@ -584,7 +695,7 @@ export default function CalendarView({
             prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
           );
         }}
-        fetchLatest={false}
+        fetchLatest={true}
       />
     </div>
   );

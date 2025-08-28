@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json.schemastore.org/package",
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "complain-managment-system",
   "version": "1.0.0",
   "main": "server.js",

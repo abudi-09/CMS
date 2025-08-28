@@ -764,15 +764,7 @@ export function RoleBasedComplaintModal({
                     </div>
                   </div>
                 )}
-                {/* Staff Update visible to all users if exists, but only if assigned */}
-                {isAssigned && liveComplaint.resolutionNote && (
-                  <div>
-                    <Label className="text-sm font-medium">Staff Update</Label>
-                    <div className="mt-1 p-3 bg-info/5 border border-info/20 rounded-lg text-sm">
-                      {liveComplaint.resolutionNote}
-                    </div>
-                  </div>
-                )}
+                {/* Staff Update section removed as per request */}
 
                 {liveComplaint.feedback && user.role !== "user" && (
                   <div>

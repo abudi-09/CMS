@@ -725,6 +725,7 @@ export async function getAssignedComplaintsApi() {
     title: string;
     category: string;
     status: string;
+    priority?: "Low" | "Medium" | "High" | "Critical";
     submittedDate: string | Date;
     lastUpdated: string | Date;
     submittedBy: { name?: string; email?: string };
@@ -898,6 +899,7 @@ export type AssignedComplaintLite = {
   resolvedAt?: string | Date;
   category?: string;
   deadline?: string | Date;
+  priority?: "Low" | "Medium" | "High" | "Critical";
   feedback?: { rating?: number; comment?: string } | null;
 };
 
@@ -943,6 +945,13 @@ export async function listMyAssignedComplaintsApi(): Promise<
           ? (c["category"] as string)
           : undefined,
       deadline: c["deadline"] as string | Date | undefined,
+      priority:
+        c["priority"] === "Low" ||
+        c["priority"] === "Medium" ||
+        c["priority"] === "High" ||
+        c["priority"] === "Critical"
+          ? (c["priority"] as "Low" | "Medium" | "High" | "Critical")
+          : undefined,
       feedback:
         (c["feedback"] as { rating?: number; comment?: string } | null) ?? null,
     } as AssignedComplaintLite;
