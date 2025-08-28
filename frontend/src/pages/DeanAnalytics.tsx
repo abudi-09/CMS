@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -35,6 +35,11 @@ import {
   Calendar,
   Award,
 } from "lucide-react";
+import {
+  getDeanVisibleComplaintStatsApi,
+  listAllComplaintsApi,
+} from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 // Mock data for charts (Dean-specific or filtered for department)
 const categoryData = [
@@ -113,14 +118,152 @@ const staffPerformance = [
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
 export default function DeanAnalytics() {
+  const { toast } = useToast();
   const [timeframe, setTimeframe] = useState("all");
   const [sortBy, setSortBy] = useState("successRate");
 
-  const sortedStaff = [...staffPerformance].sort((a, b) => {
-    if (sortBy === "successRate") return b.successRate - a.successRate;
-    if (sortBy === "resolved") return b.resolved - a.resolved;
-    return b.totalAssigned - a.totalAssigned;
-  });
+  // Backend data
+  const [summary, setSummary] = useState<{
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    unassigned: number;
+  } | null>(null);
+  const [complaints, setComplaints] = useState<
+    Array<{
+      id: string;
+      title: string;
+      status: string;
+      department?: string | null;
+      category?: string | null;
+      priority?: "Low" | "Medium" | "High" | "Critical" | string;
+      submittedDate?: string | Date | null;
+      resolvedAt?: string | Date | null;
+    }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [stats, all] = await Promise.all([
+          getDeanVisibleComplaintStatsApi().catch((e) => {
+            throw new Error(
+              e instanceof Error ? e.message : "Failed to fetch dean stats"
+            );
+          }),
+          listAllComplaintsApi().catch((e) => {
+            throw new Error(
+              e instanceof Error ? e.message : "Failed to fetch complaints"
+            );
+          }),
+        ]);
+        if (cancelled) return;
+        setSummary(stats);
+        setComplaints(all);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast({
+          variant: "destructive",
+          title: "Analytics error",
+          description: msg,
+        });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
+
+  // Compute datasets
+  const totalStudents = undefined; // not available; could be wired to a users endpoint later
+  const totalDepartments = useMemo(() => {
+    const set = new Set(
+      (complaints || []).map((c) => String(c.department || "")).filter(Boolean)
+    );
+    return set.size;
+  }, [complaints]);
+
+  const categoryDataDyn = useMemo(() => {
+    const map = new Map<string, number>();
+    complaints.forEach((c) => {
+      const key = c.category || "Unknown";
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  }, [complaints]);
+
+  const priorityDataDyn = useMemo(() => {
+    const palette: Record<string, string> = {
+      Critical: "#ef4444",
+      High: "#f97316",
+      Medium: "#eab308",
+      Low: "#22c55e",
+    };
+    const map = new Map<string, number>();
+    complaints.forEach((c) => {
+      const p = (c.priority as string) || "Medium";
+      map.set(p, (map.get(p) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([priority, count]) => ({
+      priority,
+      count,
+      color: palette[priority] || "#8884d8",
+    }));
+  }, [complaints]);
+
+  const statusDataDyn = useMemo(() => {
+    const statuses = ["Pending", "In Progress", "Resolved", "Closed"] as const;
+    const counts: Record<string, number> = {};
+    statuses.forEach((s) => (counts[s] = 0));
+    complaints.forEach((c) => (counts[c.status] = (counts[c.status] || 0) + 1));
+    return statuses
+      .filter((s) => counts[s] > 0)
+      .map((s) => ({ status: s, count: counts[s] }));
+  }, [complaints]);
+
+  const monthlyTrendDataDyn = useMemo(() => {
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const submittedCounts = new Array(12).fill(0);
+    const resolvedCounts = new Array(12).fill(0);
+    complaints.forEach((c) => {
+      const sub = c.submittedDate ? new Date(c.submittedDate as string) : null;
+      if (sub && !isNaN(sub.getTime())) {
+        submittedCounts[sub.getMonth()] += 1;
+      }
+      const res = c.resolvedAt ? new Date(c.resolvedAt as string) : null;
+      if (res && !isNaN(res.getTime())) {
+        resolvedCounts[res.getMonth()] += 1;
+      }
+    });
+    return months.map((month, i) => ({
+      month,
+      submitted: submittedCounts[i],
+      resolved: resolvedCounts[i],
+    }));
+  }, [complaints]);
+
+  // Placeholder staff table derived from complaints if needed later
+  const sortedStaff = staffPerformance; // keep mock until we add staff aggregation
 
   return (
     <div className="space-y-8 p-6">
@@ -130,33 +273,35 @@ export default function DeanAnalytics() {
         performance.
       </p>
 
-      {/* Top summary cards */}
+      {/* Top summary cards (wired to backend where possible) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">120</span>
+            <span className="text-2xl font-bold">{totalStudents ?? "—"}</span>
             <span className="text-muted-foreground">Total Students</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">4</span>
+            <span className="text-2xl font-bold">{totalDepartments}</span>
             <span className="text-muted-foreground">Total departments</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <FileText className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">38</span>
+            <span className="text-2xl font-bold">
+              {summary?.total ?? (loading ? "…" : complaints.length)}
+            </span>
             <span className="text-muted-foreground">Total Complaints</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
-            <span className="text-2xl font-bold">28</span>
+            <span className="text-2xl font-bold">{summary?.resolved ?? 0}</span>
             <span className="text-muted-foreground">Resolved Complaints</span>
           </CardContent>
         </Card>
@@ -172,7 +317,7 @@ export default function DeanAnalytics() {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={categoryDataDyn}
                   dataKey="count"
                   nameKey="name"
                   cx="50%"
@@ -180,7 +325,7 @@ export default function DeanAnalytics() {
                   outerRadius={80}
                   label
                 >
-                  {categoryData.map((entry, index) => (
+                  {categoryDataDyn.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={COLORS[index % COLORS.length]}
@@ -199,14 +344,14 @@ export default function DeanAnalytics() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={priorityData}>
+              <BarChart data={priorityDataDyn}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="priority" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="count">
-                  {priorityData.map((entry, index) => (
+                  {priorityDataDyn.map((entry, index) => (
                     <Cell key={`cell-bar-${index}`} fill={entry.color} />
                   ))}
                 </Bar>
@@ -224,7 +369,7 @@ export default function DeanAnalytics() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={statusData}>
+              <BarChart data={statusDataDyn}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="status" />
                 <YAxis />
@@ -241,7 +386,7 @@ export default function DeanAnalytics() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={monthlyTrendData}>
+              <LineChart data={monthlyTrendDataDyn}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />

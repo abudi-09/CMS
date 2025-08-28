@@ -8,9 +8,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, FileText, Star, Clock } from "lucide-react";
-import { getStaffFeedbackApi, markFeedbackReviewedApi } from "@/lib/api";
+import { getFeedbackByRoleApi, markFeedbackReviewedApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth/AuthContext";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,12 @@ type StaffFeedbackItem = {
   title: string;
   complaintCode?: string;
   submittedBy?: { name?: string; email?: string };
+  assignedTo?: {
+    name?: string;
+    email?: string;
+    role?: string;
+    department?: string;
+  };
   feedback: {
     rating: number;
     comment?: string;
@@ -39,6 +46,7 @@ type StaffFeedbackItem = {
 
 export function StaffFeedback() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [items, setItems] = useState<StaffFeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +61,8 @@ export function StaffFeedback() {
     const fetchData = async () => {
       setError(null);
       try {
-        const data = await getStaffFeedbackApi();
+        // Role-aware API returns feedback according to current user's role
+        const data = await getFeedbackByRoleApi();
         if (!cancelled) setItems(data as StaffFeedbackItem[]);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -142,6 +151,37 @@ export function StaffFeedback() {
       const msg = e instanceof Error ? e.message : "Failed to mark reviewed";
       toast({ variant: "destructive", title: "Error", description: msg });
     }
+  };
+
+  const canMarkReviewed = (it: StaffFeedbackItem) => {
+    if (it.feedback?.reviewed) return false;
+    if (!user) return false;
+
+    const role = String(user.role || "").toLowerCase();
+    if (role === "staff") return true; // list is already scoped to their resolved complaints
+
+    if (role === "dean") {
+      const assignedRole = String(it.assignedTo?.role || "").toLowerCase();
+      const assignedEmail = (it.assignedTo?.email || "").toLowerCase();
+      const userEmail = (user.email || "").toLowerCase();
+      return (
+        assignedRole === "dean" &&
+        !!assignedEmail &&
+        assignedEmail === userEmail
+      );
+    }
+
+    if (role === "hod") {
+      const assignedRole = String(it.assignedTo?.role || "").toLowerCase();
+      const assignedEmail = (it.assignedTo?.email || "").toLowerCase();
+      const userEmail = (user.email || "").toLowerCase();
+      return (
+        assignedRole === "hod" && !!assignedEmail && assignedEmail === userEmail
+      );
+    }
+
+    // Admin or other roles: hide by default
+    return false;
   };
 
   const filteredItems = useMemo(() => {
@@ -322,7 +362,7 @@ export function StaffFeedback() {
                         </p>
                       )}
                       <div className="flex-1" />
-                      {!it.feedback?.reviewed && (
+                      {canMarkReviewed(it) && (
                         <Button
                           size="sm"
                           onClick={() =>

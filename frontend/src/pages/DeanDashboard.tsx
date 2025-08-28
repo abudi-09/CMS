@@ -25,6 +25,7 @@ import {
   getDeanPendingHodApi,
   listAllComplaintsApi,
   getDeanVisibleComplaintStatsApi,
+  API_BASE,
 } from "@/lib/api";
 
 // Utilities
@@ -90,13 +91,16 @@ export function DeanDashboard() {
     let cancelled = false;
     async function load() {
       try {
-        console.log("Loading dean dashboard data...");
-        const [rawComplaints, stats] = await Promise.all([
-          listAllComplaintsApi(),
-          getDeanVisibleComplaintStatsApi(),
-        ]);
-        console.log("Dean stats response:", stats);
-        console.log("Raw complaints count:", rawComplaints.length);
+        // Optional one-time backend connectivity check (commented for production)
+        // await fetch(`${API_BASE}/stats/test-db`).catch(() => {});
+
+        const rawComplaints = await listAllComplaintsApi();
+        const stats = await getDeanVisibleComplaintStatsApi();
+
+        if (!stats || typeof stats !== "object") {
+          console.error("❌ Invalid stats response:", stats);
+          return;
+        }
         if (cancelled) return;
         type Raw = {
           id: string;
@@ -141,14 +145,8 @@ export function DeanDashboard() {
           { label: "In Progress", value: stats.inProgress ?? 0 },
           { label: "Resolved", value: stats.resolved ?? 0 },
         ]);
-        console.log("Summary data set:", [
-          { label: "Total Complaints", value: stats.total ?? 0 },
-          { label: "Pending", value: stats.pending ?? 0 },
-          { label: "In Progress", value: stats.inProgress ?? 0 },
-          { label: "Resolved", value: stats.resolved ?? 0 },
-        ]);
       } catch (err) {
-        console.error("Failed to load dean dashboard data", err);
+        console.error("Failed to load dean dashboard data");
       }
     }
     load();

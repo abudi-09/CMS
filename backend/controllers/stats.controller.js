@@ -155,40 +155,71 @@ export const getRoleCounts = async (req, res) => {
   }
 };
 
-// Dean-visible complaint stats: exclude complaints that were sent to Admin
+// Dean-visible complaint stats: exclude complaints that were sent to Admin or escalated
 export const getDeanVisibleComplaintStats = async (req, res) => {
   try {
+    console.log("🔍 Dean stats request received");
+    console.log("👤 User role:", req.user?.role);
+    console.log("👤 User ID:", req.user?._id);
+
     // First, let's get the total count without any filter to see if there are complaints
     const totalAll = await Complaint.countDocuments();
-    console.log("Total complaints in DB:", totalAll);
+    console.log("📊 Total complaints in DB:", totalAll);
 
-    // Simple filter: exclude complaints where submittedTo contains "admin" (case insensitive)
-    const excludeAdminFilter = {
-      $or: [
-        { submittedTo: { $exists: false } },
-        { submittedTo: null },
-        { submittedTo: { $not: /admin/i } },
+    if (totalAll === 0) {
+      console.log("⚠️ No complaints found in database");
+      return res.status(200).json({
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0,
+        unassigned: 0,
+      });
+    }
+
+    // Check how many complaints are sent to admin
+    const adminComplaints = await Complaint.countDocuments({
+      submittedTo: { $regex: /admin/i },
+    });
+    console.log("👑 Complaints sent to admin:", adminComplaints);
+
+    // Check how many complaints are escalated
+    const escalatedComplaints = await Complaint.countDocuments({
+      isEscalated: true,
+    });
+    console.log("🚨 Escalated complaints:", escalatedComplaints);
+
+    // Filter: exclude complaints sent to Admin OR escalated complaints
+    const deanFilter = {
+      $and: [
+        // Exclude admin complaints
+        {
+          $or: [
+            { submittedTo: { $exists: false } },
+            { submittedTo: null },
+            { submittedTo: { $not: /admin/i } },
+          ],
+        },
+        // Exclude escalated complaints
+        { isEscalated: { $ne: true } },
       ],
     };
 
     console.log(
-      "Simplified dean stats filter:",
-      JSON.stringify(excludeAdminFilter, null, 2)
+      "🎯 Dean stats filter (excluding admin and escalated):",
+      JSON.stringify(deanFilter, null, 2)
     );
 
     const [total, pending, inProgress, resolved, unassigned] =
       await Promise.all([
-        Complaint.countDocuments(excludeAdminFilter),
-        Complaint.countDocuments({ ...excludeAdminFilter, status: "Pending" }),
-        Complaint.countDocuments({
-          ...excludeAdminFilter,
-          status: "In Progress",
-        }),
-        Complaint.countDocuments({ ...excludeAdminFilter, status: "Resolved" }),
-        Complaint.countDocuments({ ...excludeAdminFilter, assignedTo: null }),
+        Complaint.countDocuments(deanFilter),
+        Complaint.countDocuments({ ...deanFilter, status: "Pending" }),
+        Complaint.countDocuments({ ...deanFilter, status: "In Progress" }),
+        Complaint.countDocuments({ ...deanFilter, status: "Resolved" }),
+        Complaint.countDocuments({ ...deanFilter, assignedTo: null }),
       ]);
 
-    console.log("Dean stats counts:", {
+    console.log("✅ Dean stats counts:", {
       total,
       pending,
       inProgress,
@@ -198,7 +229,10 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
 
     res.status(200).json({ total, pending, inProgress, resolved, unassigned });
   } catch (err) {
-    console.error("Dean stats error:", err);
-    res.status(500).json({ error: "Failed to fetch dean-visible stats" });
+    console.error("❌ Dean stats error:", err?.message, err?.stack);
+    res.status(500).json({
+      error: "Failed to fetch dean-visible stats",
+      details: err?.message,
+    });
   }
 };

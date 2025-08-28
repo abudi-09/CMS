@@ -9,6 +9,7 @@ import {
   getRoleCounts,
   getDeanVisibleComplaintStats,
 } from "../controllers/stats.controller.js";
+import Complaint from "../models/complaint.model.js";
 
 import {
   protectRoute,
@@ -31,7 +32,41 @@ router.get(
     return res.status(403).json({ error: "Access denied" });
   },
   getComplaintStats
-);
+); // TEMPORARY: Test endpoint to check database without auth
+router.get("/test-db", async (req, res) => {
+  try {
+    const total = await Complaint.countDocuments();
+    const sample = await Complaint.find()
+      .limit(3)
+      .select("title status submittedTo isEscalated");
+    res.json({
+      totalComplaints: total,
+      sampleComplaints: sample,
+      message: "Database connection working",
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// TEMPORARY: Test endpoint to check database without auth
+router.get("/test-db", async (req, res) => {
+  try {
+    const total = await Complaint.countDocuments();
+    const sample = await Complaint.find()
+      .limit(3)
+      .select("title status submittedTo isEscalated");
+    res.json({
+      totalComplaints: total,
+      sampleComplaints: sample,
+      message: "Database connection working",
+    });
+  } catch (err) {
+    console.error("/api/stats/test-db error:", err);
+    res.status(500).json({ error: "test-db failed", details: err.message });
+  }
+});
+
 // Dean-visible stats excluding complaints sent to Admin
 router.get(
   "/complaints/dean-visible",

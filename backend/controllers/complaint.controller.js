@@ -209,29 +209,57 @@ export const getAllComplaints = async (req, res) => {
   try {
     const complaints = await Complaint.find()
       .populate("submittedBy", "name")
-      .populate("assignedTo", "name");
-    const formatted = complaints.map((c) => ({
-      id: c._id.toString(),
-      complaintCode: c.complaintCode,
-      title: c.title,
-      status: c.status,
-      department: c.department,
-      category: c.category,
-      submittedDate: c.createdAt,
-      lastUpdated: c.updatedAt,
-      assignedTo: c.assignedTo?.name || null,
-      submittedBy: c.submittedBy?.name || null,
-      deadline: c.deadline || null,
-      sourceRole: c.sourceRole,
-      assignedByRole: c.assignedByRole,
-      assignmentPath: c.assignmentPath || [],
-      submittedTo: c.submittedTo || null,
-      feedback: c.status === "Resolved" ? c.feedback || null : null,
-      isEscalated: c.isEscalated || false,
-    }));
+      .populate("assignedTo", "name")
+      .lean();
+
+    const formatted = (complaints || [])
+      .map((c, idx) => {
+        try {
+          const id = c && c._id ? String(c._id) : "";
+          const assignedToName =
+            c?.assignedTo && typeof c.assignedTo === "object"
+              ? c.assignedTo.name || null
+              : null;
+          const submittedByName =
+            c?.submittedBy && typeof c.submittedBy === "object"
+              ? c.submittedBy.name || null
+              : null;
+          return {
+            id,
+            complaintCode: c?.complaintCode ?? null,
+            title: c?.title ?? "Untitled Complaint",
+            status: c?.status ?? "Pending",
+            priority: c?.priority || "Medium",
+            department: c?.department ?? null,
+            category: c?.category ?? null,
+            submittedDate: c?.createdAt ?? null,
+            lastUpdated: c?.updatedAt ?? null,
+            resolvedAt: c?.resolvedAt ?? null,
+            assignedTo: assignedToName,
+            submittedBy: submittedByName,
+            deadline: c?.deadline ?? null,
+            sourceRole: c?.sourceRole ?? null,
+            assignedByRole: c?.assignedByRole ?? null,
+            assignmentPath: Array.isArray(c?.assignmentPath)
+              ? c.assignmentPath
+              : [],
+            submittedTo: c?.submittedTo ?? null,
+            feedback: c?.status === "Resolved" ? c?.feedback || null : null,
+            isEscalated: !!c?.isEscalated,
+          };
+        } catch (e) {
+          console.error("[getAllComplaints] Format error at index", idx, e);
+          return null;
+        }
+      })
+      .filter(Boolean);
     res.status(200).json(formatted);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch all complaints" });
+    console.error("getAllComplaints error:", error?.message, error?.stack);
+    res.status(500).json({
+      error: "Failed to fetch all complaints",
+      details: error?.message,
+    });
   }
 };
 
@@ -517,26 +545,56 @@ export const giveFeedback = async (req, res) => {
 
 export const getAllFeedback = async (req, res) => {
   try {
-    const complaints = await Complaint.find({
-      status: "Resolved",
-      // consider feedback exists (rating) for completeness; comment may be optional
-      "feedback.rating": { $exists: true },
-    })
-      .populate("submittedBy", "name email")
-      .populate("assignedTo", "name email");
+    const complaints = await Complaint.find()
+      .populate("submittedBy", "name")
+      .populate("assignedTo", "name")
+      .lean({ virtuals: false });
 
-    const feedbackList = complaints.map((c) => ({
-      complaintId: c._id,
-      title: c.title,
-      submittedBy: c.submittedBy,
-      assignedTo: c.assignedTo,
-      feedback: c.feedback,
-      resolvedAt: c.updatedAt,
-    }));
-
-    res.status(200).json(feedbackList);
+    const formatted = complaints
+      .map((c, idx) => {
+        try {
+          const id = c && c._id ? String(c._id) : "";
+          return {
+            id,
+            complaintCode: c?.complaintCode ?? null,
+            title: c?.title ?? "Untitled Complaint",
+            status: c?.status ?? "Pending",
+            department: c?.department ?? null,
+            category: c?.category ?? null,
+            submittedDate: c?.createdAt ?? null,
+            lastUpdated: c?.updatedAt ?? null,
+            assignedTo:
+              c?.assignedTo && typeof c.assignedTo === "object"
+                ? c.assignedTo.name || null
+                : null,
+            submittedBy:
+              c?.submittedBy && typeof c.submittedBy === "object"
+                ? c.submittedBy.name || null
+                : null,
+            deadline: c?.deadline ?? null,
+            sourceRole: c?.sourceRole ?? null,
+            assignedByRole: c?.assignedByRole ?? null,
+            assignmentPath: Array.isArray(c?.assignmentPath)
+              ? c.assignmentPath
+              : [],
+            submittedTo: c?.submittedTo ?? null,
+            feedback: c?.status === "Resolved" ? c?.feedback || null : null,
+            isEscalated: !!c?.isEscalated,
+          };
+        } catch (e) {
+          console.error(
+            "getAllComplaints: failed to format complaint at index",
+            idx,
+            e
+          );
+          return null;
+        }
+      })
+      .filter(Boolean);
+    return res.status(200).json(formatted);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch feedback" });
+    console.error("getAllFeedback error:", err?.message);
+    return res.status(500).json({ error: "Failed to fetch feedback" });
   }
 };
 
@@ -659,6 +717,17 @@ export const markFeedbackReviewed = async (req, res) => {
       return res
         .status(403)
         .json({ error: "Access denied: Not resolver of this complaint" });
+    }
+    // Dean can only review if they personally resolved it
+    if (
+      req.user.role === "dean" &&
+      complaint.assignedTo &&
+      !complaint.assignedTo.equals(req.user._id)
+    ) {
+      return res.status(403).json({
+        error:
+          "Access denied: Dean can only mark reviewed for complaints they resolved",
+      });
     }
     complaint.feedback.reviewed = true;
     complaint.feedback.reviewedAt = new Date();
