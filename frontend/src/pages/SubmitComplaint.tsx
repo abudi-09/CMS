@@ -1,19 +1,4 @@
-// Mock data for demonstration. Replace with API/context data as needed.
-// Mock data for demonstration. Replace with API/context data as needed.
-const staffList = [
-  { id: "s1", fullName: "Alice Smith", department: "Computer Science" },
-  { id: "s2", fullName: "Bob Johnson", department: "IT" },
-  { id: "s3", fullName: "Carol Lee", department: "Information System" },
-  { id: "s4", fullName: "David Kim", department: "Computer System" },
-];
-const hodList = [
-  { id: "h1", fullName: "Dr. HoD CS", department: "Computer Science" },
-  { id: "h2", fullName: "Dr. HoD IT", department: "IT" },
-  { id: "h3", fullName: "Dr. HoD IS", department: "Information System" },
-  { id: "h4", fullName: "Dr. HoD CSystem", department: "Computer System" },
-];
-const dean = { id: "d1", fullName: "Dean of College" };
-const admin = { id: "a1", fullName: "System Admin" };
+// Recipient mock lists removed; recipients now come from backend APIs only.
 import { useState, useContext, useEffect } from "react";
 // Categories now dynamically fetched; the list above has been moved to backend seeding.
 // Update the path below if your ComplaintContext file is in a different location
@@ -40,7 +25,12 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 import { useAuth } from "@/components/auth/AuthContext";
 import { uploadEvidenceFile } from "@/lib/cloudinary";
-import { listMyDepartmentActiveStaffApi, listMyDepartmentHodApi } from "@/lib/api"; // Add listMyDepartmentHodApi
+import {
+  listMyDepartmentActiveStaffApi,
+  listMyDepartmentHodApi,
+  listActiveDeansPublicApi,
+  listActiveAdminsPublicApi,
+} from "@/lib/api";
 
 // Categories now come from context
 
@@ -114,6 +104,13 @@ export function SubmitComplaint() {
     Array<{ id: string; fullName: string }>
   >([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
+  // Deans/Admins recipients (approved & active only)
+  const [deanOptions, setDeanOptions] = useState<
+    Array<{ id: string; fullName: string }>
+  >([]);
+  const [adminOptions, setAdminOptions] = useState<
+    Array<{ id: string; fullName: string }>
+  >([]);
   // Remove old submitTo, use formData.role
   // If you have user context, import/use it here
   // Example: const { user } = useAuth();
@@ -181,7 +178,8 @@ export function SubmitComplaint() {
   // NEW: useEffect to load HoD recipients from the API
   useEffect(() => {
     const loadHodRecipients = async () => {
-      if (formData.role !== "hod") { // We don't need currentDepartment here anymore
+      if (formData.role !== "hod") {
+        // We don't need currentDepartment here anymore
         setHodOptions([]);
         return;
       }
@@ -189,12 +187,12 @@ export function SubmitComplaint() {
       try {
         // This API call is already designed to get the HoD for the current user's department.
         const users = await listMyDepartmentHodApi();
-        
+
         // FIX: Remove the redundant frontend filter. Trust the API response directly.
         const mappedUsers = (users || []).map((u) => ({
-            id: u._id,
-            fullName: u.fullName || u.name || u.username || "Unnamed HoD",
-          }));
+          id: u._id,
+          fullName: u.fullName || u.name || u.username || "Unnamed HoD",
+        }));
 
         setHodOptions(mappedUsers);
       } catch (err) {
@@ -210,7 +208,59 @@ export function SubmitComplaint() {
       }
     };
     loadHodRecipients();
-  }, [formData.role]); // FIX: Remove currentDepartment from dependency array
+  }, [formData.role, toast]); // Include toast to satisfy hook dependency rule
+
+  // Load approved & active deans when role is 'dean'
+  useEffect(() => {
+    const loadDeans = async () => {
+      if (formData.role !== "dean") {
+        setDeanOptions([]);
+        return;
+      }
+      setRecipientsLoading(true);
+      try {
+        const list = await listActiveDeansPublicApi();
+        const mapped = (list || [])
+          .map((u) => ({
+            id: u._id,
+            fullName: u.name || u.email,
+          }))
+          .filter((o) => o.id && o.fullName);
+        setDeanOptions(mapped);
+      } catch {
+        setDeanOptions([]);
+      } finally {
+        setRecipientsLoading(false);
+      }
+    };
+    loadDeans();
+  }, [formData.role]);
+
+  // Load approved & active admins when role is 'admin'
+  useEffect(() => {
+    const loadAdmins = async () => {
+      if (formData.role !== "admin") {
+        setAdminOptions([]);
+        return;
+      }
+      setRecipientsLoading(true);
+      try {
+        const list = await listActiveAdminsPublicApi();
+        const mapped = (list || [])
+          .map((u) => ({
+            id: u._id,
+            fullName: u.name || u.email,
+          }))
+          .filter((o) => o.id && o.fullName);
+        setAdminOptions(mapped);
+      } catch {
+        setAdminOptions([]);
+      } finally {
+        setRecipientsLoading(false);
+      }
+    };
+    loadAdmins();
+  }, [formData.role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -693,16 +743,18 @@ export function SubmitComplaint() {
                           {person.fullName}
                         </SelectItem>
                       ))}
-                    {/* Keep other roles using the old mock data for now */}
-                    {(formData.role === "dean" ||
-                      formData.role === "admin") &&
-                      getRecipients(formData.role, currentDepartment).map(
-                        (p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.fullName}
-                          </SelectItem>
-                        )
-                      )}
+                    {formData.role === "dean" &&
+                      deanOptions.map((person) => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.fullName}
+                        </SelectItem>
+                      ))}
+                    {formData.role === "admin" &&
+                      adminOptions.map((person) => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.fullName}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 {touched.recipient && !formData.recipient && (
@@ -996,20 +1048,5 @@ export function SubmitComplaint() {
     </div>
   );
 
-  function getRecipients(role: string, currentDepartment: string) {
-    switch (role) {
-      case "staff":
-        // This is now handled by state, but we can leave it as a fallback
-        return staffList.filter((s) => s.department === currentDepartment);
-      case "hod":
-        // This is now handled by state, but we can leave it as a fallback
-        return hodList.filter((h) => h.department === currentDepartment);
-      case "dean":
-        return [dean];
-      case "admin":
-        return [admin];
-      default:
-        return [];
-    }
-  }
+  // No fallback recipient function: recipients are loaded from backend per role.
 }

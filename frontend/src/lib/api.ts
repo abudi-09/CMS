@@ -292,6 +292,23 @@ export async function listActiveDeansPublicApi() {
   }>;
 }
 
+// Authenticated: list approved & active admins for student submissions
+export async function listActiveAdminsPublicApi() {
+  const res = await fetch(`${API_BASE}/approvals/public/active-admins`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch active admins");
+  return data as Array<{
+    _id: string;
+    name?: string;
+    email: string;
+    workingPlace?: string;
+  }>;
+}
+
 export async function approveDeanApi(deanId: string) {
   const res = await fetch(
     `${API_BASE}/approvals/admin/approve-dean/${deanId}`,
@@ -373,7 +390,8 @@ export async function listMyDepartmentHodApi() {
     credentials: "include",
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch Head of Department");
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch Head of Department");
   // The backend should return an array, even if it only contains one HoD
   return data as Array<{
     _id: string;

@@ -419,9 +419,6 @@ function StudentManagement() {
                     <TableRow key={student._id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="font-medium">{student.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          ID: {student._id}
-                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -539,9 +536,6 @@ function StudentManagement() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="font-medium">{student.name}</h3>
-                        <p className="text-xs text-muted-foreground">
-                          ID: {student._id}
-                        </p>
                       </div>
                       <Badge variant="outline" className="text-xs mr-2">
                         STUDENT

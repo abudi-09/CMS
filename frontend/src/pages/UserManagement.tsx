@@ -73,9 +73,6 @@ function UserManagement() {
   const [students, setStudents] = useState<DeptUser[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [roleFilter, setRoleFilter] = useState<"All" | "student" | "staff">(
-    "All"
-  );
   // Department filter removed
   // Pagination
   const [page, setPage] = useState(1);
@@ -255,15 +252,13 @@ function UserManagement() {
       student.department.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All" || student.status === statusFilter;
-    const matchesRole =
-      roleFilter === "All" || (student.role || "student") === roleFilter;
-    return matchesSearch && matchesStatus && matchesRole;
+    return matchesSearch && matchesStatus;
   });
 
   // Reset page on filter/search changes
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, roleFilter]);
+  }, [searchTerm, statusFilter]);
 
   // Pagination calculations
   const totalItems = filteredStudents.length;
@@ -341,39 +336,18 @@ function UserManagement() {
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All Status</SelectItem>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select
-                  value={roleFilter}
-                  onValueChange={(v) =>
-                    setRoleFilter(v as "All" | "student" | "staff")
-                  }
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All Roles</SelectItem>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Status</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -403,9 +377,7 @@ function UserManagement() {
                       className="text-center py-8 text-muted-foreground"
                     >
                       {totalItems === 0
-                        ? searchTerm ||
-                          statusFilter !== "All" ||
-                          roleFilter !== "All"
+                        ? searchTerm || statusFilter !== "All"
                           ? "No users match your search criteria"
                           : "No users found"
                         : null}
@@ -416,9 +388,6 @@ function UserManagement() {
                     <TableRow key={student._id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="font-medium">{student.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          ID: {student._id}
-                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -533,7 +502,7 @@ function UserManagement() {
             {pagedStudents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {totalItems === 0
-                  ? searchTerm || statusFilter !== "All" || roleFilter !== "All"
+                  ? searchTerm || statusFilter !== "All"
                     ? "No users match your search criteria"
                     : "No users found"
                   : null}
@@ -545,9 +514,6 @@ function UserManagement() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="font-medium">{student.name}</h3>
-                        <p className="text-xs text-muted-foreground">
-                          ID: {student._id}
-                        </p>
                       </div>
                       <Badge variant="outline" className="text-xs mr-2">
                         {(student.role || "student").toUpperCase()}

@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import Complaint from "../models/complaint.model.js";
 import { sendDecisionEmail } from "../utils/sendDecisionEmail.js";
 
 // HoD: manage Staff in same department
@@ -117,8 +118,29 @@ export const hodGetUsers = async (req, res) => {
     const users = await User.find({
       department: dept,
       role: { $in: ["student", "staff"] },
-    }).select("_id name email department role isActive createdAt updatedAt");
-    res.status(200).json(users);
+    })
+      .select("_id name email department role isActive createdAt updatedAt")
+      .lean();
+
+    // Attach total complaints submitted per user (students typically)
+    const userIds = users.map((u) => u._id);
+    const counts = await Complaint.aggregate([
+      { $match: { submittedBy: { $in: userIds } } },
+      { $group: { _id: "$submittedBy", count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(
+      counts.map((c) => [
+        String(c._id),
+        typeof c.count === "number" ? c.count : 0,
+      ])
+    );
+
+    const withCounts = users.map((u) => ({
+      ...u,
+      complaintsCount: countMap.get(String(u._id)) || 0,
+    }));
+
+    res.status(200).json(withCounts);
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch users" });
   }
@@ -655,6 +677,29 @@ export const publicGetActiveDeans = async (req, res) => {
     res.status(200).json(list);
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch active deans" });
+  }
+};
+
+// Public (any authenticated user): list only approved and active admins
+export const publicGetActiveAdmins = async (req, res) => {
+  try {
+    const active = await User.find({
+      role: "admin",
+      isApproved: true,
+      isActive: true,
+      isRejected: { $ne: true },
+    })
+      .select("_id name email username workingPlace")
+      .lean();
+    const list = (active || []).map((u) => ({
+      _id: String(u._id),
+      name: u.name || u.username || u.email,
+      email: u.email,
+      workingPlace: u.workingPlace || "",
+    }));
+    res.status(200).json(list);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active admins" });
   }
 };
 
