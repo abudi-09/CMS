@@ -666,7 +666,7 @@ export function MyComplaints() {
                         <td className="p-3">
                           <div className="font-medium">{complaint.title}</div>
                           <div className="text-sm text-muted-foreground">
-                            ID: {complaint.id}
+                            {/* Complaint ID intentionally hidden in UI */}
                             {complaint.friendlyCode && (
                               <span className="ml-2">
                                 [{complaint.friendlyCode}]
@@ -769,7 +769,7 @@ export function MyComplaints() {
                             {complaint.title}
                           </h3>
                           <p className="text-xs text-muted-foreground mt-1">
-                            ID: {complaint.id}
+                            {/* Complaint ID intentionally hidden in UI */}
                             {complaint.friendlyCode && (
                               <span className="ml-1">
                                 [{complaint.friendlyCode}]

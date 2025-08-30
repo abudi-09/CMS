@@ -511,9 +511,19 @@ export function HoDAssignComplaints() {
                 <Card key={complaint.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-1">
-                      <div className="text-xs text-muted-foreground">
-                        #{complaint.id}
-                      </div>
+                      {/* Show friendly reference code when available; hide raw DB id */}
+                      {(complaint as unknown as { friendlyCode?: string })
+                        .friendlyCode ? (
+                        <div className="text-xs text-muted-foreground">
+                          {
+                            (
+                              complaint as unknown as {
+                                friendlyCode?: string;
+                              }
+                            ).friendlyCode
+                          }
+                        </div>
+                      ) : null}
                       <div className="font-medium text-sm">
                         {complaint.title}
                       </div>

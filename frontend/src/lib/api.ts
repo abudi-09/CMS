@@ -31,6 +31,7 @@ export async function listAllComplaintsApi() {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to fetch complaints");
   return data as Array<{
+    priority: "Low" | "Medium" | "High" | "Critical";
     id: string;
     complaintCode?: string;
     title: string;

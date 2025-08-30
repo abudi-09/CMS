@@ -31,7 +31,10 @@ import {
 } from "lucide-react";
 import { Complaint } from "@/components/ComplaintCard";
 import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
-import { submitComplaintFeedbackApi } from "@/lib/api";
+import {
+  submitComplaintFeedbackApi,
+  updateComplaintStatusApi,
+} from "@/lib/api";
 import type { ActivityLog } from "@/components/ActivityLogTable";
 import { useToast } from "@/hooks/use-toast";
 import { formatTimelineDescription } from "@/utils/timelineUtils";
@@ -75,6 +78,8 @@ export function RoleBasedComplaintModal({
 
   const [staffUpdate, setStaffUpdate] = useState("");
   const [rejectReason, setRejectReason] = useState("");
+  // Transient input for status update note (cleared after each save)
+  const [statusNote, setStatusNote] = useState("");
   const [feedback, setFeedback] = useState({ rating: 0, comment: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [locallyAccepted, setLocallyAccepted] = useState(false);
@@ -207,6 +212,8 @@ export function RoleBasedComplaintModal({
 
   // Realtime refresh: when modal is open, periodically refetch complaint + logs and listen to cross-view events
   useEffect(() => {
+    // Clear transient status note when modal opens
+    if (open) setStatusNote("");
     let timer: number | undefined;
     let cancelled = false;
     async function loadLogsAndLatest() {
@@ -253,6 +260,11 @@ export function RoleBasedComplaintModal({
       );
     };
   }, [open, complaint, complaint?.id, fetchLatest]);
+
+  // Clear transient status note whenever live complaint changes
+  useEffect(() => {
+    setStatusNote("");
+  }, [liveComplaint?.id]);
 
   useEffect(() => {
     if (liveComplaint && liveComplaint.feedback) {
@@ -369,29 +381,40 @@ export function RoleBasedComplaintModal({
 
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const ts = new Date();
-      const prefix = ts.toLocaleString();
-      const existing = liveComplaint?.resolutionNote?.trim();
       const safeNote = staffUpdate.trim().slice(0, 1000);
-      const newEntry = `• ${prefix}: ${safeNote}`;
-      const combined = existing ? `${existing}\n${newEntry}` : newEntry;
-      // Update local UI to reflect appended note history immediately
+      const currentStatus = liveComplaint?.status || "In Progress";
+      const updated = await updateComplaintStatusApi(
+        complaint.id,
+        currentStatus as "Pending" | "In Progress" | "Resolved" | "Closed",
+        safeNote
+      );
+      const ts = new Date();
       setLiveComplaint((prev) =>
         prev
           ? {
               ...prev,
-              resolutionNote: combined,
+              resolutionNote:
+                updated?.complaint?.resolutionNote ||
+                updated?.resolutionNote ||
+                prev.resolutionNote,
               lastUpdated: ts,
             }
           : prev
       );
-      // Send only the new note to backend as description via parent onUpdate handler
       onUpdate?.(complaint.id, {
-        resolutionNote: safeNote,
-        status: liveComplaint?.status || "In Progress",
+        resolutionNote:
+          updated?.complaint?.resolutionNote ||
+          updated?.resolutionNote ||
+          safeNote,
+        status: currentStatus as Complaint["status"],
         lastUpdated: ts,
       });
+      // Broadcast for other views to refresh
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", {
+          detail: { id: complaint.id },
+        })
+      );
       toast({
         title: "Update Added",
         description: "Your update has been added to the complaint",
@@ -1183,22 +1206,50 @@ export function RoleBasedComplaintModal({
                         <Button
                           className="mt-2 w-full"
                           disabled={isLoading}
-                          onClick={() => {
+                          onClick={async () => {
                             const newStatus = liveComplaint.status;
                             setIsLoading(true);
-                            Promise.resolve(
+                            try {
+                              const resp = await updateComplaintStatusApi(
+                                liveComplaint.id,
+                                newStatus as
+                                  | "Pending"
+                                  | "In Progress"
+                                  | "Resolved"
+                                  | "Closed"
+                              );
+                              const ts = new Date();
+                              setLiveComplaint((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      status: newStatus,
+                                      lastUpdated: ts,
+                                    }
+                                  : prev
+                              );
                               onUpdate?.(liveComplaint.id, {
                                 status: newStatus,
-                                lastUpdated: new Date(),
-                              })
-                            )
-                              .then(() => {
-                                toast({
-                                  title: "Status updated",
-                                  description: `Updated to ${newStatus}.`,
-                                });
-                              })
-                              .finally(() => setIsLoading(false));
+                                lastUpdated: ts,
+                              });
+                              window.dispatchEvent(
+                                new CustomEvent("complaint:status-changed", {
+                                  detail: { id: liveComplaint.id },
+                                })
+                              );
+                              toast({
+                                title: "Status updated",
+                                description: `Updated to ${newStatus}.`,
+                              });
+                            } catch (e) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to update status",
+                                variant: "destructive",
+                              });
+                            } finally {
+                              setIsLoading(false);
+                            }
                           }}
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
@@ -1263,39 +1314,74 @@ export function RoleBasedComplaintModal({
                       <Textarea
                         className="w-full border rounded px-3 py-2"
                         placeholder="Add an optional note visible to the user..."
-                        value={liveComplaint.resolutionNote || ""}
+                        value={statusNote}
                         onChange={(e) =>
-                          setLiveComplaint({
-                            ...liveComplaint,
-                            resolutionNote: e.target.value.slice(0, 1000),
-                          })
+                          setStatusNote(e.target.value.slice(0, 1000))
                         }
                         rows={3}
                       />
                       <div className="text-xs text-muted-foreground mt-1 text-right">
-                        {(liveComplaint.resolutionNote || "").length}/1000
+                        {statusNote.length}/1000
                       </div>
                     </div>
                     <Button
                       className="mt-2 w-full"
                       disabled={isLoading}
-                      onClick={() => {
+                      onClick={async () => {
                         if (!liveComplaint) return;
                         setIsLoading(true);
-                        Promise.resolve(
+                        try {
+                          const resp = await updateComplaintStatusApi(
+                            liveComplaint.id,
+                            liveComplaint.status as
+                              | "Pending"
+                              | "In Progress"
+                              | "Resolved"
+                              | "Closed",
+                            statusNote?.trim() || undefined
+                          );
+                          const ts = new Date();
+                          setLiveComplaint((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  status: liveComplaint.status,
+                                  resolutionNote:
+                                    resp?.complaint?.resolutionNote ||
+                                    resp?.resolutionNote ||
+                                    prev.resolutionNote,
+                                  lastUpdated: ts,
+                                }
+                              : prev
+                          );
                           onUpdate?.(liveComplaint.id, {
                             status: liveComplaint.status,
-                            resolutionNote: liveComplaint.resolutionNote,
-                            lastUpdated: new Date(),
-                          })
-                        )
-                          .then(() => {
-                            toast({
-                              title: "Status updated",
-                              description: `Updated to ${liveComplaint.status}.`,
-                            });
-                          })
-                          .finally(() => setIsLoading(false));
+                            resolutionNote:
+                              resp?.complaint?.resolutionNote ||
+                              resp?.resolutionNote ||
+                              liveComplaint.resolutionNote,
+                            lastUpdated: ts,
+                          });
+                          // Clear transient input after successful save
+                          setStatusNote("");
+                          window.dispatchEvent(
+                            new CustomEvent("complaint:status-changed", {
+                              detail: { id: liveComplaint.id },
+                            })
+                          );
+                          toast({
+                            title: "Status updated",
+                            description: `Updated to ${liveComplaint.status}.`,
+                          });
+                        } catch (e) {
+                          toast({
+                            title: "Error",
+                            description: "Failed to update status",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setIsLoading(false);
+                        }
                       }}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
@@ -1333,39 +1419,74 @@ export function RoleBasedComplaintModal({
                     <Textarea
                       className="w-full border rounded px-3 py-2"
                       placeholder="Add an optional note visible to the user..."
-                      value={liveComplaint.resolutionNote || ""}
+                      value={statusNote}
                       onChange={(e) =>
-                        setLiveComplaint({
-                          ...liveComplaint,
-                          resolutionNote: e.target.value.slice(0, 1000),
-                        })
+                        setStatusNote(e.target.value.slice(0, 1000))
                       }
                       rows={3}
                     />
                     <div className="text-xs text-muted-foreground mt-1 text-right">
-                      {(liveComplaint.resolutionNote || "").length}/1000
+                      {statusNote.length}/1000
                     </div>
                   </div>
                   <Button
                     className="mt-2 w-full"
                     disabled={isLoading}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!liveComplaint) return;
                       setIsLoading(true);
-                      Promise.resolve(
+                      try {
+                        const resp = await updateComplaintStatusApi(
+                          liveComplaint.id,
+                          liveComplaint.status as
+                            | "Pending"
+                            | "In Progress"
+                            | "Resolved"
+                            | "Closed",
+                          statusNote?.trim() || undefined
+                        );
+                        const ts = new Date();
+                        setLiveComplaint((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                status: liveComplaint.status,
+                                resolutionNote:
+                                  resp?.complaint?.resolutionNote ||
+                                  resp?.resolutionNote ||
+                                  prev.resolutionNote,
+                                lastUpdated: ts,
+                              }
+                            : prev
+                        );
                         onUpdate?.(liveComplaint.id, {
                           status: liveComplaint.status,
-                          resolutionNote: liveComplaint.resolutionNote,
-                          lastUpdated: new Date(),
-                        })
-                      )
-                        .then(() => {
-                          toast({
-                            title: "Status updated",
-                            description: `Updated to ${liveComplaint.status}.`,
-                          });
-                        })
-                        .finally(() => setIsLoading(false));
+                          resolutionNote:
+                            resp?.complaint?.resolutionNote ||
+                            resp?.resolutionNote ||
+                            liveComplaint.resolutionNote,
+                          lastUpdated: ts,
+                        });
+                        // Clear the transient note input
+                        setStatusNote("");
+                        window.dispatchEvent(
+                          new CustomEvent("complaint:status-changed", {
+                            detail: { id: liveComplaint.id },
+                          })
+                        );
+                        toast({
+                          title: "Status updated",
+                          description: `Updated to ${liveComplaint.status}.`,
+                        });
+                      } catch (e) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to update status",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsLoading(false);
+                      }
                     }}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
@@ -1405,31 +1526,64 @@ export function RoleBasedComplaintModal({
                     <Textarea
                       className="w-full border rounded px-3 py-2"
                       placeholder="Add a description or resolution note..."
-                      value={liveComplaint.resolutionNote || ""}
+                      value={statusNote}
                       onChange={(e) =>
-                        setLiveComplaint({
-                          ...liveComplaint,
-                          resolutionNote: e.target.value.slice(0, 1000),
-                        })
+                        setStatusNote(e.target.value.slice(0, 1000))
                       }
                       rows={3}
                     />
                     <div className="text-xs text-muted-foreground mt-1 text-right">
-                      {(liveComplaint.resolutionNote || "").length}/1000
+                      {statusNote.length}/1000
                     </div>
                   </div>
                   <Button
                     className="mt-2 w-full"
                     disabled={isLoading}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!liveComplaint) return;
                       setIsLoading(true);
-                      Promise.resolve(
+                      try {
+                        const resp = await updateComplaintStatusApi(
+                          liveComplaint.id,
+                          liveComplaint.status as
+                            | "Pending"
+                            | "In Progress"
+                            | "Resolved"
+                            | "Closed",
+                          statusNote?.trim() || undefined
+                        );
+                        const ts = new Date();
+                        setLiveComplaint((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                status: liveComplaint.status,
+                                resolutionNote:
+                                  resp?.complaint?.resolutionNote ||
+                                  resp?.resolutionNote ||
+                                  prev.resolutionNote,
+                                lastUpdated: ts,
+                              }
+                            : prev
+                        );
                         onUpdate?.(liveComplaint.id, {
                           status: liveComplaint.status,
-                          resolutionNote: liveComplaint.resolutionNote,
-                        })
-                      ).finally(() => setIsLoading(false));
+                          resolutionNote:
+                            resp?.complaint?.resolutionNote ||
+                            resp?.resolutionNote ||
+                            liveComplaint.resolutionNote,
+                          lastUpdated: ts,
+                        });
+                        // Clear transient input
+                        setStatusNote("");
+                        window.dispatchEvent(
+                          new CustomEvent("complaint:status-changed", {
+                            detail: { id: liveComplaint.id },
+                          })
+                        );
+                      } finally {
+                        setIsLoading(false);
+                      }
                     }}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />

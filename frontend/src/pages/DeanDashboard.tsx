@@ -20,6 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Clock, MessageSquare, UserCheck, Users } from "lucide-react";
 import {
   getDeanPendingHodApi,
@@ -234,6 +241,7 @@ export function DeanDashboard() {
   };
 
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [assigningHodId, setAssigningHodId] = useState<string>("");
   const [hodList, setHodList] = useState<
     Array<{ _id: string; name?: string; fullName?: string; email: string }>
   >([]);
@@ -433,9 +441,19 @@ export function DeanDashboard() {
                 <Card key={complaint.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-1">
-                      <div className="text-xs text-muted-foreground">
-                        #{complaint.id}
-                      </div>
+                      {/* Show friendly reference code when available; hide raw DB id */}
+                      {(complaint as unknown as { friendlyCode?: string })
+                        .friendlyCode ? (
+                        <div className="text-xs text-muted-foreground">
+                          {
+                            (
+                              complaint as unknown as {
+                                friendlyCode?: string;
+                              }
+                            ).friendlyCode
+                          }
+                        </div>
+                      ) : null}
                       <div className="font-medium text-sm">
                         {complaint.title}
                       </div>
@@ -655,33 +673,37 @@ export function DeanDashboard() {
                           {(complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
                             <div className="flex items-center gap-2">
-                              <select
-                                className="border rounded px-2 py-1 text-xs"
+                              <Select
                                 value={
-                                  assigning === complaint.id ? assigning : ""
+                                  assigning === complaint.id
+                                    ? assigningHodId
+                                    : ""
                                 }
-                                onChange={(e) => setAssigning(complaint.id)}
-                                onClick={(e) => e.stopPropagation()}
+                                onValueChange={(v) => {
+                                  // mark which complaint is being assigned and store selected hod id
+                                  setAssigning(complaint.id);
+                                  setAssigningHodId(v);
+                                }}
                               >
-                                <option value="">Assign to HoD</option>
-                                {hodList.map((h) => (
-                                  <option key={h._id} value={h._id}>
-                                    {h.fullName || h.name || h.email}
-                                  </option>
-                                ))}
-                              </select>
-                              {assigning === complaint.id && (
+                                <SelectTrigger className="w-40 text-xs">
+                                  <SelectValue placeholder="Assign to HoD" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {hodList.map((h) => (
+                                    <SelectItem key={h._id} value={h._id}>
+                                      {h.fullName || h.name || h.email}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {assigning === complaint.id && assigningHodId && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   className="text-xs"
-                                  onClick={() => {
-                                    const sel =
-                                      (document.activeElement as HTMLSelectElement) ||
-                                      null;
-                                    const hodId = (sel && sel.value) || "";
-                                    if (hodId) assignToHod(complaint.id, hodId);
-                                  }}
+                                  onClick={() =>
+                                    assignToHod(complaint.id, assigningHodId)
+                                  }
                                 >
                                   Send
                                 </Button>

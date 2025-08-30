@@ -173,9 +173,7 @@ export function ComplaintDetailModal({
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">{complaint.title}</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                ID: #{complaint.id}
-              </p>
+              {/* Complaint ID intentionally hidden in UI */}
             </CardHeader>
           </Card>
 

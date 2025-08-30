@@ -60,9 +60,39 @@ export function UserDashboard() {
         isEscalated?: boolean;
         sourceRole?: string;
         submittedTo?: string;
-        department?: string;
       }
       const arr: DTO[] = Array.isArray(data) ? (data as DTO[]) : [];
+      // helper to map incoming role strings to the Complaint.sourceRole union
+      const roleGuard = (
+        r?: string | null
+      ): Complaint["sourceRole"] | undefined => {
+        if (!r) return undefined;
+        switch ((r || "").toLowerCase()) {
+          case "student":
+            return "student";
+          case "staff":
+            return "staff";
+          case "headofdepartment":
+          case "hod":
+            return "headOfDepartment";
+          case "dean":
+            return "dean";
+          case "admin":
+            return "admin";
+          default:
+            return undefined;
+        }
+      };
+
+      const roleGuardNoStaff = (
+        r?: string | null
+      ): Complaint["assignedByRole"] | undefined => {
+        const g = roleGuard(r);
+        return g && g !== "staff"
+          ? (g as Complaint["assignedByRole"])
+          : undefined;
+      };
+
       const mapped: Complaint[] = arr.map((c: DTO) => ({
         id: c.id || c._id || c.complaintCode || "",
         title: c.title || c.subject || "Untitled Complaint",
@@ -72,9 +102,14 @@ export function UserDashboard() {
         priority: (c.priority || "Medium") as Complaint["priority"],
         submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
         assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
-        assignedStaffRole: c.assignedTo?.role,
-        assignedByRole: c.assignedByRole || null,
-        assignmentPath: c.assignmentPath || [],
+        assignedStaffRole:
+          (c.assignedTo?.role as Complaint["assignedStaffRole"]) || "staff",
+        assignedByRole: roleGuardNoStaff(c.assignedByRole),
+        assignmentPath: Array.isArray(c.assignmentPath)
+          ? (c.assignmentPath.map((x) => roleGuard(x)).filter(Boolean) as Array<
+              Complaint["sourceRole"] | "staff"
+            >)
+          : [],
         submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
         lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
         assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
@@ -85,7 +120,7 @@ export function UserDashboard() {
         resolutionNote: c.resolutionNote,
         evidenceFile: c.evidenceFile,
         isEscalated: !!c.isEscalated,
-        sourceRole: c.sourceRole,
+        sourceRole: roleGuard(c.sourceRole),
         submittedTo: c.submittedTo,
         department: c.department,
       }));

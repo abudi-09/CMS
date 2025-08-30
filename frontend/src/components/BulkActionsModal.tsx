@@ -178,7 +178,8 @@ export function BulkActionsModal({
                     className="flex items-center justify-between text-sm"
                   >
                     <span>
-                      #{complaint.id} - {complaint.title}
+                      {/* Complaint ID intentionally hidden in UI */}{" "}
+                      {complaint.title}
                     </span>
                     <Badge variant="outline" className="text-xs">
                       {complaint.status}
