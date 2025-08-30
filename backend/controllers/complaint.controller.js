@@ -4,6 +4,7 @@ import ActivityLog from "../models/activityLog.model.js";
 import User, {
   normalizeRole as normalizeUserRole,
 } from "../models/user.model.js";
+import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
@@ -373,6 +374,31 @@ export const approveComplaint = async (req, res) => {
     }
     await complaint.save();
 
+    // Notify student when HoD accepts (moves to In Progress). Dean accept may also notify.
+    try {
+      if (
+        complaint.status === "In Progress" &&
+        (req.user.role === "hod" || req.user.role === "dean")
+      ) {
+        const submitter = await User.findById(complaint.submittedBy).select(
+          "name email"
+        );
+        if (submitter?.email) {
+          await sendComplaintUpdateEmail({
+            to: submitter.email,
+            studentName: submitter.name,
+            complaintCode: complaint.complaintCode,
+            title: complaint.title,
+            action: "accepted",
+            byRole: req.user.role?.toUpperCase?.() || req.user.role,
+            note,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[approveComplaint] email notify failed:", e?.message);
+    }
+
     await ActivityLog.create({
       user: req.user._id,
       role: req.user.role,
@@ -385,6 +411,280 @@ export const approveComplaint = async (req, res) => {
     res.status(200).json({ message: "Complaint approved", complaint });
   } catch (err) {
     res.status(500).json({ error: "Failed to approve complaint" });
+  }
+};
+
+// Dean reassigns a complaint to HoD with deadline (remains Pending for HoD to accept)
+
+// Role-scoped inboxes for dean/hod: show relevant Pending items
+export const getDeanInbox = async (req, res) => {
+  try {
+    if (req.user.role !== "dean")
+      return res.status(403).json({ error: "Access denied" });
+    // Student -> Dean submissions or items in dean path that are still pending (not escalated/admin)
+    const filter = {
+      status: "Pending",
+      isEscalated: { $ne: true },
+      $and: [
+        {
+          $or: [
+            { submittedTo: { $regex: /dean/i } },
+            { assignmentPath: { $in: ["dean"] } },
+          ],
+        },
+        {
+          $or: [
+            { submittedTo: { $exists: false } },
+            { submittedTo: null },
+            { submittedTo: { $not: /admin/i } },
+          ],
+        },
+      ],
+    };
+    const complaints = await Complaint.find(filter)
+      .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
+      .limit(100);
+    res.status(200).json(
+      complaints.map((c) => ({
+        id: c._id,
+        title: c.title,
+        category: c.category,
+        status: c.status,
+        priority: c.priority,
+        submittedDate: c.createdAt,
+        lastUpdated: c.updatedAt,
+        assignedTo: c.assignedTo,
+        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        deadline: c.deadline,
+        assignedByRole: c.assignedByRole,
+        assignmentPath: c.assignmentPath || [],
+        submittedTo: c.submittedTo,
+        sourceRole: c.sourceRole,
+      }))
+    );
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch dean inbox" });
+  }
+};
+
+// Dean reassigns a complaint to HoD with deadline (remains Pending for HoD to accept)
+export const deanAssignToHod = async (req, res) => {
+  try {
+    if (req.user.role !== "dean") {
+      return res.status(403).json({ error: "Only deans can assign to HoD" });
+    }
+    const complaintId = req.params.id;
+    const { hodId, deadline } = req.body || {};
+    const hod = await User.findById(hodId).select("role isApproved isActive");
+    if (!hod || hod.role !== "hod" || !hod.isApproved || !hod.isActive) {
+      return res.status(400).json({ error: "Invalid HOD recipient" });
+    }
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    // Set assignment details for HoD acceptance
+    complaint.assignedTo = hod._id;
+    complaint.assignedAt = new Date();
+    complaint.status = "Pending"; // Pending until HoD accepts
+    if (deadline) complaint.deadline = new Date(deadline);
+    complaint.assignedByRole = "dean";
+    if (!Array.isArray(complaint.assignmentPath)) complaint.assignmentPath = [];
+    // Ensure path shows dean -> hod
+    if (!complaint.assignmentPath.includes("dean"))
+      complaint.assignmentPath.push("dean");
+    if (!complaint.assignmentPath.includes("hod"))
+      complaint.assignmentPath.push("hod");
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Assigned To HoD",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { hodId, deadline: complaint.deadline },
+    });
+
+    res.status(200).json({
+      message: "Complaint assigned to HoD (pending acceptance)",
+      complaint,
+    });
+  } catch (err) {
+    console.error("deanAssignToHod error:", err?.message);
+    res.status(500).json({ error: "Failed to assign to HoD" });
+  }
+};
+
+// Role-scoped inboxes for hod: show relevant Pending items
+
+// HoD: assign or reassign a complaint to a staff member in the same department
+export const hodAssignToStaff = async (req, res) => {
+  try {
+    if (req.user.role !== "hod") {
+      return res.status(403).json({ error: "Access denied: HoD only" });
+    }
+    const complaintId = req.params.id;
+    const { staffId, deadline } = req.body || {};
+
+    const staff = await User.findById(staffId).select(
+      "role isApproved isActive department"
+    );
+    if (
+      !staff ||
+      staff.role !== "staff" ||
+      !staff.isApproved ||
+      !staff.isActive
+    ) {
+      return res.status(400).json({ error: "Invalid staff member" });
+    }
+    // Enforce same department
+    if (!req.user.department || !staff.department) {
+      return res
+        .status(400)
+        .json({ error: "Department information missing for assignment" });
+    }
+    if (String(staff.department) !== String(req.user.department)) {
+      return res
+        .status(403)
+        .json({ error: "Can only assign staff in your department" });
+    }
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+
+    const wasPreviouslyAssigned = !!complaint.assignedTo;
+
+    complaint.assignedTo = staff._id;
+    complaint.assignedAt = new Date();
+    complaint.status = "In Progress";
+    if (deadline) complaint.deadline = new Date(deadline);
+    complaint.assignedByRole = "hod";
+    if (!Array.isArray(complaint.assignmentPath)) complaint.assignmentPath = [];
+    if (!complaint.assignmentPath.includes("hod"))
+      complaint.assignmentPath.push("hod");
+    if (!complaint.assignmentPath.includes("staff"))
+      complaint.assignmentPath.push("staff");
+
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: wasPreviouslyAssigned
+        ? "Complaint Reassigned"
+        : "Complaint Assigned",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: {
+        staffId: staff._id,
+        assignedByRole: "hod",
+        deadline: complaint.deadline,
+      },
+    });
+
+    res.status(200).json({ message: "Complaint assigned to staff", complaint });
+  } catch (err) {
+    console.error("hodAssignToStaff error:", err?.message);
+    res.status(500).json({ error: "Failed to assign complaint" });
+  }
+};
+
+// HoD: list complaints the HoD manages (self-accepted, or assigned to staff in same department)
+export const getHodManagedComplaints = async (req, res) => {
+  try {
+    if (req.user.role !== "hod")
+      return res.status(403).json({ error: "Access denied" });
+    const dept = req.user.department;
+    // Find staff in same department
+    const staffInDept = await User.find({ role: "staff", department: dept })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((s) => s._id);
+
+    const filter = {
+      $or: [
+        // Items accepted by HoD (assigned to self)
+        { assignedTo: req.user._id },
+        // Items assigned to staff in same department
+        { assignedTo: { $in: staffIds } },
+      ],
+    };
+
+    const complaints = await Complaint.find(filter)
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email role")
+      .sort({ updatedAt: -1 })
+      .limit(500)
+      .lean();
+
+    const formatted = complaints.map((c) => ({
+      id: String(c._id),
+      title: c.title,
+      category: c.category,
+      status: c.status,
+      priority: c.priority,
+      submittedDate: c.createdAt,
+      lastUpdated: c.updatedAt,
+      assignedTo:
+        c.assignedTo && typeof c.assignedTo === "object"
+          ? c.assignedTo.name || c.assignedTo.email
+          : null,
+      submittedBy:
+        c.submittedBy && typeof c.submittedBy === "object"
+          ? c.submittedBy.name || c.submittedBy.email
+          : null,
+      deadline: c.deadline,
+      assignedByRole: c.assignedByRole,
+      assignmentPath: Array.isArray(c.assignmentPath) ? c.assignmentPath : [],
+      submittedTo: c.submittedTo,
+      sourceRole: c.sourceRole,
+    }));
+
+    res.status(200).json(formatted);
+  } catch (err) {
+    console.error("getHodManagedComplaints error:", err?.message);
+    res.status(500).json({ error: "Failed to fetch HoD managed complaints" });
+  }
+};
+export const getHodInbox = async (req, res) => {
+  try {
+    if (req.user.role !== "hod")
+      return res.status(403).json({ error: "Access denied" });
+    const filter = {
+      status: "Pending",
+      isEscalated: { $ne: true },
+      $or: [
+        { submittedTo: { $regex: /hod/i } },
+        { assignedTo: req.user._id },
+        { assignmentPath: { $in: ["hod", "headOfDepartment"] } },
+      ],
+    };
+    const complaints = await Complaint.find(filter)
+      .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
+      .limit(100);
+    res.status(200).json(
+      complaints.map((c) => ({
+        id: c._id,
+        title: c.title,
+        category: c.category,
+        status: c.status,
+        priority: c.priority,
+        submittedDate: c.createdAt,
+        lastUpdated: c.updatedAt,
+        assignedTo: c.assignedTo,
+        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        deadline: c.deadline,
+        assignedByRole: c.assignedByRole,
+        assignmentPath: c.assignmentPath || [],
+        submittedTo: c.submittedTo,
+        sourceRole: c.sourceRole,
+      }))
+    );
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch HOD inbox" });
   }
 };
 
@@ -403,10 +703,11 @@ export const updateComplaintStatus = async (req, res) => {
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
 
-    if (
-      !complaint.assignedTo?.equals(req.user._id) &&
-      req.user.role !== "admin"
-    ) {
+    const isAssignedToSelf =
+      complaint.assignedTo && complaint.assignedTo.equals(req.user._id);
+    const canCloseAsLeader =
+      status === "Closed" && ["hod", "dean"].includes(req.user.role);
+    if (!isAssignedToSelf && req.user.role !== "admin" && !canCloseAsLeader) {
       return res
         .status(403)
         .json({ error: "Not authorized to update this complaint" });
@@ -424,6 +725,35 @@ export const updateComplaintStatus = async (req, res) => {
       complaint.resolvedAt = new Date();
     }
     await complaint.save();
+
+    // If HoD closes as rejection, notify the student
+    try {
+      if (status === "Closed") {
+        const actorRole = req.user.role;
+        if (
+          actorRole === "hod" ||
+          actorRole === "dean" ||
+          actorRole === "staff"
+        ) {
+          const submitter = await User.findById(complaint.submittedBy).select(
+            "name email"
+          );
+          if (submitter?.email) {
+            await sendComplaintUpdateEmail({
+              to: submitter.email,
+              studentName: submitter.name,
+              complaintCode: complaint.complaintCode,
+              title: complaint.title,
+              action: "rejected/closed",
+              byRole: actorRole?.toUpperCase?.() || actorRole,
+              note: description,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[updateComplaintStatus] email notify failed:", e?.message);
+    }
 
     // Find the most recent activity log for this complaint with the same status action (any user)
     const lastSameStatusLog = await ActivityLog.findOne({

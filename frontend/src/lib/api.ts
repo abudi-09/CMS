@@ -913,6 +913,23 @@ export async function updateComplaintStatusApi(
   return data.complaint || data;
 }
 
+// Admin/Dean/HoD: approve a complaint (Pending -> In Progress). If assignToSelf is true,
+// the approver becomes the assignee.
+export async function approveComplaintApi(
+  complaintId: string,
+  payload?: { assignToSelf?: boolean }
+) {
+  const res = await fetch(`${API_BASE}/complaints/approve/${complaintId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload || {}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to approve complaint");
+  return data.complaint || data;
+}
+
 // User: submit feedback for a resolved complaint
 export async function submitComplaintFeedbackApi(
   complaintId: string,
@@ -955,6 +972,112 @@ export async function getStaffFeedbackApi() {
     avgResolutionMs?: number;
     category?: string;
     department?: string;
+  }>;
+}
+
+// Dean: inbox of pending complaints (latest 100)
+export type InboxComplaint = {
+  id: string;
+  title: string;
+  category?: string;
+  status: "Pending" | "In Progress" | "Resolved" | "Closed";
+  priority?: "Low" | "Medium" | "High" | "Critical";
+  submittedDate?: string | Date;
+  lastUpdated?: string | Date;
+  assignedTo?: string | { name?: string } | null;
+  submittedBy?: string | { name?: string; email?: string } | null;
+  deadline?: string | Date | null;
+  assignedByRole?: string | null;
+  assignmentPath?: string[];
+  submittedTo?: string | null;
+  sourceRole?: string | null;
+};
+
+export async function getDeanInboxApi() {
+  const res = await fetch(`${API_BASE}/complaints/inbox/dean`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch dean inbox");
+  return data as Array<InboxComplaint>;
+}
+
+// HoD: inbox of pending complaints (latest 100)
+export async function getHodInboxApi() {
+  const res = await fetch(`${API_BASE}/complaints/inbox/hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch HOD inbox");
+  return data as Array<InboxComplaint>;
+}
+
+// Dean: assign to HoD with optional deadline (keeps complaint Pending for HoD to accept)
+export async function deanAssignToHodApi(
+  complaintId: string,
+  payload: { hodId: string; deadline?: string | Date }
+) {
+  const res = await fetch(
+    `${API_BASE}/complaints/dean/assign-to-hod/${complaintId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to assign to HoD");
+  return data.complaint || data;
+}
+
+// HoD: assign to staff in department
+export async function hodAssignToStaffApi(
+  complaintId: string,
+  payload: { staffId: string; deadline?: string | Date }
+) {
+  const res = await fetch(
+    `${API_BASE}/complaints/hod/assign-to-staff/${complaintId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to assign to staff");
+  return data.complaint || data;
+}
+
+// HoD: list complaints managed by HoD (self + staff in department)
+export async function getHodManagedComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/hod/managed`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch HoD complaints");
+  return data as Array<{
+    id: string;
+    title: string;
+    category?: string;
+    status: "Pending" | "In Progress" | "Resolved" | "Closed";
+    priority?: "Low" | "Medium" | "High" | "Critical";
+    submittedDate?: string | Date;
+    lastUpdated?: string | Date;
+    assignedTo?: string | null;
+    submittedBy?: string | null;
+    deadline?: string | Date | null;
+    assignedByRole?: string | null;
+    assignmentPath?: string[];
+    submittedTo?: string | null;
+    sourceRole?: string | null;
   }>;
 }
 

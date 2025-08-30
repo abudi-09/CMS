@@ -23,10 +23,12 @@ import {
 import { Clock, MessageSquare, UserCheck, Users } from "lucide-react";
 import {
   getDeanPendingHodApi,
-  listAllComplaintsApi,
   getDeanVisibleComplaintStatsApi,
-  API_BASE,
+  getDeanInboxApi,
+  approveComplaintApi,
+  type InboxComplaint,
 } from "@/lib/api";
+import { deanAssignToHodApi, getDeanActiveHodApi } from "@/lib/api";
 
 // Utilities
 const toDate = (d?: string | Date | null) => (d ? new Date(d) : new Date());
@@ -94,8 +96,10 @@ export function DeanDashboard() {
         // Optional one-time backend connectivity check (commented for production)
         // await fetch(`${API_BASE}/stats/test-db`).catch(() => {});
 
-        const rawComplaints = await listAllComplaintsApi();
-        const stats = await getDeanVisibleComplaintStatsApi();
+        const [inbox, stats] = await Promise.all([
+          getDeanInboxApi(),
+          getDeanVisibleComplaintStatsApi(),
+        ]);
 
         if (!stats || typeof stats !== "object") {
           console.error("❌ Invalid stats response:", stats);
@@ -120,23 +124,28 @@ export function DeanDashboard() {
           isEscalated?: boolean;
           department?: string | null;
         };
-        const mapped: Complaint[] = (rawComplaints as Raw[]).map((c) => ({
-          id: c.id,
-          title: c.title,
+        const mapped: Complaint[] = (inbox as InboxComplaint[]).map((c) => ({
+          id: String(c.id || ""),
+          title: String(c.title || "Complaint"),
           status: (c.status as Complaint["status"]) || "Pending",
-          priority: c.priority || "Medium",
+          priority: (c.priority as Complaint["priority"]) || "Medium",
           deadline: c.deadline ? new Date(c.deadline) : undefined,
-          submittedBy: c.submittedBy || "",
-          assignedStaff: c.assignedTo || undefined,
-          // Backend doesn't send role; leave undefined
-          category: c.category || "General",
-          description: c.description || "",
-          submittedDate: toDate(c.submittedDate || c.createdAt || undefined),
+          submittedBy:
+            typeof c.submittedBy === "string"
+              ? c.submittedBy
+              : c?.submittedBy?.name || "",
+          assignedStaff:
+            typeof c.assignedTo === "string"
+              ? c.assignedTo
+              : c?.assignedTo?.name || undefined,
+          category: String(c.category || "General"),
+          description: "",
+          submittedDate: toDate(c.submittedDate || undefined),
           assignedDate: undefined,
-          lastUpdated: toDate(c.lastUpdated || c.updatedAt || undefined),
-          feedback: (c.feedback as Complaint["feedback"]) || undefined,
-          isEscalated: !!c.isEscalated,
-          department: c.department || undefined,
+          lastUpdated: toDate(c.lastUpdated || undefined),
+          feedback: undefined,
+          isEscalated: false,
+          department: undefined,
         }));
         setComplaints(mapped);
         setSummaryData([
@@ -186,28 +195,88 @@ export function DeanDashboard() {
     setShowDetailModal(true);
   };
 
-  const handleAccept = (id: string) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              status: "In Progress",
-              assignedStaff: "Dean",
-              assignedStaffRole: "dean",
-              lastUpdated: new Date(),
-            }
-          : c
-      )
-    );
+  const handleAccept = async (id: string) => {
+    try {
+      await approveComplaintApi(id, { assignToSelf: true });
+      // Refresh inbox list after approving
+      const inbox = await getDeanInboxApi();
+      const mapped: Complaint[] = (inbox as InboxComplaint[]).map((c) => ({
+        id: String(c.id || ""),
+        title: String(c.title || "Complaint"),
+        status: (c.status as Complaint["status"]) || "Pending",
+        priority: (c.priority as Complaint["priority"]) || "Medium",
+        deadline: c.deadline ? new Date(c.deadline) : undefined,
+        submittedBy:
+          typeof c.submittedBy === "string"
+            ? c.submittedBy
+            : c?.submittedBy?.name || "",
+        assignedStaff:
+          typeof c.assignedTo === "string"
+            ? c.assignedTo
+            : c?.assignedTo?.name || undefined,
+        category: String(c.category || "General"),
+        description: "",
+        submittedDate: toDate(c.submittedDate || undefined),
+        assignedDate: undefined,
+        lastUpdated: toDate(c.lastUpdated || undefined),
+        feedback: undefined,
+        isEscalated: false,
+        department: undefined,
+      }));
+      setComplaints(mapped);
+    } catch (e) {
+      // noop
+    }
   };
 
-  const handleReject = (id: string) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, status: "Closed", lastUpdated: new Date() } : c
-      )
-    );
+  const handleReject = (_id: string) => {
+    // Dean closing directly from dashboard is out of scope; handled elsewhere
+  };
+
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const [hodList, setHodList] = useState<
+    Array<{ _id: string; name?: string; fullName?: string; email: string }>
+  >([]);
+
+  useEffect(() => {
+    // Preload active HoDs for quick assign
+    getDeanActiveHodApi()
+      .then((arr) => setHodList(arr || []))
+      .catch(() => setHodList([]));
+  }, []);
+
+  const assignToHod = async (complaintId: string, hodId: string) => {
+    try {
+      await deanAssignToHodApi(complaintId, { hodId });
+      const inbox = await getDeanInboxApi();
+      const mapped: Complaint[] = (inbox as InboxComplaint[]).map((c) => ({
+        id: String(c.id || ""),
+        title: String(c.title || "Complaint"),
+        status: (c.status as Complaint["status"]) || "Pending",
+        priority: (c.priority as Complaint["priority"]) || "Medium",
+        deadline: c.deadline ? new Date(c.deadline) : undefined,
+        submittedBy:
+          typeof c.submittedBy === "string"
+            ? c.submittedBy
+            : c?.submittedBy?.name || "",
+        assignedStaff:
+          typeof c.assignedTo === "string"
+            ? c.assignedTo
+            : c?.assignedTo?.name || undefined,
+        category: String(c.category || "General"),
+        description: "",
+        submittedDate: toDate(c.submittedDate || undefined),
+        assignedDate: undefined,
+        lastUpdated: toDate(c.lastUpdated || undefined),
+        feedback: undefined,
+        isEscalated: false,
+        department: undefined,
+      }));
+      setComplaints(mapped);
+      setAssigning(null);
+    } catch (_) {
+      // ignore
+    }
   };
 
   // Summary cards now reflect live complaint stats
@@ -279,7 +348,7 @@ export function DeanDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserCheck className="h-5 w-5" />
-              Staff Management
+              Department Management
               {pendingStaff.length > 0 && (
                 <Badge className="bg-orange-100 text-orange-800 ml-auto">
                   {pendingStaff.length}
@@ -582,6 +651,42 @@ export function DeanDashboard() {
                             >
                               Accept
                             </Button>
+                          )}
+                          {(complaint.status === "Pending" ||
+                            complaint.status === "Unassigned") && (
+                            <div className="flex items-center gap-2">
+                              <select
+                                className="border rounded px-2 py-1 text-xs"
+                                value={
+                                  assigning === complaint.id ? assigning : ""
+                                }
+                                onChange={(e) => setAssigning(complaint.id)}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <option value="">Assign to HoD</option>
+                                {hodList.map((h) => (
+                                  <option key={h._id} value={h._id}>
+                                    {h.fullName || h.name || h.email}
+                                  </option>
+                                ))}
+                              </select>
+                              {assigning === complaint.id && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs"
+                                  onClick={() => {
+                                    const sel =
+                                      (document.activeElement as HTMLSelectElement) ||
+                                      null;
+                                    const hodId = (sel && sel.value) || "";
+                                    if (hodId) assignToHod(complaint.id, hodId);
+                                  }}
+                                >
+                                  Send
+                                </Button>
+                              )}
+                            </div>
                           )}
                           <Button
                             size="sm"
