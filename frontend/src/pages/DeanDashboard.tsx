@@ -13,6 +13,14 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
   Table,
   TableBody,
   TableCell,
@@ -245,6 +253,10 @@ export function DeanDashboard() {
   const [hodList, setHodList] = useState<
     Array<{ _id: string; name?: string; fullName?: string; email: string }>
   >([]);
+  // Modal state for Assign → matches screenshot (Select HoD + optional deadline)
+  const [assignHodOpen, setAssignHodOpen] = useState<string | null>(null);
+  const [selectedHodId, setSelectedHodId] = useState<string>("");
+  const [hodDeadline, setHodDeadline] = useState<string>("");
 
   useEffect(() => {
     // Preload active HoDs for quick assign
@@ -284,6 +296,49 @@ export function DeanDashboard() {
       setAssigning(null);
     } catch (_) {
       // ignore
+    }
+  };
+
+  // Confirm from modal
+  type AssignHodPayload = { hodId: string; deadline?: string };
+  const confirmAssignHod = async () => {
+    if (!assignHodOpen || !selectedHodId) return;
+    try {
+      const payload: AssignHodPayload = {
+        hodId: selectedHodId,
+        // pass ISO deadline only if set
+        deadline: hodDeadline ? new Date(hodDeadline).toISOString() : undefined,
+      };
+      await deanAssignToHodApi(assignHodOpen, payload);
+      const inbox = await getDeanInboxApi();
+      const mapped: Complaint[] = (inbox as InboxComplaint[]).map((c) => ({
+        id: String(c.id || ""),
+        title: String(c.title || "Complaint"),
+        status: (c.status as Complaint["status"]) || "Pending",
+        priority: (c.priority as Complaint["priority"]) || "Medium",
+        deadline: c.deadline ? new Date(c.deadline) : undefined,
+        submittedBy:
+          typeof c.submittedBy === "string"
+            ? c.submittedBy
+            : c?.submittedBy?.name || "",
+        assignedStaff:
+          typeof c.assignedTo === "string"
+            ? c.assignedTo
+            : c?.assignedTo?.name || undefined,
+        category: String(c.category || "General"),
+        description: "",
+        submittedDate: toDate(c.submittedDate || undefined),
+        assignedDate: undefined,
+        lastUpdated: toDate(c.lastUpdated || undefined),
+        feedback: undefined,
+        isEscalated: false,
+        department: undefined,
+      }));
+      setComplaints(mapped);
+    } finally {
+      setAssignHodOpen(null);
+      setSelectedHodId("");
+      setHodDeadline("");
     }
   };
 
@@ -672,43 +727,13 @@ export function DeanDashboard() {
                           )}
                           {(complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={
-                                  assigning === complaint.id
-                                    ? assigningHodId
-                                    : ""
-                                }
-                                onValueChange={(v) => {
-                                  // mark which complaint is being assigned and store selected hod id
-                                  setAssigning(complaint.id);
-                                  setAssigningHodId(v);
-                                }}
-                              >
-                                <SelectTrigger className="w-40 text-xs">
-                                  <SelectValue placeholder="Assign to HoD" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {hodList.map((h) => (
-                                    <SelectItem key={h._id} value={h._id}>
-                                      {h.fullName || h.name || h.email}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {assigning === complaint.id && assigningHodId && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs"
-                                  onClick={() =>
-                                    assignToHod(complaint.id, assigningHodId)
-                                  }
-                                >
-                                  Send
-                                </Button>
-                              )}
-                            </div>
+                            <Button
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => setAssignHodOpen(complaint.id)}
+                            >
+                              Assign to HoD
+                            </Button>
                           )}
                           <Button
                             size="sm"
@@ -733,6 +758,68 @@ export function DeanDashboard() {
         onOpenChange={setShowDetailModal}
         complaint={selectedComplaint}
       />
+
+      {/* Assign to HoD modal - mirrors Assign & Reassign page styling */}
+      <Dialog
+        open={!!assignHodOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignHodOpen(null);
+            setSelectedHodId("");
+            setHodDeadline("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign to Head of Department</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Select a Head of Department to reassign this complaint. It will
+              remain Pending until the HoD accepts.
+            </p>
+            <Select value={selectedHodId} onValueChange={setSelectedHodId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select HoD" />
+              </SelectTrigger>
+              <SelectContent>
+                {hodList.map((h) => (
+                  <SelectItem key={h._id} value={h._id}>
+                    {h.fullName || h.name || h.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div>
+              <label className="text-xs text-muted-foreground">
+                Optional deadline
+              </label>
+              <Input
+                type="date"
+                className="w-full"
+                value={hodDeadline}
+                onChange={(e) => setHodDeadline(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAssignHodOpen(null);
+                setSelectedHodId("");
+                setHodDeadline("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmAssignHod} disabled={!selectedHodId}>
+              Assign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
