@@ -145,8 +145,6 @@ router.put(
   adminReactivateDean
 );
 
-// Admin HoD routes removed in dean-only flow
-
 // Public (authenticated): list approved & active recipients
 router.get("/public/active-deans", protectRoute, publicGetActiveDeans);
 router.get("/public/active-admins", protectRoute, publicGetActiveAdmins);
