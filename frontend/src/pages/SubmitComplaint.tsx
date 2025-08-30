@@ -3,6 +3,7 @@ import { useState, useContext, useEffect } from "react";
 // Categories now dynamically fetched; the list above has been moved to backend seeding.
 // Update the path below if your ComplaintContext file is in a different location
 import { useComplaints } from "@/context/ComplaintContext";
+import type { Complaint as ComplaintModel } from "@/components/ComplaintCard";
 import { CategoryContext } from "@/context/CategoryContext"; // still used for initial mount (optional)
 import { fetchCategoriesApi } from "@/lib/categoryApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,6 +96,11 @@ export function SubmitComplaint() {
   const [showDetailModal, setShowDetailModal] = useReactState(false);
   const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
+  // Type for addComplaint payload
+  type AddComplaintInput = Omit<
+    ComplaintModel,
+    "id" | "status" | "submittedDate" | "lastUpdated"
+  > & { recipientStaffId?: string; recipientHodId?: string };
   // Recipient options for staff (filtered by department, approved, active)
   const [staffOptions, setStaffOptions] = useState<
     Array<{ id: string; fullName: string }>
@@ -369,7 +375,7 @@ export function SubmitComplaint() {
       if (targetRole === "dean") assignmentPath.push("dean");
       if (targetRole === "admin") assignmentPath.push("admin");
 
-      const savedComplaint = await addComplaint({
+      const newComplaintPayload: AddComplaintInput = {
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
         submittedBy: formData.anonymous
@@ -399,7 +405,12 @@ export function SubmitComplaint() {
         // Important: tell backend which staff to assign to immediately
         recipientStaffId:
           formData.role === "staff" ? formData.recipient : undefined,
-      });
+        // When submitting directly to HoD, pass the selected HoD id
+        recipientHodId:
+          formData.role === "hod" ? formData.recipient : undefined,
+      };
+
+      const savedComplaint = await addComplaint(newComplaintPayload);
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);
       toast({

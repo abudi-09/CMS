@@ -851,6 +851,8 @@ export interface Complaint {
   >;
   // When submitting directly to staff
   recipientStaffId?: string;
+  // When submitting directly to a specific HoD
+  recipientHodId?: string;
 }
 
 export async function submitComplaintApi(complaint: Complaint) {
@@ -1039,7 +1041,7 @@ export async function deanAssignToHodApi(
 // HoD: assign to staff in department
 export async function hodAssignToStaffApi(
   complaintId: string,
-  payload: { staffId: string; deadline?: string | Date }
+  payload: { staffId: string; deadline?: string | Date; note?: string }
 ) {
   const res = await fetch(
     `${API_BASE}/complaints/hod/assign-to-staff/${complaintId}`,
