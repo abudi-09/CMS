@@ -47,6 +47,7 @@ import { HoDAssignComplaints } from "@/pages/HoDAssignComplaints";
 import HoDAnalytics from "@/pages/HoDAnalytics";
 import HODStaffManagement from "@/pages/HODStaffManagement";
 import DepartmentManagement from "@/pages/DepartmentManagement";
+import HoDAllComplaints from "@/pages/HoDAllComplaints";
 import { Profile } from "@/pages/Profile";
 import { Layout } from "@/components/Layout";
 import NotFound from "./pages/NotFound";
@@ -230,6 +231,11 @@ function AppContent() {
                 <Route
                   path="/hod/assign-complaints"
                   element={<HoDAssignComplaints />}
+                />
+
+                <Route
+                  path="/hod/all-complaints"
+                  element={<HoDAllComplaints />}
                 />
 
                 <Route

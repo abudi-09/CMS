@@ -766,7 +766,7 @@ export const getHodAll = async (req, res) => {
 
     const accepted = managed
       .filter((c) =>
-        ["In Progress", "Assigned"].includes(String(c.status || ""))
+        ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
       )
       .filter(
         (c) =>
@@ -776,7 +776,7 @@ export const getHodAll = async (req, res) => {
 
     const assigned = managed
       .filter((c) =>
-        ["In Progress", "Assigned"].includes(String(c.status || ""))
+        ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
       )
       .filter(
         (c) =>
@@ -785,6 +785,11 @@ export const getHodAll = async (req, res) => {
             (id) => String(id) === String(c.assignedTo?._id || c.assignedTo)
           )
       )
+      .map(mapItem);
+
+    // Resolved in department scope (self or staff)
+    const resolved = managed
+      .filter((c) => String(c.status) === "Resolved")
       .map(mapItem);
 
     const rejected = managed
@@ -796,11 +801,13 @@ export const getHodAll = async (req, res) => {
       pending,
       accepted,
       assigned,
+      resolved,
       rejected,
       counts: {
         pending: pending.length,
         accepted: accepted.length,
         assigned: assigned.length,
+        resolved: resolved.length,
         rejected: rejected.length,
       },
       lastUpdated: new Date().toISOString(),

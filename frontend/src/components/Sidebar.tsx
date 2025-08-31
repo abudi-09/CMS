@@ -100,8 +100,7 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Assign Complaints",
       href: "/hod/assign-complaints",
     },
-
-    { icon: FileText, label: "All Complaints", href: "/all-complaints" },
+    { icon: FileText, label: "All Complaints", href: "/hod/all-complaints" },
     {
       icon: GraduationCap,
       label: "Staff Performance",

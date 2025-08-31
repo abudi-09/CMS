@@ -1091,11 +1091,13 @@ export type HodAllResponse = {
   >;
   accepted: Array<InboxComplaint & { department?: string | null }>;
   assigned: Array<InboxComplaint & { department?: string | null }>;
+  resolved: Array<InboxComplaint & { department?: string | null }>;
   rejected: Array<InboxComplaint & { department?: string | null }>;
   counts: {
     pending: number;
     accepted: number;
     assigned: number;
+    resolved: number;
     rejected: number;
   };
   lastUpdated: string;
