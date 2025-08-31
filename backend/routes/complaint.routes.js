@@ -18,6 +18,7 @@ import {
   getHodInbox,
   hodAssignToStaff,
   getHodManagedComplaints,
+  getHodAll,
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -51,6 +52,8 @@ router.get("/inbox/hod", protectRoute, hodOnly, getHodInbox);
 router.put("/hod/assign-to-staff/:id", protectRoute, hodOnly, hodAssignToStaff);
 // HoD managed complaints (self or staff in dept)
 router.get("/hod/managed", protectRoute, hodOnly, getHodManagedComplaints);
+// HoD consolidated data
+router.get("/hod/all", protectRoute, hodOnly, getHodAll);
 router.get("/feedback/all", protectRoute, adminOnly, getAllFeedback);
 
 // STAFF

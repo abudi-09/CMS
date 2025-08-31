@@ -62,37 +62,6 @@ export function UserDashboard() {
         submittedTo?: string;
       }
       const arr: DTO[] = Array.isArray(data) ? (data as DTO[]) : [];
-      // helper to map incoming role strings to the Complaint.sourceRole union
-      const roleGuard = (
-        r?: string | null
-      ): Complaint["sourceRole"] | undefined => {
-        if (!r) return undefined;
-        switch ((r || "").toLowerCase()) {
-          case "student":
-            return "student";
-          case "staff":
-            return "staff";
-          case "headofdepartment":
-          case "hod":
-            return "headOfDepartment";
-          case "dean":
-            return "dean";
-          case "admin":
-            return "admin";
-          default:
-            return undefined;
-        }
-      };
-
-      const roleGuardNoStaff = (
-        r?: string | null
-      ): Complaint["assignedByRole"] | undefined => {
-        const g = roleGuard(r);
-        return g && g !== "staff"
-          ? (g as Complaint["assignedByRole"])
-          : undefined;
-      };
-
       const mapped: Complaint[] = arr.map((c: DTO) => ({
         id: c.id || c._id || c.complaintCode || "",
         title: c.title || c.subject || "Untitled Complaint",
@@ -103,11 +72,44 @@ export function UserDashboard() {
         submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
         assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
         assignedStaffRole:
-          (c.assignedTo?.role as Complaint["assignedStaffRole"]) || "staff",
-        assignedByRole: roleGuardNoStaff(c.assignedByRole),
+          c.assignedTo?.role === "dean" ||
+          c.assignedTo?.role === "headOfDepartment" ||
+          c.assignedTo?.role === "staff" ||
+          c.assignedTo?.role === "admin"
+            ? (c.assignedTo?.role as
+                | "dean"
+                | "headOfDepartment"
+                | "staff"
+                | "admin")
+            : undefined,
+        assignedByRole:
+          c.assignedByRole === "student" ||
+          c.assignedByRole === "headOfDepartment" ||
+          c.assignedByRole === "dean" ||
+          c.assignedByRole === "admin"
+            ? (c.assignedByRole as
+                | "student"
+                | "headOfDepartment"
+                | "dean"
+                | "admin")
+            : undefined,
         assignmentPath: Array.isArray(c.assignmentPath)
-          ? (c.assignmentPath.map((x) => roleGuard(x)).filter(Boolean) as Array<
-              Complaint["sourceRole"] | "staff"
+          ? (c.assignmentPath.filter(
+              (
+                r
+              ): r is
+                | "student"
+                | "headOfDepartment"
+                | "dean"
+                | "admin"
+                | "staff" =>
+                r === "student" ||
+                r === "headOfDepartment" ||
+                r === "dean" ||
+                r === "admin" ||
+                r === "staff"
+            ) as Array<
+              "student" | "headOfDepartment" | "dean" | "admin" | "staff"
             >)
           : [],
         submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
@@ -120,10 +122,23 @@ export function UserDashboard() {
         resolutionNote: c.resolutionNote,
         evidenceFile: c.evidenceFile,
         isEscalated: !!c.isEscalated,
-        sourceRole: roleGuard(c.sourceRole),
+        sourceRole:
+          c.sourceRole === "student" ||
+          c.sourceRole === "staff" ||
+          c.sourceRole === "headOfDepartment" ||
+          c.sourceRole === "dean" ||
+          c.sourceRole === "admin"
+            ? (c.sourceRole as
+                | "student"
+                | "staff"
+                | "headOfDepartment"
+                | "dean"
+                | "admin")
+            : undefined,
         submittedTo: c.submittedTo,
         department: c.department,
       }));
+
       setComplaints(mapped);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

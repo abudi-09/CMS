@@ -21,7 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CategoryContext, Category } from "@/context/CategoryContext";
-import { submitComplaintApi } from "@/lib/api";
+import { submitComplaintApi, type Complaint as ApiComplaint } from "@/lib/api";
 
 const departments = [
   "ICT",
@@ -39,6 +39,7 @@ export function ComplaintForm() {
     description: "",
     priority: "Medium",
   });
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
@@ -50,14 +51,16 @@ export function ComplaintForm() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      await submitComplaintApi({
+      const payload: ApiComplaint = {
         title: formData.title,
         department: formData.department,
         category: formData.category,
         description: formData.description,
         priority: formData.priority as Priority,
+        isAnonymous,
         sourceRole: "student",
-      });
+      } as ApiComplaint;
+      await submitComplaintApi(payload);
       setSubmitted(true);
       toast({
         title: "Complaint Submitted Successfully",
@@ -87,6 +90,7 @@ export function ComplaintForm() {
         description: "",
         priority: "Medium",
       });
+      setIsAnonymous(false);
     }, 3000);
   };
   <div className="space-y-2">
@@ -243,6 +247,17 @@ export function ComplaintForm() {
                   <div className="text-sm text-muted-foreground text-right">
                     {formData.description.length}/1000 characters
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    id="anonymous"
+                    type="checkbox"
+                    checked={isAnonymous}
+                    onChange={(e) => setIsAnonymous(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="anonymous">Send complaint anonymously</Label>
                 </div>
 
                 <Button

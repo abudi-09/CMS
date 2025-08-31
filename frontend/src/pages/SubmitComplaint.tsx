@@ -3,7 +3,6 @@ import { useState, useContext, useEffect } from "react";
 // Categories now dynamically fetched; the list above has been moved to backend seeding.
 // Update the path below if your ComplaintContext file is in a different location
 import { useComplaints } from "@/context/ComplaintContext";
-import type { Complaint as ComplaintModel } from "@/components/ComplaintCard";
 import { CategoryContext } from "@/context/CategoryContext"; // still used for initial mount (optional)
 import { fetchCategoriesApi } from "@/lib/categoryApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,11 +95,6 @@ export function SubmitComplaint() {
   const [showDetailModal, setShowDetailModal] = useReactState(false);
   const [detailComplaint, setDetailComplaint] = useReactState(null);
   const { toast } = useToast();
-  // Type for addComplaint payload
-  type AddComplaintInput = Omit<
-    ComplaintModel,
-    "id" | "status" | "submittedDate" | "lastUpdated"
-  > & { recipientStaffId?: string; recipientHodId?: string };
   // Recipient options for staff (filtered by department, approved, active)
   const [staffOptions, setStaffOptions] = useState<
     Array<{ id: string; fullName: string }>
@@ -185,24 +179,25 @@ export function SubmitComplaint() {
   useEffect(() => {
     const loadHodRecipients = async () => {
       if (formData.role !== "hod") {
+        // We don't need currentDepartment here anymore
         setHodOptions([]);
         return;
       }
       setRecipientsLoading(true);
       try {
-        // Fetch all active HODs from backend
-        const res = await fetch("http://localhost:5000/api/staff/hod/active", {
-          credentials: "include",
-        });
-        const users = await res.json();
-        const mappedUsers = (users || []).map((u: any) => ({
-          id: u.id || u._id,
+        // This API call is already designed to get the HoD for the current user's department.
+        const users = await listMyDepartmentHodApi();
+
+        // FIX: Remove the redundant frontend filter. Trust the API response directly.
+        const mappedUsers = (users || []).map((u) => ({
+          id: u._id,
           fullName: u.fullName || u.name || u.username || "Unnamed HoD",
         }));
+
         setHodOptions(mappedUsers);
       } catch (err) {
         console.error("Failed to load HoD recipients:", err);
-        setHodOptions([]);
+        setHodOptions([]); // Fallback to empty on error
         toast({
           title: "Could not load recipients",
           description: "There was a problem fetching the Head of Department.",
@@ -374,7 +369,7 @@ export function SubmitComplaint() {
       if (targetRole === "dean") assignmentPath.push("dean");
       if (targetRole === "admin") assignmentPath.push("admin");
 
-      const newComplaintPayload: AddComplaintInput = {
+      const savedComplaint = await addComplaint({
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
         submittedBy: formData.anonymous
@@ -404,12 +399,7 @@ export function SubmitComplaint() {
         // Important: tell backend which staff to assign to immediately
         recipientStaffId:
           formData.role === "staff" ? formData.recipient : undefined,
-        // When submitting directly to HoD, pass the selected HoD id
-        recipientHodId:
-          formData.role === "hod" ? formData.recipient : undefined,
-      };
-
-      const savedComplaint = await addComplaint(newComplaintPayload);
+      });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);
       toast({

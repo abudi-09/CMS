@@ -193,19 +193,9 @@ export function ComplaintTable({
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1 flex-1">
-                        {/* Show friendly reference code when available; hide raw DB id */}
-                        {(complaint as unknown as { friendlyCode?: string })
-                          .friendlyCode ? (
-                          <div className="text-xs text-muted-foreground">
-                            {
-                              (
-                                complaint as unknown as {
-                                  friendlyCode?: string;
-                                }
-                              ).friendlyCode
-                            }
-                          </div>
-                        ) : null}
+                        <div className="text-xs text-muted-foreground">
+                          #{complaint.id}
+                        </div>
                         <h4 className="font-medium text-sm leading-tight">
                           {complaint.title}
                         </h4>
@@ -312,19 +302,7 @@ export function ComplaintTable({
                   {filteredComplaints.map((complaint) => (
                     <TableRow key={complaint.id}>
                       <TableCell className="font-medium">
-                        {/* Show friendly reference code when available; hide raw DB id */}
-                        {(complaint as unknown as { friendlyCode?: string })
-                          .friendlyCode ? (
-                          <span>
-                            {
-                              (
-                                complaint as unknown as {
-                                  friendlyCode?: string;
-                                }
-                              ).friendlyCode
-                            }
-                          </span>
-                        ) : null}
+                        #{complaint.id}
                       </TableCell>
                       <TableCell className="max-w-xs">
                         <div className="truncate">{complaint.title}</div>

@@ -1156,19 +1156,9 @@ export function MyAssignedComplaints() {
                           <h3 className="font-medium text-sm">
                             {complaint.title}
                           </h3>
-                          {/* Show friendly reference code when available; hide raw DB id */}
-                          {(complaint as unknown as { friendlyCode?: string })
-                            .friendlyCode ? (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {
-                                (
-                                  complaint as unknown as {
-                                    friendlyCode?: string;
-                                  }
-                                ).friendlyCode
-                              }
-                            </p>
-                          ) : null}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            #{complaint.id}
+                          </p>
                         </div>
                         <div className="flex gap-2 ml-2">
                           {isNew(complaint) && (

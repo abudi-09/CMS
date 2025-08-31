@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,14 +25,14 @@ export function AssignStaffModal({
   complaint,
   open,
   onOpenChange,
-  onAssign,
+  onAssign
 }: AssignStaffModalProps) {
   const [selectedStaff, setSelectedStaff] = useState("");
   const [notes, setNotes] = useState("");
   const { getAllStaff } = useAuth();
 
-  const approvedStaff = getAllStaff().filter(
-    (staff) => staff.status === "approved" && staff.role === "staff"
+  const approvedStaff = getAllStaff().filter(staff => 
+    staff.status === 'approved' && staff.role === 'staff'
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -75,7 +69,7 @@ export function AssignStaffModal({
           <div className="p-4 bg-muted rounded-lg">
             <h4 className="font-medium">{complaint.title}</h4>
             <p className="text-sm text-muted-foreground mt-1">
-              {/* Complaint ID intentionally hidden in UI */}
+              ID: #{complaint.id}
             </p>
             <p className="text-sm text-muted-foreground">
               Category: {complaint.category}
@@ -88,11 +82,7 @@ export function AssignStaffModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="staff-select">Select Staff Member</Label>
-              <Select
-                value={selectedStaff}
-                onValueChange={setSelectedStaff}
-                required
-              >
+              <Select value={selectedStaff} onValueChange={setSelectedStaff} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a staff member" />
                 </SelectTrigger>
@@ -100,12 +90,8 @@ export function AssignStaffModal({
                   {approvedStaff.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id}>
                       <div>
-                        <div className="font-medium">
-                          {staff.fullName || staff.name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {staff.department}
-                        </div>
+                        <div className="font-medium">{staff.fullName || staff.name}</div>
+                        <div className="text-sm text-muted-foreground">{staff.department}</div>
                       </div>
                     </SelectItem>
                   ))}
@@ -114,9 +100,7 @@ export function AssignStaffModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="assignment-notes">
-                Assignment Notes (Optional)
-              </Label>
+              <Label htmlFor="assignment-notes">Assignment Notes (Optional)</Label>
               <Textarea
                 id="assignment-notes"
                 placeholder="Any specific instructions or notes for the assigned staff member..."
@@ -127,11 +111,7 @@ export function AssignStaffModal({
             </div>
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={!selectedStaff}>

@@ -592,19 +592,11 @@ export function DeanAssignComplaints() {
       );
     if (activeTab === "Accepted")
       return c.status === "In Progress" && c.assignedStaffRole === "dean";
-    if (activeTab === "Assigned") {
-      const raw = Array.isArray(c.assignmentPath)
-        ? (c.assignmentPath as unknown as string[])
-        : [];
-      const lower = raw.map((r) => r.toLowerCase());
-      const toHod = lower.includes("hod") || lower.includes("headofdepartment");
+    if (activeTab === "Assigned")
       return (
-        ((c.status === "In Progress" || c.status === "Assigned") &&
-          c.assignedStaffRole === "headOfDepartment") ||
-        // Also show items that are Pending because they're awaiting HoD acceptance
-        (c.status === "Pending" && toHod)
+        (c.status === "In Progress" || c.status === "Assigned") &&
+        c.assignedStaffRole === "headOfDepartment"
       );
-    }
     if (activeTab === "Rejected") return c.status === "Closed";
     return false; // exclude other statuses like Resolved entirely
   };

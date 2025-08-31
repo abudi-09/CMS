@@ -17,13 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Table,
   TableBody,
   TableCell,
@@ -71,7 +64,7 @@ export function HoDAssignComplaints() {
   const { user } = useAuth();
   // Pagination state
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 10;
   // Data state
   const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
   // Inbox for pending items directed to HoD
@@ -94,14 +87,26 @@ export function HoDAssignComplaints() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
-  // Modal state for assigning to staff
-  const [assignStaffOpen, setAssignStaffOpen] = useState<string | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
-  const [staffDeadline, setStaffDeadline] = useState<string>("");
-  const [staffNote, setStaffNote] = useState<string>("");
   const [activeTab, setActiveTab] = useState<
-    "Pending" | "Accepted" | "Assigned" | "Rejected"
+    "All" | "Pending" | "Accepted" | "Assigned" | "Rejected"
   >("Pending");
+  // Helper to compare if a complaint is assigned to current HoD
+  const isAssignedToSelf = (c: ComplaintType) => {
+    const assignee = (c.assignedStaff || "").toLowerCase();
+    const myName = (
+      (user?.fullName as string) ||
+      (user?.name as string) ||
+      ""
+    ).toLowerCase();
+    const myEmail = (user?.email as string)?.toLowerCase?.() || "";
+    if (!assignee) return false;
+    return (
+      assignee === myName ||
+      assignee === myEmail ||
+      assignee.includes(myName) ||
+      assignee.includes(myEmail)
+    );
+  };
   // Type guards and mappers
   const toPriority = (p: unknown): ComplaintType["priority"] =>
     p === "Low" || p === "Medium" || p === "High" || p === "Critical"
@@ -111,20 +116,19 @@ export function HoDAssignComplaints() {
     const c = (raw ?? {}) as Record<string, unknown>;
     const assignedTo = c["assignedTo"] as unknown;
     const submittedBy = c["submittedBy"] as unknown;
-    const assignedStaffRaw =
-      typeof assignedTo === "string"
-        ? assignedTo
-        : assignedTo && typeof assignedTo === "object"
-        ? ((assignedTo as Record<string, unknown>)["name"] as string) ||
-          ((assignedTo as Record<string, unknown>)["email"] as string) ||
-          undefined
-        : undefined;
-    // Infer role of current assignee when object is populated (managed list)
-    let inferredRole: ComplaintType["assignedStaffRole"] = undefined;
-    if (assignedTo && typeof assignedTo === "object") {
-      const r = (assignedTo as Record<string, unknown>)["role"];
-      if (r === "hod") inferredRole = "headOfDepartment";
-      else if (r === "staff") inferredRole = "staff";
+    let assignedStaff: string | undefined;
+    if (typeof assignedTo === "string") {
+      // If backend sent a raw ObjectId string (e.g., pending assignments to HoD),
+      // treat as unassigned for HoD Pending tab visibility and clearer labels.
+      const looksLikeObjectId = /^[a-fA-F0-9]{24}$/.test(assignedTo);
+      assignedStaff = looksLikeObjectId ? undefined : assignedTo;
+    } else if (assignedTo && typeof assignedTo === "object") {
+      assignedStaff =
+        ((assignedTo as Record<string, unknown>)["name"] as string) ||
+        ((assignedTo as Record<string, unknown>)["email"] as string) ||
+        undefined;
+    } else {
+      assignedStaff = undefined;
     }
     const submittedByLabel =
       typeof submittedBy === "string"
@@ -145,24 +149,17 @@ export function HoDAssignComplaints() {
             allowedPathRoles.has(r as ComplaintType["assignmentPath"][number])
           )
       : undefined;
-    const statusVal =
-      (c["status"] as ComplaintType["status"]) ||
-      ("Pending" as ComplaintType["status"]);
-    // If a complaint is Pending AND currently assigned to HoD (awaiting HoD acceptance),
-    // hide assignee on HoD Pending tab. If it's assigned to staff (even if Pending),
-    // keep the assignee so it appears under the Assigned tab.
-    const hideAssigneeForPendingHod =
-      statusVal === "Pending" && inferredRole === "headOfDepartment";
     return {
       id: String(c["id"] ?? c["_id"] ?? ""),
       title: String(c["title"] ?? "Untitled Complaint"),
       description: String(c["description"] ?? ""),
       category: String(c["category"] ?? "General"),
-      status: statusVal,
+      status:
+        (c["status"] as ComplaintType["status"]) ||
+        ("Pending" as ComplaintType["status"]),
       submittedBy: submittedByLabel,
-      // Only suppress assignee if Pending and assigned to HoD (awaiting acceptance)
-      assignedStaff: hideAssigneeForPendingHod ? undefined : assignedStaffRaw,
-      assignedStaffRole: hideAssigneeForPendingHod ? undefined : inferredRole,
+      assignedStaff,
+      assignedStaffRole: undefined,
       submittedDate: (c["submittedDate"] as string | Date | undefined)
         ? new Date(String(c["submittedDate"]))
         : new Date(),
@@ -212,10 +209,8 @@ export function HoDAssignComplaints() {
     setPage(1);
   }, [searchTerm, priorityFilter, overdueFilter, activeTab]);
   const handleAssignClick = (complaint: ComplaintType) => {
-    // open modal for staff selection
-    setAssignStaffOpen(complaint.id);
-    setSelectedStaffId("");
-    setStaffDeadline("");
+    setReassigningRow(complaint.id);
+    setAssigningStaffId("");
   };
 
   const handleViewDetail = (complaint: ComplaintType) => {
@@ -232,15 +227,10 @@ export function HoDAssignComplaints() {
       await hodAssignToStaffApi(complaintId, {
         staffId,
         deadline: assigningDeadline || undefined,
-        note: staffNote?.trim() || undefined,
       });
-      // Refresh managed list and inbox (assigned items should disappear from Pending)
-      const [managedRaw, inboxRaw] = await Promise.all([
-        getHodManagedComplaintsApi(),
-        getHodInboxApi(),
-      ]);
+      // Refresh managed list
+      const managedRaw = await getHodManagedComplaintsApi();
       setComplaints(managedRaw.map(mapApiToComplaint));
-      setInbox(inboxRaw.map(mapApiToComplaint));
       const staff = deptStaff.find((s) => s._id === staffId);
       toast({
         title: "Assigned",
@@ -258,7 +248,6 @@ export function HoDAssignComplaints() {
       setReassigningRow(null);
       setAssigningStaffId("");
       setAssigningDeadline("");
-      setStaffNote("");
     }
   };
 
@@ -342,9 +331,26 @@ export function HoDAssignComplaints() {
     );
   };
 
-  // Calculate summary stats
-  const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
-  const assignedCount = complaints.filter((c) => c.assignedStaff).length;
+  // Calculate summary stats aligned with active tab data source
+  const summaryBaseList =
+    activeTab === "Pending"
+      ? inbox
+      : activeTab === "All"
+      ? (() => {
+          const seen = new Set<string>();
+          const out: ComplaintType[] = [];
+          for (const c of [...inbox, ...complaints]) {
+            if (!c.id || seen.has(c.id)) continue;
+            seen.add(c.id);
+            out.push(c);
+          }
+          return out;
+        })()
+      : complaints;
+  const unassignedCount = summaryBaseList.filter(
+    (c) => !c.assignedStaff
+  ).length;
+  const assignedCount = summaryBaseList.filter((c) => !!c.assignedStaff).length;
   const priorityColors = {
     Low: "bg-gray-200 text-gray-700 border-gray-300",
     Medium: "bg-blue-100 text-blue-800 border-blue-200",
@@ -353,24 +359,55 @@ export function HoDAssignComplaints() {
   };
 
   const matchesTab = (c: ComplaintType) => {
-    if (activeTab === "Pending")
-      return c.status === "Pending" && !c.assignedStaffRole;
-    if (activeTab === "Accepted")
+    if (activeTab === "All") return true;
+    if (activeTab === "Pending") {
+      // Pending items are unassigned and awaiting HoD action
       return (
-        c.status === "In Progress" && c.assignedStaffRole === "headOfDepartment"
+        (c.status === "Pending" || c.status === "Unassigned") &&
+        !c.assignedStaff
       );
-    if (activeTab === "Assigned")
-      // Show complaints that are assigned to staff in the Assigned tab even if
-      // the status remains Pending (waiting for staff to accept).
-      return c.assignedStaffRole === "staff";
+    }
+    if (activeTab === "Accepted") {
+      // Accepted: handled by HoD (assigned to self) and in progress
+      return (
+        (c.status === "In Progress" || c.status === "Assigned") &&
+        isAssignedToSelf(c)
+      );
+    }
+    if (activeTab === "Assigned") {
+      // Assigned: delegated to staff (has assignee and not self)
+      return (
+        (c.status === "In Progress" || c.status === "Assigned") &&
+        !!c.assignedStaff &&
+        !isAssignedToSelf(c)
+      );
+    }
     if (activeTab === "Rejected") return c.status === "Closed";
     return false;
   };
 
-  const sourceList = activeTab === "Pending" ? inbox : complaints;
-  const filteredComplaints = sourceList
+  // Merge helper to create a unique list by id
+  const uniqById = (arr: ComplaintType[]) => {
+    const seen = new Set<string>();
+    const out: ComplaintType[] = [];
+    for (const c of arr) {
+      if (!c.id) continue;
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push(c);
+    }
+    return out;
+  };
+
+  // Use inbox for Pending; All shows union of inbox+managed; otherwise managed
+  const baseList =
+    activeTab === "Pending"
+      ? inbox
+      : activeTab === "All"
+      ? uniqById([...(inbox || []), ...(complaints || [])])
+      : complaints;
+  const filteredComplaints = baseList
     .filter(matchesTab)
-    .filter((c) => c.status !== "Resolved")
     .filter((c) =>
       [c.title, c.category, c.submittedBy]
         .filter(Boolean)
@@ -437,159 +474,9 @@ export function HoDAssignComplaints() {
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{complaints.length}</div>
+            <div className="text-2xl font-bold">{summaryBaseList.length}</div>
           </CardContent>
         </Card>
-        {/* Assign to Staff Modal */}
-        <Dialog
-          open={!!assignStaffOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              setAssignStaffOpen(null);
-              setSelectedStaffId("");
-              setStaffDeadline("");
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Assign to Staff</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Select a staff member from your department and optionally set a
-                deadline.
-              </p>
-              <Select
-                value={selectedStaffId}
-                onValueChange={setSelectedStaffId}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select staff" />
-                </SelectTrigger>
-                <SelectContent>
-                  {deptStaff.map((s) => (
-                    <SelectItem key={s._id} value={s._id}>
-                      {s.fullName || s.name || s.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div>
-                <label className="text-xs text-muted-foreground">
-                  Deadline
-                </label>
-                <Input
-                  type="date"
-                  className="w-full"
-                  value={staffDeadline}
-                  onChange={(e) => setStaffDeadline(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">
-                  Note (optional)
-                </label>
-                <textarea
-                  className="w-full rounded-md border p-2 text-sm"
-                  rows={3}
-                  maxLength={1000}
-                  placeholder="Add an assignment note for the staff (optional)"
-                  value={staffNote}
-                  onChange={(e) => setStaffNote(e.target.value)}
-                />
-                <div className="text-xs text-muted-foreground text-right">
-                  {staffNote.length}/1000
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setAssignStaffOpen(null);
-                  setSelectedStaffId("");
-                  setStaffDeadline("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                disabled={!selectedStaffId}
-                onClick={async () => {
-                  if (!assignStaffOpen || !selectedStaffId) return;
-                  // Optimistic UI: move the complaint from inbox -> managed (Assigned)
-                  try {
-                    const staff = deptStaff.find(
-                      (s) => s._id === selectedStaffId
-                    );
-                    const assigneeLabel =
-                      staff?.fullName || staff?.name || staff?.email || "Staff";
-                    // Remove from inbox and add to managed list with staff info
-                    setInbox((prev) =>
-                      prev.filter((c) => c.id !== assignStaffOpen)
-                    );
-                    setComplaints((prev) => {
-                      // find existing base item (from inbox or existing managed)
-                      const base =
-                        inbox.find((c) => c.id === assignStaffOpen) ||
-                        prev.find((c) => c.id === assignStaffOpen) ||
-                        null;
-                      const updated: ComplaintType = base
-                        ? {
-                            ...base,
-                            assignedStaff: assigneeLabel,
-                            assignedStaffRole: "staff",
-                            status: "Pending",
-                            assignedDate: new Date(),
-                            lastUpdated: new Date(),
-                          }
-                        : {
-                            id: assignStaffOpen,
-                            title: "(assigned)",
-                            description: "",
-                            category: "",
-                            status: "Pending",
-                            submittedBy: "",
-                            assignedStaff: assigneeLabel,
-                            assignedStaffRole: "staff",
-                            submittedDate: new Date(),
-                            lastUpdated: new Date(),
-                            priority: "Medium",
-                            assignmentPath: ["headOfDepartment", "staff"],
-                          };
-                      return [
-                        updated,
-                        ...prev.filter((c) => c.id !== updated.id),
-                      ];
-                    });
-                  } catch (err) {
-                    // Best effort; continue to call API
-                  }
-
-                  // Perform server assignment and then refresh authoritative lists
-                  await handleStaffAssignment(assignStaffOpen, selectedStaffId);
-                  try {
-                    const [inboxRaw, managedRaw] = await Promise.all([
-                      getHodInboxApi(),
-                      getHodManagedComplaintsApi(),
-                    ]);
-                    setInbox(inboxRaw.map(mapApiToComplaint));
-                    setComplaints(managedRaw.map(mapApiToComplaint));
-                  } catch (e) {
-                    // ignore refresh errors; handled in API calls
-                  } finally {
-                    setAssignStaffOpen(null);
-                    setSelectedStaffId("");
-                    setStaffDeadline("");
-                  }
-                }}
-              >
-                Confirm Assign
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Unassigned</CardTitle>
@@ -667,6 +554,7 @@ export function HoDAssignComplaints() {
               onValueChange={(v) => setActiveTab(v as typeof activeTab)}
             >
               <TabsList>
+                <TabsTrigger value="All">All</TabsTrigger>
                 <TabsTrigger value="Pending">Pending</TabsTrigger>
                 <TabsTrigger value="Accepted">Accepted</TabsTrigger>
                 <TabsTrigger value="Assigned">Assigned</TabsTrigger>
@@ -691,19 +579,9 @@ export function HoDAssignComplaints() {
                 <Card key={complaint.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-1">
-                      {/* Show friendly reference code when available; hide raw DB id */}
-                      {(complaint as unknown as { friendlyCode?: string })
-                        .friendlyCode ? (
-                        <div className="text-xs text-muted-foreground">
-                          {
-                            (
-                              complaint as unknown as {
-                                friendlyCode?: string;
-                              }
-                            ).friendlyCode
-                          }
-                        </div>
-                      ) : null}
+                      <div className="text-xs text-muted-foreground">
+                        #{complaint.id}
+                      </div>
                       <div className="font-medium text-sm">
                         {complaint.title}
                       </div>
@@ -745,7 +623,9 @@ export function HoDAssignComplaints() {
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Assignee:{" "}
-                        {complaint.assignedStaff || "Not Yet Assigned"}
+                        {complaint.status === "Closed"
+                          ? "Rejected"
+                          : complaint.assignedStaff || "Not Assigned"}
                       </div>
                     </div>
                   </div>
@@ -760,7 +640,7 @@ export function HoDAssignComplaints() {
                     </Button>
                     {(complaint.status === "Pending" ||
                       complaint.status === "Unassigned") &&
-                      !complaint.assignedStaffRole && (
+                      !complaint.assignedStaff && (
                         <Button
                           size="sm"
                           variant="secondary"
@@ -858,13 +738,17 @@ export function HoDAssignComplaints() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {complaint.assignedStaff ? (
+                      {complaint.status === "Closed" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-100 text-red-800 text-xs font-medium">
+                          Rejected
+                        </span>
+                      ) : complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
                           {complaint.assignedStaff}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
-                          Not Yet Assigned
+                          Not Assigned
                         </span>
                       )}
                     </TableCell>
@@ -898,7 +782,7 @@ export function HoDAssignComplaints() {
                         {/* HoD can accept to handle, resolve/reject, and assign to staff */}
                         {(complaint.status === "Pending" ||
                           complaint.status === "Unassigned") &&
-                          !complaint.assignedStaffRole && (
+                          !complaint.assignedStaff && (
                             <Button
                               size="sm"
                               variant="secondary"
@@ -920,7 +804,7 @@ export function HoDAssignComplaints() {
                                   toast({
                                     title: "Accepted",
                                     description:
-                                      "Complaint is now In Progress and assigned to you.",
+                                      "Complaint set In Progress and assigned to you.",
                                   });
                                 } catch (err) {
                                   toast({
@@ -945,8 +829,12 @@ export function HoDAssignComplaints() {
                                 await approveComplaintApi(complaint.id, {
                                   assignToSelf: true,
                                 });
-                                const managedRaw =
-                                  await getHodManagedComplaintsApi();
+                                const [inboxRaw, managedRaw] =
+                                  await Promise.all([
+                                    getHodInboxApi(),
+                                    getHodManagedComplaintsApi(),
+                                  ]);
+                                setInbox(inboxRaw.map(mapApiToComplaint));
                                 setComplaints(
                                   managedRaw.map(mapApiToComplaint)
                                 );
@@ -978,8 +866,12 @@ export function HoDAssignComplaints() {
                                   "Closed",
                                   "Rejected by HoD"
                                 );
-                                const managedRaw =
-                                  await getHodManagedComplaintsApi();
+                                const [inboxRaw, managedRaw] =
+                                  await Promise.all([
+                                    getHodInboxApi(),
+                                    getHodManagedComplaintsApi(),
+                                  ]);
+                                setInbox(inboxRaw.map(mapApiToComplaint));
                                 setComplaints(
                                   managedRaw.map(mapApiToComplaint)
                                 );
@@ -1001,7 +893,6 @@ export function HoDAssignComplaints() {
                         )}
                         {reassigningRow === complaint.id ? (
                           <div className="flex gap-2 items-center">
-                            {/* fallback inline assign (kept for keyboard quick flow) */}
                             <Select
                               value={assigningStaffId}
                               onValueChange={setAssigningStaffId}

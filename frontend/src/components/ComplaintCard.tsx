@@ -127,7 +127,7 @@ export function ComplaintCard({
                 </span>
               )}
             </CardTitle>
-            {/* Complaint ID intentionally hidden in UI */}
+            <div className="text-sm text-muted-foreground">#{complaint.id}</div>
           </div>
           <Badge
             className={`${

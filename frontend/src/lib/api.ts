@@ -851,8 +851,6 @@ export interface Complaint {
   >;
   // When submitting directly to staff
   recipientStaffId?: string;
-  // When submitting directly to a specific HoD
-  recipientHodId?: string;
 }
 
 export async function submitComplaintApi(complaint: Complaint) {
@@ -1041,7 +1039,7 @@ export async function deanAssignToHodApi(
 // HoD: assign to staff in department
 export async function hodAssignToStaffApi(
   complaintId: string,
-  payload: { staffId: string; deadline?: string | Date; note?: string }
+  payload: { staffId: string; deadline?: string | Date }
 ) {
   const res = await fetch(
     `${API_BASE}/complaints/hod/assign-to-staff/${complaintId}`,
@@ -1082,6 +1080,36 @@ export async function getHodManagedComplaintsApi() {
     submittedTo?: string | null;
     sourceRole?: string | null;
   }>;
+}
+
+// HoD: consolidated view for all tabs
+export type HodAllResponse = {
+  pending: Array<
+    InboxComplaint & { department?: string | null } & {
+      assignedTo?: string | { name?: string } | null;
+    }
+  >;
+  accepted: Array<InboxComplaint & { department?: string | null }>;
+  assigned: Array<InboxComplaint & { department?: string | null }>;
+  rejected: Array<InboxComplaint & { department?: string | null }>;
+  counts: {
+    pending: number;
+    accepted: number;
+    assigned: number;
+    rejected: number;
+  };
+  lastUpdated: string;
+};
+
+export async function getHodAllApi(): Promise<HodAllResponse> {
+  const res = await fetch(`${API_BASE}/complaints/hod/all`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch HoD all data");
+  return data as HodAllResponse;
 }
 
 export async function markFeedbackReviewedApi(complaintId: string) {

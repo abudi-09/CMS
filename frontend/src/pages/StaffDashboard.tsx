@@ -682,7 +682,9 @@ export function StaffDashboard() {
                         >
                           {complaint.title}
                         </h3>
-                        {/* Complaint ID intentionally hidden in UI */}
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          #{complaint.id}
+                        </p>
                       </div>
                       <div className="flex gap-2 ml-2 flex-wrap justify-end">
                         <Badge
