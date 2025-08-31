@@ -148,6 +148,11 @@ export function HoDAssignComplaints() {
     const statusVal =
       (c["status"] as ComplaintType["status"]) ||
       ("Pending" as ComplaintType["status"]);
+    // If a complaint is Pending AND currently assigned to HoD (awaiting HoD acceptance),
+    // hide assignee on HoD Pending tab. If it's assigned to staff (even if Pending),
+    // keep the assignee so it appears under the Assigned tab.
+    const hideAssigneeForPendingHod =
+      statusVal === "Pending" && inferredRole === "headOfDepartment";
     return {
       id: String(c["id"] ?? c["_id"] ?? ""),
       title: String(c["title"] ?? "Untitled Complaint"),
@@ -155,9 +160,9 @@ export function HoDAssignComplaints() {
       category: String(c["category"] ?? "General"),
       status: statusVal,
       submittedBy: submittedByLabel,
-      // Pending items awaiting HoD acceptance should show as Not Assigned
-      assignedStaff: statusVal === "Pending" ? undefined : assignedStaffRaw,
-      assignedStaffRole: statusVal === "Pending" ? undefined : inferredRole,
+      // Only suppress assignee if Pending and assigned to HoD (awaiting acceptance)
+      assignedStaff: hideAssigneeForPendingHod ? undefined : assignedStaffRaw,
+      assignedStaffRole: hideAssigneeForPendingHod ? undefined : inferredRole,
       submittedDate: (c["submittedDate"] as string | Date | undefined)
         ? new Date(String(c["submittedDate"]))
         : new Date(),
@@ -229,9 +234,13 @@ export function HoDAssignComplaints() {
         deadline: assigningDeadline || undefined,
         note: staffNote?.trim() || undefined,
       });
-      // Refresh managed list
-      const managedRaw = await getHodManagedComplaintsApi();
+      // Refresh managed list and inbox (assigned items should disappear from Pending)
+      const [managedRaw, inboxRaw] = await Promise.all([
+        getHodManagedComplaintsApi(),
+        getHodInboxApi(),
+      ]);
       setComplaints(managedRaw.map(mapApiToComplaint));
+      setInbox(inboxRaw.map(mapApiToComplaint));
       const staff = deptStaff.find((s) => s._id === staffId);
       toast({
         title: "Assigned",
@@ -509,8 +518,57 @@ export function HoDAssignComplaints() {
                 disabled={!selectedStaffId}
                 onClick={async () => {
                   if (!assignStaffOpen || !selectedStaffId) return;
+                  // Optimistic UI: move the complaint from inbox -> managed (Assigned)
+                  try {
+                    const staff = deptStaff.find(
+                      (s) => s._id === selectedStaffId
+                    );
+                    const assigneeLabel =
+                      staff?.fullName || staff?.name || staff?.email || "Staff";
+                    // Remove from inbox and add to managed list with staff info
+                    setInbox((prev) =>
+                      prev.filter((c) => c.id !== assignStaffOpen)
+                    );
+                    setComplaints((prev) => {
+                      // find existing base item (from inbox or existing managed)
+                      const base =
+                        inbox.find((c) => c.id === assignStaffOpen) ||
+                        prev.find((c) => c.id === assignStaffOpen) ||
+                        null;
+                      const updated: ComplaintType = base
+                        ? {
+                            ...base,
+                            assignedStaff: assigneeLabel,
+                            assignedStaffRole: "staff",
+                            status: "Pending",
+                            assignedDate: new Date(),
+                            lastUpdated: new Date(),
+                          }
+                        : {
+                            id: assignStaffOpen,
+                            title: "(assigned)",
+                            description: "",
+                            category: "",
+                            status: "Pending",
+                            submittedBy: "",
+                            assignedStaff: assigneeLabel,
+                            assignedStaffRole: "staff",
+                            submittedDate: new Date(),
+                            lastUpdated: new Date(),
+                            priority: "Medium",
+                            assignmentPath: ["headOfDepartment", "staff"],
+                          };
+                      return [
+                        updated,
+                        ...prev.filter((c) => c.id !== updated.id),
+                      ];
+                    });
+                  } catch (err) {
+                    // Best effort; continue to call API
+                  }
+
+                  // Perform server assignment and then refresh authoritative lists
                   await handleStaffAssignment(assignStaffOpen, selectedStaffId);
-                  // refresh inbox and managed lists
                   try {
                     const [inboxRaw, managedRaw] = await Promise.all([
                       getHodInboxApi(),
