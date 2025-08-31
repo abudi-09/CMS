@@ -20,6 +20,13 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Search, Eye } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint as ComplaintType } from "@/components/ComplaintCard";
 import {
@@ -65,6 +72,7 @@ function labelFromSubmitter(sb: unknown): string | undefined {
 export default function HoDAllComplaints() {
   const [items, setItems] = useState<ComplaintType[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
   const [selected, setSelected] = useState<ComplaintType | null>(null);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -269,15 +277,26 @@ export default function HoDAllComplaints() {
 
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((c) =>
-      [c.id, c.title, c.category, c.submittedBy, c.assignedStaff]
+    const matchesStatus = (c: ComplaintType) => {
+      if (!statusFilter || statusFilter === "All") return true;
+      if (statusFilter === "In Progress")
+        return c.status === "In Progress" || c.status === "Assigned";
+      if (statusFilter === "Assigned") return c.status === "Assigned";
+      if (statusFilter === "Rejected")
+        return c.status === "Closed" || c.assignedStaff === "Rejected";
+      return c.status === statusFilter;
+    };
+
+    return items.filter((c) => {
+      if (!matchesStatus(c)) return false;
+      if (!q) return true;
+      return [c.id, c.title, c.category, c.submittedBy, c.assignedStaff]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(q)
-    );
-  }, [items, searchTerm]);
+        .includes(q);
+    });
+  }, [items, searchTerm, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const start = (page - 1) * pageSize;
@@ -344,11 +363,30 @@ export default function HoDAllComplaints() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by id, title, submitter, assignee, category..."
-          />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by title, submitter, assignee, category..."
+            />
+            <Select
+              onValueChange={(v) => setStatusFilter(v)}
+              value={statusFilter}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Assigned">Assigned</SelectItem>
+                <SelectItem value="Resolved">Resolved</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -366,7 +404,8 @@ export default function HoDAllComplaints() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[200px]">ID / Title</TableHead>
+                  <TableHead className="w-[200px]">Title</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Submitted By</TableHead>
                   <TableHead>Assigned To</TableHead>
                   <TableHead>Status</TableHead>
@@ -378,11 +417,11 @@ export default function HoDAllComplaints() {
                   <TableRow key={c.id}>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="text-xs text-muted-foreground">
-                          #{c.id}
-                        </span>
                         <span className="font-medium">{c.title}</span>
                       </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {c.category || "-"}
                     </TableCell>
                     <TableCell>{c.submittedBy || "Anonymous"}</TableCell>
                     <TableCell>
@@ -416,7 +455,7 @@ export default function HoDAllComplaints() {
                 {pageItems.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="text-center text-muted-foreground py-8"
                     >
                       No complaints found

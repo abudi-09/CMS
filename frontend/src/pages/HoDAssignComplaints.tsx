@@ -87,6 +87,11 @@ export function HoDAssignComplaints() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
+  const [updatingRow, setUpdatingRow] = useState<string | null>(null);
+  const [updateStatusValue, setUpdateStatusValue] = useState<
+    "Pending" | "In Progress" | "Resolved" | "Closed" | ""
+  >("");
+  const [updateNote, setUpdateNote] = useState("");
   const [activeTab, setActiveTab] = useState<
     "All" | "Pending" | "Accepted" | "Assigned" | "Rejected"
   >("Pending");
@@ -619,6 +624,128 @@ export function HoDAssignComplaints() {
                           >
                             On Time
                           </Badge>
+                        )}
+                        {/* Inline Status Update (optional note) */}
+                        {updatingRow === complaint.id ? (
+                          <div className="flex flex-col gap-2 w-full max-w-xs">
+                            <Select
+                              value={updateStatusValue || undefined}
+                              onValueChange={(v) =>
+                                setUpdateStatusValue(
+                                  v as
+                                    | "Pending"
+                                    | "In Progress"
+                                    | "Resolved"
+                                    | "Closed"
+                                )
+                              }
+                            >
+                              <SelectTrigger className="w-full text-xs">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Pending">Pending</SelectItem>
+                                <SelectItem value="In Progress">
+                                  In Progress
+                                </SelectItem>
+                                <SelectItem value="Resolved">
+                                  Resolved
+                                </SelectItem>
+                                <SelectItem value="Closed">Closed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              placeholder="Add description (optional)"
+                              value={updateNote}
+                              onChange={(e) => setUpdateNote(e.target.value)}
+                              className="text-xs"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="text-xs"
+                                disabled={!updateStatusValue}
+                                onClick={async () => {
+                                  try {
+                                    await updateComplaintStatusApi(
+                                      complaint.id,
+                                      updateStatusValue as
+                                        | "Pending"
+                                        | "In Progress"
+                                        | "Resolved"
+                                        | "Closed",
+                                      updateNote.trim() || undefined
+                                    );
+                                    const [inboxRaw, managedRaw] =
+                                      await Promise.all([
+                                        getHodInboxApi(),
+                                        getHodManagedComplaintsApi(),
+                                      ]);
+                                    setInbox(inboxRaw.map(mapApiToComplaint));
+                                    setComplaints(
+                                      managedRaw.map(mapApiToComplaint)
+                                    );
+                                    // dispatch event to refresh open modals timelines
+                                    try {
+                                      window.dispatchEvent(
+                                        new CustomEvent(
+                                          "complaint:status-changed",
+                                          {
+                                            detail: { id: complaint.id },
+                                          }
+                                        ) as Event
+                                      );
+                                    } catch {
+                                      // no-op: best-effort event dispatch
+                                    }
+                                    toast({
+                                      title: "Status Updated",
+                                      description:
+                                        `Updated to ${updateStatusValue}$${
+                                          updateNote.trim()
+                                            ? `: ${updateNote.trim()}`
+                                            : ""
+                                        }`.replace("$:", ":"),
+                                    });
+                                  } catch (err) {
+                                    toast({
+                                      title: "Update failed",
+                                      description: (err as Error).message,
+                                      variant: "destructive",
+                                    });
+                                  } finally {
+                                    setUpdatingRow(null);
+                                    setUpdateStatusValue("");
+                                    setUpdateNote("");
+                                  }
+                                }}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs"
+                                onClick={() => {
+                                  setUpdatingRow(null);
+                                  setUpdateStatusValue("");
+                                  setUpdateNote("");
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                            onClick={() => setUpdatingRow(complaint.id)}
+                          >
+                            Update Status
+                          </Button>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">

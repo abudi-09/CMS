@@ -231,8 +231,8 @@ export function RoleBasedComplaintModal({
     if (open && complaint?.id) {
       // Initial fetch
       loadLogsAndLatest();
-      // Poll every 7s while open
-      timer = window.setInterval(loadLogsAndLatest, 7000) as unknown as number;
+      // Poll every 3s while open (snappier updates for cross-view changes)
+      timer = window.setInterval(loadLogsAndLatest, 3000) as unknown as number;
     }
     const onStatusEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as { id?: string } | undefined;
@@ -520,6 +520,7 @@ export function RoleBasedComplaintModal({
     label:
       | "Submitted"
       | "Assigned"
+      | "Accepted"
       | "Pending"
       | "In Progress"
       | "Resolved"
@@ -588,7 +589,7 @@ export function RoleBasedComplaintModal({
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
   type Consolidated = {
-    firstTime?: Date;
+    lastTime?: Date;
     role?: string;
     descs: string[];
   };
@@ -603,6 +604,29 @@ export function RoleBasedComplaintModal({
   };
 
   for (const log of sortedLogs) {
+    // Explicitly add an "Accepted" step when HoD/Dean approve a complaint
+    if (
+      /^complaint approved$/i.test(log.action || "") &&
+      (log.role === "hod" || log.role === "dean")
+    ) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const approverNote =
+        typeof details.description === "string"
+          ? String(details.description)
+          : typeof details.note === "string"
+          ? String(details.note)
+          : "";
+      timelineEntries.push({
+        key: `accepted|${time.toISOString()}`,
+        label: "Accepted",
+        role: log.role || "hod",
+        icon: <CheckCircle className="h-4 w-4 text-success" />,
+        time,
+        desc: approverNote,
+      });
+    }
+
     const m = (log.action || "").match(/status updated to\s+(.+)/i);
     if (!m) continue;
     const status = normalizeStatus((m[1] || "").trim());
@@ -612,8 +636,8 @@ export function RoleBasedComplaintModal({
       typeof details.description === "string" ? details.description.trim() : "";
     const parts = rawDesc ? rawDesc.split("\n").filter(Boolean) : [];
 
-    const cur = byStatus.get(status) || { descs: [] };
-    if (!cur.firstTime || time < cur.firstTime) cur.firstTime = time;
+    const cur = byStatus.get(status) || ({ descs: [] } as Consolidated);
+    if (!cur.lastTime || time > cur.lastTime) cur.lastTime = time;
     cur.role = cur.role || log.role || "staff";
     cur.descs.push(...parts);
     byStatus.set(status, cur);
@@ -631,7 +655,7 @@ export function RoleBasedComplaintModal({
       label: status,
       role: grp.role || "staff",
       icon: statusIcon(status),
-      time: grp.firstTime,
+      time: grp.lastTime,
       desc: finalDesc,
     });
   }
@@ -1015,7 +1039,7 @@ export function RoleBasedComplaintModal({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{step.label}</span>
                       <Badge variant="outline" className="capitalize">
-                        {step.role}
+                        {String(step.role || "").toUpperCase()}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
@@ -1036,7 +1060,7 @@ export function RoleBasedComplaintModal({
                         )
                       ) : (
                         <span className="text-muted-foreground italic">
-                          Status updated
+                          Status updated (No description given)
                         </span>
                       )}
                     </div>

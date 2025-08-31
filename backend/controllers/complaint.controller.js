@@ -79,129 +79,70 @@ export const createComplaint = async (req, res) => {
     }
 
     await complaint.save();
+
+    // Log creation activity (optional but useful for timeline)
     try {
-      console.log("[DEBUG] Complaint created:", {
-        _id: complaint._id.toString(),
-        complaintCode: complaint.complaintCode,
-        title: complaint.title,
-        category: complaint.category,
-        priority: complaint.priority,
-        department: complaint.department,
-        submittedBy: complaint.submittedBy?.toString(),
-        evidenceFile: complaint.evidenceFile || null,
+      await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: "Complaint Submitted",
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: {},
       });
     } catch (_) {}
-    // Log activity
-    await ActivityLog.create({
-      user: req.user._id,
-      role: req.user.role,
-      action: "Complaint Submitted",
-      complaint: complaint._id,
-      timestamp: new Date(),
-      details: { title, category, complaintCode: complaint.complaintCode },
-    });
-    const response = {
-      id: complaint._id.toString(), // real database id
-      complaintCode: complaint.complaintCode, // human-friendly code
-      title: complaint.title,
-      category: complaint.category,
-      description: complaint.description,
-      priority: complaint.priority,
-      department: complaint.department,
-      status: complaint.status,
-      submittedDate: complaint.createdAt,
-      lastUpdated: complaint.updatedAt,
-      assignedTo: complaint.assignedTo,
-    };
-    res
-      .status(201)
-      .json({ message: "Complaint submitted", complaint: response });
+
+    return res.status(201).json({ message: "Complaint submitted", complaint });
+
   } catch (err) {
-    console.error("Create complaint error:", err.message, err.stack);
-    res
-      .status(500)
-      .json({ error: "Failed to submit complaint", details: err.message });
+    console.error("createComplaint error:", err?.message);
+    return res.status(500).json({ error: "Failed to submit complaint" });
   }
 };
 
-// 2. User views their complaints
-// 2. User views/filter/search their complaints with feedback support
+// 2. User views their own complaints
 export const getMyComplaints = async (req, res) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const { status, department, search } = req.query;
+    const complaints = await Complaint.find({ submittedBy: req.user._id })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email")
+      .sort({ updatedAt: -1 })
+      .lean();
 
-    const filters = {
-      submittedBy: req.user._id,
-    };
+    const formatted = (complaints || []).map((c) => ({
+      id: String(c._id),
+      complaintCode: c?.complaintCode ?? null,
+      title: c?.title ?? "Untitled Complaint",
+      status: c?.status ?? "Pending",
+      priority: c?.priority || "Medium",
+      department: c?.department ?? null,
+      category: c?.category ?? null,
+      submittedDate: c?.createdAt ?? null,
+      lastUpdated: c?.updatedAt ?? null,
+      resolvedAt: c?.resolvedAt ?? null,
+      assignedTo:
+        c?.assignedTo && typeof c.assignedTo === "object"
+          ? c.assignedTo.name || c.assignedTo.email
+          : null,
+      submittedBy:
+        c?.submittedBy && typeof c.submittedBy === "object"
+          ? c.submittedBy.name || c.submittedBy.email
+          : null,
+      deadline: c?.deadline ?? null,
+      sourceRole: c?.sourceRole ?? null,
+      assignedByRole: c?.assignedByRole ?? null,
+      assignmentPath: Array.isArray(c?.assignmentPath)
+        ? c.assignmentPath
+        : [],
+      submittedTo: c?.submittedTo ?? null,
+      feedback: c?.status === "Resolved" ? c?.feedback || null : null,
+      isEscalated: !!c?.isEscalated,
+    }));
 
-    if (status) filters.status = status;
-    if (department) filters.department = department;
-    if (search) {
-      filters.title = { $regex: search, $options: "i" };
-    }
-
-    let complaints;
-    try {
-      complaints = await Complaint.find(filters)
-        .populate("assignedTo", "name email")
-        .sort({ updatedAt: -1 });
-    } catch (innerErr) {
-      console.error("[getMyComplaints] Query failure:", innerErr);
-      throw innerErr;
-    }
-
-    const formatted = complaints
-      .map((c, idx) => {
-        if (!c) {
-          console.warn(`[getMyComplaints] Null complaint at index ${idx}`);
-          return null;
-        }
-        let idString = "";
-        try {
-          idString = c._id ? c._id.toString() : "";
-        } catch (e) {
-          console.error(
-            "[getMyComplaints] _id toString failed for complaint",
-            c?._id,
-            e
-          );
-        }
-        return {
-          id: idString,
-          complaintCode: c.complaintCode || null,
-          title: c.title || "Untitled Complaint",
-          status: c.status || "Pending",
-          department: c.department || null,
-          category: c.category || null,
-          submittedDate: c.createdAt || null,
-          lastUpdated: c.updatedAt || null,
-          assignedTo: c.assignedTo?.name || null,
-          deadline: c.deadline || null,
-          sourceRole: c.sourceRole || null,
-          assignedByRole: c.assignedByRole || null,
-          assignmentPath: Array.isArray(c.assignmentPath)
-            ? c.assignmentPath
-            : [],
-          submittedTo: c.submittedTo || null,
-          feedback: c.status === "Resolved" ? c.feedback || null : null,
-          isEscalated: !!c.isEscalated,
-        };
-      })
-      .filter(Boolean);
-
-    res.status(200).json(formatted);
-  } catch (err) {
-    console.error(
-      "Get my complaints error:",
-      err && err.message,
-      err && err.stack
-    );
-    res
-      .status(500)
-      .json({ error: "Failed to fetch complaints", details: err?.message });
+    return res.status(200).json(formatted);
+  } catch (error) {
+    console.error("getMyComplaints error:", error?.message);
+    return res.status(500).json({ error: "Failed to fetch my complaints" });
   }
 };
 
@@ -407,6 +348,18 @@ export const approveComplaint = async (req, res) => {
       timestamp: new Date(),
       details: { status: complaint.status, assignToSelf: !!assignToSelf },
     });
+
+    // Also record a status-update log so the student timeline shows the change clearly
+    try {
+      await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: `Status Updated to ${complaint.status}`,
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: { description: (note || "").trim() },
+      });
+    } catch (_) {}
 
     res.status(200).json({ message: "Complaint approved", complaint });
   } catch (err) {
@@ -824,29 +777,35 @@ export const getHodAll = async (req, res) => {
 export const updateComplaintStatus = async (req, res) => {
   try {
     const complaintId = req.params.id;
-    const { status, description } = req.body;
+    const { status, description } = req.body || {};
 
     if (!["Pending", "In Progress", "Resolved", "Closed"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
     const complaint = await Complaint.findById(complaintId);
+    if (!complaint) return res.status(404).json({ error: "Complaint not found" });
 
-    if (!complaint)
-      return res.status(404).json({ error: "Complaint not found" });
+    // Authorization
+    const assignedToId = complaint.assignedTo
+      ? String(complaint.assignedTo._id || complaint.assignedTo)
+      : null;
+    const userId = String(req.user._id);
+    const isAssignedToSelf = !!assignedToId && assignedToId === userId;
+    const isAdmin = req.user.role === "admin";
+    const isStaff = req.user.role === "staff";
+    const isHoDOrDean = ["hod", "dean"].includes(req.user.role);
+    const complaintDept = complaint.department ? String(complaint.department) : null;
+    const userDept = req.user.department ? String(req.user.department) : null;
+    const allowedForHoD = isHoDOrDean && complaintDept && userDept && complaintDept === userDept;
+    const canCloseAsLeader = status === "Closed" && isHoDOrDean;
 
-    const isAssignedToSelf =
-      complaint.assignedTo && complaint.assignedTo.equals(req.user._id);
-    const canCloseAsLeader =
-      status === "Closed" && ["hod", "dean"].includes(req.user.role);
-    if (!isAssignedToSelf && req.user.role !== "admin" && !canCloseAsLeader) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to update this complaint" });
+    if (!isAdmin && !(isStaff && isAssignedToSelf) && !isAssignedToSelf && !allowedForHoD && !canCloseAsLeader) {
+      return res.status(403).json({ error: "Not authorized to update this complaint" });
     }
 
     complaint.status = status;
-    if (description) {
+    if (description && String(description).trim()) {
       const ts = new Date().toISOString();
       const prefix = `[${ts}]`;
       complaint.resolutionNote = complaint.resolutionNote
@@ -858,18 +817,12 @@ export const updateComplaintStatus = async (req, res) => {
     }
     await complaint.save();
 
-    // If HoD closes as rejection, notify the student
+    // Optional email on close
     try {
       if (status === "Closed") {
         const actorRole = req.user.role;
-        if (
-          actorRole === "hod" ||
-          actorRole === "dean" ||
-          actorRole === "staff"
-        ) {
-          const submitter = await User.findById(complaint.submittedBy).select(
-            "name email"
-          );
+        if (["hod", "dean", "staff"].includes(actorRole)) {
+          const submitter = await User.findById(complaint.submittedBy).select("name email");
           if (submitter?.email) {
             await sendComplaintUpdateEmail({
               to: submitter.email,
@@ -887,21 +840,27 @@ export const updateComplaintStatus = async (req, res) => {
       console.warn("[updateComplaintStatus] email notify failed:", e?.message);
     }
 
-    // Find the most recent activity log for this complaint with the same status action (any user)
+    // Activity logs: For HoD/Dean create a fresh entry; else try to merge with last
     const lastSameStatusLog = await ActivityLog.findOne({
       complaint: complaint._id,
       action: `Status Updated to ${status}`,
     }).sort({ timestamp: -1 });
 
-    if (lastSameStatusLog) {
-      // Update existing log: bump timestamp and append note if provided
+    if (req.user.role === "hod" || req.user.role === "dean") {
+      await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: `Status Updated to ${status}`,
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: { description: (description || "").trim() },
+      });
+    } else if (lastSameStatusLog) {
       const updatedDetails = { ...(lastSameStatusLog.details || {}) };
-      if (description && description.trim()) {
+      if (description && String(description).trim()) {
         updatedDetails.description = updatedDetails.description
-          ? `${
-              updatedDetails.description
-            }\n[${new Date().toISOString()}] ${description}`
-          : description;
+          ? `${updatedDetails.description}\n[${new Date().toISOString()}] ${description}`
+          : String(description);
       }
       await ActivityLog.findByIdAndUpdate(
         lastSameStatusLog._id,
@@ -909,34 +868,32 @@ export const updateComplaintStatus = async (req, res) => {
         { new: true }
       );
     } else {
-      // Create a single entry for this status change
       await ActivityLog.create({
         user: req.user._id,
         role: req.user.role,
         action: `Status Updated to ${status}`,
         complaint: complaint._id,
         timestamp: new Date(),
-        details: { description: description || "" },
+        details: { description: (description || "").trim() },
       });
     }
 
-    res.status(200).json({ message: "Status updated", complaint });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update status" });
+    return res.status(200).json({ message: "Status updated", complaint });
+  } catch (error) {
+    console.error("updateComplaintStatus error:", error?.message);
+    return res.status(500).json({ error: "Failed to update status" });
   }
 };
 
-// Get all complaints assigned to the logged-in staff
+// 5b. Staff: list complaints assigned to the logged-in staff
 export const getAssignedComplaints = async (req, res) => {
   try {
-    const staffId = req.user._id; // Ensure the user is staff
-    if (req.user.role !== "staff" || !req.user.isApproved) {
+    if (req.user.role !== "staff") {
       return res.status(403).json({ error: "Access denied: Staff only" });
     }
-
-    const complaints = await Complaint.find({ assignedTo: staffId })
-      .populate("submittedBy", "name email") // Populate user details
-      .sort({ updatedAt: -1 }); // Most recently updated first
+    const complaints = await Complaint.find({ assignedTo: req.user._id })
+      .populate("submittedBy", "name email")
+      .sort({ updatedAt: -1 });
 
     const formatted = complaints.map((c) => ({
       id: c._id.toString(),
@@ -948,8 +905,8 @@ export const getAssignedComplaints = async (req, res) => {
       lastUpdated: c.updatedAt,
       assignedAt: c.assignedAt || null,
       submittedBy: {
-        name: c.submittedBy.name,
-        email: c.submittedBy.email,
+        name: c.submittedBy?.name,
+        email: c.submittedBy?.email,
       },
       shortDescription: c.shortDescription,
       fullDescription: c.description,
@@ -958,12 +915,14 @@ export const getAssignedComplaints = async (req, res) => {
       sourceRole: c.sourceRole,
       assignedByRole: c.assignedByRole,
       assignmentPath: c.assignmentPath || [],
+      submittedTo: c.submittedTo || null,
+      department: c.department || null,
     }));
 
-    res.status(200).json(formatted);
+    return res.status(200).json(formatted);
   } catch (error) {
-    console.error("Error fetching assigned complaints:", error.message);
-    res.status(500).json({ error: "Failed to fetch assigned complaints" });
+    console.error("getAssignedComplaints error:", error?.message);
+    return res.status(500).json({ error: "Failed to fetch assigned complaints" });
   }
 };
 
