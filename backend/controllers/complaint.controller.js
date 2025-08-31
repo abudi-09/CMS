@@ -93,7 +93,6 @@ export const createComplaint = async (req, res) => {
     } catch (_) {}
 
     return res.status(201).json({ message: "Complaint submitted", complaint });
-
   } catch (err) {
     console.error("createComplaint error:", err?.message);
     return res.status(500).json({ error: "Failed to submit complaint" });
@@ -131,9 +130,7 @@ export const getMyComplaints = async (req, res) => {
       deadline: c?.deadline ?? null,
       sourceRole: c?.sourceRole ?? null,
       assignedByRole: c?.assignedByRole ?? null,
-      assignmentPath: Array.isArray(c?.assignmentPath)
-        ? c.assignmentPath
-        : [],
+      assignmentPath: Array.isArray(c?.assignmentPath) ? c.assignmentPath : [],
       submittedTo: c?.submittedTo ?? null,
       feedback: c?.status === "Resolved" ? c?.feedback || null : null,
       isEscalated: !!c?.isEscalated,
@@ -286,6 +283,15 @@ export const approveComplaint = async (req, res) => {
   try {
     const complaintId = req.params.id;
     const { note, assignToSelf } = req.body || {};
+    // Enforce required note for Dean/Admin when accepting to solve
+    if (
+      (req.user.role === "dean" || req.user.role === "admin") &&
+      !(note && String(note).trim())
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Description is required for this role" });
+    }
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
@@ -346,7 +352,11 @@ export const approveComplaint = async (req, res) => {
       action: "Complaint Approved",
       complaint: complaint._id,
       timestamp: new Date(),
-      details: { status: complaint.status, assignToSelf: !!assignToSelf },
+      details: {
+        status: complaint.status,
+        assignToSelf: !!assignToSelf,
+        description: (note || "").trim(),
+      },
     });
 
     // Also record a status-update log so the student timeline shows the change clearly
@@ -784,7 +794,18 @@ export const updateComplaintStatus = async (req, res) => {
     }
 
     const complaint = await Complaint.findById(complaintId);
-    if (!complaint) return res.status(404).json({ error: "Complaint not found" });
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+
+    // Enforce required description for Dean/Admin when updating status
+    if (
+      (req.user.role === "dean" || req.user.role === "admin") &&
+      !(description && String(description).trim())
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Description is required for this role" });
+    }
 
     // Authorization
     const assignedToId = complaint.assignedTo
@@ -795,13 +816,24 @@ export const updateComplaintStatus = async (req, res) => {
     const isAdmin = req.user.role === "admin";
     const isStaff = req.user.role === "staff";
     const isHoDOrDean = ["hod", "dean"].includes(req.user.role);
-    const complaintDept = complaint.department ? String(complaint.department) : null;
+    const complaintDept = complaint.department
+      ? String(complaint.department)
+      : null;
     const userDept = req.user.department ? String(req.user.department) : null;
-    const allowedForHoD = isHoDOrDean && complaintDept && userDept && complaintDept === userDept;
+    const allowedForHoD =
+      isHoDOrDean && complaintDept && userDept && complaintDept === userDept;
     const canCloseAsLeader = status === "Closed" && isHoDOrDean;
 
-    if (!isAdmin && !(isStaff && isAssignedToSelf) && !isAssignedToSelf && !allowedForHoD && !canCloseAsLeader) {
-      return res.status(403).json({ error: "Not authorized to update this complaint" });
+    if (
+      !isAdmin &&
+      !(isStaff && isAssignedToSelf) &&
+      !isAssignedToSelf &&
+      !allowedForHoD &&
+      !canCloseAsLeader
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Not authorized to update this complaint" });
     }
 
     complaint.status = status;
@@ -822,7 +854,9 @@ export const updateComplaintStatus = async (req, res) => {
       if (status === "Closed") {
         const actorRole = req.user.role;
         if (["hod", "dean", "staff"].includes(actorRole)) {
-          const submitter = await User.findById(complaint.submittedBy).select("name email");
+          const submitter = await User.findById(complaint.submittedBy).select(
+            "name email"
+          );
           if (submitter?.email) {
             await sendComplaintUpdateEmail({
               to: submitter.email,
@@ -859,7 +893,9 @@ export const updateComplaintStatus = async (req, res) => {
       const updatedDetails = { ...(lastSameStatusLog.details || {}) };
       if (description && String(description).trim()) {
         updatedDetails.description = updatedDetails.description
-          ? `${updatedDetails.description}\n[${new Date().toISOString()}] ${description}`
+          ? `${
+              updatedDetails.description
+            }\n[${new Date().toISOString()}] ${description}`
           : String(description);
       }
       await ActivityLog.findByIdAndUpdate(
@@ -922,7 +958,9 @@ export const getAssignedComplaints = async (req, res) => {
     return res.status(200).json(formatted);
   } catch (error) {
     console.error("getAssignedComplaints error:", error?.message);
-    return res.status(500).json({ error: "Failed to fetch assigned complaints" });
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch assigned complaints" });
   }
 };
 
