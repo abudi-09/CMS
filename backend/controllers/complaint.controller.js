@@ -8,76 +8,83 @@ import User, {
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
   try {
+    const user = req.user || null;
     const {
       title,
-      category,
       description,
+      category,
       priority,
-      department,
       deadline,
       evidenceFile,
       submittedTo,
-      sourceRole,
-      assignedByRole,
-      assignmentPath,
-      // Optional: when user selects a specific staff for direct complaints
+      department,
       recipientStaffId,
+      recipientHodId,
+      assignmentPath,
+      assignedByRole,
+      sourceRole,
     } = req.body;
 
-    // Normalize any role-like strings to canonical roles to satisfy Complaint schema enums
-    const normalizedSourceRole = normalizeUserRole(sourceRole || "student");
-    const normalizedAssignedByRole = assignedByRole
-      ? normalizeUserRole(assignedByRole)
-      : null;
-    const normalizedAssignmentPath = Array.isArray(assignmentPath)
-      ? assignmentPath.map((r) => normalizeUserRole(r))
-      : undefined;
-    const complaint = new Complaint({
-      // Complaint schema defines _id as String, so we must provide one
-      _id: new mongoose.Types.ObjectId().toString(),
+    const complaintData = {
       title,
-      category,
       description,
-      priority: priority || "Medium",
-      department,
-      deadline: deadline ? new Date(deadline) : null,
-      evidenceFile: evidenceFile || null,
-      submittedTo: submittedTo || null,
-      sourceRole: normalizedSourceRole,
-      assignedByRole: normalizedAssignedByRole,
-      assignmentPath: normalizedAssignmentPath,
-      submittedBy: req.user._id,
-    });
+      category,
+      priority,
+      evidenceFile,
+      submittedTo,
+      department: department || user?.department || "",
+      sourceRole: sourceRole || "student",
+      assignedByRole: assignedByRole || undefined,
+      assignmentPath: Array.isArray(assignmentPath)
+        ? assignmentPath
+        : ["student"],
+      submittedBy: user ? user._id : undefined,
+    };
 
-    // If this is a direct-to-staff submission, set assignment immediately
-    if (recipientStaffId) {
-      const staff = await User.findById(recipientStaffId).select(
-        "role isApproved isActive department"
-      );
-      if (!staff)
-        return res.status(400).json({ error: "Recipient staff not found" });
-      if (staff.role !== "staff" || !staff.isApproved || !staff.isActive)
-        return res
-          .status(400)
-          .json({ error: "Recipient is not an active approved staff" });
-      // Enforce same department for students
-      if (
-        req.user.role === "student" &&
-        department &&
-        staff.department &&
-        staff.department !== department
-      ) {
-        return res
-          .status(400)
-          .json({ error: "Recipient must be in your department" });
+    if (deadline) {
+      try {
+        complaintData.deadline = new Date(deadline);
+      } catch (err) {
+        // ignore invalid date and leave undefined
       }
-      complaint.assignedTo = staff._id;
+    }
+
+    const complaint = new Complaint(complaintData);
+
+    // If recipientStaffId provided, assign immediately to staff
+    if (recipientStaffId) {
+      complaint.assignedTo = recipientStaffId;
+      complaint.assignedToRole = "staff";
       complaint.assignedAt = new Date();
-      // Keep complaint status Pending until staff accepts; staff can move it to In Progress
+      // use canonical enum value for status
+      complaint.status = "Pending";
+    }
+
+    // If recipientHodId provided, assign immediately to HoD
+    if (recipientHodId) {
+      complaint.assignedTo = recipientHodId;
+      complaint.assignedToRole = "hod";
+      complaint.assignedAt = new Date();
+      // use canonical enum value for status
       complaint.status = "Pending";
     }
 
     await complaint.save();
+
+    // If we assigned to a HoD, log how many complaints are currently assigned to them
+    if (recipientHodId) {
+      try {
+        const hodCount = await Complaint.countDocuments({
+          assignedTo: recipientHodId,
+        });
+        console.log(
+          `HoD ${recipientHodId} assigned complaints count: ${hodCount}`
+        );
+      } catch (countErr) {
+        console.error("Failed to count complaints for HoD", countErr);
+      }
+    }
+
     try {
       console.log("[DEBUG] Complaint created:", {
         _id: complaint._id.toString(),
@@ -738,5 +745,43 @@ export const markFeedbackReviewed = async (req, res) => {
       .json({ message: "Feedback marked as reviewed", complaint });
   } catch (err) {
     return res.status(500).json({ error: "Failed to mark reviewed" });
+  }
+};
+
+// Query complaints with optional filters and role-based visibility
+export const queryComplaints = async (req, res) => {
+  try {
+    const user = req.user || null;
+    const { assignedTo, department } = req.query;
+
+    // Build query
+    let q = {};
+    if (assignedTo) q.assignedTo = assignedTo;
+    if (department) q.department = department;
+
+    // If no explicit filter provided, apply role-based defaults
+    if (!assignedTo && !department) {
+      if (user && (user.role === "staff" || user.role === "staff")) {
+        // staff should see complaints assigned to them
+        q.assignedTo = user._id;
+      } else if (user && (user.role === "hod" || user.role === "headofdepartment")) {
+        // HoD should see complaints assigned to them only (not whole department)
+        q.assignedTo = user._id;
+      } else if (user && (user.role === "admin" || user.role === "dean")) {
+        // admin/dean: no filter (see all)
+        q = q; // keep empty or provided filters
+      } else {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
+    const complaints = await Complaint.find(q)
+      .populate("submittedBy", "name email")
+      .lean();
+
+    res.status(200).json(complaints || []);
+  } catch (err) {
+    console.error("queryComplaints error:", err);
+    res.status(500).json({ error: "Failed to fetch complaints" });
   }
 };

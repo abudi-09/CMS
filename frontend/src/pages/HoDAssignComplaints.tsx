@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -57,188 +57,145 @@ export function HoDAssignComplaints() {
   // Pagination state
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  // Diverse mock complaints for demo/testing
-  // At least half of complaints are overdue (deadline in the past)
-  const now = new Date();
-  const demoComplaints: ComplaintType[] = [
-    {
-      id: "HOD-001",
-      title: "Lab equipment request overdue",
-      description: "Requested equipment for lab is overdue.",
-      category: "Academic",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "Dept Head",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-10"),
-      lastUpdated: new Date("2024-01-15"),
-      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-    },
-    {
-      id: "HOD-002",
-      title: "Faculty leave request delayed",
-      description: "Leave request for faculty not processed in time.",
-      category: "HR",
-      priority: "Medium",
-      status: "In Progress",
-      submittedBy: "Faculty Member",
-      assignedStaff: "HR Manager",
-      assignedStaffRole: "staff",
-      submittedDate: new Date("2024-02-01"),
-      lastUpdated: new Date("2024-02-05"),
-      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-003",
-      title: "Lab safety equipment missing",
-      description: "Safety goggles and gloves missing from chemistry lab.",
-      category: "Facility",
-      priority: "Critical",
-      status: "Pending",
-      submittedBy: "Lab Assistant",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-03-10"),
-      lastUpdated: new Date("2024-03-12"),
-      deadline: new Date(now.getTime() - 5 * 86400000), // overdue
-    },
-    {
-      id: "HOD-004",
-      title: "Student feedback on course content",
-      description: "Students report outdated syllabus in core course.",
-      category: "Academic",
-      priority: "Low",
-      status: "Closed",
-      submittedBy: "Student Council",
-      assignedStaff: "Course Coordinator",
-      submittedDate: new Date("2024-04-01"),
-      lastUpdated: new Date("2024-04-10"),
-      deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-005",
-      title: "Unassigned complaint test",
-      description: "This complaint has not yet been assigned to any staff.",
-      category: "General",
-      priority: "Medium",
-      status: "Unassigned",
-      submittedBy: "Test User",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-05-12"),
-      lastUpdated: new Date("2024-05-12"),
-      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    },
-    {
-      id: "HOD-006",
-      title: "Departmental budget approval delayed",
-      description: "Budget approval for new equipment is overdue.",
-      category: "Finance",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "Dept Admin",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-06-01"),
-      lastUpdated: new Date("2024-06-05"),
-      deadline: new Date(now.getTime() - 7 * 86400000), // overdue
-    },
-    {
-      id: "HOD-007",
-      title: "Edge case: No description",
-      description: "",
-      category: "Other",
-      priority: "Low",
-      status: "In Progress",
-      submittedBy: "Edge Case",
-      assignedStaff: "Support",
-      assignedStaffRole: "staff",
-      submittedDate: new Date("2024-07-18"),
-      lastUpdated: new Date("2024-07-18"),
-      deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-008",
-      title: "Edge case: No assigned staff, no feedback",
-      description: "Complaint submitted but not yet processed.",
-      category: "General",
-      priority: "Medium",
-      status: "Pending",
-      submittedBy: "Edge Case 2",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-07-19"),
-      lastUpdated: new Date("2024-07-19"),
-      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-009",
-      title: "Faculty training session overdue",
-      description: "Mandatory training session for faculty not scheduled.",
-      category: "HR",
-      priority: "High",
-      status: "In Progress",
-      submittedBy: "HR Dept",
-      assignedStaff: "Training Coordinator",
-      assignedStaffRole: "staff",
-      submittedDate: new Date("2024-08-01"),
-      lastUpdated: new Date("2024-08-03"),
-      deadline: new Date(now.getTime() - 4 * 86400000), // overdue
-    },
-    {
-      id: "HOD-010",
-      title: "Printer out of service",
-      description: "Printer in HOD's office is out of service.",
-      category: "IT & Technology",
-      priority: "Low",
-      status: "Assigned",
-      submittedBy: "Office Staff",
-      assignedStaff: "IT Support Team",
-      assignedStaffRole: "staff",
-      submittedDate: new Date("2024-08-05"),
-      lastUpdated: new Date("2024-08-06"),
-      deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-011",
-      title: "HoD accepted: Classroom equipment audit",
-      description: "Audit required for classroom equipment inventory.",
-      category: "Academic",
-      priority: "Medium",
-      status: "In Progress",
-      submittedBy: "Dean Office",
-      assignedStaff: "Head of Department - IT",
-      assignedStaffRole: "headOfDepartment",
-      submittedDate: new Date("2024-08-08"),
-      lastUpdated: new Date("2024-08-09"),
-      deadline: new Date(now.getTime() + 6 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-012",
-      title: "HoD accepted: Lab safety compliance",
-      description: "Update lab safety compliance documentation.",
-      category: "Facility",
-      priority: "High",
-      status: "In Progress",
-      submittedBy: "Safety Committee",
-      assignedStaff: "Head of Department - IT",
-      assignedStaffRole: "headOfDepartment",
-      submittedDate: new Date("2024-08-06"),
-      lastUpdated: new Date("2024-08-07"),
-      deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
-    },
-    {
-      id: "HOD-013",
-      title: "Extra pending item to show pagination",
-      description: "Additional item so Pending tab has >5 entries.",
-      category: "General",
-      priority: "Medium",
-      status: "Pending",
-      submittedBy: "QA Tester",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-08-10"),
-      lastUpdated: new Date("2024-08-10"),
-      deadline: new Date(now.getTime() + 4 * 86400000),
-    },
-  ];
-  const [complaints, setComplaints] =
-    useReactState<ComplaintType[]>(demoComplaints);
+  // Real complaints loaded from backend and scoped to this HOD
+  const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchComplaints() {
+      try {
+        const res = await fetch("http://localhost:5000/api/complaints", {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!Array.isArray(data)) {
+          setComplaints([]);
+          setLoading(false);
+          return;
+        }
+        const staffList = getAllStaff();
+        const mapped = (data as Array<Record<string, unknown>>).map((obj) => {
+          const id = String(obj["_id"] ?? obj["id"] ?? "");
+          const title = String(obj["title"] ?? "");
+          const category = String(obj["category"] ?? "General");
+          const priority = String(
+            obj["priority"] ?? "Medium"
+          ) as ComplaintType["priority"];
+          const status = String(
+            obj["status"] ?? "Pending"
+          ) as ComplaintType["status"];
+          const department = obj["department"]
+            ? String(obj["department"])
+            : undefined;
+          let submittedBy = "Unknown";
+          const sb = obj["submittedBy"];
+          if (sb) {
+            if (typeof sb === "string") submittedBy = sb;
+            else if (typeof sb === "object") {
+              const sbo = sb as Record<string, unknown>;
+              submittedBy = String(
+                sbo["name"] ?? sbo["fullName"] ?? sbo["email"] ?? "User"
+              );
+            }
+          }
+          const submittedTo = obj["submittedTo"]
+            ? String(obj["submittedTo"])
+            : undefined;
+          const assignedToRaw = obj["assignedTo"] ?? obj["assignedStaff"];
+          let assignedStaff: string | undefined = undefined;
+          if (submittedTo) assignedStaff = submittedTo;
+          else if (typeof assignedToRaw === "string") {
+            const staff = staffList.find((s) => s.id === assignedToRaw);
+            if (staff) assignedStaff = staff.fullName || staff.name;
+            else assignedStaff = assignedToRaw;
+          }
+          const createdAt = obj["createdAt"]
+            ? new Date(String(obj["createdAt"]))
+            : new Date();
+          const lastUpdated = obj["updatedAt"]
+            ? new Date(String(obj["updatedAt"]))
+            : createdAt;
+          const deadline = obj["deadline"]
+            ? new Date(String(obj["deadline"]))
+            : undefined;
+
+          return {
+            id,
+            title,
+            description: String(obj["description"] ?? ""),
+            category,
+            priority,
+            status,
+            submittedBy,
+            assignedStaff,
+            assignedStaffRole: obj["assignedStaffRole"]
+              ? (String(
+                  obj["assignedStaffRole"]
+                ) as ComplaintType["assignedStaffRole"])
+              : undefined,
+            assignedByRole: obj["assignedByRole"]
+              ? (String(
+                  obj["assignedByRole"]
+                ) as ComplaintType["assignedByRole"])
+              : undefined,
+            assignmentPath: Array.isArray(obj["assignmentPath"])
+              ? (obj["assignmentPath"] as string[])
+              : [],
+            submittedDate: createdAt,
+            lastUpdated,
+            assignedDate: obj["assignedAt"]
+              ? new Date(String(obj["assignedAt"]))
+              : undefined,
+            deadline,
+            evidence: obj["evidenceFile"]
+              ? String(obj["evidenceFile"])
+              : undefined,
+            resolutionNote: obj["resolutionNote"]
+              ? String(obj["resolutionNote"])
+              : undefined,
+            feedback: obj["feedback"] as unknown as ComplaintType["feedback"],
+            department,
+          } as ComplaintType;
+        });
+
+        // Scope complaints to this HOD's department or to items routed to HOD
+        type MinimalUserLocal = { department?: string; workingPlace?: string };
+        const u = (user || {}) as MinimalUserLocal;
+        const uDept = u.department || u.workingPlace || "";
+        const deptLower = String(uDept).toLowerCase();
+        const visible = mapped.filter((c) => {
+          if (
+            c.department &&
+            deptLower &&
+            String(c.department).toLowerCase() === deptLower
+          )
+            return true;
+          if (
+            c.submittedTo &&
+            String(c.submittedTo).toLowerCase().includes("hod")
+          )
+            return true;
+          if (
+            Array.isArray(c.assignmentPath) &&
+            c.assignmentPath.map((p) => String(p).toLowerCase()).includes("hod")
+          )
+            return true;
+          return false;
+        });
+
+        if (!cancelled) setComplaints(visible);
+      } catch (err) {
+        setComplaints([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchComplaints();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAllStaff, user, setComplaints]);
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all");
@@ -389,11 +346,8 @@ export function HoDAssignComplaints() {
 
   const matchesTab = (c: ComplaintType) => {
     if (activeTab === "Pending")
-      return (
-        (c.status === "Pending" || c.status === "Unassigned") &&
-        !c.assignedStaffRole &&
-        !c.assignedStaff
-      );
+      // Show all pending or unassigned complaints for HOD (include ones routed to HOD)
+      return c.status === "Pending" || c.status === "Unassigned";
     if (activeTab === "Accepted")
       return (
         c.status === "In Progress" && c.assignedStaffRole === "headOfDepartment"

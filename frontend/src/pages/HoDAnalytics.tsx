@@ -1,4 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/components/auth/AuthContext";
+import {
+  listMyDepartmentActiveStaffApi,
+  getHodComplaintStatsApi,
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -53,54 +58,19 @@ const priorityData = [
 
 const statusData = [{ status: "Pending", count: 3 }];
 
-// Staff performance mock data for HOD
-const staffPerformance = [
-  {
-    id: "1",
-    name: "John Doe",
-    role: "Staff",
-    department: "Computer Science",
-    totalAssigned: 10,
-    resolved: 8,
-    pending: 1,
-    inProgress: 1,
-    successRate: 80.0,
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    role: "Staff",
-    department: "Information System",
-    totalAssigned: 12,
-    resolved: 10,
-    pending: 1,
-    inProgress: 1,
-    successRate: 83.3,
-  },
-  {
-    id: "3",
-    name: "Michael Brown",
-    role: "Staff",
-    department: "Information Science",
-    totalAssigned: 9,
-    // Staff performance mock data for HOD
-    resolved: 7,
-    pending: 1,
-    inProgress: 1,
-    successRate: 77.8,
-  },
-  {
-    id: "4",
-    name: "Emily Davis",
-    role: "Staff",
-    department: "Information Technology",
-    totalAssigned: 11,
-    resolved: 9,
-    pending: 1,
-    inProgress: 1,
-    successRate: 81.8,
-  },
-];
+// typed staff perf items for HOD view
+type StaffPerfItem = {
+  id: string;
+  name: string;
+  department?: string;
+  totalAssigned: number;
+  resolved: number;
+  pending: number;
+  inProgress: number;
+  successRate: number;
+};
+
+const initialStaffPerformance: StaffPerfItem[] = [];
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
@@ -117,6 +87,54 @@ const monthlyTrendData = [
 export default function HoDAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
   const [sortBy, setSortBy] = useState("successRate");
+  const [staffPerformance, setStaffPerformance] = useState(
+    initialStaffPerformance
+  );
+  const [complaintStats, setComplaintStats] = useState({
+    total: 0,
+    resolved: 0,
+  });
+  const { user } = useAuth();
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchData() {
+      try {
+        const staffRes = await listMyDepartmentActiveStaffApi().catch(() => []);
+        const staffArr = Array.isArray(staffRes) ? staffRes : [];
+        // Map to StaffPerfItem (initial counts are zeros; metrics computed elsewhere or via separate API)
+        const mapped: StaffPerfItem[] = staffArr.map(
+          (s: Record<string, unknown>, idx: number) => ({
+            id: String(s._id ?? s.id ?? s.email ?? `dept-${idx}`),
+            name: String(s.fullName ?? s.name ?? s.email ?? "Unknown"),
+            department: String(s.department ?? ""),
+            totalAssigned: Number(s.totalAssigned ?? 0),
+            resolved: Number(s.resolved ?? 0),
+            pending: Number(s.pending ?? 0),
+            inProgress: Number(s.inProgress ?? 0),
+            successRate: Number(s.successRate ?? 0),
+          })
+        );
+        if (cancelled) return;
+        setStaffPerformance(mapped);
+
+        const statsRes = await getHodComplaintStatsApi().catch(() => null);
+        if (statsRes && typeof statsRes === "object") {
+          const sr = statsRes as Record<string, unknown>;
+          setComplaintStats({
+            total: Number(sr["total"] ?? 0),
+            resolved: Number(sr["resolved"] ?? 0),
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch HOD analytics", e);
+      }
+    }
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.department]);
 
   const sortedStaff = [...staffPerformance].sort((a, b) => {
     if (sortBy === "successRate") return b.successRate - a.successRate;
@@ -136,28 +154,32 @@ export default function HoDAnalytics() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">80</span>
+            <span className="text-2xl font-bold">{complaintStats.total}</span>
             <span className="text-muted-foreground">Total Students</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">10</span>
+            <span className="text-2xl font-bold">
+              {staffPerformance.length}
+            </span>
             <span className="text-muted-foreground">Total Staff</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <FileText className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">22</span>
+            <span className="text-2xl font-bold">{complaintStats.total}</span>
             <span className="text-muted-foreground">Total Complaints</span>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
-            <span className="text-2xl font-bold">16</span>
+            <span className="text-2xl font-bold">
+              {complaintStats.resolved}
+            </span>
             <span className="text-muted-foreground">Resolved Complaints</span>
           </CardContent>
         </Card>

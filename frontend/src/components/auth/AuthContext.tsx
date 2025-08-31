@@ -76,6 +76,7 @@ interface AuthContextType {
   approveStaff: (staffId: string) => Promise<void>;
   rejectStaff: (staffId: string) => Promise<void>;
   getAllStaff: () => User[];
+  getApprovedStaff: () => User[];
   setUserName?: (name: string) => void;
   updateUserProfile?: (updates: Partial<User>) => void;
   getLogoutReason?: () => string | null;
@@ -306,6 +307,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getAllStaff = () => allStaff;
 
+  const getApprovedStaff = () => {
+    try {
+      return allStaff.filter((s) => {
+        const rec = s as unknown as Record<string, unknown>;
+        const status = String(rec["status"] ?? "").toLowerCase();
+        if (status === "approved" || status === "active") return true;
+        if (rec["isApproved"] === true) return true;
+        if (rec["approved"] === true) return true;
+        if (rec["isActive"] === true) return true;
+        return false;
+      });
+    } catch (e) {
+      return [];
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setLogoutReason((prev) => prev ?? null);
@@ -336,6 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approveStaff,
         rejectStaff,
         getAllStaff,
+        getApprovedStaff,
         setUserName,
         updateUserProfile,
         getLogoutReason: () => logoutReason,
@@ -363,6 +381,7 @@ export function useAuth() {
       approveStaff: async () => void 0,
       rejectStaff: async () => void 0,
       getAllStaff: () => [],
+      getApprovedStaff: () => [],
       setUserName: () => void 0,
       updateUserProfile: () => void 0,
       getLogoutReason: () => null,
