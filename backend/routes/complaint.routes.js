@@ -14,6 +14,7 @@ import {
   markFeedbackReviewed,
   getFeedbackByRole,
   queryComplaints,
+
   deanAssignToHod,
   getDeanInbox,
   getAdminInbox,
@@ -21,6 +22,7 @@ import {
   hodAssignToStaff,
   getHodManagedComplaints,
   getHodAll,
+
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -64,6 +64,7 @@ export function HoDAssignComplaints() {
   const { user } = useAuth();
   // Pagination state
   const [page, setPage] = useState(1);
+
   const pageSize = 10;
   // Data state
   const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
@@ -79,6 +80,7 @@ export function HoDAssignComplaints() {
       department: string;
     }>
   >([]);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all");
@@ -364,6 +366,7 @@ export function HoDAssignComplaints() {
   };
 
   const matchesTab = (c: ComplaintType) => {
+
     if (activeTab === "All") return true;
     if (activeTab === "Pending") {
       // Pending items are unassigned and awaiting HoD action
@@ -374,6 +377,7 @@ export function HoDAssignComplaints() {
     }
     if (activeTab === "Accepted") {
       // Accepted: handled by HoD (assigned to self) and in progress
+
       return (
         (c.status === "In Progress" || c.status === "Assigned") &&
         isAssignedToSelf(c)

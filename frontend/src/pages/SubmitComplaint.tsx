@@ -351,21 +351,17 @@ export function SubmitComplaint() {
         status = "Submitted to Admin";
       }
       // Map UI role value to canonical role keys
-      const roleMap: Record<
-        string,
-        "staff" | "headOfDepartment" | "dean" | "admin"
-      > = {
+      const roleMap: Record<string, "staff" | "hod" | "dean" | "admin"> = {
         staff: "staff",
-        hod: "headOfDepartment",
+        hod: "hod",
         dean: "dean",
         admin: "admin",
       } as const;
       const targetRole = roleMap[formData.role as keyof typeof roleMap];
       const assignmentPath: Array<
-        "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+        "student" | "hod" | "dean" | "admin" | "staff"
       > = ["student"];
-      if (targetRole === "headOfDepartment")
-        assignmentPath.push("headOfDepartment");
+      if (targetRole === "hod") assignmentPath.push("hod");
       if (targetRole === "dean") assignmentPath.push("dean");
       if (targetRole === "admin") assignmentPath.push("admin");
 
@@ -380,25 +376,18 @@ export function SubmitComplaint() {
         department: user?.department || "Unknown Department",
         // Who created the complaint (role)
         sourceRole: "student",
-        // If sent directly to staff, assignedByRole is student; else it's whoever routes next
-        assignedByRole:
-          targetRole === "staff"
-            ? "student"
-            : targetRole === "headOfDepartment"
-            ? "headOfDepartment"
-            : targetRole === "dean"
-            ? "dean"
-            : targetRole === "admin"
-            ? "admin"
-            : undefined,
+        // The assigner role for a direct student submission should be 'student'
+        assignedByRole: "student",
         assignmentPath,
         deadline:
           formData.role === "staff" && formData.deadline
             ? new Date(formData.deadline)
             : undefined,
-        // Important: tell backend which staff to assign to immediately
         recipientStaffId:
           formData.role === "staff" ? formData.recipient : undefined,
+        // NEW: send Hod id when role is hod
+        recipientHodId:
+          formData.role === "hod" ? formData.recipient : undefined,
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);

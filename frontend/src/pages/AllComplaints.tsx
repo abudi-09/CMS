@@ -60,6 +60,7 @@ export default function AllComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -313,8 +314,10 @@ export default function AllComplaints() {
     [user]
   );
   const getSubmitterDept = useCallback(
+
     (c: Complaint) => c.department || "",
     []
+
   );
   const role = normalize(((user || {}) as MinimalUser).role);
   const myDept = ((user || {}) as MinimalUser).department || "";
@@ -602,6 +605,116 @@ export default function AllComplaints() {
       );
       window.removeEventListener("complaint:upsert", onUpsert as EventListener);
     };
+  }, []);
+
+  useEffect(() => {
+    async function fetchComplaints() {
+      try {
+        const res = await fetch("http://localhost:5000/api/complaints", {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!Array.isArray(data)) {
+          setComplaints([]);
+          setLoading(false);
+          return;
+        }
+        const mapped: Complaint[] = (
+          data as Array<Record<string, unknown>>
+        ).map((raw) => {
+          const obj = raw as Record<string, unknown>;
+          // submittedBy may be an object or string
+          let submittedBy = "Unknown";
+          const sb = obj["submittedBy"];
+          if (sb) {
+            if (typeof sb === "string") submittedBy = sb;
+            else if (typeof sb === "object") {
+              const sbo = sb as Record<string, unknown>;
+              submittedBy = String(
+                sbo["fullName"] ?? sbo["name"] ?? sbo["email"] ?? "User"
+              );
+            }
+          }
+
+          const assignedStaffRaw = obj["assignedTo"] ?? obj["assignedStaff"];
+          // Prefer the human-readable submittedTo when present (e.g., "HoD (Computer Science)")
+          const assignedStaff = obj["submittedTo"]
+            ? String(obj["submittedTo"])
+            : typeof assignedStaffRaw === "string"
+            ? String(assignedStaffRaw)
+            : undefined;
+
+          const assignedStaffRole = String(
+            obj["assignedStaffRole"] ?? ""
+          ) as unknown as Complaint["assignedStaffRole"];
+          const assignedByRole = String(
+            obj["assignedByRole"] ?? ""
+          ) as unknown as Complaint["assignedByRole"];
+          const sourceRole = String(
+            obj["sourceRole"] ?? ""
+          ) as unknown as Complaint["sourceRole"];
+
+          const assignmentPath = Array.isArray(obj["assignmentPath"])
+            ? (obj["assignmentPath"] as string[])
+            : [];
+
+          return {
+            id: String(obj["id"] ?? obj["_id"] ?? ""),
+            title: String(obj["title"] ?? obj["subject"] ?? ""),
+            description: String(
+              obj["description"] ?? obj["fullDescription"] ?? ""
+            ),
+            category: String(obj["category"] ?? "General"),
+            status: String(obj["status"] ?? "Pending") as Complaint["status"],
+            priority: String(
+              obj["priority"] ?? "Medium"
+            ) as Complaint["priority"],
+            submittedBy,
+            assignedStaff,
+            assignedStaffRole,
+            assignedByRole,
+            assignmentPath,
+            assignedDate: obj["assignedAt"]
+              ? new Date(String(obj["assignedAt"]))
+              : undefined,
+            // Prefer createdAt from the backend as the submitted date when available
+            submittedDate: obj["createdAt"]
+              ? new Date(String(obj["createdAt"]))
+              : obj["submittedDate"]
+              ? new Date(String(obj["submittedDate"]))
+              : new Date(),
+            lastUpdated: obj["lastUpdated"]
+              ? new Date(String(obj["lastUpdated"]))
+              : new Date(),
+            deadline: obj["deadline"]
+              ? new Date(String(obj["deadline"]))
+              : undefined,
+            feedback: (obj["feedback"] as Complaint["feedback"]) || undefined,
+            resolutionNote: obj["resolutionNote"]
+              ? String(obj["resolutionNote"])
+              : undefined,
+            evidenceFile:
+              obj["evidenceFile"] ?? obj["attachment"]
+                ? String(obj["evidenceFile"] ?? obj["attachment"])
+                : undefined,
+            isEscalated: Boolean(obj["isEscalated"] ?? false),
+            sourceRole,
+            submittedTo: obj["submittedTo"]
+              ? String(obj["submittedTo"])
+              : undefined,
+            department: obj["department"]
+              ? String(obj["department"])
+              : undefined,
+          } as Complaint;
+        });
+        setComplaints(mapped);
+      } catch (err) {
+        setComplaints([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchComplaints();
   }, []);
 
   return (

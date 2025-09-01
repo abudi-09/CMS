@@ -1,3 +1,9 @@
+import {
+  listMyDepartmentActiveStaffApi,
+  listAllComplaintsApi,
+  getMyComplaintsApi,
+  listMyAssignedComplaintsApi,
+} from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +42,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useAuth } from "@/components/auth/AuthContext";
 
 interface StaffMember {
   id: string;
@@ -53,125 +60,14 @@ interface StaffMember {
   profilePicture?: string;
 }
 
-const mockStaffData: StaffMember[] = [
-  {
-    id: "1",
-    name: "Dr. Sarah Johnson",
-    email: "sarah.johnson@university.edu",
-    department: "IT Services",
-    workPlace: "Technology Center",
-    totalAssigned: 45,
-    resolved: 42,
-    pending: 2,
-    inProgress: 1,
-    averageRating: 4.8,
-    successRate: 93.3,
-    avgResolutionTime: 18,
-  },
-  {
-    id: "2",
-    name: "Mark Thompson",
-    email: "mark.thompson@university.edu",
-    department: "Academic Affairs",
-    workPlace: "Administration Building",
-    totalAssigned: 38,
-    resolved: 35,
-    pending: 3,
-    inProgress: 0,
-    averageRating: 4.5,
-    successRate: 92.1,
-    avgResolutionTime: 24,
-  },
-  {
-    id: "3",
-    name: "Lisa Chen",
-    email: "lisa.chen@university.edu",
-    department: "Facilities",
-    workPlace: "Maintenance Office",
-    totalAssigned: 52,
-    resolved: 47,
-    pending: 4,
-    inProgress: 1,
-    averageRating: 4.6,
-    successRate: 90.4,
-    avgResolutionTime: 30,
-  },
-  {
-    id: "4",
-    name: "James Wilson",
-    email: "james.wilson@university.edu",
-    department: "Student Services",
-    workPlace: "Student Center",
-    totalAssigned: 29,
-    resolved: 24,
-    pending: 3,
-    inProgress: 2,
-    averageRating: 4.2,
-    successRate: 82.8,
-    avgResolutionTime: 36,
-  },
-  // Additional mock staff
-  {
-    id: "5",
-    name: "Priya Patel",
-    email: "priya.patel@university.edu",
-    department: "Library Services",
-    workPlace: "Main Library",
-    totalAssigned: 22,
-    resolved: 20,
-    pending: 1,
-    inProgress: 1,
-    averageRating: 4.7,
-    successRate: 90.9,
-    avgResolutionTime: 15,
-  },
-  {
-    id: "6",
-    name: "Ahmed Al-Farsi",
-    email: "ahmed.alfarsi@university.edu",
-    department: "Security",
-    workPlace: "Security Office",
-    totalAssigned: 33,
-    resolved: 30,
-    pending: 2,
-    inProgress: 1,
-    averageRating: 4.3,
-    successRate: 87.5,
-    avgResolutionTime: 22,
-  },
-  {
-    id: "7",
-    name: "Maria Gomez",
-    email: "maria.gomez@university.edu",
-    department: "Cafeteria",
-    workPlace: "Dining Hall",
-    totalAssigned: 27,
-    resolved: 25,
-    pending: 1,
-    inProgress: 1,
-    averageRating: 4.1,
-    successRate: 92.6,
-    avgResolutionTime: 19,
-  },
-  {
-    id: "8",
-    name: "John Smith",
-    email: "john.smith@university.edu",
-    department: "Transport",
-    workPlace: "Transport Office",
-    totalAssigned: 18,
-    resolved: 15,
-    pending: 2,
-    inProgress: 1,
-    averageRating: 3.9,
-    successRate: 83.3,
-    avgResolutionTime: 28,
-  },
-];
+type StaffMemberWithAcc = StaffMember & {
+  _ratings?: number[];
+  _resTimes?: number[];
+};
 
 export default function StaffPerformance() {
-  const [staffMembers, setStaffMembers] =
-    useState<StaffMember[]>(mockStaffData);
+  const { getApprovedStaff, getAllStaff, user } = useAuth();
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [ratingFilter, setRatingFilter] = useState<string>("all");
@@ -179,6 +75,279 @@ export default function StaffPerformance() {
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [page, setPage] = useState(1);
   const pageSize = 5;
+
+  // Load approved/active staff from context; fallback to all staff and then to department API
+  useEffect(() => {
+    let cancelled = false;
+    async function loadApprovedOnly() {
+      try {
+        const isApprovedRec = (rec: Record<string, unknown>) => {
+          const status = String(rec["status"] ?? "").toLowerCase();
+          if (status === "approved" || status === "active") return true;
+          if (rec["isApproved"] === true) return true;
+          if (rec["approved"] === true) return true;
+          if (rec["isActive"] === true) return true;
+          return false;
+        };
+
+        const rawApproved =
+          typeof getApprovedStaff === "function"
+            ? await Promise.resolve(getApprovedStaff())
+            : [];
+        let approvedArr: Record<string, unknown>[] = Array.isArray(rawApproved)
+          ? (rawApproved as unknown as Record<string, unknown>[])
+          : [];
+
+        if (approvedArr.length === 0) {
+          const rawAll =
+            typeof getAllStaff === "function"
+              ? await Promise.resolve(getAllStaff())
+              : [];
+          const allArr: Record<string, unknown>[] = Array.isArray(rawAll)
+            ? (rawAll as unknown as Record<string, unknown>[])
+            : [];
+          approvedArr = allArr.filter(isApprovedRec);
+
+          if (approvedArr.length === 0) {
+            try {
+              const deptRes = await listMyDepartmentActiveStaffApi().catch(
+                () => []
+              );
+              const deptArr: Record<string, unknown>[] = Array.isArray(deptRes)
+                ? (deptRes as Record<string, unknown>[])
+                : [];
+              if (deptArr.length > 0) approvedArr = deptArr;
+            } catch (err) {
+              // ignore
+            }
+          }
+        }
+
+        if (!cancelled) {
+          if (approvedArr.length === 0) {
+            setStaffMembers([]);
+          } else {
+            const mapped = approvedArr.map((r, idx) => {
+              const id = String(
+                r["_id"] ?? r["id"] ?? r["email"] ?? `approved-${idx}`
+              );
+              return {
+                id,
+                name: String(r["fullName"] ?? r["name"] ?? r["email"] ?? ""),
+                email: String(r["email"] ?? ""),
+                department: String(r["department"] ?? r["dept"] ?? ""),
+                workPlace: String(r["workPlace"] ?? r["position"] ?? ""),
+                totalAssigned: 0,
+                resolved: 0,
+                pending: 0,
+                inProgress: 0,
+                averageRating: 0,
+                successRate: 0,
+                avgResolutionTime: 0,
+                profilePicture: String(
+                  r["profilePicture"] ?? r["avatar"] ?? ""
+                ),
+              } as StaffMember;
+            });
+            setStaffMembers(mapped);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadApprovedOnly();
+    return () => {
+      cancelled = true;
+    };
+  }, [getApprovedStaff, getAllStaff]);
+
+  // When staffMembers are present, fetch complaints and compute real metrics
+  useEffect(() => {
+    if (!staffMembers || staffMembers.length === 0) return;
+    let cancelled = false;
+    async function loadAndAggregate() {
+      try {
+        let complaints: Array<Record<string, unknown>> = [];
+
+        // Only call admin endpoint for admin/dean users to avoid 403
+        const role = (user && (user.role as string)) || "";
+        if (role === "admin" || role === "dean") {
+          try {
+            const all = await listAllComplaintsApi();
+            if (Array.isArray(all))
+              complaints = all as Array<Record<string, unknown>>;
+          } catch (e) {
+            // fallback to other endpoints below
+            complaints = [];
+          }
+        }
+
+        // If not admin/dean, or admin call failed, try non-admin endpoints
+        if (complaints.length === 0) {
+          // Try HoD/user scoped complaints
+          try {
+            const mine = await getMyComplaintsApi().catch(() => []);
+            if (Array.isArray(mine) && mine.length > 0)
+              complaints = mine as Array<Record<string, unknown>>;
+          } catch (_) {
+            // ignore
+          }
+        }
+
+        if (complaints.length === 0) {
+          try {
+            // only call assigned endpoint for staff users to avoid 403 for other roles
+            const roleStr = (user && (user.role as string)) || "";
+            if (roleStr === "staff") {
+              const assigned = await listMyAssignedComplaintsApi().catch(
+                () => []
+              );
+              if (Array.isArray(assigned) && assigned.length > 0)
+                complaints = assigned as Array<Record<string, unknown>>;
+            }
+          } catch (_) {
+            // ignore
+          }
+        }
+
+        // final fallback to public /api/complaints
+        if (complaints.length === 0) {
+          try {
+            const res = await fetch("/api/complaints", {
+              credentials: "include",
+            }).catch(() => null);
+            if (res && res.ok) {
+              const ct = res.headers.get("content-type") || "";
+              if (ct.includes("application/json"))
+                complaints = (await res.json()) as Array<
+                  Record<string, unknown>
+                >;
+            }
+          } catch (err) {
+            complaints = [];
+          }
+        }
+
+        if (cancelled) return;
+
+        const byId = new Map<string, number>();
+        const byEmail = new Map<string, number>();
+        const members: StaffMemberWithAcc[] = staffMembers.map(
+          (s) => ({ ...s } as StaffMemberWithAcc)
+        );
+        members.forEach((m, idx) => {
+          byId.set(String(m.id), idx);
+          if (m.email) byEmail.set(m.email.toLowerCase(), idx);
+        });
+
+        members.forEach((m) => {
+          m._ratings = [] as number[];
+          m._resTimes = [] as number[];
+          m.totalAssigned = 0;
+          m.resolved = 0;
+          m.pending = 0;
+          m.inProgress = 0;
+        });
+
+        complaints.forEach((c) => {
+          const assignedRaw =
+            c["assignedTo"] ?? c["assignedStaff"] ?? c["assigned"] ?? null;
+          const assignedEmail =
+            typeof assignedRaw === "string" && String(assignedRaw).includes("@")
+              ? String(assignedRaw).toLowerCase()
+              : undefined;
+          const assignedId =
+            typeof assignedRaw === "string" && !assignedEmail
+              ? String(assignedRaw)
+              : undefined;
+          const assignedName =
+            c["assignedToName"] ??
+            c["submittedTo"] ??
+            c["assignedName"] ??
+            null;
+
+          let idx = undefined as number | undefined;
+          if (assignedId && byId.has(assignedId)) idx = byId.get(assignedId);
+          else if (assignedEmail && byEmail.has(assignedEmail))
+            idx = byEmail.get(assignedEmail);
+          else if (assignedName) {
+            const an = String(assignedName).toLowerCase();
+            const found = members.findIndex((m) =>
+              m.name ? an.includes(m.name.toLowerCase().split(" ")[0]) : false
+            );
+            if (found >= 0) idx = found;
+          }
+
+          if (idx === undefined || idx === -1) return;
+          const target = members[idx];
+          target.totalAssigned = (target.totalAssigned || 0) + 1;
+          const status = String(c["status"] ?? "").toLowerCase();
+          if (status === "resolved" || status === "closed")
+            target.resolved += 1;
+          else if (status === "pending" || status === "unassigned")
+            target.pending += 1;
+          else target.inProgress += 1;
+
+          const fb = c["feedback"] as Record<string, unknown> | undefined;
+          if (fb && fb["rating"]) {
+            const r =
+              typeof fb["rating"] === "number"
+                ? fb["rating"]
+                : Number(fb["rating"]);
+            if (!Number.isNaN(r))
+              (target as StaffMemberWithAcc)._ratings!.push(r);
+          }
+
+          if (c["resolvedAt"]) {
+            const created = c["createdAt"]
+              ? new Date(String(c["createdAt"]))
+              : new Date();
+            const resolved = new Date(String(c["resolvedAt"]));
+            const hours = Math.max(
+              0,
+              (resolved.getTime() - created.getTime()) / (1000 * 60 * 60)
+            );
+            (target as StaffMemberWithAcc)._resTimes!.push(hours);
+          }
+        });
+
+        const updated = members.map((m) => {
+          const accRatings = (m as StaffMemberWithAcc)._ratings || [];
+          const accTimes = (m as StaffMemberWithAcc)._resTimes || [];
+          const avgRating = accRatings.length
+            ? Number(
+                (
+                  accRatings.reduce((a, b) => a + b, 0) / accRatings.length
+                ).toFixed(2)
+              )
+            : 0;
+          const avgRes = accTimes.length
+            ? Math.round(accTimes.reduce((a, b) => a + b, 0) / accTimes.length)
+            : 0;
+          const successRate = m.totalAssigned
+            ? Number(((m.resolved / m.totalAssigned) * 100).toFixed(1))
+            : 0;
+          delete (m as StaffMemberWithAcc)._ratings;
+          delete (m as StaffMemberWithAcc)._resTimes;
+          return {
+            ...m,
+            averageRating: avgRating,
+            avgResolutionTime: avgRes,
+            successRate,
+          } as StaffMember;
+        });
+
+        if (!cancelled) setStaffMembers(updated);
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadAndAggregate();
+    return () => {
+      cancelled = true;
+    };
+  }, [staffMembers, user]);
 
   const departments = Array.from(
     new Set(staffMembers.map((s) => s.department))

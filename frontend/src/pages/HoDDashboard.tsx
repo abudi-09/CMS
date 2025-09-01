@@ -1,4 +1,6 @@
+
 import { useState, useEffect } from "react";
+
 import {
   Card,
   CardContent,
@@ -32,6 +34,7 @@ import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useComplaints } from "@/context/ComplaintContext";
+
 import {
   getHodComplaintStatsApi,
   getHodInboxApi,
@@ -39,6 +42,7 @@ import {
   updateComplaintStatusApi,
   type InboxComplaint,
 } from "@/lib/api";
+
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -52,8 +56,11 @@ import {
 } from "@/components/ui/table";
 
 export function HoDDashboard() {
+
+
   // Live complaints for other widgets if needed in the future
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
@@ -62,55 +69,48 @@ export function HoDDashboard() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [overdueFilter, setOverdueFilter] = useState("All");
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
 
   const { pendingStaff, getAllStaff, user } = useAuth();
   const navigate = useNavigate();
-  // Backend department-scoped stats
-  const [deptStats, setDeptStats] = useState({
-    total: 0,
-    pending: 0,
-    inProgress: 0,
-    resolved: 0,
-  });
+  // Compute department-scoped stats from fetched complaints
+  const stats = useMemo(() => {
+    const role = String(user?.role || "").toLowerCase();
+    const isHod = role.includes("hod");
 
-  // Load department stats from backend (HoD only)
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const s = await getHodComplaintStatsApi();
-        if (cancelled) return;
-        setDeptStats({
-          total: s.total ?? 0,
-          pending: s.pending ?? 0,
-          inProgress: s.inProgress ?? 0,
-          resolved: s.resolved ?? 0,
-        });
-      } catch {
-        // keep previous stats
+    const visible = complaints.filter((c) => {
+      if (isHod) {
+        const assigned = getAssignedId(c as any);
+        return String(assigned) === String((user as any)?._id);
       }
-    }
-    load();
-    const id = window.setInterval(load, 30000);
-    // Also update on status-change events fired elsewhere in the app
-    const handler = () => load();
-    window.addEventListener(
-      "complaint:status-changed",
-      handler as EventListener
-    );
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      window.removeEventListener(
-        "complaint:status-changed",
-        handler as EventListener
-      );
+      const dept = user?.department;
+      if (dept)
+        return (
+          String(c.department) === String(dept) ||
+          String(getAssignedId(c as any)) === String((user as any)?._id)
+        );
+      return true;
+    });
+
+    return {
+      total: visible.length,
+      pending: visible.filter((c) => c.status === "Pending").length,
+      inProgress: visible.filter((c) => c.status === "In Progress").length,
+      resolved: visible.filter((c) => c.status === "Resolved").length,
     };
-  }, []);
+  }, [complaints, user]);
+
+  useEffect(() => {
+    console.log(
+      `HoD stats - total: ${stats.total}, pending: ${stats.pending}, inProgress: ${stats.inProgress}, resolved: ${stats.resolved}`
+    );
+  }, [stats.total, stats.pending, stats.inProgress, stats.resolved]);
 
   // HoD inbox for live pending list (latest 100, we show top 3)
   const [hodInbox, setHodInbox] = useState<InboxComplaint[]>([]);
@@ -121,7 +121,7 @@ export function HoDDashboard() {
         const res = await getHodInboxApi();
         if (!cancelled) setHodInbox(res || []);
       } catch {
-        // ignore
+        
       }
     }
     loadInbox();
@@ -307,6 +307,7 @@ export function HoDDashboard() {
     );
   };
 
+
   // Recently Pending: compute from live inbox
   const visibleRecentPending = [...(hodInbox || [])]
     .map((c) => ({
@@ -334,6 +335,27 @@ export function HoDDashboard() {
 
   // no-op placeholder removed (was causing lint error)
 
+  // Helper: get complaint id safely
+  function getComplaintId(c: unknown) {
+    const obj = c as unknown as Record<string, unknown>;
+    return String(obj?.id ?? obj?._id ?? "");
+  }
+
+  // Helper: get submitter display name
+  function getSubmitterName(c: unknown) {
+    const obj = c as unknown as Record<string, unknown>;
+    const sb = obj["submittedBy"];
+    if (!sb) return "Unknown";
+    if (typeof sb === "string") return sb;
+    if (typeof sb === "object") {
+      const sbo = sb as Record<string, unknown>;
+      return String(
+        sbo["fullName"] ?? sbo["name"] ?? sbo["email"] ?? "Unknown"
+      );
+    }
+    return String(sb);
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -350,7 +372,7 @@ export function HoDDashboard() {
             <CardTitle>Total Complaints</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{deptStats.total}</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -358,7 +380,7 @@ export function HoDDashboard() {
             <CardTitle>Pending</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{deptStats.pending}</div>
+            <div className="text-2xl font-bold">{stats.pending}</div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -366,7 +388,7 @@ export function HoDDashboard() {
             <CardTitle>In Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{deptStats.inProgress}</div>
+            <div className="text-2xl font-bold">{stats.inProgress}</div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -374,7 +396,7 @@ export function HoDDashboard() {
             <CardTitle>Resolved</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{deptStats.resolved}</div>
+            <div className="text-2xl font-bold">{stats.resolved}</div>
           </CardContent>
         </Card>
       </div>
@@ -488,11 +510,14 @@ export function HoDDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Recently Pending Complaints</CardTitle>
+
           <CardDescription>Top 3 pending complaints for HoD</CardDescription>
+
         </CardHeader>
         <CardContent>
           {/* Mobile: stacked cards */}
           <div className="space-y-3 md:hidden">
+
             {hodInbox.slice(0, 3).map((c) => (
               <Card key={String(c.id)} className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -577,10 +602,12 @@ export function HoDDashboard() {
                 </div>
               </Card>
             ))}
+
           </div>
 
           {/* Desktop: table with horizontal scroll */}
           <div className="hidden md:block overflow-x-auto">
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -687,6 +714,7 @@ export function HoDDashboard() {
                 ))}
               </TableBody>
             </Table>
+
           </div>
         </CardContent>
       </Card>
@@ -712,6 +740,7 @@ export function HoDDashboard() {
         onAssign={(complaintId, staffId, notes) => {
           // Update global context (optional) and local recent pool
           handleStaffAssignment(complaintId, staffId, notes);
+
         }}
       />
     </div>

@@ -9,79 +9,73 @@ import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
   try {
+    const user = req.user || null;
     const {
       title,
-      category,
       description,
+      category,
       priority,
-      department,
       deadline,
       evidenceFile,
       submittedTo,
-      sourceRole,
-      assignedByRole,
-      assignmentPath,
-      // Optional: when user selects a specific staff for direct complaints
+      department,
       recipientStaffId,
+      recipientHodId,
+      assignmentPath,
+      assignedByRole,
+      sourceRole,
     } = req.body;
 
-    // Normalize any role-like strings to canonical roles to satisfy Complaint schema enums
-    const normalizedSourceRole = normalizeUserRole(sourceRole || "student");
-    const normalizedAssignedByRole = assignedByRole
-      ? normalizeUserRole(assignedByRole)
-      : null;
-    const normalizedAssignmentPath = Array.isArray(assignmentPath)
-      ? assignmentPath.map((r) => normalizeUserRole(r))
-      : undefined;
-    const complaint = new Complaint({
-      // Complaint schema defines _id as String, so we must provide one
-      _id: new mongoose.Types.ObjectId().toString(),
+    const complaintData = {
       title,
-      category,
       description,
-      priority: priority || "Medium",
-      department,
-      deadline: deadline ? new Date(deadline) : null,
-      evidenceFile: evidenceFile || null,
-      submittedTo: submittedTo || null,
-      sourceRole: normalizedSourceRole,
-      assignedByRole: normalizedAssignedByRole,
-      assignmentPath: normalizedAssignmentPath,
-      submittedBy: req.user._id,
-    });
+      category,
+      priority,
+      evidenceFile,
+      submittedTo,
+      department: department || user?.department || "",
+      sourceRole: sourceRole || "student",
+      assignedByRole: assignedByRole || undefined,
+      assignmentPath: Array.isArray(assignmentPath)
+        ? assignmentPath
+        : ["student"],
+      submittedBy: user ? user._id : undefined,
+    };
 
-    // If this is a direct-to-staff submission, set assignment immediately
-    if (recipientStaffId) {
-      const staff = await User.findById(recipientStaffId).select(
-        "role isApproved isActive department"
-      );
-      if (!staff)
-        return res.status(400).json({ error: "Recipient staff not found" });
-      if (staff.role !== "staff" || !staff.isApproved || !staff.isActive)
-        return res
-          .status(400)
-          .json({ error: "Recipient is not an active approved staff" });
-      // Enforce same department for students
-      if (
-        req.user.role === "student" &&
-        department &&
-        staff.department &&
-        staff.department !== department
-      ) {
-        return res
-          .status(400)
-          .json({ error: "Recipient must be in your department" });
+    if (deadline) {
+      try {
+        complaintData.deadline = new Date(deadline);
+      } catch (err) {
+        // ignore invalid date and leave undefined
       }
-      complaint.assignedTo = staff._id;
+    }
+
+    const complaint = new Complaint(complaintData);
+
+    // If recipientStaffId provided, assign immediately to staff
+    if (recipientStaffId) {
+      complaint.assignedTo = recipientStaffId;
+      complaint.assignedToRole = "staff";
       complaint.assignedAt = new Date();
-      // Keep complaint status Pending until staff accepts; staff can move it to In Progress
+      // use canonical enum value for status
+      complaint.status = "Pending";
+    }
+
+    // If recipientHodId provided, assign immediately to HoD
+    if (recipientHodId) {
+      complaint.assignedTo = recipientHodId;
+      complaint.assignedToRole = "hod";
+      complaint.assignedAt = new Date();
+      // use canonical enum value for status
       complaint.status = "Pending";
     }
 
     await complaint.save();
+
     // Note: Removed leftover merge-time debug that referenced an undefined variable (recipientHodId/recipientHoId)
 
     // Log creation activity (optional but useful for timeline)
+
     try {
       await ActivityLog.create({
         user: req.user._id,
@@ -1237,6 +1231,7 @@ export const markFeedbackReviewed = async (req, res) => {
 export const queryComplaints = async (req, res) => {
   try {
     const user = req.user || null;
+
     const { assignedTo, department, status } = req.query || {};
 
     // Build query
@@ -1260,6 +1255,7 @@ export const queryComplaints = async (req, res) => {
       } else if (role === "student") {
         // Student: restrict to their own submissions
         q.submittedBy = user._id;
+
       } else {
         return res.status(403).json({ error: "Forbidden" });
       }
@@ -1272,6 +1268,7 @@ export const queryComplaints = async (req, res) => {
     return res.status(200).json(complaints || []);
   } catch (err) {
     console.error("queryComplaints error:", err?.message || err);
+
     res.status(500).json({ error: "Failed to fetch complaints" });
   }
 };
