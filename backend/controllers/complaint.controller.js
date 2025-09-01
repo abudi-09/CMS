@@ -283,13 +283,8 @@ export const approveComplaint = async (req, res) => {
   try {
     const complaintId = req.params.id;
     const { note, assignToSelf } = req.body || {};
+    // Note is optional for all roles on initial approval (Admin/HOD/Dean)
     const actorRole = String(req.user.role || "").toLowerCase();
-    // Admin must include a note upon approval to ensure clear context; HOD/Dean note is optional
-    if (actorRole === "admin" && !(note && String(note).trim())) {
-      return res
-        .status(400)
-        .json({ error: "Description is required for this role" });
-    }
 
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)

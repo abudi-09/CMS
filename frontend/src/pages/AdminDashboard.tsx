@@ -9,7 +9,13 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Filter, FileText, User, Calendar } from "lucide-react";
+import {
+  MessageSquare,
+  Filter,
+  FileText,
+  User as UserIcon,
+  Calendar,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -22,7 +28,7 @@ import { RoleSummaryCards } from "@/components/RoleSummaryCards";
 // pagination imports removed; recent table shows only top 3
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
-import { StatusUpdateModal } from "@/components/StatusUpdateModal";
+// Updates are handled inside RoleBasedComplaintModal's Admin section
 import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useComplaints } from "@/context/ComplaintContext";
@@ -41,30 +47,18 @@ export function AdminDashboard() {
   // Backend-loaded complaints for recent list
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const { updateComplaint } = useComplaints();
+  const navigate = useNavigate();
+  const { user: User } = useAuth();
+
+  // Local UI state for modals and selection
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
+  // No separate status modal; update inside detail modal
+  const [priorityFilter] = useState<string | undefined>(undefined);
 
-  const { pendingStaff, getAllStaff, user } = useAuth();
-  const navigate = useNavigate();
-
-  const handleViewComplaint = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setShowDetailModal(true);
-  };
-
-  const handleStatusUpdate = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setShowStatusModal(true);
-  };
+  // Updates happen within the View Detail modal; no separate "Update" button in table
 
   const handleStatusSubmit = (
     complaintId: string,
@@ -235,7 +229,7 @@ export function AdminDashboard() {
     };
     const seedPendingDeans = async () => {
       try {
-        if (user?.role !== "admin") return;
+        if (User?.role !== "admin") return;
         const pending = await getPendingDeansApi();
         if (!mounted || !pending || pending.length === 0) return;
         const notes = pending.map((d: PendingDean) => ({
@@ -270,7 +264,7 @@ export function AdminDashboard() {
       mounted = false;
     };
     // only run when user resolves / on mount
-  }, [user]);
+  }, [User]);
 
   // Quick Access Box for Admins (same as Staff Dashboard)
   const quickAccess = (
@@ -294,7 +288,7 @@ export function AdminDashboard() {
             className="flex-1 flex items-center justify-center gap-2"
             onClick={() => navigate("/all-complaints")}
           >
-            <User className="h-4 w-4" />
+            <UserIcon className="h-4 w-4" />
             All Complaints
           </Button>
           <Button
@@ -456,10 +450,17 @@ export function AdminDashboard() {
 
       {/* Complaint Search and Filters */}
 
+      {/* Handlers */}
+      {/** Open details modal */}
+      {/** Note: ComplaintTable will call onView with a Complaint */}
+
       <ComplaintTable
         complaints={recentDirectAdmin}
-        onView={handleViewComplaint}
-        onStatusUpdate={handleStatusUpdate}
+        onView={(c) => {
+          setSelectedComplaint(c);
+          setShowDetailModal(true);
+        }}
+        // Updates inside view modal only
         userRole="admin"
         title="Recent Complaints"
         priorityFilter={priorityFilter}
@@ -467,22 +468,9 @@ export function AdminDashboard() {
         showAssignedStaffColumn={false}
         hideIdColumn
         onAccept={async (c) => {
-          const note = window.prompt(
-            "Enter a note/description for acceptance (required):",
-            ""
-          );
-          if (!note || !note.trim()) {
-            toast({
-              title: "Note required",
-              description: "Please provide a brief note for acceptance.",
-              variant: "destructive",
-            });
-            return;
-          }
           try {
-            await approveComplaintApi(c.id, {
-              note: note.trim(),
-            });
+            // Accept immediately without requiring a note
+            await approveComplaintApi(c.id);
             // update local state for immediate feedback
             setComplaints((prev) =>
               prev.map((x) =>
@@ -543,13 +531,19 @@ export function AdminDashboard() {
         complaint={selectedComplaint}
       />
 
-      <StatusUpdateModal
-        complaint={selectedComplaint}
-        open={showStatusModal}
-        onOpenChange={setShowStatusModal}
-        onUpdate={handleStatusSubmit}
-        userRole="admin"
-      />
+      {/** StatusUpdateModal removed; Admin updates inside RoleBasedComplaintModal */}
     </div>
   );
+}
+function getAllStaff(): Array<{
+  id: string;
+  fullName?: string;
+  name?: string;
+}> {
+  // Placeholder: integrate with staff directory when available
+  return [];
+}
+
+function setShowAssignModal(arg0: boolean) {
+  throw new Error("Function not implemented.");
 }

@@ -5,7 +5,6 @@ import { Complaint } from "@/components/ComplaintCard";
 import { useNavigate } from "react-router-dom";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import {
   Pagination,
   PaginationContent,
@@ -31,13 +30,10 @@ export function AdminComplaints() {
     null
   );
   const [modalOpen, setModalOpen] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [newStatus, setNewStatus] = useState<string>("");
+  // Updates will be handled inside the View Detail modal (RoleBasedComplaintModal)
   // Tabs: Pending (status Pending), Accepted (status In Progress), Rejected (Closed with Rejected: note)
   const [statusTab, setStatusTab] = useState<string>("Pending");
-  const [updatingComplaint, setUpdatingComplaint] = useState<Complaint | null>(
-    null
-  );
+  // No separate updatingComplaint; use selectedComplaint in the detail modal
 
   // Load from backend
   useEffect(() => {
@@ -174,22 +170,8 @@ export function AdminComplaints() {
 
   // Admin actions: Accept / Reject
   const acceptComplaint = async (c: Complaint) => {
-    const note = window.prompt(
-      "Enter a note/description for acceptance (required):",
-      ""
-    );
-    if (!note || !note.trim()) {
-      toast({
-        title: "Note required",
-        description: "Please provide a brief note for acceptance.",
-        variant: "destructive",
-      });
-      return;
-    }
     try {
-      await approveComplaintApi(c.id, {
-        note: note.trim(),
-      });
+      await approveComplaintApi(c.id);
       setComplaints((prev) =>
         prev.map((x) => (x.id === c.id ? { ...x, status: "In Progress" } : x))
       );
@@ -290,14 +272,7 @@ export function AdminComplaints() {
             hideIdColumn
             onAccept={statusTab === "Pending" ? acceptComplaint : undefined}
             onReject={statusTab === "Pending" ? rejectComplaint : undefined}
-            onStatusUpdate={
-              statusTab === "Accepted"
-                ? (complaint) => {
-                    setUpdatingComplaint(complaint);
-                    setShowStatusModal(true);
-                  }
-                : undefined
-            }
+            // Update action is available inside the View Detail modal
             onReapprove={
               statusTab === "Rejected" ? reapproveComplaint : undefined
             }
@@ -406,44 +381,7 @@ export function AdminComplaints() {
         onUpdate={handleModalUpdate}
       />
 
-      <StatusUpdateModal
-        complaint={updatingComplaint}
-        open={showStatusModal}
-        onOpenChange={(o) => {
-          setShowStatusModal(o);
-          if (!o) setUpdatingComplaint(null);
-        }}
-        onUpdate={async (complaintId, newStatus, notes) => {
-          try {
-            await updateComplaintStatusApi(
-              complaintId,
-              newStatus as "Pending" | "In Progress" | "Resolved" | "Closed",
-              notes?.trim() || undefined
-            );
-            setComplaints((prev) =>
-              prev.map((x) =>
-                x.id === complaintId
-                  ? {
-                      ...x,
-                      status: newStatus as Complaint["status"],
-                      lastUpdated: new Date(),
-                    }
-                  : x
-              )
-            );
-            window.dispatchEvent(
-              new CustomEvent("complaint:status-changed", {
-                detail: { id: complaintId },
-              })
-            );
-            toast({ title: "Updated", description: "Status updated." });
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : "Failed to update";
-            toast({ title: "Error", description: msg, variant: "destructive" });
-          }
-        }}
-        userRole="admin"
-      />
+      {/** StatusUpdateModal removed; updates are handled within RoleBasedComplaintModal */}
     </div>
   );
 }

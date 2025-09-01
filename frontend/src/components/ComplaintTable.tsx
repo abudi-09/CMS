@@ -279,18 +279,7 @@ export function ComplaintTable({
                             {actionLabel || "View Detail"}
                           </span>
                         </Button>
-                        {userRole === "admin" &&
-                          onStatusUpdate &&
-                          complaint.status !== "Pending" &&
-                          complaint.status !== "Closed" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onStatusUpdate(complaint)}
-                            >
-                              Update
-                            </Button>
-                          )}
+                        {/** Update action removed: perform updates inside View Detail modal */}
                         {userRole === "admin" && onReapprove && (
                           <Button
                             variant="ghost"
@@ -434,18 +423,7 @@ export function ComplaintTable({
                             </span>
                           </Button>
 
-                          {userRole === "admin" &&
-                            onStatusUpdate &&
-                            complaint.status !== "Pending" &&
-                            complaint.status !== "Closed" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onStatusUpdate(complaint)}
-                              >
-                                Update
-                              </Button>
-                            )}
+                          {/** Update action removed: perform updates inside View Detail modal */}
                           {userRole === "admin" && onReapprove && (
                             <Button
                               variant="ghost"

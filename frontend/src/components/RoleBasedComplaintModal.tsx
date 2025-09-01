@@ -92,6 +92,11 @@ export function RoleBasedComplaintModal({
   // HoD/Dean in-progress note inputs (decoupled from backend resolutionNote history)
   const [hodStatusNote, setHodStatusNote] = useState("");
   const [deanStatusNote, setDeanStatusNote] = useState("");
+  // Admin in-progress note and UI status (including Pending Review label)
+  const [adminStatusNote, setAdminStatusNote] = useState("");
+  const [adminUiStatus, setAdminUiStatus] = useState<
+    "In Progress" | "Pending Review" | "Resolved"
+  >("In Progress");
 
   // Helper for type-safe staff display (string or object)
   function getStaffDisplay(staff: unknown): string {
@@ -273,6 +278,13 @@ export function RoleBasedComplaintModal({
     } else {
       setFeedback({ rating: 0, comment: "" });
     }
+  }, [liveComplaint]);
+
+  // Sync Admin UI status from live complaint status when it changes
+  useEffect(() => {
+    if (!liveComplaint) return;
+    if (liveComplaint.status === "Resolved") setAdminUiStatus("Resolved");
+    else setAdminUiStatus("In Progress");
   }, [liveComplaint]);
 
   // Load local acceptance state (synced from My Assigned / Dashboard quick actions)
@@ -1501,7 +1513,7 @@ export function RoleBasedComplaintModal({
 
             {user.role === "headOfDepartment" &&
               liveComplaint.status === "In Progress" && (
-                <Card>
+                <Card id="admin-update-progress">
                   <CardHeader>
                     <CardTitle>HoD Actions</CardTitle>
                   </CardHeader>
@@ -1652,100 +1664,101 @@ export function RoleBasedComplaintModal({
               </Card>
             )}
 
-            {/* Admin view: always show status update and resolution note fields */}
-            {user.role === "admin" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Admin Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="mb-2">Update Status</Label>
-                    <select
-                      className="w-full border rounded px-3 py-2"
-                      value={liveComplaint.status}
-                      onChange={(e) =>
-                        setLiveComplaint({
-                          ...liveComplaint,
-                          status: e.target.value as Complaint["status"],
-                        })
-                      }
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Resolved">Resolved</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="mb-2">Resolution Note (optional)</Label>
-                    <Textarea
-                      className="w-full border rounded px-3 py-2"
-                      placeholder="Add a description or resolution note..."
-                      value={liveComplaint.resolutionNote || ""}
-                      onChange={(e) =>
-                        setLiveComplaint({
-                          ...liveComplaint,
-                          resolutionNote: e.target.value.slice(0, 1000),
-                        })
-                      }
-                      rows={3}
-                    />
-                    <div className="text-xs text-muted-foreground mt-1 text-right">
-                      {(liveComplaint.resolutionNote || "").length}/1000
+            {/* Admin view: Update Progress (only when Accepted/In Progress) */}
+            {user.role === "admin" &&
+              liveComplaint.status === "In Progress" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Update Progress</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="mb-2">Status</Label>
+                      <select
+                        className="w-full border rounded px-3 py-2"
+                        value={adminUiStatus}
+                        onChange={(e) =>
+                          setAdminUiStatus(
+                            e.target.value as
+                              | "In Progress"
+                              | "Pending Review"
+                              | "Resolved"
+                          )
+                        }
+                      >
+                        <option value="In Progress">In Progress</option>
+                        <option value="Pending Review">Pending Review</option>
+                        <option value="Resolved">Resolved</option>
+                      </select>
                     </div>
-                  </div>
-                  <Button
-                    className="mt-2 w-full"
-                    disabled={isLoading}
-                    onClick={() => {
-                      if (!liveComplaint) return;
-                      setIsLoading(true);
-                      Promise.resolve(
-                        onUpdate?.(liveComplaint.id, {
-                          status: liveComplaint.status,
-                          resolutionNote: liveComplaint.resolutionNote,
-                        })
-                      )
-                        .then(() => {
-                          window.dispatchEvent(
-                            new CustomEvent("complaint:status-changed", {
-                              detail: { id: liveComplaint.id },
-                            })
-                          );
-                        })
-                        .finally(() => setIsLoading(false));
-                    }}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </Button>
-                  {complaint.feedback && (
-                    <div className="mt-4">
-                      <div className="font-semibold">Student Feedback</div>
-                      <div className="flex items-center gap-1 mb-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < complaint.feedback.rating
-                                ? "text-warning fill-current"
-                                : "text-muted-foreground"
-                            }`}
-                          />
-                        ))}
-                        <span className="ml-2 text-sm text-muted-foreground">
-                          ({complaint.feedback.rating}/5)
-                        </span>
+                    <div>
+                      <Label className="mb-2">
+                        Description / Progress Notes
+                      </Label>
+                      <Textarea
+                        className="w-full border rounded px-3 py-2"
+                        placeholder="Describe progress or next steps..."
+                        value={adminStatusNote}
+                        onChange={(e) =>
+                          setAdminStatusNote(e.target.value.slice(0, 1000))
+                        }
+                        rows={3}
+                      />
+                      <div className="text-xs text-muted-foreground mt-1 text-right">
+                        {adminStatusNote.length}/1000
                       </div>
-                      {complaint.feedback.comment && (
-                        <p className="text-sm">{complaint.feedback.comment}</p>
-                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                    <Button
+                      className="mt-2 w-full"
+                      disabled={isLoading || !adminStatusNote.trim()}
+                      onClick={() => {
+                        if (!liveComplaint) return;
+                        const statusToSend =
+                          adminUiStatus === "Resolved"
+                            ? "Resolved"
+                            : "In Progress";
+                        const notePrefix =
+                          adminUiStatus === "Pending Review"
+                            ? "Pending Review: "
+                            : "";
+                        const noteToSend = `${notePrefix}${adminStatusNote.trim()}`;
+                        setIsLoading(true);
+                        updateComplaintStatusApi(
+                          liveComplaint.id,
+                          statusToSend,
+                          noteToSend
+                        )
+                          .then(() => {
+                            // Update local
+                            setLiveComplaint((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    status: statusToSend as Complaint["status"],
+                                    lastUpdated: new Date(),
+                                  }
+                                : prev
+                            );
+                            setAdminStatusNote("");
+                            toast({
+                              title: "Status updated",
+                              description: `Updated to ${statusToSend}.`,
+                            });
+                            window.dispatchEvent(
+                              new CustomEvent("complaint:status-changed", {
+                                detail: { id: liveComplaint.id },
+                              })
+                            );
+                          })
+                          .finally(() => setIsLoading(false));
+                      }}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Submit Update
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
           </>
         )}
       </DialogContent>
