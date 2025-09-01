@@ -79,7 +79,7 @@ export const createComplaint = async (req, res) => {
     }
 
     await complaint.save();
-    // Note: Removed leftover merge-time debug that referenced an undefined variable (recipientHodId)
+    // Note: Removed leftover merge-time debug that referenced an undefined variable (recipientHodId/recipientHoId)
 
     // Log creation activity (optional but useful for timeline)
     try {
@@ -213,7 +213,6 @@ export const assignComplaint = async (req, res) => {
     if (!staff || staff.role !== "staff" || !staff.isApproved) {
       return res.status(400).json({ error: "Invalid staff member" });
     }
-
     // If dean is assigning, enforce same-department assignment
     if (req.user.role === "dean") {
       // Dean can only assign staff within their own department
@@ -1231,5 +1230,48 @@ export const markFeedbackReviewed = async (req, res) => {
       .json({ message: "Feedback marked as reviewed", complaint });
   } catch (err) {
     return res.status(500).json({ error: "Failed to mark reviewed" });
+  }
+};
+
+// Query complaints with optional filters and role-based visibility
+export const queryComplaints = async (req, res) => {
+  try {
+    const user = req.user || null;
+    const { assignedTo, department, status } = req.query || {};
+
+    // Build query
+    const q = {};
+    if (assignedTo) q.assignedTo = assignedTo;
+    if (department) q.department = department;
+    if (status) q.status = status;
+
+    // If no explicit filter provided, apply role-based defaults
+    if (!assignedTo && !department && !status) {
+      const role = String(user?.role || "").toLowerCase();
+      if (role === "staff") {
+        // Staff: defaults to items assigned to them
+        q.assignedTo = user._id;
+      } else if (role === "hod") {
+        // HoD: by default, show only items assigned to the HoD themself
+        q.assignedTo = user._id;
+      } else if (role === "admin" || role === "dean") {
+        // Admin/Dean: see all unless filters are provided
+        // no-op
+      } else if (role === "student") {
+        // Student: restrict to their own submissions
+        q.submittedBy = user._id;
+      } else {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
+    const complaints = await Complaint.find(q)
+      .populate("submittedBy", "name email")
+      .lean();
+
+    return res.status(200).json(complaints || []);
+  } catch (err) {
+    console.error("queryComplaints error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch complaints" });
   }
 };
