@@ -79,6 +79,18 @@ export const createComplaint = async (req, res) => {
     }
 
     await complaint.save();
+    if (recipientHodId) {
+      try {
+        const hodCount = await Complaint.countDocuments({
+          assignedTo: recipientHodId,
+        });
+        console.log(
+          `HoD ${recipientHodId} assigned complaints count: ${hodCount}`
+        );
+      } catch (countErr) {
+        console.error("Failed to count complaints for HoD", countErr);
+      }
+    }
 
     // Log creation activity (optional but useful for timeline)
     try {
