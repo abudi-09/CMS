@@ -43,181 +43,15 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useAuth } from "@/components/auth/AuthContext";
-import { getAssignedComplaintsApi } from "@/lib/api";
+import {
+  getAssignedComplaintsApi,
+  listAllComplaintsApi,
+  getHodInboxApi,
+  getHodManagedComplaintsApi,
+  getMyComplaintsApi,
+} from "@/lib/api";
 
-// Mock data for all complaints (half overdue, half not overdue)
-const now = new Date();
-const mockAllComplaints: Complaint[] = [
-  {
-    id: "CMP-007",
-    title: "Dormitory maintenance request",
-    description:
-      "The door lock in Dorm 5, Room 12 is broken and needs urgent repair.",
-    category: "Facility",
-    priority: "Low",
-    status: "Closed",
-    submittedBy: "Lily Adams",
-    assignedStaff: "Maintenance Team",
-    submittedDate: new Date("2024-01-05"),
-    lastUpdated: new Date("2024-01-10"),
-    resolutionNote: "Lock replaced and tested.",
-    feedback: { rating: 5, comment: "Quick and professional!" },
-    deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-  },
-  {
-    id: "CMP-008",
-    title: "Exam schedule not published",
-    description:
-      "The final exam schedule for 2nd year students is overdue and not yet published.",
-    category: "Academic",
-    priority: "Critical",
-    status: "Overdue",
-    submittedBy: "Paul Green",
-    assignedStaff: "Academic Office",
-    submittedDate: new Date("2024-01-01"),
-    lastUpdated: new Date("2024-01-20"),
-    resolutionNote: "Awaiting department response.",
-    deadline: new Date(now.getTime() - 5 * 86400000), // overdue
-  },
-  {
-    id: "CMP-009",
-    title: "Unassigned complaint test",
-    description: "This complaint has not yet been assigned to any staff.",
-    category: "General",
-    priority: "Medium",
-    status: "Unassigned",
-    submittedBy: "Test User",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-12"),
-    lastUpdated: new Date("2024-01-12"),
-    deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-010",
-    title: "Edge case: No description",
-    description: "",
-    category: "Other",
-    priority: "Low",
-    status: "Pending",
-    submittedBy: "Edge Case",
-    assignedStaff: "Support",
-    submittedDate: new Date("2024-01-18"),
-    lastUpdated: new Date("2024-01-18"),
-    deadline: new Date(now.getTime() + 7 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-011",
-    title: "Edge case: No assigned staff, no feedback",
-    description: "Complaint submitted but not yet processed.",
-    category: "General",
-    priority: "Medium",
-    status: "Pending",
-    submittedBy: "Edge Case 2",
-    assignedStaff: undefined,
-    submittedDate: new Date("2024-01-19"),
-    lastUpdated: new Date("2024-01-19"),
-    deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-  },
-  {
-    id: "CMP-001",
-    title: "Library computers are slow and outdated",
-    description:
-      "The computers in the main library are extremely slow and need upgrading. Students are waiting long times to access resources for research and assignments. This is affecting productivity significantly.",
-    category: "Academic",
-    priority: "High",
-    status: "In Progress",
-    submittedBy: "John Doe",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-15"),
-    lastUpdated: new Date("2024-01-18"),
-    evidenceFile: "library_computer_issues.pdf",
-    resolutionNote: "Working on upgrading the hardware.",
-    deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-002",
-    title: "Cafeteria food quality concerns",
-    description:
-      "The food quality in the main cafeteria has declined significantly. Many students are getting sick after eating there.",
-    category: "Cafeteria",
-    priority: "Critical",
-    status: "Resolved",
-    submittedBy: "Jane Smith",
-    assignedStaff: "Food Services Manager",
-    submittedDate: new Date("2024-01-10"),
-    lastUpdated: new Date("2024-01-20"),
-    feedback: {
-      rating: 4,
-      comment: "Issue was resolved quickly and effectively.",
-    },
-    resolutionNote:
-      "Improved food handling procedures and conducted staff training.",
-    deadline: new Date(now.getTime() + 5 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-003",
-    title: "Broken air conditioning in lecture hall",
-    description:
-      "The air conditioning in lecture hall B-204 has been broken for over a week. Classes are unbearable in this heat.",
-    category: "Facility",
-    priority: "Medium",
-    status: "Pending",
-    submittedBy: "Mike Johnson",
-    assignedStaff: "Facilities Team",
-    submittedDate: new Date("2024-01-22"),
-    lastUpdated: new Date("2024-01-22"),
-    deadline: new Date(now.getTime() - 4 * 86400000), // overdue
-  },
-  {
-    id: "CMP-004",
-    title: "Network connectivity issues in computer lab",
-    description:
-      "The computer lab on the 3rd floor has been experiencing intermittent internet connectivity issues. Students can't access online resources for their assignments.",
-    category: "ICT Support",
-    priority: "High",
-    status: "In Progress",
-    submittedBy: "Sarah Johnson",
-    assignedStaff: "IT Support Team",
-    submittedDate: new Date("2024-01-20"),
-    lastUpdated: new Date("2024-01-23"),
-    resolutionNote: "Investigating network infrastructure issues.",
-    deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
-  },
-  {
-    id: "CMP-005",
-    title: "Parking lot lighting issues",
-    description:
-      "Several lights in the main parking lot are not working, making it unsafe for students and staff during evening hours.",
-    category: "Facility",
-    priority: "Medium",
-    status: "Resolved",
-    submittedBy: "David Wilson",
-    assignedStaff: "Facilities Manager",
-    submittedDate: new Date("2024-01-08"),
-    lastUpdated: new Date("2024-01-18"),
-    feedback: {
-      rating: 5,
-      comment: "Excellent work! All lights were replaced quickly.",
-    },
-    resolutionNote:
-      "All parking lot lights have been replaced with LED fixtures.",
-    deadline: new Date(now.getTime() - 6 * 86400000), // overdue
-  },
-  {
-    id: "CMP-006",
-    title: "Student fee billing discrepancy",
-    description:
-      "There's an error in my tuition billing. I've been charged for courses I'm not enrolled in this semester.",
-    category: "Finance",
-    priority: "High",
-    status: "Pending",
-    submittedBy: "Emma Davis",
-    assignedStaff: "Finance Office",
-    submittedDate: new Date("2024-01-25"),
-    lastUpdated: new Date("2024-01-25"),
-    deadline: new Date(now.getTime() + 2 * 86400000), // not overdue
-  },
-];
+// Fetch all complaints from backend
 
 export default function AllComplaints() {
   const { user } = useAuth();
@@ -226,7 +60,7 @@ export default function AllComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -244,23 +78,215 @@ export default function AllComplaints() {
     setShowDetailModal(true);
   };
 
-  // Infer submitter's department for demo data
-  const nameToDept: Record<string, string> = useMemo(
-    () => ({
-      "John Doe": "IT",
-      "Jane Smith": "Cafeteria",
-      "Mike Johnson": "Facilities",
-      "Sarah Johnson": "IT",
-      "David Wilson": "Facilities",
-      "Emma Davis": "Finance",
-      "Lily Adams": "Facilities",
-      "Paul Green": "Academic",
-      "Test User": "General",
-      "Edge Case": "General",
-      "Edge Case 2": "General",
-    }),
-    []
-  );
+  // Load complaints based on role
+  useEffect(() => {
+    let cancelled = false;
+    async function loadByRole() {
+      try {
+        const roleNorm = (user?.role || "").toLowerCase();
+        if (!user) return; // wait for auth
+        if (roleNorm === "admin" || roleNorm === "dean") {
+          const raw = await listAllComplaintsApi();
+          if (cancelled) return;
+          const mapped: Complaint[] = (raw || []).map((c) => ({
+            id: c.id,
+            title: c.title || "Complaint",
+            description: "",
+            category: c.category || "General",
+            status: (c.status as Complaint["status"]) || "Pending",
+            priority: (c.priority as Complaint["priority"]) || "Medium",
+            submittedBy: c.submittedBy || "",
+            assignedStaff: c.assignedTo || undefined,
+            submittedDate: c.submittedDate
+              ? new Date(c.submittedDate)
+              : new Date(),
+            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+            deadline: c.deadline ? new Date(c.deadline) : undefined,
+            sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
+            assignedByRole:
+              (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
+            assignmentPath: Array.isArray(c.assignmentPath)
+              ? (c.assignmentPath as Complaint["assignmentPath"])
+              : [],
+            submittedTo: c.submittedTo || undefined,
+            department: c.department || undefined,
+          }));
+          setComplaints(mapped);
+        } else if (roleNorm === "hod" || roleNorm === "headofdepartment") {
+          const [inbox, managed] = await Promise.all([
+            getHodInboxApi(),
+            getHodManagedComplaintsApi(),
+          ]);
+          if (cancelled) return;
+          type InboxOrManaged = {
+            id?: string;
+            _id?: string;
+            title?: string;
+            category?: string;
+            status?: Complaint["status"];
+            priority?: Complaint["priority"];
+            submittedDate?: string | Date;
+            lastUpdated?: string | Date;
+            assignedTo?: string | { name?: string; email?: string } | null;
+            submittedBy?: string | { name?: string; email?: string } | null;
+            deadline?: string | Date | null;
+            assignedByRole?: string | null;
+            assignmentPath?: string[];
+            submittedTo?: string | null;
+            sourceRole?: string | null;
+            department?: string | null;
+          };
+          const mapLite = (c: InboxOrManaged): Complaint => ({
+            id: String(c.id || c._id || ""),
+            title: c.title || "Complaint",
+            description: "",
+            category: c.category || "General",
+            status: (c.status as Complaint["status"]) || "Pending",
+            priority: (c.priority as Complaint["priority"]) || "Medium",
+            submittedBy:
+              typeof c.submittedBy === "string"
+                ? c.submittedBy
+                : c.submittedBy?.name || c.submittedBy?.email || "",
+            assignedStaff:
+              typeof c.assignedTo === "string"
+                ? c.assignedTo
+                : c.assignedTo?.name || c.assignedTo?.email || undefined,
+            submittedDate: c.submittedDate
+              ? new Date(c.submittedDate)
+              : new Date(),
+            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+            deadline: c.deadline ? new Date(c.deadline) : undefined,
+            sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
+            assignedByRole:
+              (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
+            assignmentPath: Array.isArray(c.assignmentPath)
+              ? (c.assignmentPath as Complaint["assignmentPath"])
+              : [],
+            submittedTo: c.submittedTo || undefined,
+            department: c.department || undefined,
+          });
+          const merged = [...inbox.map(mapLite), ...managed.map(mapLite)];
+          // de-duplicate by id
+          const byId = new Map<string, Complaint>();
+          for (const c of merged) byId.set(c.id, c);
+          setComplaints(Array.from(byId.values()));
+        } else if (roleNorm === "staff") {
+          const data = await getAssignedComplaintsApi();
+          if (cancelled) return;
+          const staffName = user.fullName || user.name || "";
+          type StaffAssigned = {
+            id?: string;
+            _id?: string;
+            title?: string;
+            fullDescription?: string;
+            description?: string;
+            shortDescription?: string;
+            category?: string;
+            status?: Complaint["status"];
+            priority?: Complaint["priority"];
+            submittedBy?: string | { name?: string; email?: string };
+            assignedByRole?: string;
+            assignmentPath?: string[];
+            submittedDate?: string | Date;
+            lastUpdated?: string | Date;
+            deadline?: string | Date | null;
+            sourceRole?: string;
+            submittedTo?: string;
+          };
+          const items: StaffAssigned[] = Array.isArray(data)
+            ? (data as StaffAssigned[])
+            : [];
+          const mapped: Complaint[] = items.map((d) => ({
+            id: String(d.id || d._id || ""),
+            title: String(d.title || ""),
+            description: String(
+              d.fullDescription || d.description || d.shortDescription || ""
+            ),
+            category: String(d.category || ""),
+            status: (d.status as Complaint["status"]) || "Pending",
+            priority: (d.priority as Complaint["priority"]) || "Medium",
+            submittedBy:
+              typeof d.submittedBy === "object"
+                ? d.submittedBy.name || d.submittedBy.email || ""
+                : String(d.submittedBy || ""),
+            assignedStaff: staffName || undefined,
+            assignedByRole: d.assignedByRole as Complaint["assignedByRole"],
+            assignmentPath: Array.isArray(d.assignmentPath)
+              ? (d.assignmentPath as Complaint["assignmentPath"])
+              : [],
+            submittedDate: d.submittedDate
+              ? new Date(String(d.submittedDate))
+              : new Date(),
+            lastUpdated: d.lastUpdated
+              ? new Date(String(d.lastUpdated))
+              : new Date(),
+            deadline: d.deadline ? new Date(String(d.deadline)) : undefined,
+            sourceRole: d.sourceRole as Complaint["sourceRole"],
+            submittedTo: d.submittedTo,
+            department: user.department,
+          }));
+          setComplaints(mapped);
+        } else {
+          // Student: my complaints
+          const raw = await getMyComplaintsApi();
+          if (cancelled) return;
+          type MyComp = {
+            id?: string;
+            _id?: string;
+            title?: string;
+            category?: string;
+            status?: Complaint["status"];
+            priority?: Complaint["priority"];
+            submittedDate?: string | Date;
+            lastUpdated?: string | Date;
+            assignedTo?: string | { name?: string; email?: string } | null;
+            submittedBy?: string | { name?: string; email?: string } | null;
+            deadline?: string | Date | null;
+            assignedByRole?: string | null;
+            assignmentPath?: string[];
+            submittedTo?: string | null;
+            sourceRole?: string | null;
+            department?: string | null;
+          };
+          const mapped: Complaint[] = (raw || []).map((c: MyComp) => ({
+            id: String(c.id || c._id || ""),
+            title: c.title || "Complaint",
+            description: "",
+            category: c.category || "General",
+            status: (c.status as Complaint["status"]) || "Pending",
+            priority: (c.priority as Complaint["priority"]) || "Medium",
+            submittedBy: user.name || user.fullName || "Me",
+            assignedStaff:
+              typeof c.assignedTo === "string"
+                ? c.assignedTo
+                : c.assignedTo?.name || undefined,
+            submittedDate: c.submittedDate
+              ? new Date(c.submittedDate)
+              : new Date(),
+            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+            deadline: c.deadline ? new Date(c.deadline) : undefined,
+            sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
+            assignedByRole:
+              (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
+            assignmentPath: Array.isArray(c.assignmentPath)
+              ? (c.assignmentPath as Complaint["assignmentPath"])
+              : [],
+            submittedTo: c.submittedTo || undefined,
+            department: c.department || undefined,
+          }));
+          setComplaints(mapped);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadByRole();
+    const id = window.setInterval(loadByRole, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [user]);
 
   type MinimalUser = {
     fullName?: string;
@@ -288,39 +314,13 @@ export default function AllComplaints() {
     [user]
   );
   const getSubmitterDept = useCallback(
-    (c: Complaint) => {
-      // Prefer explicit fields if available
-      const cAny = c as unknown as Record<string, unknown>;
-      const explicit =
-        (c as { submitterDepartment?: string }).submitterDepartment ||
-        (typeof cAny["department"] === "string"
-          ? String(cAny["department"])
-          : undefined);
-      if (explicit) return String(explicit);
-      // Try to parse a human-readable submittedTo like "HoD (Computer Science)"
-      if (c.submittedTo && typeof c.submittedTo === "string") {
-        const m = c.submittedTo.match(/\(([^)]+)\)/);
-        if (m && m[1]) return m[1];
-        // fallback: take last token after dash/paren
-        const parts = c.submittedTo
-          .split(/[-()]/)
-          .map((p) => p.trim())
-          .filter(Boolean);
-        if (parts.length > 0) {
-          const last = parts[parts.length - 1];
-          if (last && !/hod/i.test(last)) return last;
-        }
-      }
-      // Fallback to demo mapping by submitter name
-      return nameToDept[c.submittedBy] || "";
-    },
-    [nameToDept]
+
+    (c: Complaint) => c.department || "",
+    []
+
   );
   const role = normalize(((user || {}) as MinimalUser).role);
-  const myDept =
-    ((user || {}) as MinimalUser).department ||
-    ((user || {}) as MinimalUser).workingPlace ||
-    "";
+  const myDept = ((user || {}) as MinimalUser).department || "";
 
   // For staff: load complaints assigned to them so new direct submissions appear immediately
   useEffect(() => {
@@ -1162,12 +1162,12 @@ export default function AllComplaints() {
         </div>
       )}
 
-      {/* Detail Modal */}
+      {/* Detail Modal (read-only overview) */}
       <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-        onUpdate={() => {}} // Admin view only
+        fetchLatest
       />
     </div>
   );

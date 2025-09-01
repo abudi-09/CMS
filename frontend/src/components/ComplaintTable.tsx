@@ -27,6 +27,9 @@ interface ComplaintTableProps {
   onStatusUpdate?: (complaint: Complaint) => void;
   onFeedback?: (complaint: Complaint) => void;
   onAssign?: (complaint: Complaint) => void;
+  onAccept?: (complaint: Complaint) => void;
+  onReject?: (complaint: Complaint) => void;
+  onReapprove?: (complaint: Complaint) => void;
   userRole?: "user" | "staff" | "admin" | "headOfDepartment";
   title?: string;
   actionLabel?: string;
@@ -37,6 +40,8 @@ interface ComplaintTableProps {
   showAssignedStaffColumn?: boolean;
   // Show deadline column/row when deadlines are relevant
   showDeadlineColumn?: boolean;
+  // Hide the complaint ID column/row
+  hideIdColumn?: boolean;
 }
 
 const statusColors = {
@@ -57,6 +62,9 @@ export function ComplaintTable({
   onStatusUpdate,
   onFeedback,
   onAssign,
+  onAccept,
+  onReject,
+  onReapprove,
   userRole = "user",
   title = "Complaints",
   actionLabel,
@@ -65,6 +73,7 @@ export function ComplaintTable({
   isOverdueFn,
   showAssignedStaffColumn = true,
   showDeadlineColumn = false,
+  hideIdColumn = false,
 }: ComplaintTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -193,9 +202,11 @@ export function ComplaintTable({
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1 flex-1">
-                        <div className="text-xs text-muted-foreground">
-                          #{complaint.id}
-                        </div>
+                        {!hideIdColumn && (
+                          <div className="text-xs text-muted-foreground">
+                            #{complaint.id}
+                          </div>
+                        )}
                         <h4 className="font-medium text-sm leading-tight">
                           {complaint.title}
                         </h4>
@@ -240,7 +251,7 @@ export function ComplaintTable({
                         {showAssignedStaff &&
                           (userRole === "staff" || userRole === "admin") && (
                             <div className="text-xs text-muted-foreground">
-                              <span className="font-medium">Assigned:</span>{" "}
+                              <span className="font-medium">Assign To:</span>{" "}
                               {getStaffDisplay(complaint.assignedStaff)}
                             </div>
                           )}
@@ -255,19 +266,51 @@ export function ComplaintTable({
                             ).toLocaleDateString()
                           : ""}
                       </div>
-                      <div className="flex gap-1 w-full">
+                      <div className="flex gap-1 w-full justify-end">
                         <Button
                           variant="ghost"
                           size="sm"
                           aria-label={actionLabel || "View Detail"}
                           onClick={() => onView(complaint)}
-                          className="w-full"
+                          className=""
                         >
                           <Eye className="h-4 w-4" />
                           <span className="ml-1">
                             {actionLabel || "View Detail"}
                           </span>
                         </Button>
+                        {/** Update action removed: perform updates inside View Detail modal */}
+                        {userRole === "admin" && onReapprove && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onReapprove(complaint)}
+                          >
+                            Re-Approve
+                          </Button>
+                        )}
+                        {userRole === "admin" && (onAccept || onReject) && (
+                          <>
+                            {onAccept && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onAccept(complaint)}
+                              >
+                                Accept
+                              </Button>
+                            )}
+                            {onReject && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onReject(complaint)}
+                              >
+                                Reject
+                              </Button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -280,7 +323,7 @@ export function ComplaintTable({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
+                    {!hideIdColumn && <TableHead>ID</TableHead>}
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Category</TableHead>
@@ -292,7 +335,7 @@ export function ComplaintTable({
                     )}
                     {showAssignedStaff &&
                       (userRole === "staff" || userRole === "admin") && (
-                        <TableHead>Assigned Staff</TableHead>
+                        <TableHead>Assign To</TableHead>
                       )}
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -301,9 +344,11 @@ export function ComplaintTable({
                 <TableBody>
                   {filteredComplaints.map((complaint) => (
                     <TableRow key={complaint.id}>
-                      <TableCell className="font-medium">
-                        #{complaint.id}
-                      </TableCell>
+                      {!hideIdColumn && (
+                        <TableCell className="font-medium">
+                          #{complaint.id}
+                        </TableCell>
+                      )}
                       <TableCell className="max-w-xs">
                         <div className="truncate">{complaint.title}</div>
                       </TableCell>
@@ -377,6 +422,39 @@ export function ComplaintTable({
                               {actionLabel || "View Detail"}
                             </span>
                           </Button>
+
+                          {/** Update action removed: perform updates inside View Detail modal */}
+                          {userRole === "admin" && onReapprove && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onReapprove(complaint)}
+                            >
+                              Re-Approve
+                            </Button>
+                          )}
+                          {userRole === "admin" && (onAccept || onReject) && (
+                            <>
+                              {onAccept && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onAccept(complaint)}
+                                >
+                                  Accept
+                                </Button>
+                              )}
+                              {onReject && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onReject(complaint)}
+                                >
+                                  Reject
+                                </Button>
+                              )}
+                            </>
+                          )}
 
                           {userRole === "admin" && onAssign && (
                             <Button

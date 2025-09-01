@@ -52,7 +52,13 @@ import {
   listAllComplaintsApi,
   listMyDepartmentActiveStaffApi,
   assignComplaintApi,
+  getDeanInboxApi,
+  getDeanActiveHodApi,
+  deanAssignToHodApi,
+  approveComplaintApi,
+  type InboxComplaint,
 } from "@/lib/api";
+import { updateComplaintStatusApi } from "@/lib/api";
 import { getComplaintApi } from "@/lib/getComplaintApi";
 // Use ComplaintType for all references to Complaint
 
@@ -72,163 +78,6 @@ export function DeanAssignComplaints() {
   // Pagination state
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  // Diverse mock complaints for demo/testing
-  // At least half of complaints are overdue (deadline in the past)
-  const now = new Date();
-  const demoComplaints: ComplaintType[] = [
-    {
-      id: "DEAN-001",
-      title: "Departmental equipment request overdue",
-      description: "Requested equipment for lab is overdue.",
-      category: "Academic",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "Dept Head",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-10"),
-      lastUpdated: new Date("2024-01-15"),
-      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-    },
-    {
-      id: "DEAN-002",
-      title: "Faculty leave request delayed",
-      description: "Leave request for faculty not processed in time.",
-      category: "HR",
-      priority: "Medium",
-      // Accepted by Dean: shows under Accepted tab
-      status: "In Progress",
-      submittedBy: "Faculty Member",
-      assignedStaff: "Dean",
-      assignedStaffRole: "dean",
-      submittedDate: new Date("2024-02-01"),
-      lastUpdated: new Date("2024-02-05"),
-      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-    },
-    {
-      id: "DEAN-003",
-      title: "Lab safety equipment missing",
-      description: "Safety goggles and gloves missing from chemistry lab.",
-      category: "Facility",
-      priority: "Critical",
-      status: "Pending",
-      submittedBy: "Lab Assistant",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-03-10"),
-      lastUpdated: new Date("2024-03-12"),
-      deadline: new Date(now.getTime() - 5 * 86400000), // overdue
-    },
-    {
-      id: "DEAN-004",
-      title: "Student feedback on course content",
-      description: "Students report outdated syllabus in core course.",
-      category: "Academic",
-      priority: "Low",
-      // Rejected: shows under Rejected tab
-      status: "Closed",
-      submittedBy: "Student Council",
-      assignedStaff: "Course Coordinator",
-      submittedDate: new Date("2024-04-01"),
-      lastUpdated: new Date("2024-04-10"),
-      deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
-    },
-    {
-      id: "DEAN-005",
-      title: "Unassigned complaint test",
-      description: "This complaint has not yet been assigned to any staff.",
-      category: "General",
-      priority: "Medium",
-      status: "Unassigned",
-      submittedBy: "Test User",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-05-12"),
-      lastUpdated: new Date("2024-05-12"),
-      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    },
-    {
-      id: "DEAN-006",
-      title: "Departmental budget approval delayed",
-      description: "Budget approval for new equipment is overdue.",
-      category: "Finance",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "Dept Admin",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-06-01"),
-      lastUpdated: new Date("2024-06-05"),
-      deadline: new Date(now.getTime() - 7 * 86400000), // overdue
-    },
-    {
-      id: "DEAN-007",
-      title: "Edge case: No description",
-      description: "",
-      category: "Other",
-      priority: "Low",
-      // Assigned to HoD: shows under Assigned tab
-      status: "In Progress",
-      submittedBy: "Edge Case",
-      assignedStaff: "HoD Support",
-      assignedStaffRole: "headOfDepartment",
-      submittedDate: new Date("2024-07-18"),
-      lastUpdated: new Date("2024-07-18"),
-      deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
-    },
-    {
-      id: "DEAN-008",
-      title: "Edge case: No assigned staff, no feedback",
-      description: "Complaint submitted but not yet processed.",
-      category: "General",
-      priority: "Medium",
-      status: "Pending",
-      submittedBy: "Edge Case 2",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-07-19"),
-      lastUpdated: new Date("2024-07-19"),
-      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-    },
-    {
-      id: "DEAN-009",
-      title: "Faculty training session overdue",
-      description: "Mandatory training session for faculty not scheduled.",
-      category: "HR",
-      priority: "High",
-      // Assigned to HoD and overdue
-      status: "In Progress",
-      submittedBy: "HR Dept",
-      assignedStaff: "Training Coordinator",
-      assignedStaffRole: "headOfDepartment",
-      submittedDate: new Date("2024-08-01"),
-      lastUpdated: new Date("2024-08-03"),
-      deadline: new Date(now.getTime() - 4 * 86400000), // overdue
-    },
-    {
-      id: "DEAN-010",
-      title: "Printer out of service",
-      description: "Printer in Dean's office is out of service.",
-      category: "IT & Technology",
-      priority: "Low",
-      // Assigned to HoD (not overdue)
-      status: "Assigned",
-      submittedBy: "Office Staff",
-      assignedStaff: "IT Support Team",
-      assignedStaffRole: "headOfDepartment",
-      submittedDate: new Date("2024-08-05"),
-      lastUpdated: new Date("2024-08-06"),
-      deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
-    },
-    {
-      id: "DEAN-011",
-      title: "Additional pending item to show pagination",
-      description: "Extra item to ensure >5 visible on Pending tab.",
-      category: "General",
-      priority: "Medium",
-      status: "Pending",
-      submittedBy: "QA Tester",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-08-10"),
-      lastUpdated: new Date("2024-08-10"),
-      deadline: new Date(now.getTime() + 5 * 86400000),
-    },
-  ];
   const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
   const [loading, setLoading] = useState(true);
   const [staffOptions, setStaffOptions] = useState<
@@ -275,14 +124,24 @@ export function DeanAssignComplaints() {
     async function load() {
       try {
         setLoading(true);
-        const [allRaw, staffRaw] = await Promise.all([
-          listAllComplaintsApi(),
-          listMyDepartmentActiveStaffApi(),
+        const inboxP = getDeanInboxApi().catch(() => []);
+        const allP = listAllComplaintsApi().catch(() => []);
+        // Only fetch department staff if the current user has a department set; otherwise default to empty
+        const staffP = (
+          user?.department
+            ? listMyDepartmentActiveStaffApi()
+            : Promise.resolve([])
+        ).catch(() => []);
+        const [inboxRaw, allRaw, staffRaw] = await Promise.all([
+          inboxP,
+          allP,
+          staffP,
         ]);
+        const inbox = inboxRaw as InboxComplaint[];
         const all = allRaw as unknown as RawComplaint[];
         const staff = staffRaw as unknown as DeptStaff[];
         if (!mounted) return;
-        const mapped = (all as RawComplaint[])
+        const mappedFromAll = (all as RawComplaint[])
           .filter((c) => c && c.id && c.status) // basic sanity
           .map((c) => ({
             id: c.id,
@@ -317,7 +176,53 @@ export function DeanAssignComplaints() {
             submittedTo: c.submittedTo || undefined,
             department: c.department || undefined,
           })) as ComplaintType[];
-        setComplaints(mapped);
+        // For Pending tab, prefer inbox items; for other tabs rely on all list mapping
+        const mappedInbox = (inbox || []).map((c: InboxComplaint) => ({
+          id: String(c.id || ""),
+          title: String(c.title || "Complaint"),
+          description: "",
+          category: String(c.category || "General"),
+          status: (c.status as ComplaintType["status"]) || "Pending",
+          submittedBy:
+            typeof c.submittedBy === "string"
+              ? c.submittedBy
+              : c.submittedBy?.name || "",
+          sourceRole:
+            (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+          assignedStaff:
+            typeof c.assignedTo === "string"
+              ? c.assignedTo
+              : (c.assignedTo as { name?: string } | null)?.name || undefined,
+          assignedStaffRole: undefined,
+          assignedByRole:
+            typeof c.assignedByRole === "string" ? c.assignedByRole : undefined,
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as string[])
+            : [],
+          submittedDate: c.submittedDate
+            ? new Date(c.submittedDate)
+            : new Date(),
+          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          priority: (c.priority as ComplaintType["priority"]) || "Medium",
+          feedback: undefined,
+          isEscalated: false,
+          submittedTo: c.submittedTo || undefined,
+          department: undefined,
+        })) as ComplaintType[];
+        // Merge: Pending from inbox + others from all
+        const nonPending = mappedFromAll.filter((c) => {
+          if (c.status === "Pending" || c.status === "Unassigned") return false;
+          const path = Array.isArray(c.assignmentPath) ? c.assignmentPath : [];
+          const submittedTo = (c.submittedTo || "").toLowerCase();
+          const byRole = (c.assignedByRole || "").toLowerCase();
+          return (
+            path.includes("dean") ||
+            byRole === "dean" ||
+            /dean/.test(submittedTo)
+          );
+        });
+        setComplaints([...(mappedInbox || []), ...nonPending]);
         setStaffOptions(
           (staff || []).map((s) => ({
             id: s._id,
@@ -325,8 +230,8 @@ export function DeanAssignComplaints() {
           }))
         );
       } catch (e) {
-        // fall back to demo
-        setComplaints(demoComplaints);
+        // Keep current state on failure; no mock fallback
+        console.error("Failed to load dean data:", e);
       } finally {
         setLoading(false);
       }
@@ -358,6 +263,15 @@ export function DeanAssignComplaints() {
   const [acceptTarget, setAcceptTarget] = useState<ComplaintType | null>(null);
   const [acceptNote, setAcceptNote] = useState("");
   const [accepting, setAccepting] = useState(false);
+  // Dean -> HoD reassign state
+  const [assignHodOpen, setAssignHodOpen] = useState<ComplaintType | null>(
+    null
+  );
+  const [hodOptions, setHodOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [selectedHodId, setSelectedHodId] = useState<string>("");
+  const [hodDeadline, setHodDeadline] = useState<string>("");
   // Bulk accept state
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNote, setBulkNote] = useState("");
@@ -446,21 +360,122 @@ export function DeanAssignComplaints() {
     // Deprecated on this page: resolved items should not be managed here
   };
 
-  const handleReject = (complaintId: string) => {
-    // No direct reject endpoint; skip for now
-    toast({
-      title: "Not supported",
-      description: "Use admin to close complaints.",
-    });
+  const handleReject = async (complaintId: string) => {
+    try {
+      await updateComplaintStatusApi(complaintId, "Closed", "Rejected by Dean");
+      // Refresh datasets after rejection
+      const [inboxRaw, allRaw] = await Promise.all([
+        getDeanInboxApi().catch(() => []),
+        listAllComplaintsApi().catch(() => []),
+      ]);
+      const inbox = (inboxRaw || []) as InboxComplaint[];
+      const all = (allRaw || []) as unknown as RawComplaint[];
+      const mappedFromAll = (all || [])
+        .filter((c) => c && c.id && c.status)
+        .map((c) => ({
+          id: c.id,
+          title: c.title || c.complaintCode || "Complaint",
+          description: c.description || "",
+          category: c.category || c.department || "General",
+          status: c.status,
+          submittedBy: c.submittedBy || "",
+          sourceRole: c.sourceRole,
+          assignedStaff:
+            typeof c.assignedTo === "string"
+              ? c.assignedTo
+              : (c.assignedTo as { name?: string } | null)?.name || undefined,
+          assignedStaffRole:
+            c.assignedByRole === "dean"
+              ? "dean"
+              : c.assignedByRole === "hod"
+              ? "headOfDepartment"
+              : undefined,
+          assignedByRole: c.assignedByRole || undefined,
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as string[])
+            : [],
+          submittedDate: c.submittedDate
+            ? new Date(c.submittedDate)
+            : new Date(),
+          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          priority: c.priority || "Medium",
+          feedback: c.feedback || undefined,
+          isEscalated: !!c.isEscalated,
+          submittedTo: c.submittedTo || undefined,
+          department: c.department || undefined,
+        })) as ComplaintType[];
+      const mappedInbox = (inbox || []).map((c: InboxComplaint) => ({
+        id: String(c.id || ""),
+        title: String(c.title || "Complaint"),
+        description: "",
+        category: String(c.category || "General"),
+        status: (c.status as ComplaintType["status"]) || "Pending",
+        submittedBy:
+          typeof c.submittedBy === "string"
+            ? c.submittedBy
+            : c.submittedBy?.name || "",
+        sourceRole: (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+        assignedStaff:
+          typeof c.assignedTo === "string"
+            ? c.assignedTo
+            : (c.assignedTo as { name?: string } | null)?.name || undefined,
+        assignedStaffRole: undefined,
+        assignedByRole:
+          typeof c.assignedByRole === "string" ? c.assignedByRole : undefined,
+        assignmentPath: Array.isArray(c.assignmentPath)
+          ? (c.assignmentPath as string[])
+          : [],
+        submittedDate: c.submittedDate ? new Date(c.submittedDate) : new Date(),
+        lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+        deadline: c.deadline ? new Date(c.deadline) : undefined,
+        priority: (c.priority as ComplaintType["priority"]) || "Medium",
+        feedback: undefined,
+        isEscalated: false,
+        submittedTo: c.submittedTo || undefined,
+        department: undefined,
+      })) as ComplaintType[];
+      const nonPending = mappedFromAll.filter((c) => {
+        if (c.status === "Pending" || c.status === "Unassigned") return false;
+        const path = Array.isArray(c.assignmentPath) ? c.assignmentPath : [];
+        const submittedTo = (c.submittedTo || "").toLowerCase();
+        const byRole = (c.assignedByRole || "").toLowerCase();
+        return (
+          path.includes("dean") || byRole === "dean" || /dean/.test(submittedTo)
+        );
+      });
+      setComplaints([...(mappedInbox || []), ...nonPending]);
+      toast({
+        title: "Rejected",
+        description: "Complaint rejected and closed.",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({
+        title: "Reject failed",
+        description: msg,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleReapprove = async (complaintId: string) => {
     try {
-      await fetch(`/api/complaints/approve/${complaintId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ assignToSelf: true }),
+      const note = window.prompt(
+        "Add a short note for this approval (required):",
+        "Approved and taking ownership"
+      );
+      if (!note || !note.trim()) {
+        toast({
+          title: "Note required",
+          description: "Approval note is required.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await approveComplaintApi(complaintId, {
+        assignToSelf: true,
+        note: note.trim(),
       });
       const updated = await getComplaintApi(complaintId);
       setComplaints((prev) =>
@@ -488,6 +503,74 @@ export function DeanAssignComplaints() {
           : "Failed to approve";
       toast({
         title: "Approve failed",
+        description: msg,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Open Dean->HoD assignment modal, lazy-load active HODs
+  const openAssignHod = async (c: ComplaintType) => {
+    setAssignHodOpen(c);
+    setSelectedHodId("");
+    setHodDeadline("");
+    try {
+      const hods = await getDeanActiveHodApi();
+      setHodOptions(
+        (hods || []).map((h) => ({
+          id: h._id,
+          name: h.fullName || h.name || h.username || h.email,
+        }))
+      );
+    } catch {
+      setHodOptions([]);
+    }
+  };
+
+  const confirmAssignHod = async () => {
+    if (!assignHodOpen || !selectedHodId) return;
+    try {
+      await deanAssignToHodApi(assignHodOpen.id, {
+        hodId: selectedHodId,
+        deadline: hodDeadline || undefined,
+      });
+      // Update local state: remains Pending but shows as Assigned tab when HoD accepts
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === assignHodOpen.id
+            ? {
+                ...c,
+                assignedStaff:
+                  hodOptions.find((h) => h.id === selectedHodId)?.name ||
+                  c.assignedStaff,
+                // Keep assignedStaffRole undefined until HoD accepts
+                assignedByRole: "dean",
+                assignmentPath: Array.from(
+                  new Set([
+                    ...(c.assignmentPath || []),
+                    "dean",
+                    "headOfDepartment",
+                  ])
+                ) as ComplaintType["assignmentPath"],
+                deadline: hodDeadline ? new Date(hodDeadline) : c.deadline,
+              }
+            : c
+        )
+      );
+      toast({
+        title: "Assigned to HoD",
+        description: "Awaiting HoD acceptance.",
+      });
+      setAssignHodOpen(null);
+      setSelectedHodId("");
+      setHodDeadline("");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? String((e as { message?: unknown }).message || "")
+          : "Failed to assign to HoD";
+      toast({
+        title: "Assign failed",
         description: msg,
         variant: "destructive",
       });
@@ -824,6 +907,19 @@ export function DeanAssignComplaints() {
                               Accept
                             </Button>
                           )}
+                        {(!complaint.assignedStaff ||
+                          complaint.assignedStaffRole !== "headOfDepartment") &&
+                          (complaint.status === "Pending" ||
+                            complaint.status === "Unassigned") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs"
+                              onClick={() => openAssignHod(complaint)}
+                            >
+                              Assign to HoD
+                            </Button>
+                          )}
                         {activeTab === "Rejected" ? (
                           <Button
                             size="sm"
@@ -1012,6 +1108,19 @@ export function DeanAssignComplaints() {
                           }}
                         >
                           Accept
+                        </Button>
+                      )}
+                    {(!complaint.assignedStaff ||
+                      complaint.assignedStaffRole !== "headOfDepartment") &&
+                      (complaint.status === "Pending" ||
+                        complaint.status === "Unassigned") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs"
+                          onClick={() => openAssignHod(complaint)}
+                        >
+                          Assign to HoD
                         </Button>
                       )}
                     {activeTab === "Rejected" ? (
@@ -1234,34 +1343,67 @@ export function DeanAssignComplaints() {
             </Button>
             <Button
               onClick={() => {
-                if (!acceptTarget) return;
-                setAccepting(true);
-                const assignee =
-                  (user?.fullName as string) ||
-                  (user?.name as string) ||
-                  (user?.email as string) ||
-                  "Dean";
-                setComplaints((prev) =>
-                  prev.map((c) =>
-                    c.id === acceptTarget.id
-                      ? {
-                          ...c,
-                          status: "In Progress",
-                          assignedStaff: assignee,
-                          assignedStaffRole: "dean",
-                          resolutionNote: acceptNote || c.resolutionNote,
-                          lastUpdated: new Date(),
-                        }
-                      : c
-                  )
-                );
-                toast({
-                  title: "Accepted",
-                  description: "Complaint assigned to you and set In Progress.",
-                });
-                setAccepting(false);
-                setAcceptTarget(null);
-                setAcceptNote("");
+                (async () => {
+                  if (!acceptTarget) return;
+                  try {
+                    setAccepting(true);
+                    if (!acceptNote.trim()) {
+                      toast({
+                        title: "Note required",
+                        description: "Please enter a note before approving.",
+                        variant: "destructive",
+                      });
+                      setAccepting(false);
+                      return;
+                    }
+                    await approveComplaintApi(acceptTarget.id, {
+                      assignToSelf: true,
+                      note: acceptNote.trim(),
+                    });
+                    const updated = await getComplaintApi(acceptTarget.id);
+                    const assignee =
+                      (user?.fullName as string) ||
+                      (user?.name as string) ||
+                      (user?.email as string) ||
+                      "Dean";
+                    setComplaints((prev) =>
+                      prev.map((c) =>
+                        c.id === acceptTarget.id
+                          ? {
+                              ...c,
+                              status:
+                                (updated?.status as ComplaintType["status"]) ||
+                                "In Progress",
+                              assignedStaff:
+                                updated?.assignedTo?.name || assignee,
+                              assignedStaffRole: "dean",
+                              resolutionNote: acceptNote || c.resolutionNote,
+                              lastUpdated: new Date(),
+                            }
+                          : c
+                      )
+                    );
+                    toast({
+                      title: "Accepted",
+                      description:
+                        "Complaint assigned to you and set In Progress.",
+                    });
+                  } catch (e: unknown) {
+                    const msg =
+                      typeof e === "object" && e && "message" in e
+                        ? String((e as { message?: unknown }).message || "")
+                        : "Failed to accept complaint";
+                    toast({
+                      title: "Accept failed",
+                      description: msg,
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setAccepting(false);
+                    setAcceptTarget(null);
+                    setAcceptNote("");
+                  }
+                })();
               }}
               disabled={accepting}
             >
@@ -1371,6 +1513,68 @@ export function DeanAssignComplaints() {
               disabled={bulkLoading}
             >
               Confirm Accept All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign to HoD modal */}
+      <Dialog
+        open={!!assignHodOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignHodOpen(null);
+            setSelectedHodId("");
+            setHodDeadline("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign to Head of Department</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Select a Head of Department to reassign this complaint. It will
+              remain Pending until the HoD accepts.
+            </p>
+            <Select value={selectedHodId} onValueChange={setSelectedHodId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select HoD" />
+              </SelectTrigger>
+              <SelectContent>
+                {hodOptions.map((h) => (
+                  <SelectItem key={h.id} value={h.id}>
+                    {h.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div>
+              <label className="text-xs text-muted-foreground">
+                Optional deadline
+              </label>
+              <Input
+                type="date"
+                className="w-full"
+                value={hodDeadline}
+                onChange={(e) => setHodDeadline(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAssignHodOpen(null);
+                setSelectedHodId("");
+                setHodDeadline("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmAssignHod} disabled={!selectedHodId}>
+              Assign
             </Button>
           </DialogFooter>
         </DialogContent>

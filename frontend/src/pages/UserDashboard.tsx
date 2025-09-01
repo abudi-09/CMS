@@ -60,7 +60,6 @@ export function UserDashboard() {
         isEscalated?: boolean;
         sourceRole?: string;
         submittedTo?: string;
-        department?: string;
       }
       const arr: DTO[] = Array.isArray(data) ? (data as DTO[]) : [];
       const mapped: Complaint[] = arr.map((c: DTO) => ({
@@ -72,9 +71,47 @@ export function UserDashboard() {
         priority: (c.priority || "Medium") as Complaint["priority"],
         submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
         assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
-        assignedStaffRole: c.assignedTo?.role,
-        assignedByRole: c.assignedByRole || null,
-        assignmentPath: c.assignmentPath || [],
+        assignedStaffRole:
+          c.assignedTo?.role === "dean" ||
+          c.assignedTo?.role === "headOfDepartment" ||
+          c.assignedTo?.role === "staff" ||
+          c.assignedTo?.role === "admin"
+            ? (c.assignedTo?.role as
+                | "dean"
+                | "headOfDepartment"
+                | "staff"
+                | "admin")
+            : undefined,
+        assignedByRole:
+          c.assignedByRole === "student" ||
+          c.assignedByRole === "headOfDepartment" ||
+          c.assignedByRole === "dean" ||
+          c.assignedByRole === "admin"
+            ? (c.assignedByRole as
+                | "student"
+                | "headOfDepartment"
+                | "dean"
+                | "admin")
+            : undefined,
+        assignmentPath: Array.isArray(c.assignmentPath)
+          ? (c.assignmentPath.filter(
+              (
+                r
+              ): r is
+                | "student"
+                | "headOfDepartment"
+                | "dean"
+                | "admin"
+                | "staff" =>
+                r === "student" ||
+                r === "headOfDepartment" ||
+                r === "dean" ||
+                r === "admin" ||
+                r === "staff"
+            ) as Array<
+              "student" | "headOfDepartment" | "dean" | "admin" | "staff"
+            >)
+          : [],
         submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
         lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
         assignedDate: c.assignedAt ? new Date(c.assignedAt) : undefined,
@@ -85,10 +122,23 @@ export function UserDashboard() {
         resolutionNote: c.resolutionNote,
         evidenceFile: c.evidenceFile,
         isEscalated: !!c.isEscalated,
-        sourceRole: c.sourceRole,
+        sourceRole:
+          c.sourceRole === "student" ||
+          c.sourceRole === "staff" ||
+          c.sourceRole === "headOfDepartment" ||
+          c.sourceRole === "dean" ||
+          c.sourceRole === "admin"
+            ? (c.sourceRole as
+                | "student"
+                | "staff"
+                | "headOfDepartment"
+                | "dean"
+                | "admin")
+            : undefined,
         submittedTo: c.submittedTo,
         department: c.department,
       }));
+
       setComplaints(mapped);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

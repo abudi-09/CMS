@@ -1,6 +1,6 @@
-// For demo/testing: import mockComplaint
-import { mockComplaint } from "@/lib/mockComplaint";
-import { useEffect, useState, useMemo } from "react";
+
+import { useState, useEffect } from "react";
+
 import {
   Card,
   CardContent,
@@ -34,6 +34,15 @@ import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useComplaints } from "@/context/ComplaintContext";
+
+import {
+  getHodComplaintStatsApi,
+  getHodInboxApi,
+  approveComplaintApi,
+  updateComplaintStatusApi,
+  type InboxComplaint,
+} from "@/lib/api";
+
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -47,58 +56,11 @@ import {
 } from "@/components/ui/table";
 
 export function HoDDashboard() {
+
+
+  // Live complaints for other widgets if needed in the future
   const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loadingRecent, setLoadingRecent] = useState<boolean>(true);
 
-  // Hoisted helper to get assigned id (function declaration so it's available before use)
-  function getAssignedId(c: unknown): string | null {
-    if (!c || typeof c !== "object") return null;
-    const obj = c as Record<string, unknown>;
-    const fields = [
-      "assignedTo",
-      "assignedStaff",
-      "recipientStaffId",
-      "assignedStaffId",
-      "assignedBy",
-      "recipientHodId",
-    ];
-    for (const f of fields) {
-      const v = obj[f];
-      if (v !== undefined && v !== null) return String(v);
-    }
-    return null;
-  }
-
-  // Helper: get the current user's id safely
-  function getUserId(): string | null {
-    const u = user as unknown as Record<string, unknown> | null;
-    if (!u) return null;
-    const id = u["_id"] ?? u["id"] ?? u["username"] ?? u["email"];
-    return id ? String(id) : null;
-  }
-
-  // Helper: get submission time safely
-  function getSubmittedTime(c: unknown): number {
-    const obj = c as unknown as Record<string, unknown>;
-    const sd = obj["submittedDate"] ?? obj["createdAt"] ?? Date.now();
-    return new Date(String(sd)).getTime();
-  }
-
-  useEffect(() => {
-    async function fetchComplaints() {
-      setLoadingRecent(true);
-      try {
-        const res = await fetch(`/api/complaints`, { credentials: "include" });
-        const data = await res.json();
-        setComplaints(Array.isArray(data) ? data : []);
-      } catch (err) {
-        setComplaints([]);
-      } finally {
-        setLoadingRecent(false);
-      }
-    }
-    fetchComplaints();
-  }, []);
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
@@ -150,6 +112,55 @@ export function HoDDashboard() {
     );
   }, [stats.total, stats.pending, stats.inProgress, stats.resolved]);
 
+  // HoD inbox for live pending list (latest 100, we show top 3)
+  const [hodInbox, setHodInbox] = useState<InboxComplaint[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadInbox() {
+      try {
+        const res = await getHodInboxApi();
+        if (!cancelled) setHodInbox(res || []);
+      } catch {
+        
+      }
+    }
+    loadInbox();
+    const id = window.setInterval(loadInbox, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const acceptFromInbox = async (id: string) => {
+    try {
+      const note = window.prompt(
+        "Optional note for approval:",
+        "Accepted and taking ownership"
+      );
+      await approveComplaintApi(id, {
+        assignToSelf: true,
+        note: note?.trim() || undefined,
+      });
+      const res = await getHodInboxApi();
+      setHodInbox(res || []);
+      window.dispatchEvent(new Event("complaint:status-changed"));
+    } catch {
+      // ignore approve errors
+    }
+  };
+
+  const rejectFromInbox = async (id: string) => {
+    try {
+      await updateComplaintStatusApi(id, "Closed", "Rejected by HoD");
+      const res = await getHodInboxApi();
+      setHodInbox(res || []);
+      window.dispatchEvent(new Event("complaint:status-changed"));
+    } catch {
+      // ignore reject errors
+    }
+  };
+
   // New staff signup notifications for HODs
   const [newStaffNotifications, setNewStaffNotifications] = useState<
     { name: string; email: string; department?: string }[]
@@ -193,10 +204,38 @@ export function HoDDashboard() {
     newStatus: string,
     notes: string
   ) => {
-    updateComplaint(complaintId, {
-      status: newStatus as Complaint["status"],
-      lastUpdated: new Date(),
-    });
+    (async () => {
+      try {
+        await updateComplaintStatusApi(
+          complaintId,
+          newStatus as "Pending" | "In Progress" | "Resolved" | "Closed",
+          notes?.trim() || undefined
+        );
+        updateComplaint(complaintId, {
+          status: newStatus as Complaint["status"],
+          lastUpdated: new Date(),
+        });
+        window.dispatchEvent(
+          new CustomEvent("complaint:status-changed", {
+            detail: { id: complaintId },
+          })
+        );
+        toast({
+          title: "Status Updated",
+          description: `Complaint status updated to ${newStatus}.`,
+        });
+      } catch (e: unknown) {
+        const msg =
+          typeof e === "object" && e && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Failed to update status";
+        toast({
+          title: "Update failed",
+          description: msg,
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   const handleAssignStaff = (complaint: Complaint) => {
@@ -268,89 +307,33 @@ export function HoDDashboard() {
     );
   };
 
-  // Recently Pending: derive top 3 unassigned pending complaints from real data
-  // Recent pending complaints (real data):
-  // - For HoD: include complaints already assigned to this HoD (recent) AND unassigned pending complaints in their department.
-  // - For others (admin/dean): show dept-scoped unassigned pending complaints
-  const visibleRecentPending = (() => {
-    const myId = getUserId();
-    const dept = user?.department;
 
-    // Assigned to me
-    const assignedToMe = myId
-      ? complaints.filter((c) => {
-          const assigned = getAssignedId(c);
-          return assigned && String(assigned) === String(myId);
-        })
-      : [];
+  // Recently Pending: compute from live inbox
+  const visibleRecentPending = [...(hodInbox || [])]
+    .map((c) => ({
+      id: String(c.id || ""),
+      title: String(c.title || "Complaint"),
+      description: "",
+      category: String(c.category || "General"),
+      priority: (c.priority as Complaint["priority"]) || "Medium",
+      status: (c.status as Complaint["status"]) || "Pending",
+      submittedBy:
+        typeof c.submittedBy === "string"
+          ? c.submittedBy
+          : (c.submittedBy as { name?: string })?.name || "",
+      submittedDate: c.submittedDate ? new Date(c.submittedDate) : new Date(),
+      lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+      assignedStaff: undefined,
+    }))
+    .filter((c) => c.status === "Pending")
+    .sort(
+      (a, b) =>
+        new Date(b.submittedDate).getTime() -
+        new Date(a.submittedDate).getTime()
+    )
+    .slice(0, 3);
 
-    // Unassigned pending in department
-    const unassignedDept = complaints.filter((c) => {
-      const obj = c as unknown as Record<string, unknown>;
-      const status = String(obj["status"] ?? "").toLowerCase();
-      const assigned = getAssignedId(c);
-      const isUnassigned = !assigned;
-      const deptMatch = dept
-        ? String(obj["department"]) === String(dept)
-        : true;
-      return (
-        (status === "pending" || status === "unassigned") &&
-        isUnassigned &&
-        deptMatch
-      );
-    });
-
-    // Merge and dedupe by id (preserve first occurrence order: assignedToMe first)
-    const merged = [...assignedToMe, ...unassignedDept];
-    const seen = new Map<string, unknown>();
-    for (const item of merged) {
-      const obj = item as unknown as Record<string, unknown>;
-      const cid = String(obj["id"] ?? obj["_id"] ?? "");
-      if (cid && !seen.has(cid)) seen.set(cid, item);
-    }
-    const uniques = Array.from(seen.values()) as unknown[];
-
-    // Sort by submitted time desc and take top 3
-    return uniques
-      .sort((a, b) => getSubmittedTime(b) - getSubmittedTime(a))
-      .slice(0, 3) as Complaint[];
-  })();
-
-  const handleAccept = (id: string) => {
-    const assignee =
-      user?.fullName || user?.name || user?.email || "Head of Department";
-    setComplaints((prev) =>
-      prev.map((c) => {
-        const obj = c as unknown as Record<string, unknown>;
-        const cid = String(obj["id"] ?? obj["_id"] ?? "");
-        if (cid === String(id)) {
-          return {
-            ...c,
-            status: "In Progress",
-            assignedStaff: assignee,
-            assignedStaffRole: "headOfDepartment",
-            lastUpdated: new Date(),
-          } as Complaint;
-        }
-        return c;
-      })
-    );
-    // Optionally call updateComplaint to persist change via API
-  };
-
-  const handleReject = (id: string) => {
-    setComplaints((prev) =>
-      prev.map((c) => {
-        const obj = c as unknown as Record<string, unknown>;
-        const cid = String(obj["id"] ?? obj["_id"] ?? "");
-        if (cid === String(id)) {
-          return { ...c, status: "Closed" } as Complaint;
-        }
-        return c;
-      })
-    );
-    // Optionally call updateComplaint to persist change via API
-  };
+  // no-op placeholder removed (was causing lint error)
 
   // Helper: get complaint id safely
   function getComplaintId(c: unknown) {
@@ -523,251 +506,215 @@ export function HoDDashboard() {
         </Card>
       </div>
 
-      {/* Recently Pending (like HoD Pending tab) */}
+      {/* Recently Pending (live HoD inbox, top 3) */}
       <Card>
         <CardHeader>
           <CardTitle>Recently Pending Complaints</CardTitle>
-          {loadingRecent ? <CardDescription>Loading...</CardDescription> : null}
+
+          <CardDescription>Top 3 pending complaints for HoD</CardDescription>
+
         </CardHeader>
         <CardContent>
           {/* Mobile: stacked cards */}
           <div className="space-y-3 md:hidden">
-            {loadingRecent ? (
-              <div className="text-center py-6 text-muted-foreground">
-                Loading...
-              </div>
-            ) : visibleRecentPending.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                No recent pending complaints
-              </div>
-            ) : (
-              visibleRecentPending.map((complaint) => (
-                <Card key={getComplaintId(complaint)} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 space-y-1">
+
+            {hodInbox.slice(0, 3).map((c) => (
+              <Card key={String(c.id)} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-1">
+                    <div className="text-xs text-muted-foreground">
+                      #{String(c.id)}
+                    </div>
+                    <div className="font-medium text-sm">{c.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Category: {c.category || "General"}
+                    </div>
+                    {c.deadline && (
                       <div className="text-xs text-muted-foreground">
-                        #{complaint.id}
+                        Deadline: {new Date(c.deadline).toLocaleDateString()}
                       </div>
-                      <div className="font-medium text-sm">
-                        {complaint.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Category: {complaint.category}
-                      </div>
-                      {complaint.deadline && (
-                        <div className="text-xs text-muted-foreground">
-                          Deadline:{" "}
-                          {new Date(complaint.deadline).toLocaleDateString()}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 pt-1">
-                        <Badge className="text-xs bg-yellow-100 text-yellow-800">
-                          {complaint.status === "Unassigned"
-                            ? "Pending"
-                            : complaint.status}
-                        </Badge>
-                        <Badge
-                          className={
-                            (complaint.priority === "Low" &&
-                              "text-xs bg-gray-200 text-gray-700 border-gray-300") ||
-                            (complaint.priority === "Medium" &&
-                              "text-xs bg-blue-100 text-blue-800 border-blue-200") ||
-                            (complaint.priority === "High" &&
-                              "text-xs bg-orange-100 text-orange-800 border-orange-200") ||
-                            (complaint.priority === "Critical" &&
-                              "text-xs bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
-                            "text-xs bg-blue-100 text-blue-800 border-blue-200"
-                          }
-                        >
-                          {complaint.priority || "Medium"}
-                        </Badge>
-                        {isOverdue(complaint) ? (
-                          <Badge
-                            className="text-xs bg-red-100 text-red-800 border-red-200"
-                            variant="outline"
-                          >
-                            Overdue
-                          </Badge>
-                        ) : (
-                          <Badge
-                            className="text-xs bg-green-100 text-green-800 border-green-200"
-                            variant="outline"
-                          >
-                            On Time
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Assignee:{" "}
-                        <span className="font-medium">Not Yet Assigned</span>
-                      </div>
+                    )}
+                    <div className="flex items-center gap-2 pt-1">
+                      <Badge className="text-xs bg-yellow-100 text-yellow-800">
+                        Pending
+                      </Badge>
+                      <Badge
+                        className={
+                          (c.priority === "Low" &&
+                            "text-xs bg-gray-200 text-gray-700 border-gray-300") ||
+                          (c.priority === "Medium" &&
+                            "text-xs bg-blue-100 text-blue-800 border-blue-200") ||
+                          (c.priority === "High" &&
+                            "text-xs bg-orange-100 text-orange-800 border-orange-200") ||
+                          (c.priority === "Critical" &&
+                            "text-xs bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
+                          "text-xs bg-blue-100 text-blue-800 border-blue-200"
+                        }
+                      >
+                        {c.priority || "Medium"}
+                      </Badge>
+                      <Badge
+                        className="text-xs bg-green-100 text-green-800 border-green-200"
+                        variant="outline"
+                      >
+                        On Time
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Assignee:{" "}
+                      <span className="font-medium">Not Yet Assigned</span>
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="col-span-2"
-                      onClick={() => handleViewComplaint(complaint)}
-                    >
-                      View Detail
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleAccept(complaint.id)}
-                      className="w-full"
-                    >
-                      Accept
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleReject(complaint.id)}
-                      className="w-full"
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAssignStaff(complaint)}
-                      className="col-span-2 w-full"
-                    >
-                      Assign
-                    </Button>
-                  </div>
-                </Card>
-              ))
-            )}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="col-span-2"
+                    onClick={() => setShowDetailModal(true)}
+                  >
+                    View Detail
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => acceptFromInbox(String(c.id))}
+                    className="w-full"
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => rejectFromInbox(String(c.id))}
+                    className="w-full"
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowAssignModal(true)}
+                    className="col-span-2 w-full"
+                  >
+                    Assign
+                  </Button>
+                </div>
+              </Card>
+            ))}
+
           </div>
 
           {/* Desktop: table with horizontal scroll */}
           <div className="hidden md:block overflow-x-auto">
-            {loadingRecent ? (
-              <div className="text-center py-6 text-muted-foreground">
-                Loading...
-              </div>
-            ) : visibleRecentPending.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                No recent pending complaints
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-sm">Title</TableHead>
-                    <TableHead className="text-sm">Category</TableHead>
-                    <TableHead className="text-sm">Priority</TableHead>
-                    <TableHead className="text-sm">Status</TableHead>
-                    <TableHead className="text-sm">Assignee</TableHead>
-                    <TableHead className="text-sm">Overdue</TableHead>
-                    <TableHead className="text-sm">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleRecentPending.map((complaint) => (
-                    <TableRow key={getComplaintId(complaint)}>
-                      <TableCell className="font-medium text-sm">
-                        <div>
-                          <div className="font-semibold flex items-center gap-2">
-                            {complaint.title}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Submitted by {getSubmitterName(complaint)}
-                          </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-sm">Title</TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Priority</TableHead>
+                  <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Assignee</TableHead>
+                  <TableHead className="text-sm">Overdue</TableHead>
+                  <TableHead className="text-sm">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {hodInbox.slice(0, 3).map((c) => (
+                  <TableRow key={String(c.id)}>
+                    <TableCell className="font-medium text-sm">
+                      <div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {c.title}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {complaint.category}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <Badge
-                          className={
-                            (complaint.priority === "Low" &&
-                              "bg-gray-200 text-gray-700 border-gray-300") ||
-                            (complaint.priority === "Medium" &&
-                              "bg-blue-100 text-blue-800 border-blue-200") ||
-                            (complaint.priority === "High" &&
-                              "bg-orange-100 text-orange-800 border-orange-200") ||
-                            (complaint.priority === "Critical" &&
-                              "bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
-                            "bg-blue-100 text-blue-800 border-blue-200"
-                          }
+                        <div className="text-xs text-muted-foreground">
+                          Submitted by{" "}
+                          {typeof c.submittedBy === "string"
+                            ? c.submittedBy
+                            : c.submittedBy?.name}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {c.category || "General"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <Badge
+                        className={
+                          (c.priority === "Low" &&
+                            "bg-gray-200 text-gray-700 border-gray-300") ||
+                          (c.priority === "Medium" &&
+                            "bg-blue-100 text-blue-800 border-blue-200") ||
+                          (c.priority === "High" &&
+                            "bg-orange-100 text-orange-800 border-orange-200") ||
+                          (c.priority === "Critical" &&
+                            "bg-red-100 text-red-800 border-red-200 font-bold border-2") ||
+                          "bg-blue-100 text-blue-800 border-blue-200"
+                        }
+                      >
+                        {c.priority || "Medium"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                        Pending
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                        Not Yet Assigned
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className="bg-green-100 text-green-800 border-green-200 text-xs"
+                        variant="outline"
+                      >
+                        Not Overdue
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowDetailModal(true)}
+                          className="text-xs"
                         >
-                          {complaint.priority || "Medium"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {complaint.status !== "Unassigned" && (
-                          <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                            {complaint.status}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
-                          Not Yet Assigned
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {isOverdue(complaint) ? (
-                          <Badge
-                            className="bg-red-100 text-red-800 border-red-200 text-xs"
-                            variant="outline"
-                          >
-                            Overdue
-                          </Badge>
-                        ) : (
-                          <Badge
-                            className="bg-green-100 text-green-800 border-green-200 text-xs"
-                            variant="outline"
-                          >
-                            Not Overdue
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 items-center flex-wrap">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewComplaint(complaint)}
-                            className="text-xs"
-                          >
-                            View Detail
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="text-xs"
-                            onClick={() => handleAccept(complaint.id)}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="text-xs"
-                            onClick={() => handleReject(complaint.id)}
-                          >
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                            onClick={() => handleAssignStaff(complaint)}
-                          >
-                            Assign
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+                          View Detail
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="text-xs"
+                          onClick={() => acceptFromInbox(String(c.id))}
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="text-xs"
+                          onClick={() => rejectFromInbox(String(c.id))}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => setShowAssignModal(true)}
+                        >
+                          Assign
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
           </div>
         </CardContent>
       </Card>
@@ -784,7 +731,7 @@ export function HoDDashboard() {
         open={showStatusModal}
         onOpenChange={setShowStatusModal}
         onUpdate={handleStatusSubmit}
-        userRole="admin"
+        userRole="hod"
       />
       <AssignStaffModal
         complaint={selectedComplaint}
@@ -793,22 +740,7 @@ export function HoDDashboard() {
         onAssign={(complaintId, staffId, notes) => {
           // Update global context (optional) and local recent pool
           handleStaffAssignment(complaintId, staffId, notes);
-          setComplaints((prev) =>
-            prev.map((c) =>
-              c.id === complaintId
-                ? {
-                    ...c,
-                    assignedStaff:
-                      getAllStaff().find((s) => s.id === staffId)?.fullName ||
-                      getAllStaff().find((s) => s.id === staffId)?.name ||
-                      "Unknown",
-                    assignedStaffRole: "staff",
-                    status: "In Progress",
-                    lastUpdated: new Date(),
-                  }
-                : c
-            )
-          );
+
         }}
       />
     </div>

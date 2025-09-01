@@ -14,6 +14,15 @@ import {
   markFeedbackReviewed,
   getFeedbackByRole,
   queryComplaints,
+
+  deanAssignToHod,
+  getDeanInbox,
+  getAdminInbox,
+  getHodInbox,
+  hodAssignToStaff,
+  getHodManagedComplaints,
+  getHodAll,
+
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -21,6 +30,9 @@ import {
   adminOnly,
   adminOrDean,
   staffOnly,
+  hodOnly,
+  adminDeanOrHod,
+  deanOnly,
 } from "../middleware/protectRoute.js";
 
 const router = express.Router();
@@ -33,7 +45,20 @@ router.post("/feedback/:id", protectRoute, giveFeedback);
 // ADMIN or DEAN
 router.get("/all", protectRoute, adminOrDean, getAllComplaints);
 router.put("/assign/:id", protectRoute, adminOrDean, assignComplaint);
-router.put("/approve/:id", protectRoute, adminOrDean, approveComplaint);
+// Approval can be performed by Dean or HoD (their respective inbox acceptance)
+router.put("/approve/:id", protectRoute, adminDeanOrHod, approveComplaint);
+// Dean -> assign to HoD (keeps status Pending for HoD acceptance)
+router.put("/dean/assign-to-hod/:id", protectRoute, deanOnly, deanAssignToHod);
+// Role-scoped inboxes
+router.get("/inbox/dean", protectRoute, deanOnly, getDeanInbox);
+router.get("/inbox/admin", protectRoute, adminOnly, getAdminInbox);
+router.get("/inbox/hod", protectRoute, hodOnly, getHodInbox);
+// HoD assignment to staff within department
+router.put("/hod/assign-to-staff/:id", protectRoute, hodOnly, hodAssignToStaff);
+// HoD managed complaints (self or staff in dept)
+router.get("/hod/managed", protectRoute, hodOnly, getHodManagedComplaints);
+// HoD consolidated data
+router.get("/hod/all", protectRoute, hodOnly, getHodAll);
 router.get("/feedback/all", protectRoute, adminOnly, getAllFeedback);
 
 // STAFF

@@ -52,6 +52,8 @@ export interface Complaint {
   isEscalated?: boolean; // Indicates if the complaint is escalated
   submittedTo?: string; // Add this field for tracking who complaint was submitted to
   department?: string; // Add department for routing
+  // Stores the latest action note (e.g., "Rejected: ..." or accept note) for lightweight list rendering
+  lastNote?: string;
 }
 
 interface ComplaintCardProps {
