@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+// import { Separator } from "@/components/ui/separator"; // not used
 import {
   FileText,
   User,
@@ -31,10 +31,14 @@ import {
 } from "lucide-react";
 import { Complaint } from "@/components/ComplaintCard";
 import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
-import { submitComplaintFeedbackApi } from "@/lib/api";
+import {
+  submitComplaintFeedbackApi,
+  updateComplaintStatusApi,
+  approveComplaintApi,
+} from "@/lib/api";
 import type { ActivityLog } from "@/components/ActivityLogTable";
 import { useToast } from "@/hooks/use-toast";
-import { formatTimelineDescription } from "@/utils/timelineUtils";
+// import { formatTimelineDescription } from "@/utils/timelineUtils"; // not used
 import { useAuth } from "@/components/auth/AuthContext";
 
 interface RoleBasedComplaintModalProps {
@@ -52,7 +56,7 @@ export function RoleBasedComplaintModal({
   open,
   onOpenChange,
   onUpdate,
-  children,
+  children: _children,
   fetchLatest = true,
 }: RoleBasedComplaintModalProps) {
   // Local state for live backend complaint (initialized with incoming complaint)
@@ -79,6 +83,15 @@ export function RoleBasedComplaintModal({
   const [isLoading, setIsLoading] = useState(false);
   const [locallyAccepted, setLocallyAccepted] = useState(false);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  // HoD acceptance/rejection inputs (Pending state)
+  const [hodNote, setHodNote] = useState("");
+  const [hodRejectReason, setHodRejectReason] = useState("");
+  // Dean acceptance/rejection inputs (Pending state)
+  const [deanNote, setDeanNote] = useState("");
+  const [deanRejectReason, setDeanRejectReason] = useState("");
+  // HoD/Dean in-progress note inputs (decoupled from backend resolutionNote history)
+  const [hodStatusNote, setHodStatusNote] = useState("");
+  const [deanStatusNote, setDeanStatusNote] = useState("");
 
   // Helper for type-safe staff display (string or object)
   function getStaffDisplay(staff: unknown): string {
@@ -425,6 +438,12 @@ export function RoleBasedComplaintModal({
         title: "Feedback Submitted",
         description: "Thank you for your feedback!",
       });
+      // Broadcast change
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", {
+          detail: { id: complaint.id },
+        })
+      );
       onOpenChange(false);
     } catch (error: unknown) {
       const msg =
@@ -471,9 +490,9 @@ export function RoleBasedComplaintModal({
 
   if (!liveComplaint || !user) return null;
 
-  // Role-based View Detail button
-  const showViewDetailButton =
-    (user.role === "admin" || user.role === "staff") && liveComplaint;
+  // Role-based View Detail button (not used in current UI)
+  // const showViewDetailButton =
+  //   (user.role === "admin" || user.role === "staff") && liveComplaint;
 
   // Debug logging removed to reduce console noise in production
 
@@ -605,26 +624,30 @@ export function RoleBasedComplaintModal({
 
   for (const log of sortedLogs) {
     // Explicitly add an "Accepted" step when HoD/Dean approve a complaint
-    if (
-      /^complaint approved$/i.test(log.action || "") &&
-      (log.role === "hod" || log.role === "dean")
-    ) {
-      const time = new Date(log.timestamp);
-      const details = (log.details || {}) as Record<string, unknown>;
-      const approverNote =
-        typeof details.description === "string"
-          ? String(details.description)
-          : typeof details.note === "string"
-          ? String(details.note)
-          : "";
-      timelineEntries.push({
-        key: `accepted|${time.toISOString()}`,
-        label: "Accepted",
-        role: log.role || "hod",
-        icon: <CheckCircle className="h-4 w-4 text-success" />,
-        time,
-        desc: approverNote,
-      });
+    if (/^complaint approved$/i.test(log.action || "")) {
+      const roleNorm = String(log.role || "").toLowerCase();
+      if (
+        roleNorm === "hod" ||
+        roleNorm === "headofdepartment" ||
+        roleNorm === "dean"
+      ) {
+        const time = new Date(log.timestamp);
+        const details = (log.details || {}) as Record<string, unknown>;
+        const approverNote =
+          typeof details.description === "string"
+            ? String(details.description)
+            : typeof details.note === "string"
+            ? String(details.note)
+            : "";
+        timelineEntries.push({
+          key: `accepted|${time.toISOString()}`,
+          label: "Accepted",
+          role: log.role || "hod",
+          icon: <CheckCircle className="h-4 w-4 text-success" />,
+          time,
+          desc: approverNote,
+        });
+      }
     }
 
     const m = (log.action || "").match(/status updated to\s+(.+)/i);
@@ -835,6 +858,219 @@ export function RoleBasedComplaintModal({
             {/* Submission Information Section (always shown) */}
             {/* ...existing code, replace all complaint. with liveComplaint. ... */}
           </>
+        )}
+
+        {/* HoD: Pending actions (visible even if not assigned) */}
+        {user.role === "headOfDepartment" &&
+          liveComplaint.status === "Pending" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>HoD Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="mb-2">Optional note to student</Label>
+                  <Textarea
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Add an optional note visible to the student..."
+                    value={hodNote}
+                    onChange={(e) => setHodNote(e.target.value.slice(0, 1000))}
+                    rows={3}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1 text-right">
+                    {hodNote.length}/1000
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Button
+                    variant="default"
+                    disabled={isLoading}
+                    onClick={() => {
+                      if (!liveComplaint) return;
+                      setIsLoading(true);
+                      approveComplaintApi(liveComplaint.id, {
+                        note: hodNote.trim() || undefined,
+                      })
+                        .then(() => {
+                          toast({
+                            title: "Accepted",
+                            description: "Complaint moved to In Progress.",
+                          });
+                          setHodNote("");
+                          window.dispatchEvent(
+                            new CustomEvent("complaint:status-changed", {
+                              detail: { id: liveComplaint.id },
+                            })
+                          );
+                          onOpenChange(false);
+                        })
+                        .finally(() => setIsLoading(false));
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" /> Accept
+                  </Button>
+                  <div>
+                    <Label className="mb-2 block">Reject reason</Label>
+                    <Textarea
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Provide a reason for rejection..."
+                      value={hodRejectReason}
+                      onChange={(e) =>
+                        setHodRejectReason(e.target.value.slice(0, 1000))
+                      }
+                      rows={2}
+                    />
+                    <div className="text-xs text-muted-foreground mt-1 text-right">
+                      {hodRejectReason.length}/1000
+                    </div>
+                    <Button
+                      variant="destructive"
+                      disabled={isLoading}
+                      className="mt-2 w-full"
+                      onClick={() => {
+                        if (!liveComplaint) return;
+                        if (!hodRejectReason.trim()) {
+                          toast({
+                            title: "Reason required",
+                            description: "Please enter a reason to reject.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        setIsLoading(true);
+                        updateComplaintStatusApi(
+                          liveComplaint.id,
+                          "Closed",
+                          `Rejected: ${hodRejectReason.trim()}`
+                        )
+                          .then(() => {
+                            toast({
+                              title: "Rejected",
+                              description: "Complaint has been rejected.",
+                            });
+                            setHodRejectReason("");
+                            window.dispatchEvent(
+                              new CustomEvent("complaint:status-changed", {
+                                detail: { id: liveComplaint.id },
+                              })
+                            );
+                            onOpenChange(false);
+                          })
+                          .finally(() => setIsLoading(false));
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-2" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+        {/* Dean: Pending actions (visible even if not assigned) */}
+        {user.role === "dean" && liveComplaint.status === "Pending" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Dean Review</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="mb-2">Optional note to student</Label>
+                <Textarea
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="Add an optional note visible to the student..."
+                  value={deanNote}
+                  onChange={(e) => setDeanNote(e.target.value.slice(0, 1000))}
+                  rows={3}
+                />
+                <div className="text-xs text-muted-foreground mt-1 text-right">
+                  {deanNote.length}/1000
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Button
+                  variant="default"
+                  disabled={isLoading}
+                  onClick={() => {
+                    if (!liveComplaint) return;
+                    setIsLoading(true);
+                    approveComplaintApi(liveComplaint.id, {
+                      note: deanNote.trim() || undefined,
+                    })
+                      .then(() => {
+                        toast({
+                          title: "Accepted",
+                          description: "Complaint moved to In Progress.",
+                        });
+                        setDeanNote("");
+                        window.dispatchEvent(
+                          new CustomEvent("complaint:status-changed", {
+                            detail: { id: liveComplaint.id },
+                          })
+                        );
+                        onOpenChange(false);
+                      })
+                      .finally(() => setIsLoading(false));
+                  }}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" /> Accept
+                </Button>
+                <div>
+                  <Label className="mb-2 block">Reject reason</Label>
+                  <Textarea
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Provide a reason for rejection..."
+                    value={deanRejectReason}
+                    onChange={(e) =>
+                      setDeanRejectReason(e.target.value.slice(0, 1000))
+                    }
+                    rows={2}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1 text-right">
+                    {deanRejectReason.length}/1000
+                  </div>
+                  <Button
+                    variant="destructive"
+                    disabled={isLoading}
+                    className="mt-2 w-full"
+                    onClick={() => {
+                      if (!liveComplaint) return;
+                      if (!deanRejectReason.trim()) {
+                        toast({
+                          title: "Reason required",
+                          description: "Please enter a reason to reject.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setIsLoading(true);
+                      updateComplaintStatusApi(
+                        liveComplaint.id,
+                        "Closed",
+                        `Rejected: ${deanRejectReason.trim()}`
+                      )
+                        .then(() => {
+                          toast({
+                            title: "Rejected",
+                            description: "Complaint has been rejected.",
+                          });
+                          setDeanRejectReason("");
+                          window.dispatchEvent(
+                            new CustomEvent("complaint:status-changed", {
+                              detail: { id: liveComplaint.id },
+                            })
+                          );
+                          onOpenChange(false);
+                        })
+                        .finally(() => setIsLoading(false));
+                    }}
+                  >
+                    <X className="h-4 w-4 mr-2" /> Reject
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Submission Information Section (always shown) */}
@@ -1221,6 +1457,11 @@ export function RoleBasedComplaintModal({
                                   title: "Status updated",
                                   description: `Updated to ${newStatus}.`,
                                 });
+                                window.dispatchEvent(
+                                  new CustomEvent("complaint:status-changed", {
+                                    detail: { id: liveComplaint.id },
+                                  })
+                                );
                               })
                               .finally(() => setIsLoading(false));
                           }}
@@ -1287,17 +1528,14 @@ export function RoleBasedComplaintModal({
                       <Textarea
                         className="w-full border rounded px-3 py-2"
                         placeholder="Add an optional note visible to the user..."
-                        value={liveComplaint.resolutionNote || ""}
+                        value={hodStatusNote}
                         onChange={(e) =>
-                          setLiveComplaint({
-                            ...liveComplaint,
-                            resolutionNote: e.target.value.slice(0, 1000),
-                          })
+                          setHodStatusNote(e.target.value.slice(0, 1000))
                         }
                         rows={3}
                       />
                       <div className="text-xs text-muted-foreground mt-1 text-right">
-                        {(liveComplaint.resolutionNote || "").length}/1000
+                        {hodStatusNote.length}/1000
                       </div>
                     </div>
                     <Button
@@ -1306,18 +1544,27 @@ export function RoleBasedComplaintModal({
                       onClick={() => {
                         if (!liveComplaint) return;
                         setIsLoading(true);
-                        Promise.resolve(
-                          onUpdate?.(liveComplaint.id, {
-                            status: liveComplaint.status,
-                            resolutionNote: liveComplaint.resolutionNote,
-                            lastUpdated: new Date(),
-                          })
+                        updateComplaintStatusApi(
+                          liveComplaint.id,
+                          liveComplaint.status as
+                            | "Pending"
+                            | "In Progress"
+                            | "Resolved"
+                            | "Closed",
+                          hodStatusNote.trim() || undefined
                         )
                           .then(() => {
                             toast({
                               title: "Status updated",
                               description: `Updated to ${liveComplaint.status}.`,
                             });
+                            // Clear HoD in-progress note input locally
+                            setHodStatusNote("");
+                            window.dispatchEvent(
+                              new CustomEvent("complaint:status-changed", {
+                                detail: { id: liveComplaint.id },
+                              })
+                            );
                           })
                           .finally(() => setIsLoading(false));
                       }}
@@ -1357,17 +1604,14 @@ export function RoleBasedComplaintModal({
                     <Textarea
                       className="w-full border rounded px-3 py-2"
                       placeholder="Add an optional note visible to the user..."
-                      value={liveComplaint.resolutionNote || ""}
+                      value={deanStatusNote}
                       onChange={(e) =>
-                        setLiveComplaint({
-                          ...liveComplaint,
-                          resolutionNote: e.target.value.slice(0, 1000),
-                        })
+                        setDeanStatusNote(e.target.value.slice(0, 1000))
                       }
                       rows={3}
                     />
                     <div className="text-xs text-muted-foreground mt-1 text-right">
-                      {(liveComplaint.resolutionNote || "").length}/1000
+                      {deanStatusNote.length}/1000
                     </div>
                   </div>
                   <Button
@@ -1376,18 +1620,27 @@ export function RoleBasedComplaintModal({
                     onClick={() => {
                       if (!liveComplaint) return;
                       setIsLoading(true);
-                      Promise.resolve(
-                        onUpdate?.(liveComplaint.id, {
-                          status: liveComplaint.status,
-                          resolutionNote: liveComplaint.resolutionNote,
-                          lastUpdated: new Date(),
-                        })
+                      updateComplaintStatusApi(
+                        liveComplaint.id,
+                        liveComplaint.status as
+                          | "Pending"
+                          | "In Progress"
+                          | "Resolved"
+                          | "Closed",
+                        deanStatusNote.trim() || undefined
                       )
                         .then(() => {
                           toast({
                             title: "Status updated",
                             description: `Updated to ${liveComplaint.status}.`,
                           });
+                          // Clear Dean in-progress note input locally
+                          setDeanStatusNote("");
+                          window.dispatchEvent(
+                            new CustomEvent("complaint:status-changed", {
+                              detail: { id: liveComplaint.id },
+                            })
+                          );
                         })
                         .finally(() => setIsLoading(false));
                     }}
@@ -1453,7 +1706,15 @@ export function RoleBasedComplaintModal({
                           status: liveComplaint.status,
                           resolutionNote: liveComplaint.resolutionNote,
                         })
-                      ).finally(() => setIsLoading(false));
+                      )
+                        .then(() => {
+                          window.dispatchEvent(
+                            new CustomEvent("complaint:status-changed", {
+                              detail: { id: liveComplaint.id },
+                            })
+                          );
+                        })
+                        .finally(() => setIsLoading(false));
                     }}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />

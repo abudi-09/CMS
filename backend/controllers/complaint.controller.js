@@ -283,15 +283,14 @@ export const approveComplaint = async (req, res) => {
   try {
     const complaintId = req.params.id;
     const { note, assignToSelf } = req.body || {};
-    // Enforce required note for Dean/Admin when accepting to solve
-    if (
-      (req.user.role === "dean" || req.user.role === "admin") &&
-      !(note && String(note).trim())
-    ) {
+    const actorRole = String(req.user.role || "").toLowerCase();
+    // Admin must include a note upon approval to ensure clear context; HOD/Dean note is optional
+    if (actorRole === "admin" && !(note && String(note).trim())) {
       return res
         .status(400)
         .json({ error: "Description is required for this role" });
     }
+
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
@@ -300,14 +299,15 @@ export const approveComplaint = async (req, res) => {
         .status(400)
         .json({ error: "Only pending complaints can be approved" });
     }
-    // Mark as in progress to signal it's been accepted for handling
+
+    // Move to In Progress on acceptance
     complaint.status = "In Progress";
     complaint.assignedByRole = normalizeUserRole(req.user.role);
     if (!complaint.assignmentPath) complaint.assignmentPath = [];
-    if (!complaint.assignmentPath.includes(req.user.role)) {
-      complaint.assignmentPath.push(normalizeUserRole(req.user.role));
+    const approverRole = normalizeUserRole(req.user.role);
+    if (!complaint.assignmentPath.includes(approverRole)) {
+      complaint.assignmentPath.push(approverRole);
     }
-    // If approver wants to take ownership
     if (assignToSelf === true) {
       complaint.assignedTo = req.user._id;
       complaint.assignedAt = new Date();
@@ -321,7 +321,7 @@ export const approveComplaint = async (req, res) => {
     }
     await complaint.save();
 
-    // Notify student when HoD accepts (moves to In Progress). Dean accept may also notify.
+    // Notify student when HoD/Dean accepts
     try {
       if (
         complaint.status === "In Progress" &&
@@ -346,6 +346,7 @@ export const approveComplaint = async (req, res) => {
       console.warn("[approveComplaint] email notify failed:", e?.message);
     }
 
+    // Activity logs
     await ActivityLog.create({
       user: req.user._id,
       role: req.user.role,
@@ -359,21 +360,19 @@ export const approveComplaint = async (req, res) => {
       },
     });
 
-    // Also record a status-update log so the student timeline shows the change clearly
-    try {
-      await ActivityLog.create({
-        user: req.user._id,
-        role: req.user.role,
-        action: `Status Updated to ${complaint.status}`,
-        complaint: complaint._id,
-        timestamp: new Date(),
-        details: { description: (note || "").trim() },
-      });
-    } catch (_) {}
+    // Also record a status-update log for the timeline
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: `Status Updated to ${complaint.status}`,
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { description: (note || "").trim() },
+    });
 
-    res.status(200).json({ message: "Complaint approved", complaint });
+    return res.status(200).json({ message: "Complaint approved", complaint });
   } catch (err) {
-    res.status(500).json({ error: "Failed to approve complaint" });
+    return res.status(500).json({ error: "Failed to approve complaint" });
   }
 };
 
@@ -429,6 +428,46 @@ export const getDeanInbox = async (req, res) => {
     );
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch dean inbox" });
+  }
+};
+
+// Admin inbox: pending items targeting Admin
+export const getAdminInbox = async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Access denied" });
+    const filter = {
+      status: "Pending",
+      isEscalated: { $ne: true },
+      $or: [
+        { submittedTo: { $regex: /admin/i } },
+        { assignmentPath: { $in: ["admin"] } },
+      ],
+    };
+    const complaints = await Complaint.find(filter)
+      .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
+      .limit(100);
+    return res.status(200).json(
+      complaints.map((c) => ({
+        id: c._id,
+        title: c.title,
+        category: c.category,
+        status: c.status,
+        priority: c.priority,
+        submittedDate: c.createdAt,
+        lastUpdated: c.updatedAt,
+        assignedTo: c.assignedTo,
+        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        deadline: c.deadline,
+        assignedByRole: c.assignedByRole,
+        assignmentPath: c.assignmentPath || [],
+        submittedTo: c.submittedTo || null,
+      }))
+    );
+  } catch (err) {
+    console.error("getAdminInbox error:", err?.message);
+    return res.status(500).json({ error: "Failed to fetch Admin inbox" });
   }
 };
 
@@ -793,19 +832,18 @@ export const updateComplaintStatus = async (req, res) => {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    const complaint = await Complaint.findById(complaintId);
-    if (!complaint)
-      return res.status(404).json({ error: "Complaint not found" });
-
-    // Enforce required description for Dean/Admin when updating status
-    if (
-      (req.user.role === "dean" || req.user.role === "admin") &&
-      !(description && String(description).trim())
-    ) {
+    // Admin must provide a note/description for any status update; HOD/Dean optional
+    const actorRole = String(req.user.role || "").toLowerCase();
+    const requiresNote = actorRole === "admin";
+    if (requiresNote && !(description && String(description).trim())) {
       return res
         .status(400)
         .json({ error: "Description is required for this role" });
     }
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
 
     // Authorization
     const assignedToId = complaint.assignedTo

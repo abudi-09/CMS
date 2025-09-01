@@ -134,7 +134,14 @@ export function HoDDashboard() {
 
   const acceptFromInbox = async (id: string) => {
     try {
-      await approveComplaintApi(id, { assignToSelf: true });
+      const note = window.prompt(
+        "Optional note for approval:",
+        "Accepted and taking ownership"
+      );
+      await approveComplaintApi(id, {
+        assignToSelf: true,
+        note: note?.trim() || undefined,
+      });
       const res = await getHodInboxApi();
       setHodInbox(res || []);
       window.dispatchEvent(new Event("complaint:status-changed"));
@@ -197,10 +204,38 @@ export function HoDDashboard() {
     newStatus: string,
     notes: string
   ) => {
-    updateComplaint(complaintId, {
-      status: newStatus as Complaint["status"],
-      lastUpdated: new Date(),
-    });
+    (async () => {
+      try {
+        await updateComplaintStatusApi(
+          complaintId,
+          newStatus as "Pending" | "In Progress" | "Resolved" | "Closed",
+          notes?.trim() || undefined
+        );
+        updateComplaint(complaintId, {
+          status: newStatus as Complaint["status"],
+          lastUpdated: new Date(),
+        });
+        window.dispatchEvent(
+          new CustomEvent("complaint:status-changed", {
+            detail: { id: complaintId },
+          })
+        );
+        toast({
+          title: "Status Updated",
+          description: `Complaint status updated to ${newStatus}.`,
+        });
+      } catch (e: unknown) {
+        const msg =
+          typeof e === "object" && e && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Failed to update status";
+        toast({
+          title: "Update failed",
+          description: msg,
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   const handleAssignStaff = (complaint: Complaint) => {
@@ -297,9 +332,7 @@ export function HoDDashboard() {
     )
     .slice(0, 3);
 
-  function setRecentPool(arg0: (prev: any) => any) {
-    throw new Error("Function not implemented.");
-  }
+  // no-op placeholder removed (was causing lint error)
 
   return (
     <div className="space-y-8">
@@ -670,7 +703,7 @@ export function HoDDashboard() {
         open={showStatusModal}
         onOpenChange={setShowStatusModal}
         onUpdate={handleStatusSubmit}
-        userRole="admin"
+        userRole="hod"
       />
       <AssignStaffModal
         complaint={selectedComplaint}
@@ -679,22 +712,6 @@ export function HoDDashboard() {
         onAssign={(complaintId, staffId, notes) => {
           // Update global context (optional) and local recent pool
           handleStaffAssignment(complaintId, staffId, notes);
-          setRecentPool((prev) =>
-            prev.map((c) =>
-              c.id === complaintId
-                ? {
-                    ...c,
-                    assignedStaff:
-                      getAllStaff().find((s) => s.id === staffId)?.fullName ||
-                      getAllStaff().find((s) => s.id === staffId)?.name ||
-                      "Unknown",
-                    assignedStaffRole: "staff",
-                    status: "In Progress",
-                    lastUpdated: new Date(),
-                  }
-                : c
-            )
-          );
         }}
       />
     </div>

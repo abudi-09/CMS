@@ -918,7 +918,7 @@ export async function updateComplaintStatusApi(
 // the approver becomes the assignee.
 export async function approveComplaintApi(
   complaintId: string,
-  payload?: { assignToSelf?: boolean }
+  payload?: { assignToSelf?: boolean; note?: string }
 ) {
   const res = await fetch(`${API_BASE}/complaints/approve/${complaintId}`, {
     method: "PUT",
@@ -1014,6 +1014,18 @@ export async function getHodInboxApi() {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to fetch HOD inbox");
+  return data as Array<InboxComplaint>;
+}
+
+// Admin: inbox of pending complaints (latest 100)
+export async function getAdminInboxApi() {
+  const res = await fetch(`${API_BASE}/complaints/inbox/admin`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch Admin inbox");
   return data as Array<InboxComplaint>;
 }
 

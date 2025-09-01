@@ -1049,12 +1049,12 @@ export default function AllComplaints() {
         </div>
       )}
 
-      {/* Detail Modal */}
+      {/* Detail Modal (read-only overview) */}
       <RoleBasedComplaintModal
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-        onUpdate={() => {}} // Admin view only
+        fetchLatest
       />
     </div>
   );

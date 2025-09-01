@@ -15,6 +15,7 @@ import {
   getFeedbackByRole,
   deanAssignToHod,
   getDeanInbox,
+  getAdminInbox,
   getHodInbox,
   hodAssignToStaff,
   getHodManagedComplaints,
@@ -47,6 +48,7 @@ router.put("/approve/:id", protectRoute, adminDeanOrHod, approveComplaint);
 router.put("/dean/assign-to-hod/:id", protectRoute, deanOnly, deanAssignToHod);
 // Role-scoped inboxes
 router.get("/inbox/dean", protectRoute, deanOnly, getDeanInbox);
+router.get("/inbox/admin", protectRoute, adminOnly, getAdminInbox);
 router.get("/inbox/hod", protectRoute, hodOnly, getHodInbox);
 // HoD assignment to staff within department
 router.put("/hod/assign-to-staff/:id", protectRoute, hodOnly, hodAssignToStaff);

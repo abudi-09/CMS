@@ -461,7 +461,22 @@ export function DeanAssignComplaints() {
 
   const handleReapprove = async (complaintId: string) => {
     try {
-      await approveComplaintApi(complaintId, { assignToSelf: true });
+      const note = window.prompt(
+        "Add a short note for this approval (required):",
+        "Approved and taking ownership"
+      );
+      if (!note || !note.trim()) {
+        toast({
+          title: "Note required",
+          description: "Approval note is required.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await approveComplaintApi(complaintId, {
+        assignToSelf: true,
+        note: note.trim(),
+      });
       const updated = await getComplaintApi(complaintId);
       setComplaints((prev) =>
         prev.map((c) =>
@@ -1332,8 +1347,18 @@ export function DeanAssignComplaints() {
                   if (!acceptTarget) return;
                   try {
                     setAccepting(true);
+                    if (!acceptNote.trim()) {
+                      toast({
+                        title: "Note required",
+                        description: "Please enter a note before approving.",
+                        variant: "destructive",
+                      });
+                      setAccepting(false);
+                      return;
+                    }
                     await approveComplaintApi(acceptTarget.id, {
                       assignToSelf: true,
+                      note: acceptNote.trim(),
                     });
                     const updated = await getComplaintApi(acceptTarget.id);
                     const assignee =

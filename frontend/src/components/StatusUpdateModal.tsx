@@ -1,8 +1,19 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Complaint } from "./ComplaintCard";
 
@@ -11,43 +22,68 @@ interface StatusUpdateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate: (complaintId: string, newStatus: string, notes: string) => void;
-  userRole?: "staff" | "admin";
+  userRole?: "staff" | "admin" | "hod" | "dean";
 }
 
 const statusOptions = [
-  { value: "Pending", label: "Pending", description: "Waiting to be assigned or reviewed" },
-  { value: "In Progress", label: "In Progress", description: "Currently being worked on" },
-  { value: "Resolved", label: "Resolved", description: "Issue has been addressed" },
-  { value: "Closed", label: "Closed", description: "Case is complete and closed" }
+  {
+    value: "Pending",
+    label: "Pending",
+    description: "Waiting to be assigned or reviewed",
+  },
+  {
+    value: "In Progress",
+    label: "In Progress",
+    description: "Currently being worked on",
+  },
+  {
+    value: "Resolved",
+    label: "Resolved",
+    description: "Issue has been addressed",
+  },
+  {
+    value: "Closed",
+    label: "Closed",
+    description: "Case is complete and closed",
+  },
 ];
 
-export function StatusUpdateModal({ 
-  complaint, 
-  open, 
-  onOpenChange, 
-  onUpdate, 
-  userRole = "staff" 
+export function StatusUpdateModal({
+  complaint,
+  open,
+  onOpenChange,
+  onUpdate,
+  userRole = "staff",
 }: StatusUpdateModalProps) {
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const requiresNote = userRole === "admin" || userRole === "dean";
 
   const handleSubmit = async () => {
     if (!complaint || !newStatus) return;
-    
+    if (requiresNote && !notes.trim()) {
+      toast({
+        title: "Description required",
+        description: "Please provide a note/description for this update.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
-    
+
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     onUpdate(complaint.id, newStatus, notes);
-    
+
     toast({
       title: "Status Updated",
       description: `Complaint status has been updated to ${newStatus}.`,
     });
-    
+
     // Reset form
     setNewStatus("");
     setNotes("");
@@ -71,7 +107,7 @@ export function StatusUpdateModal({
 
   if (!complaint) return null;
 
-  const availableStatuses = statusOptions.filter(option => {
+  const availableStatuses = statusOptions.filter((option) => {
     // Staff can only move from Pending → In Progress → Resolved
     if (userRole === "staff") {
       if (complaint.status === "Pending") {
@@ -93,14 +129,16 @@ export function StatusUpdateModal({
         <DialogHeader>
           <DialogTitle>Update Complaint Status</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-6">
           <div className="text-sm">
             <div className="font-medium mb-1">Complaint:</div>
             <div className="text-muted-foreground">{complaint.title}</div>
-            <div className="text-xs text-muted-foreground mt-1">#{complaint.id}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              #{complaint.id}
+            </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium">New Status *</label>
             <Select value={newStatus} onValueChange={setNewStatus}>
@@ -121,9 +159,12 @@ export function StatusUpdateModal({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="space-y-2">
-            <label className="text-sm font-medium">Update Notes (Optional)</label>
+            <label className="text-sm font-medium">
+              Update Notes
+              {requiresNote ? " (Required for Admin/Dean)" : " (Optional)"}
+            </label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -135,7 +176,7 @@ export function StatusUpdateModal({
               {notes.length}/300 characters
             </div>
           </div>
-          
+
           <div className="flex gap-3">
             <Button
               variant="outline"
@@ -146,7 +187,12 @@ export function StatusUpdateModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!newStatus || newStatus === complaint.status || isSubmitting}
+              disabled={
+                !newStatus ||
+                newStatus === complaint.status ||
+                isSubmitting ||
+                (requiresNote && !notes.trim())
+              }
               className="flex-1"
             >
               {isSubmitting ? "Updating..." : "Update Status"}

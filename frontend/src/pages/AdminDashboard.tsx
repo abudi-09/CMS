@@ -1,5 +1,4 @@
-// For demo/testing: import mockComplaint
-import { mockComplaint } from "@/lib/mockComplaint";
+// Admin dashboard now loads complaints from backend (no mock)
 import { useEffect, useState } from "react";
 import {
   Card,
@@ -20,15 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RoleSummaryCards } from "@/components/RoleSummaryCards";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+// pagination imports removed; recent table shows only top 3
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { StatusUpdateModal } from "@/components/StatusUpdateModal";
@@ -39,17 +30,16 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { getPendingDeansApi } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import { getRoleCountsApi } from "@/lib/api";
+import {
+  getRoleCountsApi,
+  updateComplaintStatusApi,
+  listAllComplaintsApi,
+  approveComplaintApi,
+} from "@/lib/api";
 
 export function AdminDashboard() {
-  // MOCK DATA ENABLED BY DEFAULT
-  // Ensure status is cast to the correct Complaint["status"] type
-  const complaints = [
-    {
-      ...mockComplaint,
-      status: mockComplaint.status as Complaint["status"],
-    },
-  ];
+  // Backend-loaded complaints for recent list
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
@@ -81,10 +71,35 @@ export function AdminDashboard() {
     newStatus: string,
     notes: string
   ) => {
-    updateComplaint(complaintId, {
-      status: newStatus as Complaint["status"],
-      lastUpdated: new Date(),
-    });
+    (async () => {
+      try {
+        await updateComplaintStatusApi(
+          complaintId,
+          newStatus as "Pending" | "In Progress" | "Resolved" | "Closed",
+          notes?.trim() || undefined
+        );
+        updateComplaint(complaintId, {
+          status: newStatus as Complaint["status"],
+          lastUpdated: new Date(),
+        });
+        window.dispatchEvent(
+          new CustomEvent("complaint:status-changed", {
+            detail: { id: complaintId },
+          })
+        );
+      } catch (e: unknown) {
+        const msg =
+          typeof e === "object" && e && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Failed to update status";
+        // toast is already imported in this file
+        toast({
+          title: "Update failed",
+          description: msg,
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   const handleAssignStaff = (complaint: Complaint) => {
@@ -110,30 +125,69 @@ export function AdminDashboard() {
     });
   };
 
-  // Add priority filter and sort to filtering logic
-  const filteredComplaints = complaints.filter((complaint) => {
-    const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || complaint.status === statusFilter;
-    const matchesCategory =
-      categoryFilter === "all" || complaint.category === categoryFilter;
-    const matchesPriority =
-      priorityFilter === "all" || complaint.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
-  });
-  // Sort by priority if enabled
-  const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
-    const aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-    const bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-    return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
-  });
+  // Helper: scope to complaints sent directly to Admin by students
+  const isDirectToAdmin = (c: Complaint) => {
+    const submittedTo = (c.submittedTo || "").toLowerCase();
+    const src = (c.sourceRole || "").toLowerCase();
+    const assignedBy = (c.assignedByRole || "").toLowerCase();
+    return (
+      submittedTo === "admin" || (src === "student" && assignedBy === "admin")
+    );
+  };
+
+  // Compute the latest 3 direct-to-admin complaints for the "Recent Complaints" table
+  const recentDirectAdmin = [...complaints]
+    .filter(isDirectToAdmin)
+    .sort((a, b) => {
+      const d1 = a.submittedDate ? new Date(a.submittedDate).getTime() : 0;
+      const d2 = b.submittedDate ? new Date(b.submittedDate).getTime() : 0;
+      return d2 - d1;
+    })
+    .slice(0, 3);
 
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorities = ["Critical", "High", "Medium", "Low"];
+
+  // Load complaints for recent list (admin/dean)
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const raw = await listAllComplaintsApi();
+        if (cancelled) return;
+        const mapped: Complaint[] = (raw || []).map((c) => ({
+          id: c.id,
+          title: c.title || "Complaint",
+          description: "",
+          category: c.category || "General",
+          status: (c.status as Complaint["status"]) || "Pending",
+          priority: (c.priority as Complaint["priority"]) || "Medium",
+          submittedBy: c.submittedBy || "",
+          assignedStaff: c.assignedTo || undefined,
+          submittedDate: c.submittedDate
+            ? new Date(c.submittedDate)
+            : new Date(),
+          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
+          assignedByRole:
+            (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as Complaint["assignmentPath"])
+            : [],
+          submittedTo: c.submittedTo || undefined,
+          department: c.department || undefined,
+        }));
+        setComplaints(mapped);
+      } catch {
+        // leave empty on failure
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Role count summary (deans, HoDs, students, staff)
   const [roleCounts, setRoleCounts] = useState({
@@ -288,31 +342,7 @@ export function AdminDashboard() {
       window.removeEventListener("dean:created", handler as EventListener);
   }, []);
 
-  // Pagination for recent complaints table
-  const [page, setPage] = useState(1);
-  const pageSize = 5;
-  // Reset page when filters change so pagination doesn't point to an empty page
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, statusFilter, categoryFilter, priorityFilter, prioritySort]);
-  const totalItems = sortedComplaints.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const startIndex = (page - 1) * pageSize;
-  const pagedComplaints = sortedComplaints.slice(
-    startIndex,
-    startIndex + pageSize
-  );
-  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
-  const getVisiblePages = () => {
-    const maxToShow = 5;
-    if (totalPages <= maxToShow)
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const pages: number[] = [];
-    const left = Math.max(1, page - 2);
-    const right = Math.min(totalPages, left + maxToShow - 1);
-    for (let p = left; p <= right; p++) pages.push(p);
-    return pages;
-  };
+  // The "Recent Complaints" section shows only the top 3 direct-to-admin items, no pagination needed
 
   return (
     <div className="space-y-8">
@@ -427,7 +457,7 @@ export function AdminDashboard() {
       {/* Complaint Search and Filters */}
 
       <ComplaintTable
-        complaints={pagedComplaints}
+        complaints={recentDirectAdmin}
         onView={handleViewComplaint}
         onStatusUpdate={handleStatusUpdate}
         userRole="admin"
@@ -435,89 +465,76 @@ export function AdminDashboard() {
         priorityFilter={priorityFilter}
         actionLabel="View Detail"
         showAssignedStaffColumn={false}
+        hideIdColumn
+        onAccept={async (c) => {
+          const note = window.prompt(
+            "Enter a note/description for acceptance (required):",
+            ""
+          );
+          if (!note || !note.trim()) {
+            toast({
+              title: "Note required",
+              description: "Please provide a brief note for acceptance.",
+              variant: "destructive",
+            });
+            return;
+          }
+          try {
+            await approveComplaintApi(c.id, {
+              note: note.trim(),
+            });
+            // update local state for immediate feedback
+            setComplaints((prev) =>
+              prev.map((x) =>
+                x.id === c.id ? { ...x, status: "In Progress" } : x
+              )
+            );
+            window.dispatchEvent(
+              new CustomEvent("complaint:status-changed", {
+                detail: { id: c.id },
+              })
+            );
+            toast({ title: "Accepted", description: "Moved to In Progress." });
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : "Failed to accept";
+            toast({ title: "Error", description: msg, variant: "destructive" });
+          }
+        }}
+        onReject={async (c) => {
+          const reason = window.prompt(
+            "Enter reason for rejection (required):",
+            ""
+          );
+          if (!reason || !reason.trim()) {
+            toast({
+              title: "Reason required",
+              description: "Please enter a reason to reject.",
+              variant: "destructive",
+            });
+            return;
+          }
+          try {
+            await updateComplaintStatusApi(
+              c.id,
+              "Closed",
+              `Rejected: ${reason.trim()}`
+            );
+            // update local state for immediate feedback
+            setComplaints((prev) =>
+              prev.map((x) => (x.id === c.id ? { ...x, status: "Closed" } : x))
+            );
+            window.dispatchEvent(
+              new CustomEvent("complaint:status-changed", {
+                detail: { id: c.id },
+              })
+            );
+            toast({ title: "Rejected", description: "Complaint rejected." });
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : "Failed to reject";
+            toast({ title: "Error", description: msg, variant: "destructive" });
+          }
+        }}
       />
-
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="mt-3">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    goToPage(page - 1);
-                  }}
-                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
-                />
-              </PaginationItem>
-              {getVisiblePages()[0] !== 1 && (
-                <>
-                  <PaginationItem className="hidden sm:list-item">
-                    <PaginationLink
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        goToPage(1);
-                      }}
-                    >
-                      1
-                    </PaginationLink>
-                  </PaginationItem>
-                  <PaginationItem className="hidden sm:list-item">
-                    <PaginationEllipsis />
-                  </PaginationItem>
-                </>
-              )}
-              {getVisiblePages().map((p) => (
-                <PaginationItem key={p} className="hidden sm:list-item">
-                  <PaginationLink
-                    href="#"
-                    isActive={p === page}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      goToPage(p);
-                    }}
-                  >
-                    {p}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-              {getVisiblePages().slice(-1)[0] !== totalPages && (
-                <>
-                  <PaginationItem className="hidden sm:list-item">
-                    <PaginationEllipsis />
-                  </PaginationItem>
-                  <PaginationItem className="hidden sm:list-item">
-                    <PaginationLink
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        goToPage(totalPages);
-                      }}
-                    >
-                      {totalPages}
-                    </PaginationLink>
-                  </PaginationItem>
-                </>
-              )}
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    goToPage(page + 1);
-                  }}
-                  className={
-                    page === totalPages ? "pointer-events-none opacity-50" : ""
-                  }
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      )}
 
       {/* Modals */}
       <RoleBasedComplaintModal

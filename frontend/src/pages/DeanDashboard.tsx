@@ -29,6 +29,7 @@ import {
   type InboxComplaint,
 } from "@/lib/api";
 import { deanAssignToHodApi, getDeanActiveHodApi } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 // Utilities
 const toDate = (d?: string | Date | null) => (d ? new Date(d) : new Date());
@@ -197,7 +198,20 @@ export function DeanDashboard() {
 
   const handleAccept = async (id: string) => {
     try {
-      await approveComplaintApi(id, { assignToSelf: true });
+      // Require a brief note when approving
+      const note = window.prompt(
+        "Add a short note for this approval (required):",
+        "Approved and taking ownership"
+      );
+      if (!note || !note.trim()) {
+        toast({
+          title: "Note required",
+          description: "Approval note is required.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await approveComplaintApi(id, { assignToSelf: true, note: note.trim() });
       // Refresh inbox list after approving
       const inbox = await getDeanInboxApi();
       const mapped: Complaint[] = (inbox as InboxComplaint[]).map((c) => ({

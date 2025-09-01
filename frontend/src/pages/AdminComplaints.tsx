@@ -5,6 +5,7 @@ import { Complaint } from "@/components/ComplaintCard";
 import { useNavigate } from "react-router-dom";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusUpdateModal } from "@/components/StatusUpdateModal";
 import {
   Pagination,
   PaginationContent,
@@ -14,165 +15,73 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  listAllComplaintsApi,
+  approveComplaintApi,
+  updateComplaintStatusApi,
+} from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 export function AdminComplaints() {
-  const mockComplaints: Complaint[] = [
-    {
-      id: "C1001",
-      title: "Leaking faucet in restroom",
-      description: "The faucet in the main restroom is leaking.",
-      category: "Facilities",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "John Doe",
-      assignedStaff: "Staff A",
-      submittedDate: new Date(Date.now() - 86400000 * 2),
-      lastUpdated: new Date(Date.now() - 86400000 * 1),
-      deadline: new Date(Date.now() - 86400000 * 1),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: null,
-    },
-    {
-      id: "C1002",
-      title: "WiFi not working",
-      description: "WiFi is down in the library area.",
-      category: "IT",
-      priority: "Medium",
-      status: "In Progress",
-      submittedBy: "Jane Smith",
-      assignedStaff: "Staff B",
-      submittedDate: new Date(Date.now() - 86400000 * 3),
-      lastUpdated: new Date(Date.now() - 86400000 * 2),
-      deadline: new Date(Date.now() + 86400000 * 2),
-      isEscalated: true,
-      evidenceFile: "",
-      feedback: null,
-    },
-    {
-      id: "C1003",
-      title: "Library AC not working",
-      description: "AC in library is broken since last week.",
-      category: "Facilities",
-      priority: "Critical",
-      status: "Resolved",
-      submittedBy: "Alice Brown",
-      assignedStaff: "Staff C",
-      submittedDate: new Date(Date.now() - 86400000 * 7),
-      lastUpdated: new Date(Date.now() - 86400000 * 1),
-      deadline: new Date(Date.now() - 86400000 * 5),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 4, comment: "Resolved quickly, thanks!" },
-    },
-    // Extra resolved complaints to demonstrate pagination on the Resolved tab
-    {
-      id: "C1004",
-      title: "Broken classroom chair",
-      description: "One of the chairs in Room 204 is broken.",
-      category: "Facilities",
-      priority: "Low",
-      status: "Resolved",
-      submittedBy: "Daniel Carter",
-      assignedStaff: "Staff D",
-      submittedDate: new Date(Date.now() - 86400000 * 10),
-      lastUpdated: new Date(Date.now() - 86400000 * 2),
-      deadline: new Date(Date.now() - 86400000 * 6),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 5, comment: "All good now" },
-    },
-    {
-      id: "C1005",
-      title: "Projector issue in Hall A",
-      description: "Projector flickers during lectures.",
-      category: "IT",
-      priority: "Medium",
-      status: "Resolved",
-      submittedBy: "Emily Stone",
-      assignedStaff: "Staff E",
-      submittedDate: new Date(Date.now() - 86400000 * 9),
-      lastUpdated: new Date(Date.now() - 86400000 * 1),
-      deadline: new Date(Date.now() - 86400000 * 4),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 4, comment: "Works fine" },
-    },
-    {
-      id: "C1006",
-      title: "Cafeteria billing discrepancy",
-      description: "Charged twice for a single meal.",
-      category: "Admin",
-      priority: "Low",
-      status: "Resolved",
-      submittedBy: "Hanna Lee",
-      assignedStaff: "Staff F",
-      submittedDate: new Date(Date.now() - 86400000 * 8),
-      lastUpdated: new Date(Date.now() - 86400000 * 1),
-      deadline: new Date(Date.now() - 86400000 * 3),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 5, comment: "Refund received" },
-    },
-    {
-      id: "C1007",
-      title: "Dorm water pressure low",
-      description: "Low water pressure in Dorm 3 bathrooms.",
-      category: "Facilities",
-      priority: "High",
-      status: "Resolved",
-      submittedBy: "Michael Chen",
-      assignedStaff: "Staff G",
-      submittedDate: new Date(Date.now() - 86400000 * 12),
-      lastUpdated: new Date(Date.now() - 86400000 * 2),
-      deadline: new Date(Date.now() - 86400000 * 7),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 4, comment: "Improved" },
-    },
-    {
-      id: "C1008",
-      title: "Campus shuttle delay",
-      description: "Morning shuttle consistently late.",
-      category: "Transport",
-      priority: "Medium",
-      status: "Resolved",
-      submittedBy: "Priya Patel",
-      assignedStaff: "Staff H",
-      submittedDate: new Date(Date.now() - 86400000 * 11),
-      lastUpdated: new Date(Date.now() - 86400000 * 5),
-      deadline: new Date(Date.now() - 86400000 * 6),
-      isEscalated: false,
-      evidenceFile: "",
-      feedback: { rating: 3, comment: "Better now" },
-    },
-    {
-      id: "C1009",
-      title: "Library study room booking bug",
-      description: "Unable to book study rooms online.",
-      category: "IT",
-      priority: "High",
-      status: "Resolved",
-      submittedBy: "Nadia Yusuf",
-      assignedStaff: "Staff I",
-      submittedDate: new Date(Date.now() - 86400000 * 14),
-      lastUpdated: new Date(Date.now() - 86400000 * 1),
-      deadline: new Date(Date.now() - 86400000 * 9),
-      isEscalated: true,
-      evidenceFile: "",
-      feedback: { rating: 4, comment: "Booking restored" },
-    },
-  ];
   const navigate = useNavigate();
   // Keep complaints in local state so updates reflect in the table
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
-  const [statusTab, setStatusTab] = useState<string>("all");
+  // Tabs: Pending (status Pending), Accepted (status In Progress), Rejected (Closed with Rejected: note)
+  const [statusTab, setStatusTab] = useState<string>("Pending");
+  const [updatingComplaint, setUpdatingComplaint] = useState<Complaint | null>(
+    null
+  );
+
+  // Load from backend
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const raw = await listAllComplaintsApi();
+        if (cancelled) return;
+        const mapped: Complaint[] = (raw || []).map((c) => ({
+          id: c.id,
+          title: c.title || "Complaint",
+          description: "",
+          category: c.category || "General",
+          status: (c.status as Complaint["status"]) || "Pending",
+          priority: (c.priority as Complaint["priority"]) || "Medium",
+          submittedBy: c.submittedBy || "",
+          assignedStaff: c.assignedTo || undefined,
+          submittedDate: c.submittedDate
+            ? new Date(c.submittedDate)
+            : new Date(),
+          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
+          assignedByRole:
+            (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as Complaint["assignmentPath"])
+            : [],
+          submittedTo: c.submittedTo || undefined,
+          department: c.department || undefined,
+        }));
+        setComplaints(mapped);
+      } catch {
+        // stay empty on failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleStatusUpdate = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -200,24 +109,37 @@ export function AdminComplaints() {
     c.status !== "Resolved" &&
     c.status !== "Closed";
 
-  // Tab counts
+  // Scope this page to complaints sent directly to Admin by students
+  const isDirectToAdmin = (c: Complaint) => {
+    const submittedTo = (c.submittedTo || "").toLowerCase();
+    const src = (c.sourceRole || "").toLowerCase();
+    const assignedBy = (c.assignedByRole || "").toLowerCase();
+    return (
+      submittedTo === "admin" || (src === "student" && assignedBy === "admin")
+    );
+  };
+  const adminInbox = complaints.filter(isDirectToAdmin);
+
+  // Helper: detect rejected (Closed with Rejected: prefix)
+  // Backend models rejections as status Closed with a note. Without note access here,
+  // approximate: treat Closed items in Admin inbox as Rejected for tab grouping.
+  const isRejected = (c: Complaint) => c.status === "Closed";
+
+  // Tab counts (only direct-to-admin set), mapped to requested groups
   const counts = {
-    all: complaints.length,
-    Pending: complaints.filter((c) => c.status === "Pending").length,
-    "In Progress": complaints.filter((c) => c.status === "In Progress").length,
-    Resolved: complaints.filter((c) => c.status === "Resolved").length,
-    Closed: complaints.filter((c) => c.status === "Closed").length,
-    Overdue: complaints.filter((c) => isOverdue(c)).length,
+    Pending: adminInbox.filter((c) => c.status === "Pending").length,
+    Accepted: adminInbox.filter((c) => c.status === "In Progress").length,
+    Rejected: adminInbox.filter((c) => isRejected(c)).length,
   } as const;
 
   // Apply tab filter before passing to the table
-  const complaintsForTable = complaints.filter((c) =>
-    statusTab === "all"
-      ? true
-      : statusTab === "Overdue"
-      ? isOverdue(c)
-      : c.status === statusTab
-  );
+  // Apply tab grouping to determine which complaints to show
+  const complaintsForTable = adminInbox.filter((c) => {
+    if (statusTab === "Pending") return c.status === "Pending";
+    if (statusTab === "Accepted") return c.status === "In Progress";
+    if (statusTab === "Rejected") return isRejected(c);
+    return false;
+  });
   // Pagination
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -250,29 +172,110 @@ export function AdminComplaints() {
     setPage((prev) => Math.min(prev, totalPages));
   }, [totalPages]);
 
+  // Admin actions: Accept / Reject
+  const acceptComplaint = async (c: Complaint) => {
+    const note = window.prompt(
+      "Enter a note/description for acceptance (required):",
+      ""
+    );
+    if (!note || !note.trim()) {
+      toast({
+        title: "Note required",
+        description: "Please provide a brief note for acceptance.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await approveComplaintApi(c.id, {
+        note: note.trim(),
+      });
+      setComplaints((prev) =>
+        prev.map((x) => (x.id === c.id ? { ...x, status: "In Progress" } : x))
+      );
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", { detail: { id: c.id } })
+      );
+      toast({ title: "Accepted", description: "Moved to In Progress." });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to accept";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  };
+
+  const rejectComplaint = async (c: Complaint) => {
+    const reason = window.prompt("Enter reason for rejection (required):", "");
+    if (!reason || !reason.trim()) {
+      toast({
+        title: "Reason required",
+        description: "Please enter a reason to reject.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await updateComplaintStatusApi(
+        c.id,
+        "Closed",
+        `Rejected: ${reason.trim()}`
+      );
+      setComplaints((prev) =>
+        prev.map((x) => (x.id === c.id ? { ...x, status: "Closed" } : x))
+      );
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", { detail: { id: c.id } })
+      );
+      toast({ title: "Rejected", description: "Complaint rejected." });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to reject";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  };
+
+  const reapproveComplaint = async (c: Complaint) => {
+    const note = window.prompt(
+      "Enter a note/description for re-approval (required):",
+      ""
+    );
+    if (!note || !note.trim()) {
+      toast({
+        title: "Note required",
+        description: "Please provide a brief note for re-approval.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await approveComplaintApi(c.id, { note: note.trim() });
+      setComplaints((prev) =>
+        prev.map((x) => (x.id === c.id ? { ...x, status: "In Progress" } : x))
+      );
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", { detail: { id: c.id } })
+      );
+      toast({ title: "Re-Approved", description: "Moved to Accepted." });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to re-approve";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>All Admin Complaints</CardTitle>
+          <CardTitle>Admin Complaints</CardTitle>
           <div className="mt-2">
             <Tabs value={statusTab} onValueChange={setStatusTab}>
               <TabsList className="flex flex-wrap gap-1">
-                <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
                 <TabsTrigger value="Pending">
                   Pending ({counts["Pending"]})
                 </TabsTrigger>
-                <TabsTrigger value="In Progress">
-                  In Progress ({counts["In Progress"]})
+                <TabsTrigger value="Accepted">
+                  Accepted ({counts["Accepted"]})
                 </TabsTrigger>
-                <TabsTrigger value="Resolved">
-                  Resolved ({counts["Resolved"]})
-                </TabsTrigger>
-                <TabsTrigger value="Closed">
-                  Closed ({counts["Closed"]})
-                </TabsTrigger>
-                <TabsTrigger value="Overdue">
-                  Overdue ({counts["Overdue"]})
+                <TabsTrigger value="Rejected">
+                  Rejected ({counts["Rejected"]})
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -282,9 +285,22 @@ export function AdminComplaints() {
           <ComplaintTable
             complaints={pagedComplaints}
             userRole="admin"
-            showOverdueColumn
-            isOverdueFn={isOverdue}
+            showOverdueColumn={false}
             actionLabel="View Detail"
+            hideIdColumn
+            onAccept={statusTab === "Pending" ? acceptComplaint : undefined}
+            onReject={statusTab === "Pending" ? rejectComplaint : undefined}
+            onStatusUpdate={
+              statusTab === "Accepted"
+                ? (complaint) => {
+                    setUpdatingComplaint(complaint);
+                    setShowStatusModal(true);
+                  }
+                : undefined
+            }
+            onReapprove={
+              statusTab === "Rejected" ? reapproveComplaint : undefined
+            }
             onView={(complaint) => {
               setSelectedComplaint(complaint);
               setModalOpen(true);
@@ -388,6 +404,45 @@ export function AdminComplaints() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onUpdate={handleModalUpdate}
+      />
+
+      <StatusUpdateModal
+        complaint={updatingComplaint}
+        open={showStatusModal}
+        onOpenChange={(o) => {
+          setShowStatusModal(o);
+          if (!o) setUpdatingComplaint(null);
+        }}
+        onUpdate={async (complaintId, newStatus, notes) => {
+          try {
+            await updateComplaintStatusApi(
+              complaintId,
+              newStatus as "Pending" | "In Progress" | "Resolved" | "Closed",
+              notes?.trim() || undefined
+            );
+            setComplaints((prev) =>
+              prev.map((x) =>
+                x.id === complaintId
+                  ? {
+                      ...x,
+                      status: newStatus as Complaint["status"],
+                      lastUpdated: new Date(),
+                    }
+                  : x
+              )
+            );
+            window.dispatchEvent(
+              new CustomEvent("complaint:status-changed", {
+                detail: { id: complaintId },
+              })
+            );
+            toast({ title: "Updated", description: "Status updated." });
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : "Failed to update";
+            toast({ title: "Error", description: msg, variant: "destructive" });
+          }
+        }}
+        userRole="admin"
       />
     </div>
   );
