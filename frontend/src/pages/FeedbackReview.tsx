@@ -194,25 +194,13 @@ export function FeedbackReview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{averageRating.toFixed(1)}</div>
-<<<<<<< HEAD
             <div className="flex items-center gap-1 mt-1">{renderStars(Math.round(averageRating))}</div>
-=======
-            <div className="flex items-center gap-1 mt-1">
-              {renderStars(Math.round(averageRating))}
-            </div>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-<<<<<<< HEAD
             <CardTitle className="text-sm font-medium text-muted-foreground">Positive Rating</CardTitle>
-=======
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Positive Rating
-            </CardTitle>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
             <div className="bg-green-50 p-2 rounded-lg dark:bg-green-900/30">
               <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
             </div>
@@ -225,27 +213,14 @@ export function FeedbackReview() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-<<<<<<< HEAD
             <CardTitle className="text-sm font-medium text-muted-foreground">Satisfaction Rate</CardTitle>
-=======
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Satisfaction Rate
-            </CardTitle>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
             <div className="bg-purple-50 p-2 rounded-lg dark:bg-purple-900/30">
               <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-<<<<<<< HEAD
               {totalFeedback ? Math.round((positiveRating / totalFeedback) * 100) : 0}%
-=======
-              {totalFeedback
-                ? Math.round((positiveRating / totalFeedback) * 100)
-                : 0}
-              %
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
             </div>
             <p className="text-xs text-muted-foreground">User satisfaction</p>
           </CardContent>
@@ -302,33 +277,19 @@ export function FeedbackReview() {
                   <TableHead className="text-sm">Assigned Staff</TableHead>
                   <TableHead className="text-sm">Rating</TableHead>
                   <TableHead className="text-sm">Date</TableHead>
-<<<<<<< HEAD
                   <TableHead className="min-w-[300px] text-sm">Comment</TableHead>
-=======
-                  <TableHead className="min-w-[300px] text-sm">
-                    Comment
-                  </TableHead>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                   <TableHead className="text-right text-sm">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredFeedback.length === 0 ? (
                   <TableRow>
-<<<<<<< HEAD
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-=======
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                       No feedback found matching your criteria
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredFeedback.map((feedback) => (
-<<<<<<< HEAD
                     <TableRow key={String(feedback.complaintId)} className="dark:hover:bg-accent/10">
                       <TableCell className="text-sm">
                         <div>
@@ -346,44 +307,11 @@ export function FeedbackReview() {
                         <div className="flex items-center gap-2">
                           <div className="flex items-center">{renderStars(feedback.feedback?.rating || 0)}</div>
                           <Badge className={`text-xs ${getRatingColor(feedback.feedback?.rating || 0)}`}>
-=======
-                    <TableRow
-                      key={String(feedback.complaintId)}
-                      className="dark:hover:bg-accent/10"
-                    >
-                      <TableCell className="text-sm">
-                        <div>
-                          <div className="font-medium">{feedback.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            #{feedback.complaintId}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium text-sm">
-                        {feedback.submittedBy?.name ||
-                          feedback.submittedBy?.email}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {feedback.assignedTo?.name ||
-                          feedback.assignedTo?.email}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center">
-                            {renderStars(feedback.feedback?.rating || 0)}
-                          </div>
-                          <Badge
-                            className={`text-xs ${getRatingColor(
-                              feedback.feedback?.rating || 0
-                            )}`}
-                          >
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                             {(feedback.feedback?.rating || 0).toFixed(1)}
                           </Badge>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
-<<<<<<< HEAD
                         {feedback.submittedAt ? new Date(String(feedback.submittedAt)).toLocaleDateString() : ""}
                       </TableCell>
                       <TableCell>
@@ -397,35 +325,6 @@ export function FeedbackReview() {
                             Mark as Reviewed
                           </Button>
                         )}
-=======
-                        {feedback.submittedAt
-                          ? new Date(
-                              String(feedback.submittedAt)
-                            ).toLocaleDateString()
-                          : ""}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-xs">
-                          <p className="text-sm">
-                            {feedback.feedback?.comment}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {user?.role === "admin" &&
-                          canAdminMarkReviewed(feedback) &&
-                          !feedback.feedback?.reviewed && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                handleMarkReviewed(String(feedback.complaintId))
-                              }
-                            >
-                              Mark as Reviewed
-                            </Button>
-                          )}
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                       </TableCell>
                     </TableRow>
                   ))
@@ -437,77 +336,34 @@ export function FeedbackReview() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {filteredFeedback.length === 0 ? (
-<<<<<<< HEAD
               <div className="text-center py-8 text-muted-foreground">No feedback found matching your criteria</div>
-=======
-              <div className="text-center py-8 text-muted-foreground">
-                No feedback found matching your criteria
-              </div>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
             ) : (
               filteredFeedback.map((feedback) => (
                 <Card key={String(feedback.complaintId)} className="p-4">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-<<<<<<< HEAD
                         <h3 className="font-medium text-sm">{feedback.title}</h3>
                         <p className="text-xs text-muted-foreground">#{feedback.complaintId}</p>
                         <p className="text-xs text-muted-foreground mt-1">By: {feedback.submittedBy?.name || feedback.submittedBy?.email}</p>
                       </div>
                       <div className="flex items-center gap-1 ml-2">{renderStars(feedback.feedback?.rating || 0)}</div>
-=======
-                        <h3 className="font-medium text-sm">
-                          {feedback.title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          #{feedback.complaintId}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          By:{" "}
-                          {feedback.submittedBy?.name ||
-                            feedback.submittedBy?.email}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 ml-2">
-                        {renderStars(feedback.feedback?.rating || 0)}
-                      </div>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                     </div>
 
                     <div className="space-y-2 text-sm">
                       <div>
-<<<<<<< HEAD
                         <span className="text-muted-foreground">Assigned Staff:</span>
                         <span className="font-medium ml-2">{feedback.assignedTo?.name || feedback.assignedTo?.email}</span>
-=======
-                        <span className="text-muted-foreground">
-                          Assigned Staff:
-                        </span>
-                        <span className="font-medium ml-2">
-                          {feedback.assignedTo?.name ||
-                            feedback.assignedTo?.email}
-                        </span>
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                       </div>
                       <div>
                         <span className="text-muted-foreground">Date:</span>
                         <span className="font-medium ml-2">
-<<<<<<< HEAD
                           {feedback.submittedAt ? new Date(String(feedback.submittedAt)).toLocaleDateString() : ""}
-=======
-                          {feedback.submittedAt
-                            ? new Date(
-                                String(feedback.submittedAt)
-                              ).toLocaleDateString()
-                            : ""}
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                         </span>
                       </div>
                     </div>
 
                     <div className="bg-muted/50 p-3 rounded-lg">
-<<<<<<< HEAD
                       <p className="text-sm italic">"{feedback.feedback?.comment}"</p>
                     </div>
 
@@ -520,10 +376,354 @@ export function FeedbackReview() {
                         Mark as Reviewed
                       </Button>
                     )}
-=======
-                      <p className="text-sm italic">
-                        "{feedback.feedback?.comment}"
-                      </p>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Star, MessageSquare, Filter, TrendingUp } from "lucide-react";
+import { Complaint } from "@/components/ComplaintCard";
+
+// Mock feedback data
+const mockFeedbackData = [
+  {
+    id: "CMP-002",
+    title: "Cafeteria food quality concerns",
+    user: "Jane Smith",
+    assignedStaff: "Food Services Manager",
+    rating: 4,
+    comment:
+      "Issue was resolved quickly and effectively. The food quality has improved significantly.",
+    submittedDate: new Date("2024-01-20"),
+    category: "Student Services",
+  },
+  {
+    id: "CMP-005",
+    title: "Parking lot lighting issues",
+    user: "David Wilson",
+    assignedStaff: "Facilities Manager",
+    rating: 5,
+    comment:
+      "Excellent work! All lights were replaced quickly and the parking area is much safer now.",
+    submittedDate: new Date("2024-01-18"),
+    category: "Infrastructure & Facilities",
+  },
+  {
+    id: "CMP-007",
+    title: "Wi-Fi connectivity problems",
+    user: "Alice Brown",
+    assignedStaff: "IT Support Team",
+    rating: 3,
+    comment:
+      "Problem was fixed but took longer than expected. Communication could be better.",
+    submittedDate: new Date("2024-01-22"),
+    category: "IT & Technology",
+  },
+  {
+    id: "CMP-008",
+    title: "Broken chair in lecture hall",
+    import { useEffect, useMemo } from "react";
+    user: "Bob Johnson",
+    assignedStaff: "Facilities Manager",
+    rating: 5,
+    comment:
+      "Chair was replaced the same day. Very impressed with the quick response.",
+    submittedDate: new Date("2024-01-24"),
+    category: "Infrastructure & Facilities",
+  },
+];
+
+export function FeedbackReview() {
+  const [staffFilter, setStaffFilter] = useState<string>("all");
+  const [ratingFilter, setRatingFilter] = useState<string>("all");
+
+  const filteredFeedback = mockFeedbackData.filter((feedback) => {
+    const matchesStaff =
+      staffFilter === "all" || feedback.assignedStaff === staffFilter;
+    const matchesRating =
+      ratingFilter === "all" ||
+      (ratingFilter === "5" && feedback.rating === 5) ||
+    import { getFeedbackByRoleApi, markFeedbackReviewedApi } from "@/lib/api";
+    import { useAuth } from "@/components/auth/AuthContext";
+    import { Button } from "@/components/ui/button";
+    import { toast } from "@/hooks/use-toast";
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Feedback
+      const { user } = useAuth();
+      const [staffFilter, setStaffFilter] = useState<string>("all");
+      const [ratingFilter, setRatingFilter] = useState<string>("all");
+      const [items, setItems] = useState<Array<{
+        complaintId: string;
+        title: string;
+        complaintCode?: string;
+        submittedBy?: { name?: string; email?: string };
+        assignedTo?: { name?: string; email?: string; role?: string; department?: string };
+        feedback: { rating: number; comment?: string; reviewed?: boolean; submittedAt?: string | Date };
+        resolvedAt?: string | Date;
+        submittedAt?: string | Date;
+        category?: string;
+        department?: string;
+        submittedTo?: string | null;
+      }>>([]);
+              <MessageSquare className="h-4 w-4 text-blue-600" />
+      useEffect(() => {
+        let mounted = true;
+        (async () => {
+          try {
+            const data = await getFeedbackByRoleApi();
+            if (mounted) setItems(data);
+          } catch (e) {
+            // ignore
+          }
+        })();
+        return () => {
+          mounted = false;
+        };
+      }, []);
+            </CardTitle>
+      const filteredFeedback = useMemo(() => {
+        return items.filter((f) => {
+          const staffName = f.assignedTo?.name || f.assignedTo?.email || "";
+          const matchesStaff = staffFilter === "all" || staffName === staffFilter;
+          const rating = f.feedback?.rating || 0;
+          const matchesRating =
+            ratingFilter === "all" ||
+            (ratingFilter === "5" && rating === 5) ||
+            (ratingFilter === "4+" && rating >= 4) ||
+            (ratingFilter === "3+" && rating >= 3) ||
+            (ratingFilter === "2+" && rating >= 2) ||
+            (ratingFilter === "1+" && rating >= 1);
+          return matchesStaff && matchesRating;
+        });
+      }, [items, staffFilter, ratingFilter]);
+            <div className="bg-yellow-50 p-2 rounded-lg">
+              <Star className="h-4 w-4 text-yellow-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{averageRating.toFixed(1)}</div>
+            <div className="flex items-center gap-1 mt-1">
+              {renderStars(Math.round(averageRating))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Positive Rating
+            </CardTitle>
+            <div className="bg-green-50 p-2 rounded-lg">
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{positiveRating}</div>
+            <p className="text-xs text-muted-foreground">4+ star ratings</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Satisfaction Rate
+            </CardTitle>
+            <div className="bg-purple-50 p-2 rounded-lg">
+              <TrendingUp className="h-4 w-4 text-purple-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {Math.round((positiveRating / totalFeedback) * 100)}%
+            </div>
+            <p className="text-xs text-muted-foreground">User satisfaction</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Feedback Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            User Feedback
+          </CardTitle>
+
+          <div className="flex gap-4">
+            <Select value={staffFilter} onValueChange={setStaffFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by staff" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Staff</SelectItem>
+                {uniqueStaff.map((staff) => (
+                  <SelectItem key={staff} value={staff}>
+                    {staff}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={ratingFilter} onValueChange={setRatingFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by Rating" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Ratings</SelectItem>
+                <SelectItem value="5">5 Stars</SelectItem>
+                <SelectItem value="4+">4 Stars & Up</SelectItem>
+                <SelectItem value="3+">3 Stars & Up</SelectItem>
+                <SelectItem value="2+">2 Stars & Up</SelectItem>
+                <SelectItem value="1+">1 Star & Up</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {/* Desktop Table */}
+          <div className="hidden md:block rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-sm">Complaint</TableHead>
+                  <TableHead className="text-sm">User</TableHead>
+                  <TableHead className="text-sm">Assigned Staff</TableHead>
+                  <TableHead className="text-sm">Rating</TableHead>
+                  <TableHead className="text-sm">Date</TableHead>
+                  <TableHead className="min-w-[300px] text-sm">
+                    Comment
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredFeedback.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      No feedback found matching your criteria
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredFeedback.map((feedback) => (
+                    <TableRow
+                      key={feedback.id}
+                      className="dark:hover:bg-accent/10"
+                    >
+                      <TableCell className="text-sm">
+                        <div>
+                          <div className="font-medium">{feedback.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            #{feedback.id}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-sm">
+                        {feedback.user}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {feedback.assignedStaff}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center">
+                            {renderStars(feedback.rating)}
+                          </div>
+                          <Badge
+                            className={`text-xs ${getRatingColor(
+                              feedback.rating
+                            )}`}
+                          >
+                            {feedback.rating}.0
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {feedback.submittedDate.toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-xs">
+                          <p className="text-sm">{feedback.comment}</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-4">
+            {filteredFeedback.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No feedback found matching your criteria
+              </div>
+            ) : (
+              filteredFeedback.map((feedback) => (
+                <Card key={feedback.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-sm">
+                          {feedback.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          #{feedback.id}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          By: {feedback.user}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        {renderStars(feedback.rating)}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">
+                          Assigned Staff:
+                        </span>
+                        <span className="font-medium ml-2">
+                          {feedback.assignedStaff}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Date:</span>
+                        <span className="font-medium ml-2">
+                          {feedback.submittedDate.toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <p className="text-sm italic">"{feedback.comment}"</p>
                     </div>
 
                     <Badge
@@ -533,21 +733,6 @@ export function FeedbackReview() {
                     >
                       {(feedback.feedback?.rating || 0).toFixed(1)} / 5.0
                     </Badge>
-
-                    {user?.role === "admin" &&
-                      canAdminMarkReviewed(feedback) &&
-                      !feedback.feedback?.reviewed && (
-                        <Button
-                          className="w-full mt-2"
-                          variant="outline"
-                          onClick={() =>
-                            handleMarkReviewed(String(feedback.complaintId))
-                          }
-                        >
-                          Mark as Reviewed
-                        </Button>
-                      )}
->>>>>>> 6c15db5 (refactor: improve code readability and formatting in FeedbackReview component)
                   </div>
                 </Card>
               ))
