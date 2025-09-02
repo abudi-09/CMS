@@ -5,6 +5,31 @@ import User, {
   normalizeRole as normalizeUserRole,
 } from "../models/user.model.js";
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
+import Notification from "../models/notification.model.js";
+
+// Helper: create a notification without blocking the main flow
+async function safeNotify({
+  user,
+  complaint,
+  type,
+  title,
+  message,
+  meta = {},
+}) {
+  try {
+    if (!user) return;
+    await Notification.create({
+      user,
+      complaint: complaint?._id || complaint || null,
+      type,
+      title,
+      message,
+      meta,
+    });
+  } catch (e) {
+    console.warn("[notify] failed:", e?.message);
+  }
+}
 
 // 1. User submits complaint
 export const createComplaint = async (req, res) => {
@@ -86,6 +111,148 @@ export const createComplaint = async (req, res) => {
         details: {},
       });
     } catch (_) {}
+
+    // Notifications:
+    // 1) Confirm to student
+    await safeNotify({
+      user: user?._id,
+      complaint,
+      type: "submission",
+      title: `Complaint Submitted (${complaint.complaintCode})`,
+      message: `Your complaint "${complaint.title}" was submitted successfully and is now ${complaint.status}.`,
+      meta: {
+        complaintCode: complaint.complaintCode,
+        status: complaint.status,
+        redirectPath: "/my-complaints",
+        complaintId: String(complaint._id),
+      },
+    });
+
+    // 2) Notify explicit recipients if provided
+    if (recipientStaffId) {
+      await Promise.all([
+        safeNotify({
+          user: recipientStaffId,
+          complaint,
+          type: "assignment",
+          title: `New Assignment (${complaint.complaintCode})`,
+          message: `You have been assigned a complaint: "${complaint.title}".`,
+          meta: {
+            role: "staff",
+            deadline: complaint.deadline,
+            redirectPath: "/my-assigned",
+            complaintId: String(complaint._id),
+          },
+        }),
+        safeNotify({
+          user: user?._id,
+          complaint,
+          type: "status",
+          title: `Assigned to Staff`,
+          message: `Your complaint was assigned to a staff member and is now ${complaint.status}.`,
+          meta: {
+            redirectPath: "/my-complaints",
+            complaintId: String(complaint._id),
+          },
+        }),
+      ]);
+    } else if (recipientHodId) {
+      await Promise.all([
+        safeNotify({
+          user: recipientHodId,
+          complaint,
+          type: "assignment",
+          title: `New Assignment (${complaint.complaintCode})`,
+          message: `You have a complaint to review/accept: "${complaint.title}".`,
+          meta: {
+            role: "hod",
+            deadline: complaint.deadline,
+            redirectPath: "/hod/assign-complaints",
+            complaintId: String(complaint._id),
+          },
+        }),
+        safeNotify({
+          user: user?._id,
+          complaint,
+          type: "status",
+          title: `Sent to HoD`,
+          message: `Your complaint was sent to the Head of Department and is currently ${complaint.status}.`,
+          meta: {
+            redirectPath: "/my-complaints",
+            complaintId: String(complaint._id),
+          },
+        }),
+      ]);
+    } else if (complaint.submittedTo) {
+      // If direct submission to an office, notify active users in that office
+      const to = String(complaint.submittedTo).toLowerCase();
+      if (to.includes("admin")) {
+        const admins = await User.find({ role: "admin", isActive: true })
+          .select("_id")
+          .lean();
+        await Promise.all(
+          admins.map((a) =>
+            safeNotify({
+              user: a._id,
+              complaint,
+              type: "submission",
+              title: `New Complaint (${complaint.complaintCode})`,
+              message: `A new complaint was submitted: "${complaint.title}".`,
+              meta: {
+                audience: "admin",
+                redirectPath: "/admin-complaints",
+                complaintId: String(complaint._id),
+              },
+            })
+          )
+        );
+      } else if (to.includes("dean")) {
+        const deans = await User.find({ role: "dean", isActive: true })
+          .select("_id")
+          .lean();
+        await Promise.all(
+          deans.map((d) =>
+            safeNotify({
+              user: d._id,
+              complaint,
+              type: "submission",
+              title: `New Complaint (${complaint.complaintCode})`,
+              message: `A new complaint was submitted: "${complaint.title}".`,
+              meta: {
+                audience: "dean",
+                redirectPath: "/dean/assign-complaints",
+                complaintId: String(complaint._id),
+              },
+            })
+          )
+        );
+      } else if (to.includes("hod")) {
+        // Notify active HoD in same department if known
+        if (complaint.department) {
+          const hod = await User.findOne({
+            role: "hod",
+            isActive: true,
+            department: complaint.department,
+          })
+            .select("_id")
+            .lean();
+          if (hod?._id) {
+            await safeNotify({
+              user: hod._id,
+              complaint,
+              type: "submission",
+              title: `New Complaint (${complaint.complaintCode})`,
+              message: `A new complaint was submitted in your department: "${complaint.title}".`,
+              meta: {
+                audience: "hod",
+                redirectPath: "/hod/assign-complaints",
+                complaintId: String(complaint._id),
+              },
+            });
+          }
+        }
+      }
+    }
 
     return res.status(201).json({ message: "Complaint submitted", complaint });
   } catch (err) {
@@ -359,6 +526,22 @@ export const approveComplaint = async (req, res) => {
       details: { description: (note || "").trim() },
     });
 
+    // Notify student of acceptance
+    await safeNotify({
+      user: complaint.submittedBy,
+      complaint,
+      type: "accept",
+      title: `Complaint Accepted (${complaint.complaintCode})`,
+      message: `Your complaint was accepted by ${normalizeUserRole(
+        req.user.role
+      )} and is now In Progress.`,
+      meta: {
+        byRole: normalizeUserRole(req.user.role),
+        redirectPath: "/my-complaints",
+        complaintId: String(complaint._id),
+      },
+    });
+
     return res.status(200).json({ message: "Complaint approved", complaint });
   } catch (err) {
     return res.status(500).json({ error: "Failed to approve complaint" });
@@ -498,6 +681,34 @@ export const deanAssignToHod = async (req, res) => {
       details: { hodId, deadline: complaint.deadline },
     });
 
+    // Notifications: to HoD and to student
+    await Promise.all([
+      safeNotify({
+        user: hod._id,
+        complaint,
+        type: "assignment",
+        title: `New Assignment (${complaint.complaintCode})`,
+        message: `A complaint requires your acceptance: "${complaint.title}".`,
+        meta: {
+          role: "hod",
+          deadline: complaint.deadline,
+          redirectPath: "/hod/assign-complaints",
+          complaintId: String(complaint._id),
+        },
+      }),
+      safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "status",
+        title: `Assigned to HoD`,
+        message: `Your complaint was assigned to the Head of Department and is awaiting acceptance.`,
+        meta: {
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+        },
+      }),
+    ]);
+
     res.status(200).json({
       message: "Complaint assigned to HoD (pending acceptance)",
       complaint,
@@ -575,6 +786,34 @@ export const hodAssignToStaff = async (req, res) => {
         deadline: complaint.deadline,
       },
     });
+
+    // Notifications: to Staff and to Student
+    await Promise.all([
+      safeNotify({
+        user: staff._id,
+        complaint,
+        type: "assignment",
+        title: `New Assignment (${complaint.complaintCode})`,
+        message: `You have been assigned a complaint: "${complaint.title}".`,
+        meta: {
+          role: "staff",
+          deadline: complaint.deadline,
+          redirectPath: "/my-assigned",
+          complaintId: String(complaint._id),
+        },
+      }),
+      safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "status",
+        title: `Assigned to Staff`,
+        message: `Your complaint was assigned to staff and is now In Progress.`,
+        meta: {
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+        },
+      }),
+    ]);
 
     res.status(200).json({ message: "Complaint assigned to staff", complaint });
   } catch (err) {
@@ -941,6 +1180,54 @@ export const updateComplaintStatus = async (req, res) => {
       });
     }
 
+    // Notifications: to Student (and HoD if staff acted)
+    if (status === "Closed") {
+      await safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "reject",
+        title: `Complaint Closed (${complaint.complaintCode})`,
+        message: `Your complaint was closed by ${normalizeUserRole(
+          req.user.role
+        )}${description ? `: ${description}` : "."}`,
+        meta: { byRole: normalizeUserRole(req.user.role) },
+      });
+    } else {
+      await safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "status",
+        title: `Status Updated to ${status}`,
+        message: `Your complaint status changed to ${status}${
+          description ? `: ${description}` : ""
+        }.`,
+        meta: { byRole: normalizeUserRole(req.user.role) },
+      });
+    }
+
+    // If staff updated, notify HoD in same department about the change
+    if (req.user.role === "staff" && complaint.department) {
+      const hod = await User.findOne({
+        role: "hod",
+        isActive: true,
+        department: complaint.department,
+      })
+        .select("_id")
+        .lean();
+      if (hod?._id) {
+        await safeNotify({
+          user: hod._id,
+          complaint,
+          type: "status",
+          title: `Staff Updated Complaint (${complaint.complaintCode})`,
+          message: `Status changed to ${status}${
+            description ? `: ${description}` : ""
+          } by staff.`,
+          meta: { byRole: "staff" },
+        });
+      }
+    }
+
     return res.status(200).json({ message: "Status updated", complaint });
   } catch (error) {
     console.error("updateComplaintStatus error:", error?.message);
@@ -1022,6 +1309,20 @@ export const giveFeedback = async (req, res) => {
       timestamp: new Date(),
       details: { rating, comment },
     });
+
+    // Notify assignee about feedback
+    if (complaint.assignedTo) {
+      await safeNotify({
+        user: complaint.assignedTo,
+        complaint,
+        type: "feedback",
+        title: `Feedback Received (${complaint.complaintCode})`,
+        message: `The student left feedback on "${complaint.title}"${
+          comment ? `: ${comment}` : "."
+        }`,
+        meta: { rating },
+      });
+    }
 
     res.status(200).json({ message: "Feedback submitted", complaint });
   } catch (err) {
@@ -1135,6 +1436,7 @@ export const getFeedbackByRole = async (req, res) => {
           : undefined,
       category: c.category,
       department: c.department,
+      submittedTo: c.submittedTo || null,
     }));
 
     res.status(200).json(feedbackList);
@@ -1215,6 +1517,20 @@ export const markFeedbackReviewed = async (req, res) => {
           "Access denied: Dean can only mark reviewed for complaints they resolved",
       });
     }
+    // Admin can only mark reviewed when the feedback was directed to Admin route (complaint submittedTo admin or assignedByRole admin)
+    if (req.user.role === "admin") {
+      const submittedToAdmin = (complaint.submittedTo || "").toLowerCase() === "admin";
+      const adminInPath =
+        (complaint.assignedByRole || "").toLowerCase() === "admin" ||
+        Array.isArray(complaint.assignmentPath) &&
+          complaint.assignmentPath.some((r) => String(r).toLowerCase() === "admin");
+      if (!submittedToAdmin && !adminInPath) {
+        return res.status(403).json({
+          error:
+            "Admins may mark reviewed only for feedback on complaints directed to Admin",
+        });
+      }
+    }
     complaint.feedback.reviewed = true;
     complaint.feedback.reviewedAt = new Date();
     complaint.feedback.reviewedBy = req.user._id;
@@ -1255,7 +1571,6 @@ export const queryComplaints = async (req, res) => {
       } else if (role === "student") {
         // Student: restrict to their own submissions
         q.submittedBy = user._id;
-
       } else {
         return res.status(403).json({ error: "Forbidden" });
       }

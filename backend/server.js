@@ -17,6 +17,7 @@ import approvalRoutes from "./routes/approval.routes.js";
 import usersRoutes from "./routes/users.route.js";
 import categoryRoutes from "./routes/category.routes.js";
 import staffRoutes from "./routes/staff.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 import { checkEscalations } from "./utils/escalation.js";
 import path from "path";
 import fs from "fs";
@@ -36,6 +37,7 @@ app.use("/api/approvals", approvalRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/categories", categoryRoutes); // category management (admin guarded in route file)
 app.use("/api/staff", staffRoutes);
+app.use("/api/notifications", notificationRoutes);
 const uploadsPath = path.join(process.cwd(), "backend", "uploads");
 fs.mkdirSync(uploadsPath, { recursive: true });
 app.use("/uploads", express.static(uploadsPath));

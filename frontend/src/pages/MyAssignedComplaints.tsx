@@ -2,6 +2,7 @@
 // Demo mock removed; complaints will be loaded from backend
 // import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +94,7 @@ export function MyAssignedComplaints() {
       return new Set();
     }
   });
+  const location = useLocation();
 
   // Load assigned complaints from backend for staff user
   useEffect(() => {
@@ -155,6 +157,18 @@ export function MyAssignedComplaints() {
       cancelled = true;
     };
   }, [user]);
+
+  // If navigated with ?complaintId=..., open the details modal for that complaint when data loads
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const qId = params.get("complaintId");
+    if (!qId || !complaints.length) return;
+    const match = complaints.find((c) => String(c.id) === String(qId));
+    if (match) {
+      setSelectedComplaint(match);
+      setShowDetailModal(true);
+    }
+  }, [location.search, complaints]);
 
   // Only show complaints assigned to the current staff user; if no user (demo), show all mock complaints
   const myAssignedComplaints = React.useMemo(() => {

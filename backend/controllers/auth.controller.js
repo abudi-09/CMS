@@ -39,6 +39,7 @@ export const getMe = async (req, res) => {
   }
 };
 import User from "../models/user.model.js";
+import Notification from "../models/notification.model.js";
 import bcrypt from "bcryptjs";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 import VerificationToken from "../models/verificationToken.model.js";
@@ -122,6 +123,102 @@ export const signup = async (req, res) => {
     }
 
     await newUser.save();
+
+    // Emit signup notifications to role-appropriate recipients
+    async function emitSignupNotifications() {
+      try {
+        const baseMeta = { userId: String(newUser._id), role: newUser.role };
+        if (newUser.role === "student") {
+          // Notify active HoD in same department
+          const hods = await User.find({
+            role: "hod",
+            department: newUser.department,
+            isApproved: true,
+            isActive: true,
+          }).select({ _id: 1 });
+          await Promise.all(
+            hods.map((h) =>
+              Notification.create({
+                user: h._id,
+                type: "user-signup",
+                title: "New Student Registration",
+                message: `${newUser.name || newUser.username} signed up in ${
+                  newUser.department
+                }.`,
+                meta: { ...baseMeta, redirectPath: "/student-management" },
+              })
+            )
+          );
+        } else if (newUser.role === "staff") {
+          // Notify active HoD in same department for approval
+          const hods = await User.find({
+            role: "hod",
+            department: newUser.department,
+            isApproved: true,
+            isActive: true,
+          }).select({ _id: 1 });
+          await Promise.all(
+            hods.map((h) =>
+              Notification.create({
+                user: h._id,
+                type: "user-signup",
+                title: "New Staff Registration",
+                message: `${
+                  newUser.name || newUser.username
+                } registered as Staff in ${
+                  newUser.department
+                }. Approval may be required.`,
+                meta: { ...baseMeta, redirectPath: "/hod/staff-management" },
+              })
+            )
+          );
+        } else if (newUser.role === "hod") {
+          // Notify active deans for dean approval
+          const deans = await User.find({
+            role: "dean",
+            isApproved: true,
+            isActive: true,
+          }).select({ _id: 1 });
+          await Promise.all(
+            deans.map((d) =>
+              Notification.create({
+                user: d._id,
+                type: "user-signup",
+                title: "New HoD Registration",
+                message: `${
+                  newUser.name || newUser.username
+                } registered as HoD for ${newUser.department}.`,
+                meta: { ...baseMeta, redirectPath: "/dean-user-management" },
+              })
+            )
+          );
+        } else if (newUser.role === "dean") {
+          // Notify admins for final approval
+          const admins = await User.find({
+            role: "admin",
+            isApproved: true,
+            isActive: true,
+          }).select({ _id: 1 });
+          await Promise.all(
+            admins.map((a) =>
+              Notification.create({
+                user: a._id,
+                type: "user-signup",
+                title: "New Dean Registration",
+                message: `${
+                  newUser.name || newUser.username
+                } registered as Dean (${newUser.workingPlace}).`,
+                meta: { ...baseMeta, redirectPath: "/dean-role-management" },
+              })
+            )
+          );
+        }
+      } catch (e) {
+        console.log("signup notification emit failed", e?.message || e);
+      }
+    }
+    // Fire and forget (no need to block signup response)
+    emitSignupNotifications();
 
     // Generate verification token
     const token = crypto.randomBytes(32).toString("hex");

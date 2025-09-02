@@ -119,6 +119,18 @@ export async function getStudentCountApi() {
   if (!res.ok) throw new Error(data.error || "Failed to fetch student count");
   return data as { students: number };
 }
+
+// Admin/Dean: category counts across complaints
+export async function getCategoryCountsApi() {
+  const res = await fetch(`${API_BASE}/stats/categories`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch categories count");
+  return data as { total: number; categories: Array<{ category: string; count: number }> };
+}
 // Approve staff (admin)
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {
@@ -701,6 +713,87 @@ export async function hodDeactivateStaffApi(staffId: string) {
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to deactivate staff");
+  return data;
+}
+
+// Notifications API
+export type NotificationItem = {
+  _id: string;
+  user: string;
+  complaint?: string | null;
+  type:
+    | "submission"
+    | "assignment"
+    | "accept"
+    | "reject"
+    | "status"
+    | "feedback"
+    | "user-signup";
+  title: string;
+  message: string;
+  read: boolean;
+  meta?: {
+    redirectPath?: string;
+    complaintId?: string;
+    [key: string]: unknown;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function listMyNotificationsApi(params?: {
+  unread?: boolean;
+  page?: number;
+  pageSize?: number;
+}): Promise<{
+  items: NotificationItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
+  const q = new URLSearchParams();
+  if (params?.unread) q.set("unread", String(params.unread));
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.pageSize) q.set("pageSize", String(params.pageSize));
+  const res = await fetch(
+    `${API_BASE}/notifications/my${q.toString() ? `?${q.toString()}` : ""}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch notifications");
+  return data as {
+    items: NotificationItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+}
+
+export async function markNotificationReadApi(id: string) {
+  const res = await fetch(`${API_BASE}/notifications/read/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to mark notification read");
+  return data;
+}
+
+export async function markAllNotificationsReadApi() {
+  const res = await fetch(`${API_BASE}/notifications/read-all`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to mark all notifications read");
   return data;
 }
 

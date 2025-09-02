@@ -65,6 +65,7 @@ export default function AllComplaints() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [roleFilter, setRoleFilter] = useState("All");
   // Priority sort state: 'asc' | 'desc'
   const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   // Overdue filter state
@@ -463,18 +464,49 @@ export default function AllComplaints() {
       complaint.status !== "Resolved"
     );
   };
+  // Helper to detect rejected complaints (Closed with a rejection note)
+  const isRejected = (c: Complaint) => {
+    if (c.status !== "Closed") return false;
+    const note =
+      (typeof (c as unknown as { lastNote?: unknown }).lastNote === "string"
+        ? (c as unknown as { lastNote?: string }).lastNote
+        : undefined) || c.resolutionNote || "";
+    return /rejected/i.test(String(note));
+  };
+
   // Filter complaints (from role-based visible set)
   let filteredComplaints = visibleComplaints.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All" || complaint.status === statusFilter;
+    const matchesStatus = (() => {
+      if (statusFilter === "All") return true;
+      if (statusFilter === "Rejected") return isRejected(complaint);
+      return complaint.status === statusFilter;
+    })();
     const matchesCategory =
       categoryFilter === "All" || complaint.category === categoryFilter;
     const matchesPriority =
       priorityFilter === "All" || complaint.priority === priorityFilter;
+    const matchesRole = (() => {
+      if (roleFilter === "All") return true;
+      const src = (complaint.sourceRole || "").toLowerCase();
+      const by = (complaint.assignedByRole || "").toLowerCase();
+      const to = (complaint.submittedTo || "").toLowerCase();
+      const want = roleFilter.toLowerCase();
+      const map: Record<string, string> = { dean: "dean", hod: "hod", staff: "staff", admin: "admin" };
+      const target = map[want as keyof typeof map] || want;
+      return (
+        to === target ||
+        by === target ||
+        src === target ||
+        (Array.isArray(complaint.assignmentPath) &&
+          complaint.assignmentPath.some(
+            (r) => String(r).toLowerCase() === target
+          ))
+      );
+    })();
     const matchesOverdue =
       overdueFilter === "All"
         ? true
@@ -486,7 +518,8 @@ export default function AllComplaints() {
       matchesSearch &&
       matchesStatus &&
       matchesCategory &&
-      matchesPriority &&
+  matchesPriority &&
+  matchesRole &&
       matchesOverdue
     );
   });
@@ -807,7 +840,7 @@ export default function AllComplaints() {
                 className="pl-10 w-full"
               />
             </div>
-            {/* Status dropdown */}
+      {/* Status dropdown */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter by status" />
@@ -818,6 +851,7 @@ export default function AllComplaints() {
                 <SelectItem value="In Progress">In Progress</SelectItem>
                 <SelectItem value="Resolved">Resolved</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
+        <SelectItem value="Rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
             {/* Priority dropdown */}
@@ -845,6 +879,19 @@ export default function AllComplaints() {
                     {cat}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            {/* Role filter dropdown */}
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Roles</SelectItem>
+                <SelectItem value="Dean">Dean</SelectItem>
+                <SelectItem value="HOD">HOD</SelectItem>
+                <SelectItem value="Staff">Staff</SelectItem>
+                <SelectItem value="Admin">Admin</SelectItem>
               </SelectContent>
             </Select>
             {/* Overdue filter dropdown */}

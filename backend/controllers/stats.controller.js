@@ -19,6 +19,33 @@ export const getComplaintStats = async (req, res) => {
   }
 };
 
+// Category counts across all complaints (admin)
+export const getCategoryCounts = async (req, res) => {
+  try {
+    const results = await Complaint.aggregate([
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $ifNull: ["$category", false] },
+              "$category",
+              "Unknown",
+            ],
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const total = results.reduce((acc, r) => acc + (r.count || 0), 0);
+    const categories = results.map((r) => ({ category: r._id, count: r.count }));
+    res.status(200).json({ total, categories });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch category counts" });
+  }
+};
+
 // Department-scoped complaint stats (for HoD)
 export const getDepartmentComplaintStats = async (req, res) => {
   try {

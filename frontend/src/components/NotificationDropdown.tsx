@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bell, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,108 +9,95 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth/AuthContext";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: "info" | "success" | "warning";
-  read: boolean;
-  timestamp: Date;
-}
-
-// Mock notifications based on user role
-const getMockNotifications = (role: string): Notification[] => {
-  const baseNotifications: Notification[] = [];
-  
-  if (role === "admin") {
-    baseNotifications.push(
-      {
-        id: "1",
-        title: "New Staff Request",
-        message: "Jane Smith has requested staff approval",
-        type: "info",
-        read: false,
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      },
-      {
-        id: "2", 
-        title: "New Complaint",
-        message: "Library computer complaint submitted by John Doe",
-        type: "warning",
-        read: false,
-        timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      }
-    );
-  } else if (role === "staff") {
-    baseNotifications.push(
-      {
-        id: "3",
-        title: "New Assignment", 
-        message: "You've been assigned complaint CMP-001",
-        type: "info",
-        read: false,
-        timestamp: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
-      },
-      {
-        id: "4",
-        title: "Feedback Received",
-        message: "User left feedback on resolved complaint",
-        type: "success",
-        read: true,
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-      }
-    );
-  } else {
-    baseNotifications.push(
-      {
-        id: "5",
-        title: "Status Update",
-        message: "Your complaint CMP-001 is now In Progress",
-        type: "info",
-        read: false,
-        timestamp: new Date(Date.now() - 20 * 60 * 1000), // 20 minutes ago
-      },
-      {
-        id: "6",
-        title: "Complaint Resolved",
-        message: "Your cafeteria complaint has been resolved",
-        type: "success",
-        read: true,
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-      }
-    );
-  }
-  
-  return baseNotifications;
-};
+import {
+  listMyNotificationsApi,
+  markAllNotificationsReadApi,
+  markNotificationReadApi,
+  type NotificationItem,
+} from "@/lib/api";
+import { useNavigate } from "react-router-dom";
 
 export function NotificationDropdown() {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>(
-    getMockNotifications(user?.role || "user")
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const unreadCount = useMemo(
+    () => items.filter((n) => !n.read).length,
+    [items]
   );
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
+  const load = async () => {
+    try {
+      setLoading(true);
+      const res = await listMyNotificationsApi({ page: 1, pageSize: 20 });
+      setItems(res.items);
+    } catch (e) {
+      console.warn("Failed to load notifications", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  useEffect(() => {
+    load();
+    const id = window.setInterval(load, 60000); // poll every 60s
+    return () => window.clearInterval(id);
+  }, []);
+
+  const markAsRead = async (id: string) => {
+    try {
+      await markNotificationReadApi(id);
+      setItems((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, read: true } : n))
+      );
+    } catch (e) {
+      console.warn("Failed to mark notification read", e);
+    }
   };
 
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const handleNavigate = async (n: NotificationItem) => {
+    const meta = n.meta || {};
+    const redirect =
+      typeof meta.redirectPath === "string" ? meta.redirectPath : undefined;
+    const complaintId =
+      typeof meta.complaintId === "string" ? meta.complaintId : undefined;
+    try {
+      if (!n.read) await markAsRead(n._id);
+    } catch (e) {
+      console.warn(
+        "Failed to update notification read state before navigation",
+        e
+      );
+    }
+    if (redirect) {
+      const url = new URL(redirect, window.location.origin);
+      if (complaintId) url.searchParams.set("complaintId", complaintId);
+      navigate(url.pathname + (url.search || ""));
+    }
   };
 
-  const getTimeAgo = (timestamp: Date) => {
+  const markAllAsRead = async () => {
+    try {
+      await markAllNotificationsReadApi();
+      setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (e) {
+      console.warn("Failed to mark all notifications read", e);
+    }
+  };
+
+  const removeLocal = (id: string) => {
+    setItems((prev) => prev.filter((n) => n._id !== id));
+  };
+
+  const getTimeAgo = (iso: string) => {
+    const timestamp = new Date(iso);
     const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
-    
+    const diffInMinutes = Math.floor(
+      (now.getTime() - timestamp.getTime()) / (1000 * 60)
+    );
+
     if (diffInMinutes < 60) {
       return `${diffInMinutes}m ago`;
     } else if (diffInMinutes < 1440) {
@@ -126,8 +113,8 @@ export function NotificationDropdown() {
         <Button variant="ghost" size="sm" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -135,8 +122,8 @@ export function NotificationDropdown() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent 
-        align="end" 
+      <DropdownMenuContent
+        align="end"
         className="w-80 max-h-96 overflow-y-auto bg-popover border shadow-lg"
       >
         <div className="flex items-center justify-between p-4 border-b">
@@ -152,46 +139,44 @@ export function NotificationDropdown() {
             </Button>
           )}
         </div>
-        
-        {notifications.length === 0 ? (
+
+        {items.length === 0 ? (
           <div className="p-4 text-center text-muted-foreground">
-            No notifications
+            {loading ? "Loading..." : "No notifications"}
           </div>
         ) : (
           <div className="max-h-64 overflow-y-auto">
-            {notifications.map((notification) => (
+            {items.map((n) => (
               <div
-                key={notification.id}
+                key={n._id}
                 className={`p-3 border-b hover:bg-muted/50 cursor-pointer ${
-                  !notification.read ? "bg-muted/30" : ""
+                  !n.read ? "bg-muted/30" : ""
                 }`}
-                onClick={() => !notification.read && markAsRead(notification.id)}
+                onClick={() => handleNavigate(n)}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">
-                        {notification.title}
-                      </p>
-                      {!notification.read && (
+                      <p className="text-sm font-medium truncate">{n.title}</p>
+                      {!n.read && (
                         <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {notification.message}
+                      {n.message}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {getTimeAgo(notification.timestamp)}
+                      {getTimeAgo(n.createdAt)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 ml-2">
-                    {!notification.read && (
+                    {!n.read && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          markAsRead(notification.id);
+                          markAsRead(n._id);
                         }}
                         className="h-6 w-6 p-0"
                       >
@@ -203,7 +188,7 @@ export function NotificationDropdown() {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeNotification(notification.id);
+                        removeLocal(n._id);
                       }}
                       className="h-6 w-6 p-0"
                     >

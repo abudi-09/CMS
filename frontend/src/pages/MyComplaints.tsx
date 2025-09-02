@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -197,6 +198,7 @@ export function MyComplaints() {
   const [lastResolvedId, setLastResolvedId] = useState<string | null>(null);
   const complaintsRef = useRef<ExtendedComplaint[]>([]);
   const lastResolvedIdRef = useRef<string | null>(null);
+  const location = useLocation();
 
   // keep refs in sync
   useEffect(() => {
@@ -205,6 +207,18 @@ export function MyComplaints() {
   useEffect(() => {
     lastResolvedIdRef.current = lastResolvedId;
   }, [lastResolvedId]);
+
+  // If navigated with ?complaintId=..., open the details modal for that complaint when data loads
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const qId = params.get("complaintId");
+    if (!qId || !complaints.length) return;
+    const match = complaints.find((c) => String(c.id) === String(qId));
+    if (match) {
+      setSelectedComplaint(match);
+      setShowDetailModal(true);
+    }
+  }, [location.search, complaints]);
 
   // Listen for global complaint status changes to keep list in sync in real-time
   useEffect(() => {
