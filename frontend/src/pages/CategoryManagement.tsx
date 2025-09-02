@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { CategoryContext } from "@/context/CategoryContext";
+import { getCategoryCountsApi } from "@/lib/api";
 
 interface CategoryLike {
   _id: string;
@@ -82,6 +83,45 @@ function CategoryManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteCategory, setPendingDeleteCategory] =
     useState<CategoryLike | null>(null);
+  // Counts state from backend
+  const [categoryCountsByName, setCategoryCountsByName] = useState<
+    Record<string, number>
+  >({});
+  const [categoryCountsById, setCategoryCountsById] = useState<
+    Record<string, number>
+  >({});
+  const [totalComplaints, setTotalComplaints] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await getCategoryCountsApi();
+        // Expected shape: { total: number, categories: [{ category: string, count: number }] }
+        if (!mounted || !data) return;
+        setTotalComplaints(Number(data.total || 0));
+        const byName: Record<string, number> = {};
+        const byId: Record<string, number> = {};
+        for (const entry of data.categories || []) {
+          const key = String(entry.category ?? "");
+          const cnt = Number(entry.count || 0);
+          // Heuristic: if looks like ObjectId (24 hex), treat as id; else treat as name
+          if (/^[a-f\d]{24}$/i.test(key)) byId[key] = cnt;
+          else byName[key] = cnt;
+        }
+        setCategoryCountsByName(byName);
+        setCategoryCountsById(byId);
+      } catch (e) {
+        toast({
+          title: "Failed to load category counts",
+          variant: "destructive",
+        });
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
@@ -226,9 +266,9 @@ function CategoryManagement() {
         .length,
       inactive: categories.filter((c: CategoryLike) => c.status === "inactive")
         .length,
-      totalComplaints: 0,
+      totalComplaints: totalComplaints,
     }),
-    [categories]
+    [categories, totalComplaints]
   );
 
   // Filter categories
@@ -537,7 +577,11 @@ function CategoryManagement() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">0</span>
+                        <span className="text-sm font-medium">
+                          {categoryCountsByName[category.name] ??
+                            categoryCountsById[category._id] ??
+                            0}
+                        </span>
                         <span className="text-sm text-muted-foreground">
                           complaints
                         </span>

@@ -679,14 +679,11 @@ export function MyComplaints() {
                       >
                         <td className="p-3">
                           <div className="font-medium">{complaint.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            ID: {complaint.id}
-                            {complaint.friendlyCode && (
-                              <span className="ml-2">
-                                [{complaint.friendlyCode}]
-                              </span>
-                            )}
-                          </div>
+                          {complaint.friendlyCode && (
+                            <div className="text-sm text-muted-foreground">
+                              Code: {complaint.friendlyCode}
+                            </div>
+                          )}
                         </td>
                         <td className="p-3">
                           <span className="text-sm">{complaint.category}</span>
@@ -782,14 +779,11 @@ export function MyComplaints() {
                           <h3 className="font-medium text-sm leading-tight">
                             {complaint.title}
                           </h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            ID: {complaint.id}
-                            {complaint.friendlyCode && (
-                              <span className="ml-1">
-                                [{complaint.friendlyCode}]
-                              </span>
-                            )}
-                          </p>
+                          {complaint.friendlyCode && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Code: {complaint.friendlyCode}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <Badge

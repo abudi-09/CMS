@@ -20,9 +20,11 @@ import {
   updateComplaintStatusApi,
 } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth/AuthContext";
 
 export function AdminComplaints() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   // Keep complaints in local state so updates reflect in the table
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -172,8 +174,18 @@ export function AdminComplaints() {
   const acceptComplaint = async (c: Complaint) => {
     try {
       await approveComplaintApi(c.id);
+      const adminName = (user && (user.fullName || user.name)) || "Admin";
       setComplaints((prev) =>
-        prev.map((x) => (x.id === c.id ? { ...x, status: "In Progress" } : x))
+        prev.map((x) =>
+          x.id === c.id
+            ? {
+                ...x,
+                status: "In Progress",
+                assignedStaff: adminName,
+                assignedStaffRole: "admin",
+              }
+            : x
+        )
       );
       window.dispatchEvent(
         new CustomEvent("complaint:status-changed", { detail: { id: c.id } })
@@ -229,8 +241,18 @@ export function AdminComplaints() {
     }
     try {
       await approveComplaintApi(c.id, { note: note.trim() });
+      const adminName = (user && (user.fullName || user.name)) || "Admin";
       setComplaints((prev) =>
-        prev.map((x) => (x.id === c.id ? { ...x, status: "In Progress" } : x))
+        prev.map((x) =>
+          x.id === c.id
+            ? {
+                ...x,
+                status: "In Progress",
+                assignedStaff: adminName,
+                assignedStaffRole: "admin",
+              }
+            : x
+        )
       );
       window.dispatchEvent(
         new CustomEvent("complaint:status-changed", { detail: { id: c.id } })
