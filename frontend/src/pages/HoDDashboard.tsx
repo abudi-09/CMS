@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import {
   Card,
@@ -56,8 +55,6 @@ import {
 } from "@/components/ui/table";
 
 export function HoDDashboard() {
-
-
   // Live complaints for other widgets if needed in the future
   const [complaints, setComplaints] = useState<Complaint[]>([]);
 
@@ -86,14 +83,14 @@ export function HoDDashboard() {
 
     const visible = complaints.filter((c) => {
       if (isHod) {
-        const assigned = getAssignedId(c as any);
-        return String(assigned) === String((user as any)?._id);
+        const assigned = getAssignedId(c);
+        return String(assigned) === String(user?.id || "");
       }
       const dept = user?.department;
       if (dept)
         return (
           String(c.department) === String(dept) ||
-          String(getAssignedId(c as any)) === String((user as any)?._id)
+          String(getAssignedId(c)) === String(user?.id || "")
         );
       return true;
     });
@@ -120,8 +117,10 @@ export function HoDDashboard() {
       try {
         const res = await getHodInboxApi();
         if (!cancelled) setHodInbox(res || []);
-      } catch {
-        
+      } catch (e) {
+        if (typeof console !== "undefined") {
+          console.warn("Failed to load HoD inbox", e);
+        }
       }
     }
     loadInbox();
@@ -306,7 +305,6 @@ export function HoDDashboard() {
       complaint.status !== "Resolved"
     );
   };
-
 
   // Recently Pending: compute from live inbox
   const visibleRecentPending = [...(hodInbox || [])]
@@ -512,12 +510,10 @@ export function HoDDashboard() {
           <CardTitle>Recently Pending Complaints</CardTitle>
 
           <CardDescription>Top 3 pending complaints for HoD</CardDescription>
-
         </CardHeader>
         <CardContent>
           {/* Mobile: stacked cards */}
           <div className="space-y-3 md:hidden">
-
             {hodInbox.slice(0, 3).map((c) => (
               <Card key={String(c.id)} className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -602,12 +598,10 @@ export function HoDDashboard() {
                 </div>
               </Card>
             ))}
-
           </div>
 
           {/* Desktop: table with horizontal scroll */}
           <div className="hidden md:block overflow-x-auto">
-
             <Table>
               <TableHeader>
                 <TableRow>
@@ -714,7 +708,6 @@ export function HoDDashboard() {
                 ))}
               </TableBody>
             </Table>
-
           </div>
         </CardContent>
       </Card>
@@ -740,9 +733,26 @@ export function HoDDashboard() {
         onAssign={(complaintId, staffId, notes) => {
           // Update global context (optional) and local recent pool
           handleStaffAssignment(complaintId, staffId, notes);
-
         }}
       />
     </div>
   );
+}
+// Safely extract an assigned user id from a loosely-typed complaint-like object
+function getAssignedId(c: unknown): string {
+  if (!c) return "";
+  const obj = c as Record<string, unknown>;
+  // Common shapes: assignedTo can be an id string or an object with id/_id
+  const assignedTo = obj["assignedTo"];
+  if (typeof assignedTo === "string") return assignedTo;
+  if (assignedTo && typeof assignedTo === "object") {
+    const at = assignedTo as Record<string, unknown>;
+    const val = at["_id"] ?? at["id"]; // support either key
+    if (typeof val === "string") return val;
+  }
+  // Some UIs keep a direct id field
+  const altId =
+    obj["assignedToId"] || obj["assigneeId"] || obj["assignedStaffId"]; // fallback keys
+  if (typeof altId === "string") return altId;
+  return "";
 }

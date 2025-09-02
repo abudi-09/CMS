@@ -359,9 +359,9 @@ export function SubmitComplaint() {
       } as const;
       const targetRole = roleMap[formData.role as keyof typeof roleMap];
       const assignmentPath: Array<
-        "student" | "hod" | "dean" | "admin" | "staff"
+        "student" | "headOfDepartment" | "dean" | "admin" | "staff"
       > = ["student"];
-      if (targetRole === "hod") assignmentPath.push("hod");
+      if (targetRole === "hod") assignmentPath.push("headOfDepartment");
       if (targetRole === "dean") assignmentPath.push("dean");
       if (targetRole === "admin") assignmentPath.push("admin");
 

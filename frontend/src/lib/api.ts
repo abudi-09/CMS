@@ -851,14 +851,55 @@ export interface Complaint {
   >;
   // When submitting directly to staff
   recipientStaffId?: string;
+  // When submitting directly to HoD
+  recipientHodId?: string;
 }
 
 export async function submitComplaintApi(complaint: Complaint) {
+  // Normalize role keys for backend (maps headOfDepartment -> hod)
+  const toBackendRole = (role?: string | null) => {
+    if (!role)
+      return role as unknown as
+        | "student"
+        | "staff"
+        | "hod"
+        | "dean"
+        | "admin"
+        | null;
+    const r = role.toString();
+    if (
+      r === "headOfDepartment" ||
+      r.toLowerCase() === "headofdepartment" ||
+      r.toLowerCase() === "hod"
+    )
+      return "hod" as const;
+    if (r.toLowerCase() === "student") return "student" as const;
+    if (r.toLowerCase() === "staff") return "staff" as const;
+    if (r.toLowerCase() === "dean") return "dean" as const;
+    if (r.toLowerCase() === "admin") return "admin" as const;
+    return r as unknown as
+      | "student"
+      | "staff"
+      | "hod"
+      | "dean"
+      | "admin"
+      | null;
+  };
+
+  const backendPayload = {
+    ...complaint,
+    sourceRole: toBackendRole(complaint.sourceRole) ?? undefined,
+    assignedByRole: toBackendRole(complaint.assignedByRole) ?? undefined,
+    assignmentPath: Array.isArray(complaint.assignmentPath)
+      ? complaint.assignmentPath.map((r) => toBackendRole(r) as string)
+      : complaint.assignmentPath,
+  };
+
   const res = await fetch(`${API_BASE}/complaints/submit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(complaint),
+    body: JSON.stringify(backendPayload),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to submit complaint");

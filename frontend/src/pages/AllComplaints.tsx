@@ -314,10 +314,8 @@ export default function AllComplaints() {
     [user]
   );
   const getSubmitterDept = useCallback(
-
     (c: Complaint) => c.department || "",
     []
-
   );
   const role = normalize(((user || {}) as MinimalUser).role);
   const myDept = ((user || {}) as MinimalUser).department || "";
@@ -1171,4 +1169,7 @@ export default function AllComplaints() {
       />
     </div>
   );
+}
+function setLoading(arg0: boolean) {
+  throw new Error("Function not implemented.");
 }
