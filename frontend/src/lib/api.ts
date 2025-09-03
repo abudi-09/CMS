@@ -765,7 +765,272 @@ export async function getRoleCountsApi() {
   }>(res);
 }
 
-// ========================= Admin Calendar =========================
+// ========================= Analytics Dashboard APIs =========================
+
+// Admin Analytics APIs
+export async function getAdminAnalyticsSummaryApi() {
+  const res = await fetch(`${API_BASE}/stats/analytics/admin/summary`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    totalComplaints: number;
+    resolvedComplaints: number;
+    pendingComplaints: number;
+    avgResolutionTime: number;
+    resolutionRate: number;
+    userSatisfaction: number;
+    totalReviews: number;
+    overdueComplaints: number;
+  }>(res);
+}
+
+export async function getAdminPriorityDistributionApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/analytics/admin/priority-distribution`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{
+    priorities: Array<{
+      priority: "Low" | "Medium" | "High" | "Critical";
+      count: number;
+      percentage: number;
+      color: string;
+    }>;
+  }>(res);
+}
+
+export async function getAdminStatusDistributionApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/analytics/admin/status-distribution`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{
+    statuses: Array<{
+      status: string;
+      count: number;
+      percentage: number;
+      color: string;
+    }>;
+  }>(res);
+}
+
+export async function getAdminMonthlyTrendsApi(params?: {
+  months?: number;
+  year?: number;
+}) {
+  const url = `${API_BASE}/stats/analytics/admin/monthly-trends${qs({
+    months: params?.months,
+    year: params?.year,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    data: Array<{
+      month: string;
+      year: number;
+      submitted: number;
+      resolved: number;
+      pending: number;
+      avgResolutionTime: number;
+    }>;
+  }>(res);
+}
+
+export async function getAdminDepartmentPerformanceApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/analytics/admin/department-performance`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{
+    departments: Array<{
+      department: string;
+      totalComplaints: number;
+      resolvedComplaints: number;
+      pendingComplaints: number;
+      avgResolutionTime: number;
+      successRate: number;
+      staffCount: number;
+    }>;
+  }>(res);
+}
+
+export async function getAdminStaffPerformanceApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/analytics/admin/staff-performance`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{
+    staff: Array<{
+      staffId: string;
+      name: string;
+      email: string;
+      department: string;
+      totalAssigned: number;
+      resolved: number;
+      pending: number;
+      inProgress: number;
+      successRate: number;
+      avgResolutionTime: number;
+      avgRating: number;
+      totalRating: number;
+    }>;
+  }>(res);
+}
+
+// Dean Analytics APIs
+export async function getDeanAnalyticsSummaryApi() {
+  const res = await fetch(`${API_BASE}/stats/analytics/dean/summary`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    totalComplaints: number;
+    resolvedComplaints: number;
+    pendingComplaints: number;
+    avgResolutionTime: number;
+    resolutionRate: number;
+    userSatisfaction: number;
+    totalReviews: number;
+    overdueComplaints: number;
+    departmentsManaged: number;
+  }>(res);
+}
+
+export async function getDeanDepartmentOverviewApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/analytics/dean/department-overview`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{
+    departments: Array<{
+      department: string;
+      hodName: string;
+      totalComplaints: number;
+      resolvedComplaints: number;
+      pendingComplaints: number;
+      staffCount: number;
+      avgResolutionTime: number;
+    }>;
+  }>(res);
+}
+
+export async function getDeanMonthlyTrendsApi(params?: {
+  months?: number;
+  year?: number;
+}) {
+  const url = `${API_BASE}/stats/analytics/dean/monthly-trends${qs({
+    months: params?.months,
+    year: params?.year,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    data: Array<{
+      month: string;
+      year: number;
+      submitted: number;
+      resolved: number;
+      pending: number;
+      avgResolutionTime: number;
+    }>;
+  }>(res);
+}
+
+// HoD Analytics APIs
+export async function getHodAnalyticsSummaryApi() {
+  const res = await fetch(`${API_BASE}/stats/analytics/hod/summary`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    totalComplaints: number;
+    resolvedComplaints: number;
+    pendingComplaints: number;
+    avgResolutionTime: number;
+    resolutionRate: number;
+    userSatisfaction: number;
+    totalReviews: number;
+    overdueComplaints: number;
+    staffManaged: number;
+  }>(res);
+}
+
+export async function getHodStaffOverviewApi() {
+  const res = await fetch(`${API_BASE}/stats/analytics/hod/staff-overview`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    staff: Array<{
+      staffId: string;
+      name: string;
+      email: string;
+      totalAssigned: number;
+      resolved: number;
+      pending: number;
+      inProgress: number;
+      successRate: number;
+      avgResolutionTime: number;
+      avgRating: number;
+    }>;
+  }>(res);
+}
+
+export async function getHodAnalyticsMonthlyTrendsApi(params?: {
+  months?: number;
+  year?: number;
+}) {
+  const url = `${API_BASE}/stats/analytics/hod/monthly-trends${qs({
+    months: params?.months,
+    year: params?.year,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    data: Array<{
+      month: string;
+      year: number;
+      submitted: number;
+      resolved: number;
+      pending: number;
+      avgResolutionTime: number;
+    }>;
+  }>(res);
+}
 export async function getAdminCalendarSummaryApi(params?: {
   month?: number; // 0-11
   year?: number;

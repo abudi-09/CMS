@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -215,62 +215,57 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         } catch {
           // ignore
         }
-        // Complaints assigned to this admin - only direct submissions from students
+        // Fetch all complaints submitted to any admin by students
         const res = await fetchJson<QueryComplaint[]>(
-          `${API_BASE}/complaints?assignedTo=${encodeURIComponent(user.id)}&submittedTo=admin&sourceRole=student`
+          `${API_BASE}/complaints?submittedTo=admin&sourceRole=student&assignedTo=${user.id}`
         );
         if (cancelled) return;
-        const mapped: Complaint[] = (res || [])
-          .map((c) => {
-            const status = (c?.status as Complaint["status"]) || "Pending";
-            const priority: Complaint["priority"] =
-              c?.priority === "Low" ||
-              c?.priority === "Medium" ||
-              c?.priority === "High" ||
-              c?.priority === "Critical"
-                ? (c.priority as Complaint["priority"])
-                : "Medium";
-            const adminName = user.fullName || user.name || "You";
-            const submittedAt =
-              c.createdAt ?? c.submittedDate ?? new Date().toISOString();
-            const updatedAt =
-              c.updatedAt ?? c.lastUpdated ?? new Date().toISOString();
-            return {
-              id: String(c?._id || c?.id || ""),
-              title: c?.title || "Untitled Complaint",
-              description:
-                c?.fullDescription ||
-                c?.shortDescription ||
-                c?.description ||
-                "",
-              category: c?.category || "",
-              status,
-              submittedBy:
-                (c?.submittedBy && typeof c.submittedBy === "object"
-                  ? c?.submittedBy?.name || c?.submittedBy?.email
-                  : (c?.submittedBy as string)) || "Unknown",
-              assignedStaff: adminName,
-              submittedDate: new Date(submittedAt),
-              deadline: c?.deadline ? new Date(c.deadline) : undefined,
-              lastUpdated: new Date(updatedAt),
-              priority,
-              feedback: undefined,
-              resolutionNote: undefined,
-              evidenceFile: undefined,
-              isEscalated: !!c?.isEscalated,
-              submittedTo: (c?.submittedTo || undefined) as string | undefined,
-              department: (c?.department || c?.category || undefined) as
-                | string
-                | undefined,
-              sourceRole: (c?.sourceRole ||
-                undefined) as Complaint["sourceRole"],
-              assignedByRole: (c?.assignedByRole ||
-                undefined) as Complaint["assignedByRole"],
-              assignmentPath: Array.isArray(c?.assignmentPath)
-                ? (c.assignmentPath as Complaint["assignmentPath"])
-                : undefined,
-            } as Complaint;
-          });
+        const mapped: Complaint[] = (res || []).map((c) => {
+          const status = (c?.status as Complaint["status"]) || "Pending";
+          const priority: Complaint["priority"] =
+            c?.priority === "Low" ||
+            c?.priority === "Medium" ||
+            c?.priority === "High" ||
+            c?.priority === "Critical"
+              ? (c.priority as Complaint["priority"])
+              : "Medium";
+          const adminName = user.fullName || user.name || "You";
+          const submittedAt =
+            c.createdAt ?? c.submittedDate ?? new Date().toISOString();
+          const updatedAt =
+            c.updatedAt ?? c.lastUpdated ?? new Date().toISOString();
+          return {
+            id: String(c?._id || c?.id || ""),
+            title: c?.title || "Untitled Complaint",
+            description:
+              c?.fullDescription || c?.shortDescription || c?.description || "",
+            category: c?.category || "",
+            status,
+            submittedBy:
+              (c?.submittedBy && typeof c.submittedBy === "object"
+                ? c?.submittedBy?.name || c?.submittedBy?.email
+                : (c?.submittedBy as string)) || "Unknown",
+            assignedStaff: adminName,
+            submittedDate: new Date(submittedAt),
+            deadline: c?.deadline ? new Date(c.deadline) : undefined,
+            lastUpdated: new Date(updatedAt),
+            priority,
+            feedback: undefined,
+            resolutionNote: undefined,
+            evidenceFile: undefined,
+            isEscalated: !!c?.isEscalated,
+            submittedTo: (c?.submittedTo || undefined) as string | undefined,
+            department: (c?.department || c?.category || undefined) as
+              | string
+              | undefined,
+            sourceRole: (c?.sourceRole || undefined) as Complaint["sourceRole"],
+            assignedByRole: (c?.assignedByRole ||
+              undefined) as Complaint["assignedByRole"],
+            assignmentPath: Array.isArray(c?.assignmentPath)
+              ? (c.assignmentPath as Complaint["assignmentPath"])
+              : undefined,
+          } as Complaint;
+        });
         setAllComplaints(mapped);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -302,37 +297,18 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               : adminCategories.length
               ? adminCategories
               : undefined,
-          assignedTo: user?.id,
+          assignedTo: user.id, // Filter by logged-in admin
           submissionFrom: submissionFrom
-            ? new Date(
-                submissionFrom.getTime() -
-                  submissionFrom.getTimezoneOffset() * 60000
-              )
-                .toISOString()
-                .slice(0, 10)
+            ? submissionFrom.toISOString().slice(0, 10)
             : undefined,
           submissionTo: submissionTo
-            ? new Date(
-                submissionTo.getTime() -
-                  submissionTo.getTimezoneOffset() * 60000
-              )
-                .toISOString()
-                .slice(0, 10)
+            ? submissionTo.toISOString().slice(0, 10)
             : undefined,
           deadlineFrom: deadlineFrom
-            ? new Date(
-                deadlineFrom.getTime() -
-                  deadlineFrom.getTimezoneOffset() * 60000
-              )
-                .toISOString()
-                .slice(0, 10)
+            ? deadlineFrom.toISOString().slice(0, 10)
             : undefined,
           deadlineTo: deadlineTo
-            ? new Date(
-                deadlineTo.getTime() - deadlineTo.getTimezoneOffset() * 60000
-              )
-                .toISOString()
-                .slice(0, 10)
+            ? deadlineTo.toISOString().slice(0, 10)
             : undefined,
           viewType: viewType,
         };
@@ -374,10 +350,13 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     try {
       setLoading(true);
       setError(null);
-      // Format yyyy-mm-dd in UTC to ensure consistency
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
+      // Format yyyy-mm-dd in UTC to ensure consistency with backend
+      const utcDate = new Date(
+        Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+      );
+      const yyyy = utcDate.getUTCFullYear();
+      const mm = String(utcDate.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(utcDate.getUTCDate()).padStart(2, "0");
       const dateStr = `${yyyy}-${mm}-${dd}`;
       const categoriesParam =
         categoryFilter !== "all"
@@ -391,7 +370,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         status: statusFilter !== "all" ? statusFilter : undefined,
         priority: priorityFilter !== "all" ? priorityFilter : undefined,
         categories: categoriesParam,
-        assignedTo: user.id,
+        assignedTo: user.id, // Filter by logged-in admin
       });
       const mapped: Complaint[] = (items as unknown as QueryComplaint[]).map(
         (c) => {
@@ -438,18 +417,23 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         }
       );
       // Replace current selected day's events using a day range filter
-      const startOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 0, 0, 0, 0);
-      const endOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 23, 59, 59, 999);
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
       setAllComplaints((prev) => {
-        // Remove existing complaints for this day
+        // Remove existing complaints for this day that match the current filters
         const keep = prev.filter((c) => {
           const compareDate =
             viewType === "submission" ? c.submittedDate : c.deadline;
           if (!compareDate) return true; // Keep complaints without dates
-          return !(compareDate >= startOfDay && compareDate <= endOfDay);
+          // Use date-fns isSameDay for consistent comparison
+          return !isSameDay(compareDate, date);
         });
-        // Add the new complaints for this day
-        return [...keep, ...mapped];
+        // Add the new complaints for this day (avoid duplicates by ID)
+        const existingIds = new Set(keep.map((c) => c.id));
+        const newComplaints = mapped.filter((c) => !existingIds.has(c.id));
+        return [...keep, ...newComplaints];
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -503,26 +487,32 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     deadlineTo,
   ]);
 
-  const getComplaintsForDate = (date: Date) => {
-    return filteredComplaints.filter((complaint) => {
-      const compareDate =
-        viewType === "submission"
-          ? complaint.submittedDate
-          : complaint.deadline;
-      return compareDate && isSameDay(compareDate, date);
-    });
-  };
+  const getComplaintsForDate = useCallback(
+    (date: Date) => {
+      return filteredComplaints.filter((complaint) => {
+        const compareDate =
+          viewType === "submission"
+            ? complaint.submittedDate
+            : complaint.deadline;
+        return compareDate && isSameDay(compareDate, date);
+      });
+    },
+    [filteredComplaints, viewType]
+  );
 
-  const getDateWithComplaints = () => {
+  const getDateWithComplaints = useMemo(() => {
     const currentMonth = selectedDate;
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     const dates = eachDayOfInterval({ start, end });
 
     return dates.filter((date) => getComplaintsForDate(date).length > 0);
-  };
+  }, [selectedDate, getComplaintsForDate]);
 
-  const selectedDateComplaints = getComplaintsForDate(selectedDate);
+  const selectedDateComplaints = useMemo(
+    () => getComplaintsForDate(selectedDate),
+    [getComplaintsForDate, selectedDate]
+  );
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -660,13 +650,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               selected={selectedDate}
               onSelect={handleSelectDate}
               className="w-full pointer-events-auto"
-              modifiers={{ hasComplaints: getDateWithComplaints() }}
-              modifiersStyles={{
-                hasComplaints: {
-                  backgroundColor: "hsl(var(--primary))",
-                  color: "hsl(var(--primary-foreground))",
-                  borderRadius: "4px",
-                },
+              modifiers={{ hasComplaints: getDateWithComplaints }}
+              modifiersClassNames={{
+                hasComplaints: "bg-primary text-primary-foreground rounded-md",
               }}
             />
             <div className="mt-4 text-sm text-muted-foreground">

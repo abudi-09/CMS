@@ -1824,16 +1824,20 @@ export const queryComplaints = async (req, res) => {
   try {
     const user = req.user || null;
 
-    const { assignedTo, department, status } = req.query || {};
+    const { assignedTo, department, status, submittedTo, sourceRole } =
+      req.query || {};
 
     // Build query
     const q = {};
     if (assignedTo) q.assignedTo = assignedTo;
     if (department) q.department = department;
     if (status) q.status = status;
+    if (submittedTo) q.submittedTo = { $regex: new RegExp(submittedTo, "i") };
+    if (sourceRole)
+      q.sourceRole = { $regex: new RegExp(`^${sourceRole}$`, "i") };
 
     // If no explicit filter provided, apply role-based defaults
-    if (!assignedTo && !department && !status) {
+    if (!assignedTo && !department && !status && !submittedTo && !sourceRole) {
       const role = String(user?.role || "").toLowerCase();
       if (role === "staff") {
         // Staff: defaults to items assigned to them
@@ -1854,6 +1858,7 @@ export const queryComplaints = async (req, res) => {
 
     const complaints = await Complaint.find({ ...q, isDeleted: { $ne: true } })
       .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
       .lean();
 
     return res.status(200).json(complaints || []);

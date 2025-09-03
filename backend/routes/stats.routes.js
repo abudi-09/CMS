@@ -18,6 +18,19 @@ import {
   getDepartmentCategoryCounts,
   getDepartmentMonthlyTrends,
   getDepartmentStaffPerformance,
+  // New Analytics APIs
+  getAdminAnalyticsSummary,
+  getAdminPriorityDistribution,
+  getAdminStatusDistribution,
+  getAdminMonthlyTrends,
+  getAdminDepartmentPerformance,
+  getAdminStaffPerformance,
+  getDeanAnalyticsSummary,
+  getDeanDepartmentOverview,
+  getDeanAnalyticsMonthlyTrends,
+  getHodAnalyticsSummary,
+  getHodStaffOverview,
+  getHodAnalyticsMonthlyTrends,
 } from "../controllers/stats.controller.js";
 import Complaint from "../models/complaint.model.js";
 
@@ -170,6 +183,107 @@ router.get(
   protectRoute,
   adminOnly,
   getAdminCalendarDay
+);
+
+// ========================= New Analytics Routes =========================
+
+// Admin Analytics Routes
+router.get(
+  "/analytics/admin/summary",
+  protectRoute,
+  adminOnly,
+  getAdminAnalyticsSummary
+);
+
+router.get(
+  "/analytics/admin/priority-distribution",
+  protectRoute,
+  adminOnly,
+  getAdminPriorityDistribution
+);
+
+router.get(
+  "/analytics/admin/status-distribution",
+  protectRoute,
+  adminOnly,
+  getAdminStatusDistribution
+);
+
+router.get(
+  "/analytics/admin/monthly-trends",
+  protectRoute,
+  adminOnly,
+  getAdminMonthlyTrends
+);
+
+router.get(
+  "/analytics/admin/department-performance",
+  protectRoute,
+  adminOnly,
+  getAdminDepartmentPerformance
+);
+
+router.get(
+  "/analytics/admin/staff-performance",
+  protectRoute,
+  adminOnly,
+  getAdminStaffPerformance
+);
+
+// Dean Analytics Routes
+router.get(
+  "/analytics/dean/summary",
+  protectRoute,
+  (req, res, next) => {
+    const role = req.user?.role;
+    if (role === "admin" || role === "dean") return next();
+    return res.status(403).json({ error: "Access denied" });
+  },
+  getDeanAnalyticsSummary
+);
+
+router.get(
+  "/analytics/dean/department-overview",
+  protectRoute,
+  (req, res, next) => {
+    const role = req.user?.role;
+    if (role === "admin" || role === "dean") return next();
+    return res.status(403).json({ error: "Access denied" });
+  },
+  getDeanDepartmentOverview
+);
+
+router.get(
+  "/analytics/dean/monthly-trends",
+  protectRoute,
+  (req, res, next) => {
+    const role = req.user?.role;
+    if (role === "admin" || role === "dean") return next();
+    return res.status(403).json({ error: "Access denied" });
+  },
+  getDeanAnalyticsMonthlyTrends
+);
+
+// HoD Analytics Routes
+router.get(
+  "/analytics/hod/summary",
+  protectRoute,
+  hodOnly,
+  getHodAnalyticsSummary
+);
+
+router.get(
+  "/analytics/hod/staff-overview",
+  protectRoute,
+  hodOnly,
+  getHodStaffOverview
+);
+
+router.get(
+  "/analytics/hod/monthly-trends",
+  protectRoute,
+  hodOnly,
+  getHodAnalyticsMonthlyTrends
 );
 
 export default router;

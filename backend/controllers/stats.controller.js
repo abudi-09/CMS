@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Complaint from "../models/complaint.model.js";
 import User from "../models/user.model.js";
 
@@ -341,7 +342,14 @@ export const getAdminCalendarSummary = async (req, res) => {
     }
 
     // Query params
-    const assignedTo = req.query.assignedTo || String(user._id);
+    const assignedToQuery = req.query.assignedTo;
+    const assignedTo =
+      assignedToQuery &&
+      typeof assignedToQuery === "string" &&
+      assignedToQuery.match(/^[0-9a-fA-F]{24}$/)
+        ? mongoose.Types.ObjectId(assignedToQuery)
+        : user._id;
+
     const status = req.query.status || null; // exact match
     const priority = req.query.priority || null; // exact match
     const categoriesParam = req.query.categories; // array or csv
@@ -364,24 +372,24 @@ export const getAdminCalendarSummary = async (req, res) => {
     const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
 
     const submissionFrom = req.query.submissionFrom
-      ? new Date(String(req.query.submissionFrom))
+      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
       : null;
     const submissionTo = req.query.submissionTo
-      ? new Date(String(req.query.submissionTo))
+      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
       : null;
     const deadlineFrom = req.query.deadlineFrom
-      ? new Date(String(req.query.deadlineFrom))
+      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
       : null;
     const deadlineTo = req.query.deadlineTo
-      ? new Date(String(req.query.deadlineTo))
+      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
       : null;
 
-    // Base filter: assigned to this admin, submitted directly to admin, from student, not deleted
+    // Base filter: submitted directly to admin, from student, assigned to this admin, not deleted
     const base = {
       isDeleted: { $ne: true },
-      assignedTo: assignedTo,
       submittedTo: { $regex: /admin/i },
       sourceRole: { $regex: /^student$/i },
+      assignedTo: assignedTo,
     };
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
@@ -389,18 +397,12 @@ export const getAdminCalendarSummary = async (req, res) => {
     // Attach optional submission/deadline range filters
     const submissionRange = {};
     if (submissionFrom) submissionRange.$gte = submissionFrom;
-    if (submissionTo)
-      submissionRange.$lte = new Date(
-        new Date(submissionTo).setHours(23, 59, 59, 999)
-      );
+    if (submissionTo) submissionRange.$lte = submissionTo;
     if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
 
     const deadlineRange = {};
     if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
-    if (deadlineTo)
-      deadlineRange.$lte = new Date(
-        new Date(deadlineTo).setHours(23, 59, 59, 999)
-      );
+    if (deadlineTo) deadlineRange.$lte = deadlineTo;
     if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
 
     // Total for selected month based on viewType
@@ -408,11 +410,22 @@ export const getAdminCalendarSummary = async (req, res) => {
       ...base,
       ...(viewType === "submission"
         ? {
-            createdAt: {
-              ...(base.createdAt || {}),
-              $gte: monthStart,
-              $lte: monthEnd,
-            },
+            $or: [
+              {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+              {
+                submittedDate: {
+                  ...(base.submittedDate || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+            ],
           }
         : {
             deadline: {
@@ -444,11 +457,32 @@ export const getAdminCalendarSummary = async (req, res) => {
         Complaint.countDocuments({
           ...base,
           status: "Resolved",
-          createdAt: {
-            ...(base.createdAt || {}),
-            $gte: monthStart,
-            $lte: monthEnd,
-          },
+          ...(viewType === "submission"
+            ? {
+                $or: [
+                  {
+                    createdAt: {
+                      ...(base.createdAt || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                  {
+                    submittedDate: {
+                      ...(base.submittedDate || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                ],
+              }
+            : {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              }),
         }),
       ]);
 
@@ -520,7 +554,12 @@ export const getAdminCalendarDay = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const assignedTo = req.query.assignedTo || String(user._id);
+    const assignedTo = req.query.assignedTo
+      ? typeof req.query.assignedTo === "string" &&
+        req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
+        ? mongoose.Types.ObjectId(req.query.assignedTo)
+        : req.query.assignedTo
+      : user._id;
     const status = req.query.status || null; // optional exact match
     const priority = req.query.priority || null; // optional exact match
     const categoriesParam = req.query.categories; // csv or array
@@ -562,7 +601,12 @@ export const getAdminCalendarDay = async (req, res) => {
 
     const dateFilter =
       viewType === "submission"
-        ? { createdAt: { $gte: dayStart, $lte: dayEnd } }
+        ? {
+            $or: [
+              { createdAt: { $gte: dayStart, $lte: dayEnd } },
+              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+            ],
+          }
         : { deadline: { $gte: dayStart, $lte: dayEnd } };
 
     const items = await Complaint.find({ ...base, ...dateFilter })
@@ -582,7 +626,1238 @@ export const getAdminCalendarDay = async (req, res) => {
   }
 };
 
-// ===================== NEW: Department Analytics (HoD) ===================== //
+// ===================== NEW: Comprehensive Analytics APIs =====================
+
+// Admin Analytics Summary
+export const getAdminAnalyticsSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get basic stats
+    const [
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      overdueComplaints,
+    ] = await Promise.all([
+      Complaint.countDocuments({ isDeleted: { $ne: true } }),
+      Complaint.countDocuments({
+        status: "Resolved",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({ status: "Pending", isDeleted: { $ne: true } }),
+      Complaint.countDocuments({
+        status: { $nin: ["Resolved", "Closed"] },
+        deadline: { $lt: new Date() },
+        isDeleted: { $ne: true },
+      }),
+    ]);
+
+    // Calculate resolution rate
+    const resolutionRate =
+      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
+
+    // Get average resolution time (in days)
+    const resolvedComplaintsWithTimes = await Complaint.find({
+      status: "Resolved",
+      createdAt: { $exists: true },
+      updatedAt: { $exists: true },
+      isDeleted: { $ne: true },
+    }).select("createdAt updatedAt");
+
+    let totalResolutionTime = 0;
+    let resolvedCount = 0;
+
+    resolvedComplaintsWithTimes.forEach((complaint) => {
+      if (complaint.createdAt && complaint.updatedAt) {
+        const resolutionTime = complaint.updatedAt - complaint.createdAt;
+        totalResolutionTime += resolutionTime;
+        resolvedCount++;
+      }
+    });
+
+    const avgResolutionTime =
+      resolvedCount > 0
+        ? totalResolutionTime / resolvedCount / (1000 * 60 * 60 * 24)
+        : 0;
+
+    // Get user satisfaction data
+    const complaintsWithFeedback = await Complaint.find({
+      "feedback.rating": { $exists: true },
+      isDeleted: { $ne: true },
+    }).select("feedback.rating");
+
+    let totalRating = 0;
+    let totalReviews = 0;
+
+    complaintsWithFeedback.forEach((complaint) => {
+      if (complaint.feedback && typeof complaint.feedback.rating === "number") {
+        totalRating += complaint.feedback.rating;
+        totalReviews++;
+      }
+    });
+
+    const userSatisfaction = totalReviews > 0 ? totalRating / totalReviews : 0;
+
+    res.status(200).json({
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10, // Round to 1 decimal
+      resolutionRate: Math.round(resolutionRate * 10) / 10,
+      userSatisfaction: Math.round(userSatisfaction * 10) / 10,
+      totalReviews,
+      overdueComplaints,
+    });
+  } catch (err) {
+    console.error("getAdminAnalyticsSummary error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch admin analytics summary" });
+  }
+};
+
+// Admin Priority Distribution
+export const getAdminPriorityDistribution = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const priorityResults = await Complaint.aggregate([
+      {
+        $match: {
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [{ $ifNull: ["$priority", false] }, "$priority", "Unknown"],
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    const total = priorityResults.reduce((acc, r) => acc + (r.count || 0), 0);
+
+    const priorities = priorityResults.map((result) => ({
+      priority: result._id,
+      count: result.count,
+      percentage:
+        total > 0 ? Math.round((result.count / total) * 100 * 10) / 10 : 0,
+      color: getPriorityColor(result._id),
+    }));
+
+    res.status(200).json({ priorities });
+  } catch (err) {
+    console.error("getAdminPriorityDistribution error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch priority distribution" });
+  }
+};
+
+// Admin Status Distribution
+export const getAdminStatusDistribution = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const statusResults = await Complaint.aggregate([
+      {
+        $match: {
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [{ $ifNull: ["$status", false] }, "$status", "Unknown"],
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    const total = statusResults.reduce((acc, r) => acc + (r.count || 0), 0);
+
+    const statuses = statusResults.map((result) => ({
+      status: result._id,
+      count: result.count,
+      percentage:
+        total > 0 ? Math.round((result.count / total) * 100 * 10) / 10 : 0,
+      color: getStatusColor(result._id),
+    }));
+
+    res.status(200).json({ statuses });
+  } catch (err) {
+    console.error("getAdminStatusDistribution error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch status distribution" });
+  }
+};
+
+// Admin Monthly Trends
+export const getAdminMonthlyTrends = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const months = parseInt(req.query.months) || 6;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const startDate = new Date(year, new Date().getMonth() - months + 1, 1);
+    const endDate = new Date(
+      year,
+      new Date().getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+
+    const monthlyData = await Complaint.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate },
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          submitted: { $sum: 1 },
+          resolved: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
+            },
+          },
+          pending: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+            },
+          },
+          totalResolutionTime: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$createdAt", null] },
+                    { $ne: ["$updatedAt", null] },
+                  ],
+                },
+                {
+                  $divide: [
+                    { $subtract: ["$updatedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24, // Convert to days
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          resolvedCount: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          month: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$_id.month", 1] }, then: "Jan" },
+                { case: { $eq: ["$_id.month", 2] }, then: "Feb" },
+                { case: { $eq: ["$_id.month", 3] }, then: "Mar" },
+                { case: { $eq: ["$_id.month", 4] }, then: "Apr" },
+                { case: { $eq: ["$_id.month", 5] }, then: "May" },
+                { case: { $eq: ["$_id.month", 6] }, then: "Jun" },
+                { case: { $eq: ["$_id.month", 7] }, then: "Jul" },
+                { case: { $eq: ["$_id.month", 8] }, then: "Aug" },
+                { case: { $eq: ["$_id.month", 9] }, then: "Sep" },
+                { case: { $eq: ["$_id.month", 10] }, then: "Oct" },
+                { case: { $eq: ["$_id.month", 11] }, then: "Nov" },
+                { case: { $eq: ["$_id.month", 12] }, then: "Dec" },
+              ],
+              default: "Unknown",
+            },
+          },
+          year: "$_id.year",
+          submitted: 1,
+          resolved: 1,
+          pending: 1,
+          avgResolutionTime: {
+            $cond: [
+              { $gt: ["$resolvedCount", 0] },
+              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
+              0,
+            ],
+          },
+        },
+      },
+      { $sort: { year: 1, "_id.month": 1 } },
+    ]);
+
+    res.status(200).json({ data: monthlyData });
+  } catch (err) {
+    console.error("getAdminMonthlyTrends error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch monthly trends" });
+  }
+};
+
+// Admin Department Performance
+export const getAdminDepartmentPerformance = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const departmentData = await Complaint.aggregate([
+      {
+        $match: {
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $ifNull: ["$department", false] },
+              "$department",
+              "Unknown",
+            ],
+          },
+          totalComplaints: { $sum: 1 },
+          resolvedComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          pendingComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          totalResolutionTime: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$createdAt", null] },
+                    { $ne: ["$updatedAt", null] },
+                  ],
+                },
+                {
+                  $divide: [
+                    { $subtract: ["$updatedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          resolvedCount: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $project: {
+          department: "$_id",
+          totalComplaints: 1,
+          resolvedComplaints: 1,
+          pendingComplaints: 1,
+          avgResolutionTime: {
+            $cond: [
+              { $gt: ["$resolvedCount", 0] },
+              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
+              0,
+            ],
+          },
+          successRate: {
+            $cond: [
+              { $gt: ["$totalComplaints", 0] },
+              {
+                $multiply: [
+                  { $divide: ["$resolvedComplaints", "$totalComplaints"] },
+                  100,
+                ],
+              },
+              0,
+            ],
+          },
+        },
+      },
+      { $sort: { totalComplaints: -1 } },
+    ]);
+
+    // Get staff count per department
+    const staffCounts = await User.aggregate([
+      {
+        $match: {
+          role: "staff",
+          isActive: true,
+        },
+      },
+      {
+        $group: {
+          _id: "$department",
+          staffCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const staffCountMap = {};
+    staffCounts.forEach((item) => {
+      staffCountMap[item._id] = item.staffCount;
+    });
+
+    const departments = departmentData.map((dept) => ({
+      ...dept,
+      staffCount: staffCountMap[dept.department] || 0,
+      avgResolutionTime: Math.round(dept.avgResolutionTime * 10) / 10,
+      successRate: Math.round(dept.successRate * 10) / 10,
+    }));
+
+    res.status(200).json({ departments });
+  } catch (err) {
+    console.error("getAdminDepartmentPerformance error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch department performance" });
+  }
+};
+
+// Admin Staff Performance
+export const getAdminStaffPerformance = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Fetch all staff across all departments
+    const staff = await User.find({ role: "staff", isActive: true })
+      .select("_id name email department")
+      .lean();
+
+    if (!staff.length) return res.status(200).json({ staff: [] });
+
+    const staffIds = staff.map((s) => s._id);
+
+    const agg = await Complaint.aggregate([
+      {
+        $match: {
+          assignedTo: { $in: staffIds },
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: "$assignedTo",
+          totalAssigned: { $sum: 1 },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+          },
+          resolved: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          sumResolutionMs: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$updatedAt", null] },
+                    { $ne: ["$createdAt", null] },
+                  ],
+                },
+                { $subtract: ["$updatedAt", "$createdAt"] },
+                0,
+              ],
+            },
+          },
+          resolvedCount: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          ratingSum: {
+            $sum: {
+              $cond: [
+                { $ifNull: ["$feedback.rating", false] },
+                "$feedback.rating",
+                0,
+              ],
+            },
+          },
+          ratingCount: {
+            $sum: {
+              $cond: [{ $ifNull: ["$feedback.rating", false] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const perfMap = new Map();
+    agg.forEach((r) => perfMap.set(String(r._id), r));
+
+    const results = staff.map((s) => {
+      const stats = perfMap.get(String(s._id)) || {};
+      const totalAssigned = stats.totalAssigned || 0;
+      const resolved = stats.resolved || 0;
+      const successRate = totalAssigned
+        ? Number(((resolved / totalAssigned) * 100).toFixed(2))
+        : 0;
+      const avgResolutionHours = stats.resolvedCount
+        ? Number(
+            (stats.sumResolutionMs / stats.resolvedCount / 3600000).toFixed(2)
+          )
+        : 0;
+      const avgRating = stats.ratingCount
+        ? Number((stats.ratingSum / stats.ratingCount).toFixed(2))
+        : 0;
+      return {
+        staffId: s._id,
+        name: s.name || s.email,
+        email: s.email,
+        department: s.department,
+        totalAssigned,
+        pending: stats.pending || 0,
+        inProgress: stats.inProgress || 0,
+        resolved,
+        successRate,
+        avgResolutionHours,
+        avgRating,
+      };
+    });
+
+    res.status(200).json({ staff: results });
+  } catch (err) {
+    console.error("getAdminStaffPerformance error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch staff performance" });
+  }
+};
+
+// Dean Analytics Summary
+export const getDeanAnalyticsSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get complaints not submitted directly to admin (dean-visible)
+    const [
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      overdueComplaints,
+    ] = await Promise.all([
+      Complaint.countDocuments({
+        submittedTo: { $ne: "admin" },
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        status: "Resolved",
+        submittedTo: { $ne: "admin" },
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        status: "Pending",
+        submittedTo: { $ne: "admin" },
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        status: { $nin: ["Resolved", "Closed"] },
+        deadline: { $lt: new Date() },
+        submittedTo: { $ne: "admin" },
+        isDeleted: { $ne: true },
+      }),
+    ]);
+
+    const resolutionRate =
+      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
+
+    // Get average resolution time
+    const resolvedComplaintsWithTimes = await Complaint.find({
+      status: "Resolved",
+      submittedTo: { $ne: "admin" },
+      createdAt: { $exists: true },
+      updatedAt: { $exists: true },
+      isDeleted: { $ne: true },
+    }).select("createdAt updatedAt");
+
+    let totalResolutionTime = 0;
+    let resolvedCount = 0;
+
+    resolvedComplaintsWithTimes.forEach((complaint) => {
+      if (complaint.createdAt && complaint.updatedAt) {
+        const resolutionTime = complaint.updatedAt - complaint.createdAt;
+        totalResolutionTime += resolutionTime;
+        resolvedCount++;
+      }
+    });
+
+    const avgResolutionTime =
+      resolvedCount > 0
+        ? totalResolutionTime / resolvedCount / (1000 * 60 * 60 * 24)
+        : 0;
+
+    // Get user satisfaction
+    const complaintsWithFeedback = await Complaint.find({
+      "feedback.rating": { $exists: true },
+      submittedTo: { $ne: "admin" },
+      isDeleted: { $ne: true },
+    }).select("feedback.rating");
+
+    let totalRating = 0;
+    let totalReviews = 0;
+
+    complaintsWithFeedback.forEach((complaint) => {
+      if (complaint.feedback && typeof complaint.feedback.rating === "number") {
+        totalRating += complaint.feedback.rating;
+        totalReviews++;
+      }
+    });
+
+    const userSatisfaction = totalReviews > 0 ? totalRating / totalReviews : 0;
+
+    // Get departments managed (HoDs under this dean)
+    const departmentsManaged = await User.countDocuments({
+      role: "hod",
+      isActive: true,
+    });
+
+    res.status(200).json({
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10,
+      resolutionRate: Math.round(resolutionRate * 10) / 10,
+      userSatisfaction: Math.round(userSatisfaction * 10) / 10,
+      totalReviews,
+      overdueComplaints,
+      departmentsManaged,
+    });
+  } catch (err) {
+    console.error("getDeanAnalyticsSummary error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch dean analytics summary" });
+  }
+};
+
+// Dean Department Overview
+export const getDeanDepartmentOverview = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get HoDs and their departments
+    const hods = await User.find({
+      role: "hod",
+      isActive: true,
+    }).select("name department");
+
+    const departments = [];
+
+    for (const hod of hods) {
+      const deptStats = await Complaint.aggregate([
+        {
+          $match: {
+            department: hod.department,
+            submittedTo: { $ne: "admin" },
+            $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalComplaints: { $sum: 1 },
+            resolvedComplaints: {
+              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+            },
+            pendingComplaints: {
+              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+            },
+            totalResolutionTime: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "Resolved"] },
+                      { $ne: ["$createdAt", null] },
+                      { $ne: ["$updatedAt", null] },
+                    ],
+                  },
+                  {
+                    $divide: [
+                      { $subtract: ["$updatedAt", "$createdAt"] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                  0,
+                ],
+              },
+            },
+            resolvedCount: {
+              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+            },
+          },
+        },
+      ]);
+
+      const staffCount = await User.countDocuments({
+        role: "staff",
+        department: hod.department,
+        isActive: true,
+      });
+
+      const stats = deptStats[0] || {
+        totalComplaints: 0,
+        resolvedComplaints: 0,
+        pendingComplaints: 0,
+        totalResolutionTime: 0,
+        resolvedCount: 0,
+      };
+
+      departments.push({
+        department: hod.department,
+        hodName: hod.name || "Unknown",
+        totalComplaints: stats.totalComplaints,
+        resolvedComplaints: stats.resolvedComplaints,
+        pendingComplaints: stats.pendingComplaints,
+        staffCount,
+        avgResolutionTime:
+          stats.resolvedCount > 0
+            ? Math.round(
+                (stats.totalResolutionTime / stats.resolvedCount) * 10
+              ) / 10
+            : 0,
+      });
+    }
+
+    res.status(200).json({ departments });
+  } catch (err) {
+    console.error("getDeanDepartmentOverview error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch department overview" });
+  }
+};
+
+// Dean Monthly Trends
+export const getDeanAnalyticsMonthlyTrends = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const months = parseInt(req.query.months) || 6;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const startDate = new Date(year, new Date().getMonth() - months + 1, 1);
+    const endDate = new Date(
+      year,
+      new Date().getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+
+    const monthlyData = await Complaint.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate },
+          submittedTo: { $ne: "admin" },
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          submitted: { $sum: 1 },
+          resolved: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
+            },
+          },
+          pending: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+            },
+          },
+          totalResolutionTime: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$createdAt", null] },
+                    { $ne: ["$updatedAt", null] },
+                  ],
+                },
+                {
+                  $divide: [
+                    { $subtract: ["$updatedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          resolvedCount: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          month: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$_id.month", 1] }, then: "Jan" },
+                { case: { $eq: ["$_id.month", 2] }, then: "Feb" },
+                { case: { $eq: ["$_id.month", 3] }, then: "Mar" },
+                { case: { $eq: ["$_id.month", 4] }, then: "Apr" },
+                { case: { $eq: ["$_id.month", 5] }, then: "May" },
+                { case: { $eq: ["$_id.month", 6] }, then: "Jun" },
+                { case: { $eq: ["$_id.month", 7] }, then: "Jul" },
+                { case: { $eq: ["$_id.month", 8] }, then: "Aug" },
+                { case: { $eq: ["$_id.month", 9] }, then: "Sep" },
+                { case: { $eq: ["$_id.month", 10] }, then: "Oct" },
+                { case: { $eq: ["$_id.month", 11] }, then: "Nov" },
+                { case: { $eq: ["$_id.month", 12] }, then: "Dec" },
+              ],
+              default: "Unknown",
+            },
+          },
+          year: "$_id.year",
+          submitted: 1,
+          resolved: 1,
+          pending: 1,
+          avgResolutionTime: {
+            $cond: [
+              { $gt: ["$resolvedCount", 0] },
+              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
+              0,
+            ],
+          },
+        },
+      },
+      { $sort: { year: 1, "_id.month": 1 } },
+    ]);
+
+    res.status(200).json({ data: monthlyData });
+  } catch (err) {
+    console.error("getDeanAnalyticsMonthlyTrends error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch dean monthly trends" });
+  }
+};
+
+// HoD Analytics Summary
+export const getHodAnalyticsSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const dept = user.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for HoD analytics" });
+    }
+
+    const [
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      overdueComplaints,
+    ] = await Promise.all([
+      Complaint.countDocuments({
+        department: dept,
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        department: dept,
+        status: "Resolved",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        department: dept,
+        status: "Pending",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        department: dept,
+        status: { $nin: ["Resolved", "Closed"] },
+        deadline: { $lt: new Date() },
+        isDeleted: { $ne: true },
+      }),
+    ]);
+
+    const resolutionRate =
+      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
+
+    // Get average resolution time
+    const resolvedComplaintsWithTimes = await Complaint.find({
+      department: dept,
+      status: "Resolved",
+      createdAt: { $exists: true },
+      updatedAt: { $exists: true },
+      isDeleted: { $ne: true },
+    }).select("createdAt updatedAt");
+
+    let totalResolutionTime = 0;
+    let resolvedCount = 0;
+
+    resolvedComplaintsWithTimes.forEach((complaint) => {
+      if (complaint.createdAt && complaint.updatedAt) {
+        const resolutionTime = complaint.updatedAt - complaint.createdAt;
+        totalResolutionTime += resolutionTime;
+        resolvedCount++;
+      }
+    });
+
+    const avgResolutionTime =
+      resolvedCount > 0
+        ? totalResolutionTime / resolvedCount / (1000 * 60 * 60 * 24)
+        : 0;
+
+    // Get user satisfaction
+    const complaintsWithFeedback = await Complaint.find({
+      department: dept,
+      "feedback.rating": { $exists: true },
+      isDeleted: { $ne: true },
+    }).select("feedback.rating");
+
+    let totalRating = 0;
+    let totalReviews = 0;
+
+    complaintsWithFeedback.forEach((complaint) => {
+      if (complaint.feedback && typeof complaint.feedback.rating === "number") {
+        totalRating += complaint.feedback.rating;
+        totalReviews++;
+      }
+    });
+
+    const userSatisfaction = totalReviews > 0 ? totalRating / totalReviews : 0;
+
+    // Get staff managed
+    const staffManaged = await User.countDocuments({
+      role: "staff",
+      department: dept,
+      isActive: true,
+    });
+
+    res.status(200).json({
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10,
+      resolutionRate: Math.round(resolutionRate * 10) / 10,
+      userSatisfaction: Math.round(userSatisfaction * 10) / 10,
+      totalReviews,
+      overdueComplaints,
+      staffManaged,
+    });
+  } catch (err) {
+    console.error("getHodAnalyticsSummary error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch HoD analytics summary" });
+  }
+};
+
+// HoD Staff Overview
+export const getHodStaffOverview = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const dept = user.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for HoD staff overview" });
+    }
+
+    // Get staff in the same department
+    const staffMembers = await User.find({
+      role: "staff",
+      department: dept,
+      isActive: true,
+    }).select("_id name email");
+
+    const staff = [];
+
+    for (const staffMember of staffMembers) {
+      const staffStats = await Complaint.aggregate([
+        {
+          $match: {
+            assignedTo: staffMember._id,
+            department: dept,
+            $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalAssigned: { $sum: 1 },
+            resolved: {
+              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+            },
+            pending: {
+              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+            },
+            inProgress: {
+              $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+            },
+            totalResolutionTime: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "Resolved"] },
+                      { $ne: ["$createdAt", null] },
+                      { $ne: ["$updatedAt", null] },
+                    ],
+                  },
+                  {
+                    $divide: [
+                      { $subtract: ["$updatedAt", "$createdAt"] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                  0,
+                ],
+              },
+            },
+            resolvedCount: {
+              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+            },
+            totalRating: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "Resolved"] },
+                      { $ne: ["$feedback.rating", null] },
+                    ],
+                  },
+                  "$feedback.rating",
+                  0,
+                ],
+              },
+            },
+            ratingCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "Resolved"] },
+                      { $ne: ["$feedback.rating", null] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]);
+
+      const stats = staffStats[0] || {
+        totalAssigned: 0,
+        resolved: 0,
+        pending: 0,
+        inProgress: 0,
+        totalResolutionTime: 0,
+        resolvedCount: 0,
+        totalRating: 0,
+        ratingCount: 0,
+      };
+
+      staff.push({
+        staffId: staffMember._id,
+        name: staffMember.name || "Unknown",
+        email: staffMember.email,
+        totalAssigned: stats.totalAssigned,
+        resolved: stats.resolved,
+        pending: stats.pending,
+        inProgress: stats.inProgress,
+        successRate:
+          stats.totalAssigned > 0
+            ? Math.round((stats.resolved / stats.totalAssigned) * 100 * 10) / 10
+            : 0,
+        avgResolutionTime:
+          stats.resolvedCount > 0
+            ? Math.round(
+                (stats.totalResolutionTime / stats.resolvedCount) * 10
+              ) / 10
+            : 0,
+        avgRating:
+          stats.ratingCount > 0
+            ? Math.round((stats.totalRating / stats.ratingCount) * 10) / 10
+            : 0,
+      });
+    }
+
+    res.status(200).json({ staff });
+  } catch (err) {
+    console.error("getHodStaffOverview error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch HoD staff overview" });
+  }
+};
+
+// HoD Monthly Trends
+export const getHodAnalyticsMonthlyTrends = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const dept = user.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for HoD monthly trends" });
+    }
+
+    const months = parseInt(req.query.months) || 6;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const startDate = new Date(year, new Date().getMonth() - months + 1, 1);
+    const endDate = new Date(
+      year,
+      new Date().getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+
+    const monthlyData = await Complaint.aggregate([
+      {
+        $match: {
+          department: dept,
+          createdAt: { $gte: startDate, $lte: endDate },
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          submitted: { $sum: 1 },
+          resolved: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
+            },
+          },
+          pending: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+            },
+          },
+          totalResolutionTime: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$createdAt", null] },
+                    { $ne: ["$updatedAt", null] },
+                  ],
+                },
+                {
+                  $divide: [
+                    { $subtract: ["$updatedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          resolvedCount: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          month: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$_id.month", 1] }, then: "Jan" },
+                { case: { $eq: ["$_id.month", 2] }, then: "Feb" },
+                { case: { $eq: ["$_id.month", 3] }, then: "Mar" },
+                { case: { $eq: ["$_id.month", 4] }, then: "Apr" },
+                { case: { $eq: ["$_id.month", 5] }, then: "May" },
+                { case: { $eq: ["$_id.month", 6] }, then: "Jun" },
+                { case: { $eq: ["$_id.month", 7] }, then: "Jul" },
+                { case: { $eq: ["$_id.month", 8] }, then: "Aug" },
+                { case: { $eq: ["$_id.month", 9] }, then: "Sep" },
+                { case: { $eq: ["$_id.month", 10] }, then: "Oct" },
+                { case: { $eq: ["$_id.month", 11] }, then: "Nov" },
+                { case: { $eq: ["$_id.month", 12] }, then: "Dec" },
+              ],
+              default: "Unknown",
+            },
+          },
+          year: "$_id.year",
+          submitted: 1,
+          resolved: 1,
+          pending: 1,
+          avgResolutionTime: {
+            $cond: [
+              { $gt: ["$resolvedCount", 0] },
+              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
+              0,
+            ],
+          },
+        },
+      },
+      { $sort: { year: 1, "_id.month": 1 } },
+    ]);
+
+    res.status(200).json({ data: monthlyData });
+  } catch (err) {
+    console.error("getHodAnalyticsMonthlyTrends error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch HoD monthly trends" });
+  }
+}; //
 
 // Department priority distribution
 export const getDepartmentPriorityDistribution = async (req, res) => {
@@ -850,3 +2125,5 @@ export const getDepartmentStaffPerformance = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch staff performance" });
   }
 };
+// NOTE: end of getDepartmentStaffPerformance. Any stray code below was removed.
+//
