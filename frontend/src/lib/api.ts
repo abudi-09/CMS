@@ -108,6 +108,145 @@ export async function getHodComplaintStatsApi() {
   };
 }
 
+// HoD: department priority distribution
+export async function getHodPriorityDistributionApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/complaints/department/priority-distribution`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch priority distribution");
+  return data as {
+    total: number;
+    priorities: Array<{ priority: string; count: number }>;
+  };
+}
+
+// HoD: department status distribution
+export async function getHodStatusDistributionApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/complaints/department/status-distribution`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch status distribution");
+  return data as {
+    total: number;
+    statuses: Array<{ status: string; count: number }>;
+  };
+}
+
+// HoD: department category distribution
+export async function getHodCategoryDistributionApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/complaints/department/category-distribution`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch category distribution");
+  return data as {
+    total: number;
+    categories: Array<{ category: string; count: number }>;
+  };
+}
+
+// HoD: monthly trends (last N months)
+export async function getHodMonthlyTrendsApi(months = 6) {
+  const res = await fetch(
+    `${API_BASE}/stats/complaints/department/monthly-trends?months=${months}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch monthly trends");
+  return data as {
+    months: number;
+    data: Array<{
+      month: string;
+      year: number;
+      submitted: number;
+      resolved: number;
+    }>;
+  };
+}
+
+// HoD: staff performance aggregation
+export async function getHodStaffPerformanceApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/complaints/department/staff-performance`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch staff performance");
+  return data as {
+    staff: Array<{
+      staffId: string;
+      name: string;
+      email: string;
+      department?: string;
+      totalAssigned: number;
+      pending: number;
+      inProgress: number;
+      resolved: number;
+      successRate: number;
+      avgResolutionHours: number;
+      avgRating: number;
+    }>;
+  };
+}
+
+// Public user profile (for management profile view pages)
+export async function getUserPublicProfileApi(userId: string) {
+  const res = await fetch(`${API_BASE}/profile/user/${userId}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch user profile");
+  return data as {
+    id: string;
+    name?: string;
+    email: string;
+    username?: string;
+    role: string;
+    department?: string;
+    avatarUrl?: string;
+    isActive?: boolean;
+    isApproved?: boolean;
+    isRejected?: boolean;
+    memberSince?: string;
+    submittedTotal: number;
+    resolvedSubmitted: number;
+    assignedTotal: number;
+    resolvedAssigned: number;
+    successRate: number;
+  };
+}
+
 // Admin or Dean: total student count (active students)
 export async function getStudentCountApi() {
   const res = await fetch(`${API_BASE}/stats/students/count`, {
@@ -128,8 +267,12 @@ export async function getCategoryCountsApi() {
     credentials: "include",
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch categories count");
-  return data as { total: number; categories: Array<{ category: string; count: number }> };
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch categories count");
+  return data as {
+    total: number;
+    categories: Array<{ category: string; count: number }>;
+  };
 }
 // Approve staff (admin)
 export async function approveStaffApi(staffId: string) {

@@ -3,6 +3,11 @@ import { useAuth } from "@/components/auth/AuthContext";
 import {
   listMyDepartmentActiveStaffApi,
   getHodComplaintStatsApi,
+  getHodPriorityDistributionApi,
+  getHodStatusDistributionApi,
+  getHodCategoryDistributionApi,
+  getHodMonthlyTrendsApi,
+  getHodStaffPerformanceApi,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -41,22 +46,26 @@ import {
   Award,
 } from "lucide-react";
 
-// Mock data for charts (HOD-specific or filtered for department)
-const categoryData = [
-  { name: "IT Support", value: 8, count: 10 },
-  { name: "Academic", value: 6, count: 8 },
-  { name: "Facility", value: 4, count: 6 },
-  { name: "Finance", value: 2, count: 3 },
-];
-
-const priorityData = [
-  { priority: "Critical", count: 1, color: "#ef4444" },
-  { priority: "High", count: 4, color: "#f97316" },
-  { priority: "Medium", count: 7, color: "#eab308" },
-  { priority: "Low", count: 9, color: "#22c55e" },
-];
-
-const statusData = [{ status: "Pending", count: 3 }];
+// Dynamic datasets (fetched)
+interface CategoryDatum {
+  category: string;
+  count: number;
+}
+interface PriorityDatum {
+  priority: string;
+  count: number;
+  color?: string;
+}
+interface StatusDatum {
+  status: string;
+  count: number;
+}
+interface MonthlyTrend {
+  month: string;
+  year: number;
+  submitted: number;
+  resolved: number;
+}
 
 // typed staff perf items for HOD view
 type StaffPerfItem = {
@@ -75,14 +84,13 @@ const initialStaffPerformance: StaffPerfItem[] = [];
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
 // Monthly complaint trends mock data
-const monthlyTrendData = [
-  { month: "Jan", submitted: 5, resolved: 4 },
-  { month: "Feb", submitted: 7, resolved: 6 },
-  { month: "Mar", submitted: 6, resolved: 7 },
-  { month: "Apr", submitted: 8, resolved: 6 },
-  { month: "May", submitted: 7, resolved: 8 },
-  { month: "Jun", submitted: 9, resolved: 7 },
-];
+// helper colors
+const PRIORITY_COLORS: Record<string, string> = {
+  Critical: "#ef4444",
+  High: "#f97316",
+  Medium: "#eab308",
+  Low: "#22c55e",
+};
 
 export default function HoDAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
@@ -94,37 +102,136 @@ export default function HoDAnalytics() {
     total: 0,
     resolved: 0,
   });
+  const [categoryData, setCategoryData] = useState<CategoryDatum[]>([]);
+  const [priorityData, setPriorityData] = useState<PriorityDatum[]>([]);
+  const [statusData, setStatusData] = useState<StatusDatum[]>([]);
+  const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrend[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
     async function fetchData() {
       try {
-        const staffRes = await listMyDepartmentActiveStaffApi().catch(() => []);
-        const staffArr = Array.isArray(staffRes) ? staffRes : [];
-        // Map to StaffPerfItem (initial counts are zeros; metrics computed elsewhere or via separate API)
-        const mapped: StaffPerfItem[] = staffArr.map(
-          (s: Record<string, unknown>, idx: number) => ({
-            id: String(s._id ?? s.id ?? s.email ?? `dept-${idx}`),
-            name: String(s.fullName ?? s.name ?? s.email ?? "Unknown"),
-            department: String(s.department ?? ""),
-            totalAssigned: Number(s.totalAssigned ?? 0),
-            resolved: Number(s.resolved ?? 0),
-            pending: Number(s.pending ?? 0),
-            inProgress: Number(s.inProgress ?? 0),
-            successRate: Number(s.successRate ?? 0),
-          })
-        );
-        if (cancelled) return;
-        setStaffPerformance(mapped);
+        const [
+          staffRes,
+          statsRes,
+          priorityRes,
+          statusRes,
+          categoryRes,
+          monthlyRes,
+          staffPerfRes,
+        ] = await Promise.all([
+          listMyDepartmentActiveStaffApi().catch(() => []),
+          getHodComplaintStatsApi().catch(() => null),
+          getHodPriorityDistributionApi().catch(() => null),
+          getHodStatusDistributionApi().catch(() => null),
+          getHodCategoryDistributionApi().catch(() => null),
+          getHodMonthlyTrendsApi(6).catch(() => null),
+          getHodStaffPerformanceApi().catch(() => null),
+        ]);
 
-        const statsRes = await getHodComplaintStatsApi().catch(() => null);
+        if (cancelled) return;
+
+        // Staff list baseline for fallback ordering
+        const staffArr = Array.isArray(staffRes) ? staffRes : [];
+
+        // Staff performance aggregated results
+        if (staffPerfRes && typeof staffPerfRes === "object") {
+          interface RawStaffPerf {
+            staffId?: string;
+            _id?: string;
+            name?: string;
+            email?: string;
+            department?: string;
+            totalAssigned?: number;
+            pending?: number;
+            inProgress?: number;
+            resolved?: number;
+            successRate?: number;
+          }
+          const arr = (staffPerfRes as { staff?: RawStaffPerf[] }).staff || [];
+          setStaffPerformance(
+            arr.map((r: RawStaffPerf) => ({
+              id: String(r.staffId || r._id || r.email || ""),
+              name: String(r.name || r.email || "Unknown"),
+              department: String(r.department || ""),
+              totalAssigned: Number(r.totalAssigned ?? 0),
+              resolved: Number(r.resolved ?? 0),
+              pending: Number(r.pending ?? 0),
+              inProgress: Number(r.inProgress ?? 0),
+              successRate: Number(r.successRate ?? 0),
+            }))
+          );
+        } else {
+          // fallback zeros if aggregation missing
+          setStaffPerformance(
+            staffArr.map((raw: Record<string, unknown>, idx: number) => {
+              interface StaffLite {
+                _id?: string;
+                id?: string;
+                email?: string;
+                name?: string;
+                fullName?: string;
+                department?: string;
+              }
+              const s = raw as StaffLite;
+              return {
+                id: String(s._id || s.id || s.email || `dept-${idx}`),
+                name: String(s.fullName || s.name || s.email || "Unknown"),
+                department: String(s.department || ""),
+                totalAssigned: 0,
+                resolved: 0,
+                pending: 0,
+                inProgress: 0,
+                successRate: 0,
+              };
+            })
+          );
+        }
+
         if (statsRes && typeof statsRes === "object") {
-          const sr = statsRes as Record<string, unknown>;
           setComplaintStats({
-            total: Number(sr["total"] ?? 0),
-            resolved: Number(sr["resolved"] ?? 0),
+            total: Number((statsRes as { total?: number }).total || 0),
+            resolved: Number((statsRes as { resolved?: number }).resolved || 0),
           });
+        }
+        if (priorityRes && typeof priorityRes === "object") {
+          type RawPriority = { priority?: string; count?: number };
+          const pArr =
+            (priorityRes as { priorities?: RawPriority[] }).priorities || [];
+          setPriorityData(
+            pArr.map((p: RawPriority) => ({
+              priority: String(p.priority || "Unknown"),
+              count: Number(p.count || 0),
+              color: PRIORITY_COLORS[String(p.priority || "")] || "#8884d8",
+            }))
+          );
+        }
+        if (statusRes && typeof statusRes === "object") {
+          type RawStatus = { status?: string; count?: number };
+          const sArr = (statusRes as { statuses?: RawStatus[] }).statuses || [];
+          setStatusData(
+            sArr.map((s: RawStatus) => ({
+              status: String(s.status || "Unknown"),
+              count: Number(s.count || 0),
+            }))
+          );
+        }
+        if (categoryRes && typeof categoryRes === "object") {
+          type RawCategory = { category?: string; count?: number };
+          const cArr =
+            (categoryRes as { categories?: RawCategory[] }).categories || [];
+          setCategoryData(
+            cArr.map((c: RawCategory) => ({
+              category: String(c.category || "Unknown"),
+              count: Number(c.count || 0),
+            }))
+          );
+        }
+        if (monthlyRes && typeof monthlyRes === "object") {
+          setMonthlyTrendData(
+            (monthlyRes as { data?: MonthlyTrend[] }).data || []
+          );
         }
       } catch (e) {
         console.error("Failed to fetch HOD analytics", e);
@@ -195,7 +302,10 @@ export default function HoDAnalytics() {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={categoryData.map((c) => ({
+                    name: c.category,
+                    count: c.count,
+                  }))}
                   dataKey="count"
                   nameKey="name"
                   cx="50%"

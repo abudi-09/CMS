@@ -6,6 +6,7 @@ import {
   uploadAvatar,
   saveCloudAvatar,
   resetAvatar,
+  getUserPublicProfile,
 } from "../controllers/profile.controller.js";
 import { protectRoute } from "../middleware/protectRoute.js";
 import multer from "multer";
@@ -28,7 +29,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (_req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"]; 
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
   if (allowed.includes(file.mimetype)) cb(null, true);
   else cb(new Error("Invalid file type"));
 };
@@ -44,8 +45,15 @@ const router = express.Router();
 router.get("/profile", protectRoute, getProfile);
 router.put("/profile", protectRoute, updateProfile);
 router.put("/profile/password", protectRoute, changePassword);
-router.post("/profile/avatar", protectRoute, upload.single("avatar"), uploadAvatar);
+router.post(
+  "/profile/avatar",
+  protectRoute,
+  upload.single("avatar"),
+  uploadAvatar
+);
 router.patch("/profile/avatar/cloud", protectRoute, saveCloudAvatar);
 router.delete("/profile/avatar", protectRoute, resetAvatar);
+// Public profile (authenticated) for management views
+router.get("/profile/user/:id", protectRoute, getUserPublicProfile);
 
 export default router;

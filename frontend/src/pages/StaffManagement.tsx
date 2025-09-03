@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UserCheck, UserX, Clock, Users, Mail, Building } from "lucide-react";
+import { UserCheck, UserX, Users, RefreshCcw } from "lucide-react";
 import { StaffStatus } from "@/components/auth/AuthContext";
 import {
   Pagination,
@@ -23,73 +23,28 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import UserProfileModal from "@/components/UserProfileModal";
+import {
+  getHodPendingStaffApi,
+  getHodActiveStaffApi,
+  getHodRejectedStaffApi,
+  getHodDeactivatedStaffApi,
+  hodApproveStaffApi,
+  hodRejectStaffApi,
+  hodDeactivateStaffApi,
+  hodReactivateStaffApi,
+} from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 type Staff = {
   id: string;
   name: string;
   email: string;
   department: string;
-  position: string;
+  position?: string;
   registeredDate: Date;
-  status: string;
+  status: "pending" | "approved" | "rejected" | "deactivated";
 };
-
-const mockStaff: Staff[] = [
-  {
-    id: "staff1",
-    name: "John Doe",
-    email: "john@university.edu",
-    department: "Engineering",
-    position: "Lab Technician",
-    registeredDate: new Date("2023-09-01"),
-    status: "pending",
-  },
-  {
-    id: "staff2",
-    name: "Jane Smith",
-    email: "jane@university.edu",
-    department: "Science",
-    position: "Research Assistant",
-    registeredDate: new Date("2023-08-15"),
-    status: "approved",
-  },
-  {
-    id: "staff3",
-    name: "Mike Brown",
-    email: "mike@university.edu",
-    department: "Business",
-    position: "Office Clerk",
-    registeredDate: new Date("2023-07-10"),
-    status: "rejected",
-  },
-  {
-    id: "staff4",
-    name: "Lisa White",
-    email: "lisa@university.edu",
-    department: "Arts",
-    position: "Studio Assistant",
-    registeredDate: new Date("2023-09-10"),
-    status: "approved",
-  },
-  {
-    id: "staff5",
-    name: "Tom Green",
-    email: "tom@university.edu",
-    department: "Law",
-    position: "Legal Secretary",
-    registeredDate: new Date("2023-06-20"),
-    status: "pending",
-  },
-  {
-    id: "staff6",
-    name: "Sara Black",
-    email: "sara@university.edu",
-    department: "Medicine",
-    position: "Nurse",
-    registeredDate: new Date("2023-05-05"),
-    status: "approved",
-  },
-];
 
 export interface StaffManagementProps {
   initialStaff?: Staff[];
@@ -100,9 +55,11 @@ export default function StaffManagement({
   initialStaff,
   showDepartmentColumn = true,
 }: StaffManagementProps) {
-  const [staff, setStaff] = useState(initialStaff ?? mockStaff);
+  const [staff, setStaff] = useState<Staff[]>(initialStaff ?? []);
   const [searchTerm, setSearchTerm] = useState("");
   const [tab, setTab] = useState("approved");
+  const [loading, setLoading] = useState(false);
+  const [refreshTs, setRefreshTs] = useState(0);
   // Pagination per tab
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -110,24 +67,99 @@ export default function StaffManagement({
     setPage(1);
   }, [searchTerm, tab]);
 
+  // Fetch backend staff sets
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [pending, active, rejected, deactivated] = await Promise.all([
+          getHodPendingStaffApi().catch(() => []),
+          getHodActiveStaffApi().catch(() => []),
+          getHodRejectedStaffApi().catch(() => []),
+          getHodDeactivatedStaffApi().catch(() => []),
+        ]);
+        if (ignore) return;
+        // Normalize to unified list with status marker
+        interface RawStaff {
+          _id?: string;
+          id?: string;
+          name?: string;
+          fullName?: string;
+          username?: string;
+          email?: string;
+          department?: string;
+          workingPlace?: string;
+          position?: string;
+          title?: string;
+          createdAt?: string | Date;
+        }
+        const mapUser = (u: RawStaff, status: Staff["status"]): Staff => ({
+          id: String(u._id || u.id),
+          name: u.name || u.fullName || u.username || u.email,
+          email: u.email,
+          department: u.department || "-",
+          position: u.workingPlace || u.position || u.title || undefined,
+          registeredDate: new Date(u.createdAt || Date.now()),
+          status,
+        });
+        const combined: Staff[] = [
+          ...pending.map((u: unknown) => mapUser(u, "pending")),
+          ...active.map((u: unknown) => mapUser(u, "approved")),
+          ...rejected.map((u: unknown) => mapUser(u, "rejected")),
+          ...deactivated.map((u: unknown) => mapUser(u, "deactivated")),
+        ];
+        // De-dupe by id preferring non-pending status ordering
+        const order = {
+          approved: 3,
+          pending: 2,
+          rejected: 1,
+          deactivated: 0,
+        } as const;
+        const dedup = new Map<string, Staff>();
+        combined.forEach((s) => {
+          const existing = dedup.get(s.id);
+          if (!existing || order[s.status] > order[existing.status])
+            dedup.set(s.id, s);
+        });
+        setStaff(Array.from(dedup.values()));
+      } catch (e) {
+        toast({
+          title: "Failed to load staff",
+          description: (e as Error).message,
+          variant: "destructive",
+        });
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [refreshTs]);
+
   const filteredStaff = staff.filter(
     (s) =>
-      (s.department.toLowerCase() === "information technology" ||
-        s.department.toLowerCase() === "it") &&
-      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.email.toLowerCase().includes(searchTerm.toLowerCase()))
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const approvedStaff = filteredStaff.filter((s) => s.status === "approved");
   const pendingStaff = filteredStaff.filter((s) => s.status === "pending");
   const rejectedStaff = filteredStaff.filter((s) => s.status === "rejected");
+  const deactivatedStaff = filteredStaff.filter(
+    (s) => s.status === "deactivated"
+  );
 
   // Select active dataset
   const activeData = useMemo(() => {
     if (tab === "pending") return pendingStaff;
     if (tab === "rejected") return rejectedStaff;
+    if (tab === "deactivated") return deactivatedStaff;
     return approvedStaff;
-  }, [tab, approvedStaff, pendingStaff, rejectedStaff]);
+  }, [tab, approvedStaff, pendingStaff, rejectedStaff, deactivatedStaff]);
 
   // Pagination helpers
   const totalItems = activeData.length;
@@ -146,21 +178,102 @@ export default function StaffManagement({
     return pages;
   };
 
-  const handleApprove = (id: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s))
-    );
+  const safeUpdate = (id: string, status: Staff["status"]) => {
+    setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
   };
-  const handleReject = (id: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s))
-    );
+  const handleApprove = async (id: string) => {
+    try {
+      await hodApproveStaffApi(id);
+      safeUpdate(id, "approved");
+      toast({ title: "Staff Approved" });
+    } catch (e) {
+      toast({
+        title: "Approve failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
   };
-  const handleDeactivate = (id: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "deactivated" } : s))
-    );
+  const handleReject = async (id: string) => {
+    try {
+      await hodRejectStaffApi(id);
+      safeUpdate(id, "rejected");
+      toast({ title: "Staff Rejected" });
+    } catch (e) {
+      toast({
+        title: "Reject failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
   };
+  const handleDeactivate = async (id: string) => {
+    try {
+      await hodDeactivateStaffApi(id);
+      safeUpdate(id, "deactivated");
+      toast({ title: "Staff Deactivated" });
+    } catch (e) {
+      toast({
+        title: "Deactivate failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+  const handleReactivate = async (id: string) => {
+    try {
+      await hodReactivateStaffApi(id);
+      safeUpdate(id, "approved");
+      toast({ title: "Staff Reactivated" });
+    } catch (e) {
+      toast({
+        title: "Reactivate failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Listen for promotion events (from StudentManagement)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.user) return;
+      const u = detail.user as {
+        _id?: string;
+        name?: string;
+        fullName?: string;
+        username?: string;
+        email?: string;
+        department?: string;
+        workingPlace?: string;
+        createdAt?: string | Date;
+      };
+      setStaff((prev) => {
+        if (prev.some((p) => p.id === u._id)) return prev; // already exists
+        return [
+          {
+            id: String(u._id),
+            name: u.name || u.fullName || u.username || u.email,
+            email: u.email,
+            department: u.department || "-",
+            position: u.workingPlace || undefined,
+            registeredDate: new Date(u.createdAt || Date.now()),
+            status: "approved",
+          },
+          ...prev,
+        ];
+      });
+    };
+    window.addEventListener("hod:staff-promoted", handler as EventListener);
+    return () =>
+      window.removeEventListener(
+        "hod:staff-promoted",
+        handler as EventListener
+      );
+  }, []);
+
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const StaffTable = ({
     data,
@@ -222,7 +335,7 @@ export default function StaffManagement({
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Position</TableHead>
+              <TableHead>Working Position</TableHead>
               {showDepartmentColumn && <TableHead>Department</TableHead>}
               <TableHead>Registration Date</TableHead>
               <TableHead>Status</TableHead>
@@ -244,7 +357,7 @@ export default function StaffManagement({
                 <TableRow key={s.id}>
                   <TableCell>{s.name}</TableCell>
                   <TableCell>{s.email}</TableCell>
-                  <TableCell>{s.position}</TableCell>
+                  <TableCell>{s.position || "-"}</TableCell>
                   {showDepartmentColumn && (
                     <TableCell>{s.department}</TableCell>
                   )}
@@ -296,12 +409,21 @@ export default function StaffManagement({
               <TabsTrigger value="pending">Pending</TabsTrigger>
               <TabsTrigger value="approved">Approved</TabsTrigger>
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
+              <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
             </TabsList>
             <TabsContent value="approved">
               <StaffTable
                 data={approvedStaff}
                 actions={(s) => (
                   <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -319,6 +441,14 @@ export default function StaffManagement({
                 data={pendingStaff}
                 actions={(s) => (
                   <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -343,18 +473,73 @@ export default function StaffManagement({
               <StaffTable
                 data={rejectedStaff}
                 actions={(s) => (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleApprove(s.id)}
-                    className="text-green-600 hover:text-green-700"
-                  >
-                    <UserCheck className="h-4 w-4" /> Re-approve
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleApprove(s.id)}
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      <UserCheck className="h-4 w-4" /> Re-approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
+                  </>
+                )}
+              />
+            </TabsContent>
+            <TabsContent value="deactivated">
+              <StaffTable
+                data={deactivatedStaff}
+                actions={(s) => (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReactivate(s.id)}
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      <UserCheck className="h-4 w-4" /> Reactivate
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
+                  </>
                 )}
               />
             </TabsContent>
           </Tabs>
+          {loading && (
+            <div className="pt-4 text-sm text-muted-foreground">
+              Loading staff...
+            </div>
+          )}
+          <div className="pt-4 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRefreshTs(Date.now())}
+              disabled={loading}
+              className="flex items-center gap-1"
+            >
+              <RefreshCcw className="h-4 w-4" /> Refresh
+            </Button>
+            <div className="text-xs text-muted-foreground self-center">
+              Total: {staff.length}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -439,6 +624,14 @@ export default function StaffManagement({
           </Pagination>
         </div>
       )}
+
+      <UserProfileModal
+        userId={profileUserId || ""}
+        open={!!profileUserId}
+        onOpenChange={(o) => {
+          if (!o) setProfileUserId(null);
+        }}
+      />
     </div>
   );
 }

@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UserCheck, UserX, Clock, Users } from "lucide-react";
+import { UserCheck, UserX, Users } from "lucide-react";
+import UserProfileModal from "@/components/UserProfileModal";
 import {
   getHodPendingStaffApi,
   getHodActiveStaffApi,
@@ -43,6 +44,7 @@ export default function HODStaffManagement() {
   const [rejected, setRejected] = useState<Staff[]>([]);
   const [deactivated, setDeactivated] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   async function loadAll() {
     setLoading(true);
@@ -61,6 +63,7 @@ export default function HODStaffManagement() {
         email: string;
         department: string;
         workingPlace?: string;
+        createdAt?: string;
       };
       const map = (arr: Raw[], status: Staff["status"]): Staff[] =>
         arr.map((u: Raw) => ({
@@ -69,6 +72,7 @@ export default function HODStaffManagement() {
           email: u.email,
           department: u.department,
           workingPlace: u.workingPlace,
+          registeredDate: u.createdAt ? new Date(u.createdAt) : undefined,
           status,
         }));
       setPending(map(p, "pending"));
@@ -171,7 +175,8 @@ export default function HODStaffManagement() {
     list.filter(
       (s) =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.email.toLowerCase().includes(searchTerm.toLowerCase())
+        s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.workingPlace || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
   const handleApprove = async (id: string) => {
@@ -206,6 +211,7 @@ export default function HODStaffManagement() {
             <TableHead>Email</TableHead>
             <TableHead>Department</TableHead>
             <TableHead>Working Position</TableHead>
+            <TableHead>Registration Date</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -214,7 +220,7 @@ export default function HODStaffManagement() {
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={7}
                 className="text-center py-8 text-muted-foreground"
               >
                 {loading ? "Loading..." : "No staff found"}
@@ -230,6 +236,11 @@ export default function HODStaffManagement() {
                   {s.workingPlace || (
                     <span className="text-muted-foreground">—</span>
                   )}
+                </TableCell>
+                <TableCell>
+                  {s.registeredDate
+                    ? s.registeredDate.toLocaleDateString()
+                    : "—"}
                 </TableCell>
                 <TableCell>
                   <Badge
@@ -293,6 +304,14 @@ export default function HODStaffManagement() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleDeactivate(s.id)}
                       className="text-red-600"
                     >
@@ -308,6 +327,14 @@ export default function HODStaffManagement() {
                 data={filterList(pending)}
                 actions={(s) => (
                   <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -332,9 +359,16 @@ export default function HODStaffManagement() {
             <TabsContent value="rejected">
               <StaffTable
                 data={filterList(rejected)}
-                actions={() => (
-                  <div className="text-sm text-muted-foreground">
-                    No actions
+                actions={(s) => (
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
                   </div>
                 )}
               />
@@ -345,6 +379,14 @@ export default function HODStaffManagement() {
                 data={filterList(deactivated)}
                 actions={(s) => (
                   <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileUserId(s.id)}
+                      className="text-blue-600"
+                    >
+                      <Users className="h-4 w-4" /> View Profile
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -360,6 +402,11 @@ export default function HODStaffManagement() {
           </Tabs>
         </CardContent>
       </Card>
+      <UserProfileModal
+        userId={profileUserId || ""}
+        open={!!profileUserId}
+        onOpenChange={(o) => !o && setProfileUserId(null)}
+      />
     </div>
   );
 }

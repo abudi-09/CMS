@@ -8,6 +8,7 @@ import {
   getMyStaffStatsApi,
   listMyAssignedComplaintsApi,
   getStaffFeedbackApi,
+  getRoleCountsApi,
 } from "@/lib/api";
 import type { StaffStats, AssignedComplaintLite } from "@/lib/api";
 import { getProfileStatsApi } from "@/lib/api.profile.stats";
@@ -113,6 +114,12 @@ export function Profile() {
     pendingComplaints: 0,
     successRate: 0,
   });
+  const [roleCounts, setRoleCounts] = useState<null | {
+    deans: number;
+    departmentHeads: number;
+    students: number;
+    staff: number;
+  }>(null);
 
   // Staff-specific performance data
   const [staffPerf, setStaffPerf] = useState({
@@ -131,12 +138,25 @@ export function Profile() {
       try {
         const data = await getProfileStatsApi();
         if (!ignore) {
+          // Some endpoints may return alternative field names; normalize them.
+          const total =
+            data.totalComplaints ?? data.submittedTotal ?? data.total ?? 0;
+          const resolved =
+            data.resolvedComplaints ??
+            data.resolvedSubmitted ??
+            data.resolved ??
+            0;
+          const inProg = data.inProgressComplaints ?? data.inProgress ?? 0;
+          const pending = data.pendingComplaints ?? data.pending ?? 0;
+          const success =
+            data.successRate ??
+            (total ? Number(((resolved / total) * 100).toFixed(2)) : 0);
           setStats({
-            totalComplaints: data.totalComplaints || 0,
-            resolvedComplaints: data.resolvedComplaints || 0,
-            inProgressComplaints: data.inProgressComplaints || 0,
-            pendingComplaints: data.pendingComplaints || 0,
-            successRate: data.successRate || 0,
+            totalComplaints: total,
+            resolvedComplaints: resolved,
+            inProgressComplaints: inProg,
+            pendingComplaints: pending,
+            successRate: success,
           });
         }
       } catch (_) {
@@ -148,6 +168,18 @@ export function Profile() {
       ignore = true;
     };
   }, []);
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    let ignore = false;
+    getRoleCountsApi()
+      .then((rc) => {
+        if (!ignore) setRoleCounts(rc);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [user?.role]);
 
   const performanceData = useMemo(() => {
     if (user?.role === "staff") {
@@ -961,40 +993,61 @@ export function Profile() {
                   <CardDescription>Your activity summary</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        {user?.role === "admin"
-                          ? "Total Staff"
-                          : "Total Complaints"}
-                      </p>
-                      <p className="text-lg font-semibold">
-                        {user?.role === "admin"
-                          ? "8"
-                          : performanceData.totalComplaints}
-                      </p>
+                  {user?.role === "admin" && roleCounts ? (
+                    <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                      {[
+                        { label: "Staff", value: roleCounts.staff },
+                        { label: "Students", value: roleCounts.students },
+                        {
+                          label: "Dept. Heads",
+                          value: roleCounts.departmentHeads,
+                        },
+                        { label: "Deans", value: roleCounts.deans },
+                      ].map((b) => (
+                        <div
+                          key={b.label}
+                          className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition flex flex-col items-start"
+                        >
+                          <span className="text-xs text-muted-foreground tracking-wide uppercase">
+                            {b.label}
+                          </span>
+                          <span className="mt-2 text-2xl font-bold text-primary">
+                            {b.value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Resolved</p>
-                      <p className="text-lg font-semibold text-green-600">
-                        {performanceData.resolved}
-                      </p>
+                  ) : (
+                    <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                      {[
+                        {
+                          label: "Submitted",
+                          value: performanceData.totalComplaints,
+                        },
+                        { label: "Resolved", value: performanceData.resolved },
+                        {
+                          label: "In Progress",
+                          value: performanceData.inProgress,
+                        },
+                        {
+                          label: "Success Rate",
+                          value: `${performanceData.resolutionRate || 0}%`,
+                        },
+                      ].map((b) => (
+                        <div
+                          key={b.label}
+                          className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition flex flex-col items-start"
+                        >
+                          <span className="text-xs text-muted-foreground tracking-wide uppercase">
+                            {b.label}
+                          </span>
+                          <span className="mt-2 text-2xl font-bold text-primary">
+                            {b.value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        {user?.role === "admin"
-                          ? "System Uptime"
-                          : "Success Rate"}
-                      </p>
-                      <p className="text-lg font-semibold text-green-600">
-                        {user?.role === "admin"
-                          ? "99.9%"
-                          : `${performanceData.resolutionRate}%`}
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             )
