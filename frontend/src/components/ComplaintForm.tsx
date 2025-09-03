@@ -25,6 +25,7 @@ import {
   listActiveAdminsPublicApi,
   listActiveDeansPublicApi,
   listMyDepartmentActiveStaffApi,
+  submitComplaintApi,
 } from "@/lib/api";
 
 type Priority = "Low" | "Medium" | "High" | "Critical";
@@ -43,30 +44,6 @@ type ApiComplaint = {
   recipientStaffId?: string;
   recipientHodId?: string;
 };
-
-async function submitComplaintApi(payload: ApiComplaint): Promise<void> {
-  try {
-    const res = await fetch("/api/complaints", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      let message = "Could not submit complaint";
-      try {
-        const data = await res.json();
-        if (data && typeof data.message === "string") {
-          message = data.message;
-        }
-      } catch {
-        // ignore parse error
-      }
-      throw new Error(message);
-    }
-  } catch (err) {
-    throw err instanceof Error ? err : new Error("Could not submit complaint");
-  }
-}
 
 export default function ComplaintForm() {
   const departments = [

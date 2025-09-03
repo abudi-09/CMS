@@ -215,19 +215,12 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         } catch {
           // ignore
         }
-        // Complaints assigned to this admin
+        // Complaints assigned to this admin - only direct submissions from students
         const res = await fetchJson<QueryComplaint[]>(
-          `${API_BASE}/complaints?assignedTo=${encodeURIComponent(user.id)}`
+          `${API_BASE}/complaints?assignedTo=${encodeURIComponent(user.id)}&submittedTo=admin&sourceRole=student`
         );
         if (cancelled) return;
-        const directToAdmin = (c: QueryComplaint) => {
-          const submittedTo = String(c?.submittedTo || "").toLowerCase();
-          const src = String(c?.sourceRole || "").toLowerCase();
-          // Only complaints submitted directly to Admin by students
-          return submittedTo.includes("admin") && src === "student";
-        };
         const mapped: Complaint[] = (res || [])
-          .filter(directToAdmin)
           .map((c) => {
             const status = (c?.status as Complaint["status"]) || "Pending";
             const priority: Complaint["priority"] =
@@ -381,12 +374,11 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     try {
       setLoading(true);
       setError(null);
-      // Format yyyy-mm-dd in local calendar terms
+      // Format yyyy-mm-dd in UTC to ensure consistency
       const yyyy = date.getFullYear();
       const mm = String(date.getMonth() + 1).padStart(2, "0");
       const dd = String(date.getDate()).padStart(2, "0");
       const dateStr = `${yyyy}-${mm}-${dd}`;
-      const tzOffset = date.getTimezoneOffset(); // minutes
       const categoriesParam =
         categoryFilter !== "all"
           ? [categoryFilter]
@@ -400,7 +392,6 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         priority: priorityFilter !== "all" ? priorityFilter : undefined,
         categories: categoriesParam,
         assignedTo: user.id,
-        tzOffset,
       });
       const mapped: Complaint[] = (items as unknown as QueryComplaint[]).map(
         (c) => {
@@ -447,32 +438,17 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         }
       );
       // Replace current selected day's events using a day range filter
-      const startOfDay = new Date(
-        yyyy,
-        date.getMonth(),
-        date.getDate(),
-        0,
-        0,
-        0,
-        0
-      );
-      const endOfDay = new Date(
-        yyyy,
-        date.getMonth(),
-        date.getDate(),
-        23,
-        59,
-        59,
-        999
-      );
+      const startOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 0, 0, 0, 0);
+      const endOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 23, 59, 59, 999);
       setAllComplaints((prev) => {
+        // Remove existing complaints for this day
         const keep = prev.filter((c) => {
           const compareDate =
             viewType === "submission" ? c.submittedDate : c.deadline;
-          return (
-            !compareDate || compareDate < startOfDay || compareDate > endOfDay
-          );
+          if (!compareDate) return true; // Keep complaints without dates
+          return !(compareDate >= startOfDay && compareDate <= endOfDay);
         });
+        // Add the new complaints for this day
         return [...keep, ...mapped];
       });
     } catch (e) {

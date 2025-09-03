@@ -536,24 +536,19 @@ export const getAdminCalendarDay = async (req, res) => {
     const viewType =
       req.query.viewType === "deadline" ? "deadline" : "submission";
     const dateStr = String(req.query.date || ""); // yyyy-mm-dd
-    const tzOffsetMin = Number.isFinite(parseInt(req.query.tzOffset, 10))
-      ? parseInt(req.query.tzOffset, 10)
-      : 0; // minutes; same semantics as JS Date.getTimezoneOffset()
     if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
       return res.status(400).json({ error: "Invalid or missing date" });
     }
+
+    // Parse the date string and create day boundaries in UTC
     const [yStr, mStr, dStr] = dateStr.split("-");
     const y = parseInt(yStr, 10);
     const m = parseInt(mStr, 10) - 1;
     const d = parseInt(dStr, 10);
-    // Compute the client-local day bounds converted to UTC using tzOffset
-    // getTimezoneOffset returns minutes to add to local time to get UTC
-    const dayStartLocalUtcMs =
-      Date.UTC(y, m, d, 0, 0, 0, 0) - tzOffsetMin * 60000;
-    const dayEndLocalUtcMs =
-      Date.UTC(y, m, d, 23, 59, 59, 999) - tzOffsetMin * 60000;
-    const dayStart = new Date(dayStartLocalUtcMs);
-    const dayEnd = new Date(dayEndLocalUtcMs);
+
+    // Create date boundaries for the entire day in UTC
+    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
 
     const base = {
       isDeleted: { $ne: true },
@@ -575,6 +570,7 @@ export const getAdminCalendarDay = async (req, res) => {
         "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath"
       )
       .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
       .lean();
 
     return res.status(200).json(items || []);
