@@ -367,9 +367,12 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     try {
       setLoading(true);
       setError(null);
-      const dateStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 10);
+      // Format yyyy-mm-dd in local calendar terms
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      const tzOffset = date.getTimezoneOffset(); // minutes
       const categoriesParam =
         categoryFilter !== "all"
           ? [categoryFilter]
@@ -383,6 +386,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         priority: priorityFilter !== "all" ? priorityFilter : undefined,
         categories: categoriesParam,
         assignedTo: user.id,
+        tzOffset,
       });
       const mapped: Complaint[] = (items as unknown as QueryComplaint[]).map(
         (c) => {
@@ -427,11 +431,15 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           } as Complaint;
         }
       );
-      // Replace current selected day subset by removing other-day entries with same ids not necessary; just merge unique to update data
+      // Replace current selected day's events using a day range filter
+      const startOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 0, 0, 0, 0);
+      const endOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 23, 59, 59, 999);
       setAllComplaints((prev) => {
-        const byId = new Map<string, Complaint>();
-        [...prev, ...mapped].forEach((it) => byId.set(it.id, it));
-        return Array.from(byId.values());
+        const keep = prev.filter((c) => {
+          const compareDate = viewType === "submission" ? c.submittedDate : c.deadline;
+          return !compareDate || compareDate < startOfDay || compareDate > endOfDay;
+        });
+        return [...keep, ...mapped];
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

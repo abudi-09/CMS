@@ -12,6 +12,12 @@ import {
   getCategoryCounts,
   getAdminCalendarSummary,
   getAdminCalendarDay,
+  // HoD analytics
+  getDepartmentPriorityDistribution,
+  getDepartmentStatusDistribution,
+  getDepartmentCategoryCounts,
+  getDepartmentMonthlyTrends,
+  getDepartmentStaffPerformance,
 } from "../controllers/stats.controller.js";
 import Complaint from "../models/complaint.model.js";
 
@@ -88,6 +94,37 @@ router.get(
   protectRoute,
   hodOnly,
   getDepartmentComplaintStats
+);
+// HoD: department distributions & analytics
+router.get(
+  "/complaints/department/priority-distribution",
+  protectRoute,
+  hodOnly,
+  getDepartmentPriorityDistribution
+);
+router.get(
+  "/complaints/department/status-distribution",
+  protectRoute,
+  hodOnly,
+  getDepartmentStatusDistribution
+);
+router.get(
+  "/complaints/department/category-distribution",
+  protectRoute,
+  hodOnly,
+  getDepartmentCategoryCounts
+);
+router.get(
+  "/complaints/department/monthly-trends",
+  protectRoute,
+  hodOnly,
+  getDepartmentMonthlyTrends
+);
+router.get(
+  "/complaints/department/staff-performance",
+  protectRoute,
+  hodOnly,
+  getDepartmentStaffPerformance
 );
 router.get("/feedback", protectRoute, adminOnly, getFeedbackStats);
 router.get("/staff", protectRoute, adminOnly, getStaffmanagmentStats);

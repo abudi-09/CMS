@@ -39,8 +39,13 @@ import {
   getHodInboxApi,
   approveComplaintApi,
   updateComplaintStatusApi,
+  hodAssignToStaffApi,
+  listMyDepartmentActiveStaffApi,
   type InboxComplaint,
 } from "@/lib/api";
+import { AcceptComplaintModal } from "@/components/modals/AcceptComplaintModal";
+import { RejectComplaintModal } from "@/components/modals/RejectComplaintModal";
+import { ReopenComplaintModal } from "@/components/modals/ReopenComplaintModal";
 
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -55,8 +60,34 @@ import {
 } from "@/components/ui/table";
 
 export function HoDDashboard() {
-  // Live complaints for other widgets if needed in the future
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  // Backend stats (department scoped) replacing local memo
+  const [deptStats, setDeptStats] = useState<{
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    unassigned: number;
+  }>({ total: 0, pending: 0, inProgress: 0, resolved: 0, unassigned: 0 });
+  const [loadingStats, setLoadingStats] = useState(false);
+  const refreshStats = async () => {
+    try {
+      setLoadingStats(true);
+      const s = await getHodComplaintStatsApi();
+      if (s && typeof s === "object") {
+        setDeptStats({
+          total: s.total ?? 0,
+          pending: s.pending ?? 0,
+          inProgress: s.inProgress ?? 0,
+          resolved: s.resolved ?? 0,
+          unassigned: s.unassigned ?? 0,
+        });
+      }
+    } catch (e) {
+      // swallow
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
@@ -75,39 +106,25 @@ export function HoDDashboard() {
   const pageSize = 5;
 
   const { pendingStaff, getAllStaff, user } = useAuth();
+  const [deptStaff, setDeptStaff] = useState<
+    Array<{
+      _id: string;
+      name?: string;
+      fullName?: string;
+      email: string;
+      department: string;
+    }>
+  >([]);
   const navigate = useNavigate();
   // Compute department-scoped stats from fetched complaints
-  const stats = useMemo(() => {
-    const role = String(user?.role || "").toLowerCase();
-    const isHod = role.includes("hod");
-
-    const visible = complaints.filter((c) => {
-      if (isHod) {
-        const assigned = getAssignedId(c);
-        return String(assigned) === String(user?.id || "");
-      }
-      const dept = user?.department;
-      if (dept)
-        return (
-          String(c.department) === String(dept) ||
-          String(getAssignedId(c)) === String(user?.id || "")
-        );
-      return true;
-    });
-
-    return {
-      total: visible.length,
-      pending: visible.filter((c) => c.status === "Pending").length,
-      inProgress: visible.filter((c) => c.status === "In Progress").length,
-      resolved: visible.filter((c) => c.status === "Resolved").length,
-    };
-  }, [complaints, user]);
-
+  // Initial stats load + refresh on status change events
   useEffect(() => {
-    console.log(
-      `HoD stats - total: ${stats.total}, pending: ${stats.pending}, inProgress: ${stats.inProgress}, resolved: ${stats.resolved}`
-    );
-  }, [stats.total, stats.pending, stats.inProgress, stats.resolved]);
+    refreshStats();
+    const handler = () => refreshStats();
+    window.addEventListener("complaint:status-changed", handler);
+    return () =>
+      window.removeEventListener("complaint:status-changed", handler);
+  }, []); // intentionally single-run for initial stats + event listener
 
   // HoD inbox for live pending list (latest 100, we show top 3)
   const [hodInbox, setHodInbox] = useState<InboxComplaint[]>([]);
@@ -131,32 +148,111 @@ export function HoDDashboard() {
     };
   }, []);
 
-  const acceptFromInbox = async (id: string) => {
-    try {
-      const note = window.prompt(
-        "Optional note for approval:",
-        "Accepted and taking ownership"
-      );
-      await approveComplaintApi(id, {
-        assignToSelf: true,
-        note: note?.trim() || undefined,
-      });
-      const res = await getHodInboxApi();
-      setHodInbox(res || []);
-      window.dispatchEvent(new Event("complaint:status-changed"));
-    } catch {
-      // ignore approve errors
-    }
+  // Load department staff (approved & active) for assignment modal
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await listMyDepartmentActiveStaffApi();
+        if (mounted) setDeptStaff(res);
+      } catch (e) {
+        // silent
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Modal states for shared actions
+  const [acceptId, setAcceptId] = useState<string | null>(null);
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [reopenId, setReopenId] = useState<string | null>(null);
+  const openAccept = (id: string) => setAcceptId(id);
+  const openReject = (id: string) => setRejectId(id);
+  const openReopen = (id: string) => setReopenId(id);
+
+  const afterMutation = async () => {
+    const res = await getHodInboxApi();
+    setHodInbox(res || []);
+    window.dispatchEvent(new CustomEvent("complaint:status-changed"));
+    refreshStats();
   };
 
-  const rejectFromInbox = async (id: string) => {
+  const handleAccept = async ({
+    id,
+    note,
+    assignToSelf,
+  }: {
+    id: string;
+    note?: string;
+    assignToSelf: boolean;
+  }) => {
     try {
-      await updateComplaintStatusApi(id, "Closed", "Rejected by HoD");
-      const res = await getHodInboxApi();
-      setHodInbox(res || []);
-      window.dispatchEvent(new Event("complaint:status-changed"));
-    } catch {
-      // ignore reject errors
+      await approveComplaintApi(id, { note, assignToSelf });
+      toast({
+        title: "Accepted",
+        description: "Complaint moved to In Progress.",
+      });
+      await afterMutation();
+    } catch (e) {
+      toast({
+        title: "Accept failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+  const handleReject = async ({
+    id,
+    reason,
+  }: {
+    id: string;
+    reason: string;
+  }) => {
+    try {
+      await updateComplaintStatusApi(id, "Closed", `Rejected: ${reason}`);
+      toast({ title: "Rejected", description: "Complaint closed." });
+      await afterMutation();
+    } catch (e) {
+      toast({
+        title: "Reject failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+  const handleReopen = async ({
+    id,
+    reason,
+    acceptImmediately,
+  }: {
+    id: string;
+    reason: string;
+    acceptImmediately: boolean;
+  }) => {
+    try {
+      // Reopen by setting back to Pending (with note), then optionally accept
+      await updateComplaintStatusApi(id, "Pending", `Reopened: ${reason}`);
+      if (acceptImmediately) {
+        await approveComplaintApi(id, {
+          note: "Auto-accepted after reopening",
+          assignToSelf: true,
+        });
+      }
+      toast({
+        title: "Reopened",
+        description: acceptImmediately
+          ? "Complaint reopened and accepted."
+          : "Complaint reopened to Pending.",
+      });
+      await afterMutation();
+    } catch (e) {
+      toast({
+        title: "Reopen failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -242,48 +338,41 @@ export function HoDDashboard() {
     setShowAssignModal(true);
   };
 
-  const handleStaffAssignment = (
+  const handleStaffAssignment = async (
     complaintId: string,
     staffId: string,
-    notes: string
+    notes: string,
+    deadline?: string
   ) => {
-    const staff = getAllStaff().find((s) => s.id === staffId);
-    updateComplaint(complaintId, {
-      assignedStaff: staff?.fullName || staff?.name || "Unknown",
-      lastUpdated: new Date(),
-    });
-    toast({
-      title: "Staff Assigned",
-      description: `Complaint has been assigned to ${
-        staff?.fullName || staff?.name
-      }`,
-    });
+    try {
+      await hodAssignToStaffApi(complaintId, {
+        staffId,
+        deadline: deadline || undefined,
+      });
+      await afterMutation();
+      const staff =
+        deptStaff.find((s) => s._id === staffId) ||
+        getAllStaff().find((s) => s.id === staffId);
+      toast({
+        title: "Staff Assigned",
+        description: `Assigned to ${
+          staff?.fullName || staff?.name || staff?.email || "Staff"
+        }${
+          deadline
+            ? ` (deadline ${new Date(deadline).toLocaleDateString()})`
+            : ""
+        }`,
+      });
+    } catch (e) {
+      toast({
+        title: "Assignment failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
   };
 
-  // Add priority filter and sort to filtering logic
-  const filteredComplaints = complaints.filter((complaint) => {
-    const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || complaint.status === statusFilter;
-    const matchesCategory =
-      categoryFilter === "all" || complaint.category === categoryFilter;
-    const matchesPriority =
-      priorityFilter === "all" || complaint.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesCategory && matchesPriority;
-  });
-  // Sort by priority if enabled
-  const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
-    const aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-    const bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-    return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
-  });
-
-  const categories = Array.from(new Set(complaints.map((c) => c.category)));
-  const priorities = ["Critical", "High", "Medium", "Low"];
+  // (Legacy dashboard filtering removed; stats now from backend)
 
   // Overdue helper: unassigned Pending/Unassigned should not be marked overdue
   const isOverdue = (complaint: Complaint) => {
@@ -370,7 +459,14 @@ export function HoDDashboard() {
             <CardTitle>Total Complaints</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-2xl font-bold">
+              {deptStats.total}
+              {loadingStats && (
+                <span className="ml-2 animate-pulse text-xs text-muted-foreground">
+                  ...
+                </span>
+              )}
+            </div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -378,7 +474,7 @@ export function HoDDashboard() {
             <CardTitle>Pending</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
+            <div className="text-2xl font-bold">{deptStats.pending}</div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -386,7 +482,7 @@ export function HoDDashboard() {
             <CardTitle>In Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
+            <div className="text-2xl font-bold">{deptStats.inProgress}</div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -394,7 +490,7 @@ export function HoDDashboard() {
             <CardTitle>Resolved</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.resolved}</div>
+            <div className="text-2xl font-bold">{deptStats.resolved}</div>
           </CardContent>
         </Card>
       </div>
@@ -492,8 +588,7 @@ export function HoDDashboard() {
               Assign & Reassign
             </CardTitle>
             <CardDescription>
-              {complaints.filter((c) => !c.assignedStaff).length} unassigned
-              complaints
+              {deptStats.unassigned} unassigned complaints
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -567,14 +662,58 @@ export function HoDDashboard() {
                     size="sm"
                     variant="outline"
                     className="col-span-2"
-                    onClick={() => setShowDetailModal(true)}
+                    onClick={() => {
+                      setSelectedComplaint({
+                        id: String(c.id),
+                        title: c.title || "Complaint",
+                        description: "", // placeholder (will be refetched in modal)
+                        category: c.category || "General",
+                        status: (c.status as Complaint["status"]) || "Pending",
+                        submittedBy:
+                          typeof c.submittedBy === "string"
+                            ? c.submittedBy
+                            : c.submittedBy?.name || "",
+                        priority:
+                          (c.priority as Complaint["priority"]) || "Medium",
+                        submittedDate: c.submittedDate
+                          ? new Date(c.submittedDate)
+                          : new Date(),
+                        lastUpdated: c.lastUpdated
+                          ? new Date(c.lastUpdated)
+                          : new Date(),
+                        assignedStaff: undefined,
+                      } as Complaint);
+                      setShowDetailModal(true);
+                    }}
                   >
                     View Detail
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => acceptFromInbox(String(c.id))}
+                    onClick={() => {
+                      setSelectedComplaint({
+                        id: String(c.id),
+                        title: c.title || "Complaint",
+                        description: "",
+                        category: c.category || "General",
+                        status: (c.status as Complaint["status"]) || "Pending",
+                        submittedBy:
+                          typeof c.submittedBy === "string"
+                            ? c.submittedBy
+                            : c.submittedBy?.name || "",
+                        priority:
+                          (c.priority as Complaint["priority"]) || "Medium",
+                        submittedDate: c.submittedDate
+                          ? new Date(c.submittedDate)
+                          : new Date(),
+                        lastUpdated: c.lastUpdated
+                          ? new Date(c.lastUpdated)
+                          : new Date(),
+                        assignedStaff: undefined,
+                      } as Complaint);
+                      openAccept(String(c.id));
+                    }}
                     className="w-full"
                   >
                     Accept
@@ -582,7 +721,29 @@ export function HoDDashboard() {
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => rejectFromInbox(String(c.id))}
+                    onClick={() => {
+                      setSelectedComplaint({
+                        id: String(c.id),
+                        title: c.title || "Complaint",
+                        description: "",
+                        category: c.category || "General",
+                        status: (c.status as Complaint["status"]) || "Pending",
+                        submittedBy:
+                          typeof c.submittedBy === "string"
+                            ? c.submittedBy
+                            : c.submittedBy?.name || "",
+                        priority:
+                          (c.priority as Complaint["priority"]) || "Medium",
+                        submittedDate: c.submittedDate
+                          ? new Date(c.submittedDate)
+                          : new Date(),
+                        lastUpdated: c.lastUpdated
+                          ? new Date(c.lastUpdated)
+                          : new Date(),
+                        assignedStaff: undefined,
+                      } as Complaint);
+                      openReject(String(c.id));
+                    }}
                     className="w-full"
                   >
                     Reject
@@ -590,7 +751,29 @@ export function HoDDashboard() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setShowAssignModal(true)}
+                    onClick={() => {
+                      setSelectedComplaint({
+                        id: String(c.id),
+                        title: c.title || "Complaint",
+                        description: "",
+                        category: c.category || "General",
+                        status: (c.status as Complaint["status"]) || "Pending",
+                        submittedBy:
+                          typeof c.submittedBy === "string"
+                            ? c.submittedBy
+                            : c.submittedBy?.name || "",
+                        priority:
+                          (c.priority as Complaint["priority"]) || "Medium",
+                        submittedDate: c.submittedDate
+                          ? new Date(c.submittedDate)
+                          : new Date(),
+                        lastUpdated: c.lastUpdated
+                          ? new Date(c.lastUpdated)
+                          : new Date(),
+                        assignedStaff: undefined,
+                      } as Complaint);
+                      setShowAssignModal(true);
+                    }}
                     className="col-span-2 w-full"
                   >
                     Assign
@@ -673,7 +856,31 @@ export function HoDDashboard() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setShowDetailModal(true)}
+                          onClick={() => {
+                            setSelectedComplaint({
+                              id: String(c.id),
+                              title: c.title || "Complaint",
+                              description: "",
+                              category: c.category || "General",
+                              status:
+                                (c.status as Complaint["status"]) || "Pending",
+                              submittedBy:
+                                typeof c.submittedBy === "string"
+                                  ? c.submittedBy
+                                  : c.submittedBy?.name || "",
+                              priority:
+                                (c.priority as Complaint["priority"]) ||
+                                "Medium",
+                              submittedDate: c.submittedDate
+                                ? new Date(c.submittedDate)
+                                : new Date(),
+                              lastUpdated: c.lastUpdated
+                                ? new Date(c.lastUpdated)
+                                : new Date(),
+                              assignedStaff: undefined,
+                            } as Complaint);
+                            setShowDetailModal(true);
+                          }}
                           className="text-xs"
                         >
                           View Detail
@@ -682,7 +889,31 @@ export function HoDDashboard() {
                           size="sm"
                           variant="secondary"
                           className="text-xs"
-                          onClick={() => acceptFromInbox(String(c.id))}
+                          onClick={() => {
+                            setSelectedComplaint({
+                              id: String(c.id),
+                              title: c.title || "Complaint",
+                              description: "",
+                              category: c.category || "General",
+                              status:
+                                (c.status as Complaint["status"]) || "Pending",
+                              submittedBy:
+                                typeof c.submittedBy === "string"
+                                  ? c.submittedBy
+                                  : c.submittedBy?.name || "",
+                              priority:
+                                (c.priority as Complaint["priority"]) ||
+                                "Medium",
+                              submittedDate: c.submittedDate
+                                ? new Date(c.submittedDate)
+                                : new Date(),
+                              lastUpdated: c.lastUpdated
+                                ? new Date(c.lastUpdated)
+                                : new Date(),
+                              assignedStaff: undefined,
+                            } as Complaint);
+                            openAccept(String(c.id));
+                          }}
                         >
                           Accept
                         </Button>
@@ -690,7 +921,31 @@ export function HoDDashboard() {
                           size="sm"
                           variant="destructive"
                           className="text-xs"
-                          onClick={() => rejectFromInbox(String(c.id))}
+                          onClick={() => {
+                            setSelectedComplaint({
+                              id: String(c.id),
+                              title: c.title || "Complaint",
+                              description: "",
+                              category: c.category || "General",
+                              status:
+                                (c.status as Complaint["status"]) || "Pending",
+                              submittedBy:
+                                typeof c.submittedBy === "string"
+                                  ? c.submittedBy
+                                  : c.submittedBy?.name || "",
+                              priority:
+                                (c.priority as Complaint["priority"]) ||
+                                "Medium",
+                              submittedDate: c.submittedDate
+                                ? new Date(c.submittedDate)
+                                : new Date(),
+                              lastUpdated: c.lastUpdated
+                                ? new Date(c.lastUpdated)
+                                : new Date(),
+                              assignedStaff: undefined,
+                            } as Complaint);
+                            openReject(String(c.id));
+                          }}
                         >
                           Reject
                         </Button>
@@ -698,7 +953,31 @@ export function HoDDashboard() {
                           size="sm"
                           variant="outline"
                           className="text-xs"
-                          onClick={() => setShowAssignModal(true)}
+                          onClick={() => {
+                            setSelectedComplaint({
+                              id: String(c.id),
+                              title: c.title || "Complaint",
+                              description: "",
+                              category: c.category || "General",
+                              status:
+                                (c.status as Complaint["status"]) || "Pending",
+                              submittedBy:
+                                typeof c.submittedBy === "string"
+                                  ? c.submittedBy
+                                  : c.submittedBy?.name || "",
+                              priority:
+                                (c.priority as Complaint["priority"]) ||
+                                "Medium",
+                              submittedDate: c.submittedDate
+                                ? new Date(c.submittedDate)
+                                : new Date(),
+                              lastUpdated: c.lastUpdated
+                                ? new Date(c.lastUpdated)
+                                : new Date(),
+                              assignedStaff: undefined,
+                            } as Complaint);
+                            setShowAssignModal(true);
+                          }}
                         >
                           Assign
                         </Button>
@@ -730,10 +1009,33 @@ export function HoDDashboard() {
         complaint={selectedComplaint}
         open={showAssignModal}
         onOpenChange={setShowAssignModal}
-        onAssign={(complaintId, staffId, notes) => {
-          // Update global context (optional) and local recent pool
-          handleStaffAssignment(complaintId, staffId, notes);
-        }}
+        onAssign={handleStaffAssignment}
+        staffList={deptStaff.map((s) => ({
+          id: s._id,
+          name: s.name,
+          fullName: s.fullName,
+          email: s.email,
+          department: s.department,
+        }))}
+      />
+      {/* Shared action modals */}
+      <AcceptComplaintModal
+        open={!!acceptId}
+        complaintId={acceptId}
+        onOpenChange={(o) => !o && setAcceptId(null)}
+        onAccepted={handleAccept}
+      />
+      <RejectComplaintModal
+        open={!!rejectId}
+        complaintId={rejectId}
+        onOpenChange={(o) => !o && setRejectId(null)}
+        onRejected={handleReject}
+      />
+      <ReopenComplaintModal
+        open={!!reopenId}
+        complaintId={reopenId}
+        onOpenChange={(o) => !o && setReopenId(null)}
+        onReopen={handleReopen}
       />
     </div>
   );

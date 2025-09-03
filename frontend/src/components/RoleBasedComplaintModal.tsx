@@ -49,6 +49,10 @@ interface RoleBasedComplaintModalProps {
   children?: React.ReactNode;
   // If false, do not fetch from backend; use provided complaint only
   fetchLatest?: boolean;
+  // When true (HoD only): hide Accept / Reject / In-Progress HoD action panels if complaint already assigned to a staff member
+  hideHodActionsIfAssigned?: boolean;
+  // Optional timeline filtering: full (default) shows all consolidated steps, summary reduces to key milestones
+  timelineFilterMode?: "full" | "summary";
 }
 
 export function RoleBasedComplaintModal({
@@ -58,6 +62,8 @@ export function RoleBasedComplaintModal({
   onUpdate,
   children: _children,
   fetchLatest = true,
+  hideHodActionsIfAssigned = false,
+  timelineFilterMode = "full",
 }: RoleBasedComplaintModalProps) {
   // Local state for live backend complaint (initialized with incoming complaint)
   const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(
@@ -777,8 +783,7 @@ export function RoleBasedComplaintModal({
       seen.add(key);
       return true;
     })
-    .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0));
-
+    .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0))
   // Direct-to-admin detection for scoping Admin Action
   const isDirectToAdmin = (() => {
     const submittedTo = String(liveComplaint?.submittedTo || "").toLowerCase();
@@ -790,6 +795,7 @@ export function RoleBasedComplaintModal({
       submittedTo === "admin" || (src === "student" && assignedBy === "admin")
     );
   })();
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -934,7 +940,8 @@ export function RoleBasedComplaintModal({
 
         {/* HoD: Pending actions (visible even if not assigned) */}
         {user.role === "headOfDepartment" &&
-          liveComplaint.status === "Pending" && (
+          liveComplaint.status === "Pending" &&
+          !hideHodPanels && (
             <Card>
               <CardHeader>
                 <CardTitle>HoD Review</CardTitle>
@@ -1324,7 +1331,10 @@ export function RoleBasedComplaintModal({
           <CardContent>
             <div className="relative pl-6 border-l-2 border-muted-foreground/20 space-y-8">
               {/* Timeline steps - always use liveComplaint for latest backend state */}
-              {timelineSteps.map((step, idx) => (
+              {(timelineFilterMode === "summary"
+                ? summarizedTimeline
+                : timelineSteps
+              ).map((step, idx) => (
                 <div
                   key={
                     step.key ||
@@ -1572,7 +1582,8 @@ export function RoleBasedComplaintModal({
             )}
 
             {user.role === "headOfDepartment" &&
-              liveComplaint.status === "In Progress" && (
+              liveComplaint.status === "In Progress" &&
+              !hideHodPanels && (
                 <Card id="admin-update-progress">
                   <CardHeader>
                     <CardTitle>HoD Actions</CardTitle>
