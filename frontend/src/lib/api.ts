@@ -1074,7 +1074,7 @@ export async function getAssignedComplaintsApi() {
 // Staff: update status of an assigned complaint
 export async function updateComplaintStatusApi(
   complaintId: string,
-  status: "Pending" | "In Progress" | "Resolved" | "Closed",
+  status: "Pending" | "Accepted" | "In Progress" | "Resolved" | "Closed",
   description?: string
 ) {
   const res = await fetch(
@@ -1095,7 +1095,7 @@ export async function updateComplaintStatusApi(
 // the approver becomes the assignee.
 export async function approveComplaintApi(
   complaintId: string,
-  payload?: { assignToSelf?: boolean; note?: string }
+  payload?: { assignToSelf?: boolean; note?: string; assignedTo?: string }
 ) {
   const res = await fetch(`${API_BASE}/complaints/approve/${complaintId}`, {
     method: "PUT",

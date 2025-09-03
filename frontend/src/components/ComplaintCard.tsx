@@ -22,6 +22,7 @@ export interface Complaint {
   status:
     | "Unassigned"
     | "Assigned"
+    | "Accepted"
     | "In Progress"
     | "Resolved"
     | "Closed"
@@ -67,6 +68,7 @@ interface ComplaintCardProps {
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  Accepted: "bg-sky-100 text-sky-800 border-sky-200",
   "In Progress": "bg-blue-100 text-blue-800 border-blue-200",
   Resolved: "bg-green-100 text-green-800 border-green-200",
   Closed: "bg-gray-100 text-gray-800 border-gray-200",
@@ -74,6 +76,7 @@ const statusColors = {
 
 const statusIcons = {
   Pending: Clock,
+  Accepted: AlertCircle,
   "In Progress": AlertCircle,
   Resolved: CheckCircle,
   Closed: XCircle,

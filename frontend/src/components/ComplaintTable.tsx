@@ -47,12 +47,13 @@ interface ComplaintTableProps {
 const statusColors = {
   Pending:
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/20 dark:text-yellow-400",
+  Accepted: "bg-sky-100 text-sky-800 dark:bg-sky-950/20 dark:text-sky-400",
   "In Progress":
     "bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-400",
   Resolved:
     "bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-400",
   Closed: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-};
+} as const;
 
 // Removed mock fallback data: component will now render empty state when no complaints provided.
 
@@ -96,7 +97,13 @@ export function ComplaintTable({
   // If none provided, remain empty so dashboard shows true empty state
   const complaintsData = complaints || [];
   const categories = Array.from(new Set(complaintsData.map((c) => c.category)));
-  const allowedStatuses = ["Pending", "In Progress", "Resolved", "Closed"];
+  const allowedStatuses = [
+    "Pending",
+    "Accepted",
+    "In Progress",
+    "Resolved",
+    "Closed",
+  ];
   const showAssignedStaff = showAssignedStaffColumn;
   const filteredComplaints = complaintsData.filter((complaint) => {
     const matchesSearch =
@@ -149,6 +156,7 @@ export function ComplaintTable({
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Accepted">Accepted</SelectItem>
                 <SelectItem value="In Progress">In Progress</SelectItem>
                 <SelectItem value="Resolved">Resolved</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>

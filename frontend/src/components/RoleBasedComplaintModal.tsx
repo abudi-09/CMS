@@ -97,6 +97,13 @@ export function RoleBasedComplaintModal({
   const [adminUiStatus, setAdminUiStatus] = useState<
     "In Progress" | "Pending Review" | "Resolved"
   >("In Progress");
+  // Admin Action local status selection decoupled from live complaint to avoid polling snap-back
+  const [adminActionStatus, setAdminActionStatus] =
+    useState<Complaint["status"]>("Accepted");
+  const [isEditingAdminStatus, setIsEditingAdminStatus] = useState(false);
+  const [lastAdminStatusEditAt, setLastAdminStatusEditAt] = useState<
+    number | null
+  >(null);
 
   // Helper for type-safe staff display (string or object)
   function getStaffDisplay(staff: unknown): string {
@@ -284,8 +291,29 @@ export function RoleBasedComplaintModal({
   useEffect(() => {
     if (!liveComplaint) return;
     if (liveComplaint.status === "Resolved") setAdminUiStatus("Resolved");
+    else if (liveComplaint.status === "Accepted")
+      setAdminUiStatus("In Progress");
     else setAdminUiStatus("In Progress");
   }, [liveComplaint]);
+
+  // Sync Admin Action dropdown from live complaint unless the admin is actively editing
+  useEffect(() => {
+    if (user.role !== "admin") return;
+    if (!liveComplaint?.status) return;
+    const now = Date.now();
+    const withinCooldown =
+      typeof lastAdminStatusEditAt === "number" &&
+      now - lastAdminStatusEditAt < 4000;
+    if (!isEditingAdminStatus && !withinCooldown) {
+      setAdminActionStatus(liveComplaint.status as Complaint["status"]);
+    }
+  }, [
+    user.role,
+    liveComplaint?.status,
+    open,
+    isEditingAdminStatus,
+    lastAdminStatusEditAt,
+  ]);
 
   // Load local acceptance state (synced from My Assigned / Dashboard quick actions)
   useEffect(() => {
@@ -602,6 +630,8 @@ export function RoleBasedComplaintModal({
   // Map action to status label and icon
   const statusIcon = (status: string) => {
     switch (status) {
+      case "Accepted":
+        return <Clock className="h-4 w-4" />;
       case "In Progress":
         return <Settings className="h-4 w-4" />;
       case "Resolved":
@@ -622,11 +652,13 @@ export function RoleBasedComplaintModal({
   type Consolidated = {
     lastTime?: Date;
     role?: string;
+    byName?: string;
     descs: string[];
   };
   const byStatus = new Map<TimelineEntry["label"], Consolidated>();
   const normalizeStatus = (s: string): TimelineEntry["label"] => {
     const norm = s.toLowerCase();
+    if (norm === "accepted") return "Accepted";
     if (norm === "in progress") return "In Progress";
     if (norm === "resolved") return "Resolved";
     if (norm === "closed") return "Closed";
@@ -641,10 +673,15 @@ export function RoleBasedComplaintModal({
       if (
         roleNorm === "hod" ||
         roleNorm === "headofdepartment" ||
-        roleNorm === "dean"
+        roleNorm === "dean" ||
+        roleNorm === "admin"
       ) {
         const time = new Date(log.timestamp);
         const details = (log.details || {}) as Record<string, unknown>;
+        const userObj =
+          (log as unknown as { user?: { name?: string; email?: string } })
+            .user || {};
+        const byName = userObj.name || userObj.email || undefined;
         const approverNote =
           typeof details.description === "string"
             ? String(details.description)
@@ -657,7 +694,9 @@ export function RoleBasedComplaintModal({
           role: log.role || "hod",
           icon: <CheckCircle className="h-4 w-4 text-success" />,
           time,
-          desc: approverNote,
+          desc: byName
+            ? `${byName}${approverNote ? ": " + approverNote : ""}`
+            : approverNote,
         });
       }
     }
@@ -672,7 +711,14 @@ export function RoleBasedComplaintModal({
     const parts = rawDesc ? rawDesc.split("\n").filter(Boolean) : [];
 
     const cur = byStatus.get(status) || ({ descs: [] } as Consolidated);
-    if (!cur.lastTime || time > cur.lastTime) cur.lastTime = time;
+    const userObj =
+      (log as unknown as { user?: { name?: string; email?: string } }).user ||
+      {};
+    const byName = userObj.name || userObj.email || undefined;
+    if (!cur.lastTime || time > cur.lastTime) {
+      cur.lastTime = time;
+      cur.byName = byName || cur.byName;
+    }
     cur.role = cur.role || log.role || "staff";
     cur.descs.push(...parts);
     byStatus.set(status, cur);
@@ -691,7 +737,9 @@ export function RoleBasedComplaintModal({
       role: grp.role || "staff",
       icon: statusIcon(status),
       time: grp.lastTime,
-      desc: finalDesc,
+      desc: grp.byName
+        ? `${grp.byName}${finalDesc ? ":\n" + finalDesc : ""}`
+        : finalDesc,
     });
   }
 
@@ -730,6 +778,18 @@ export function RoleBasedComplaintModal({
       return true;
     })
     .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0));
+
+  // Direct-to-admin detection for scoping Admin Action
+  const isDirectToAdmin = (() => {
+    const submittedTo = String(liveComplaint?.submittedTo || "").toLowerCase();
+    const src = String(liveComplaint?.sourceRole || "").toLowerCase();
+    const assignedBy = String(
+      liveComplaint?.assignedByRole || ""
+    ).toLowerCase();
+    return (
+      submittedTo === "admin" || (src === "student" && assignedBy === "admin")
+    );
+  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1530,6 +1590,7 @@ export function RoleBasedComplaintModal({
                           })
                         }
                       >
+                        {/* Admin transitions after acceptance */}
                         <option value="In Progress">In Progress</option>
                         <option value="Resolved">Resolved</option>
                         <option value="Closed">Closed</option>
@@ -1664,40 +1725,40 @@ export function RoleBasedComplaintModal({
               </Card>
             )}
 
-            {/* Admin view: Update Progress (only when Accepted/In Progress) */}
+            {/* Admin Action section: for Admin after acceptance (In Progress), similar to HoD */}
             {user.role === "admin" &&
-              liveComplaint.status === "In Progress" && (
+              (liveComplaint?.status === "Accepted" ||
+                liveComplaint?.status === "In Progress") && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Update Progress</CardTitle>
+                    <CardTitle>Admin Action</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
                       <Label className="mb-2">Status</Label>
                       <select
                         className="w-full border rounded px-3 py-2"
-                        value={adminUiStatus}
-                        onChange={(e) =>
-                          setAdminUiStatus(
-                            e.target.value as
-                              | "In Progress"
-                              | "Pending Review"
-                              | "Resolved"
-                          )
-                        }
+                        value={adminActionStatus}
+                        onChange={(e) => {
+                          setIsEditingAdminStatus(true);
+                          setLastAdminStatusEditAt(Date.now());
+                          setAdminActionStatus(
+                            e.target.value as Complaint["status"]
+                          );
+                        }}
                       >
                         <option value="In Progress">In Progress</option>
-                        <option value="Pending Review">Pending Review</option>
                         <option value="Resolved">Resolved</option>
+                        <option value="Closed">Closed</option>
                       </select>
                     </div>
                     <div>
                       <Label className="mb-2">
-                        Description / Progress Notes
+                        Description Note (optional)
                       </Label>
                       <Textarea
                         className="w-full border rounded px-3 py-2"
-                        placeholder="Describe progress or next steps..."
+                        placeholder="Add an optional note visible to the user..."
                         value={adminStatusNote}
                         onChange={(e) =>
                           setAdminStatusNote(e.target.value.slice(0, 1000))
@@ -1710,40 +1771,37 @@ export function RoleBasedComplaintModal({
                     </div>
                     <Button
                       className="mt-2 w-full"
-                      disabled={isLoading || !adminStatusNote.trim()}
+                      disabled={isLoading}
                       onClick={() => {
                         if (!liveComplaint) return;
-                        const statusToSend =
-                          adminUiStatus === "Resolved"
-                            ? "Resolved"
-                            : "In Progress";
-                        const notePrefix =
-                          adminUiStatus === "Pending Review"
-                            ? "Pending Review: "
-                            : "";
-                        const noteToSend = `${notePrefix}${adminStatusNote.trim()}`;
                         setIsLoading(true);
+                        const newStatus = adminActionStatus as
+                          | "Pending"
+                          | "In Progress"
+                          | "Resolved"
+                          | "Closed";
                         updateComplaintStatusApi(
                           liveComplaint.id,
-                          statusToSend,
-                          noteToSend
+                          newStatus,
+                          adminStatusNote.trim() || undefined
                         )
                           .then(() => {
-                            // Update local
+                            toast({
+                              title: "Status updated",
+                              description: `Updated to ${newStatus}.`,
+                            });
                             setLiveComplaint((prev) =>
                               prev
                                 ? {
                                     ...prev,
-                                    status: statusToSend as Complaint["status"],
+                                    status: newStatus,
                                     lastUpdated: new Date(),
                                   }
                                 : prev
                             );
+                            // Reset editing guard and note after a successful update
+                            setIsEditingAdminStatus(false);
                             setAdminStatusNote("");
-                            toast({
-                              title: "Status updated",
-                              description: `Updated to ${statusToSend}.`,
-                            });
                             window.dispatchEvent(
                               new CustomEvent("complaint:status-changed", {
                                 detail: { id: liveComplaint.id },
@@ -1754,88 +1812,11 @@ export function RoleBasedComplaintModal({
                       }}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Submit Update
+                      Update
                     </Button>
                   </CardContent>
                 </Card>
               )}
-
-            {/* Admin Action section for Admins regardless of status, per requirements */}
-            {user.role === "admin" && liveComplaint && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Admin Action</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="mb-2">Status</Label>
-                    <select
-                      className="w-full border rounded px-3 py-2"
-                      value={liveComplaint.status}
-                      onChange={(e) =>
-                        setLiveComplaint({
-                          ...liveComplaint,
-                          status: e.target.value as Complaint["status"],
-                        })
-                      }
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Resolved">Resolved</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="mb-2">Description Note (optional)</Label>
-                    <Textarea
-                      className="w-full border rounded px-3 py-2"
-                      placeholder="Add an optional note visible to the user..."
-                      value={adminStatusNote}
-                      onChange={(e) =>
-                        setAdminStatusNote(e.target.value.slice(0, 1000))
-                      }
-                      rows={3}
-                    />
-                    <div className="text-xs text-muted-foreground mt-1 text-right">
-                      {adminStatusNote.length}/1000
-                    </div>
-                  </div>
-                  <Button
-                    className="mt-2 w-full"
-                    disabled={isLoading}
-                    onClick={() => {
-                      if (!liveComplaint) return;
-                      setIsLoading(true);
-                      updateComplaintStatusApi(
-                        liveComplaint.id,
-                        liveComplaint.status as
-                          | "Pending"
-                          | "In Progress"
-                          | "Resolved"
-                          | "Closed",
-                        adminStatusNote.trim() || undefined
-                      )
-                        .then(() => {
-                          toast({
-                            title: "Status updated",
-                            description: `Updated to ${liveComplaint.status}.`,
-                          });
-                          setAdminStatusNote("");
-                          window.dispatchEvent(
-                            new CustomEvent("complaint:status-changed", {
-                              detail: { id: liveComplaint.id },
-                            })
-                          );
-                        })
-                        .finally(() => setIsLoading(false));
-                    }}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Update
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </>
         )}
       </DialogContent>

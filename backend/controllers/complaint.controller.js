@@ -616,28 +616,36 @@ export const assignComplaint = async (req, res) => {
 export const approveComplaint = async (req, res) => {
   try {
     const complaintId = req.params.id;
-    const { note, assignToSelf } = req.body || {};
+    const { note, assignToSelf, assignedTo } = req.body || {};
     // Note is optional for all roles on initial approval (Admin/HOD/Dean)
     const actorRole = String(req.user.role || "").toLowerCase();
 
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
-    if (complaint.status !== "Pending") {
-      return res
-        .status(400)
-        .json({ error: "Only pending complaints can be approved" });
+    // Allow approval from Pending or Rejected (Closed)
+    const isPending = complaint.status === "Pending";
+    const isRejected = complaint.status === "Closed";
+    if (!isPending && !isRejected) {
+      return res.status(400).json({
+        error:
+          "Only complaints with Pending or Rejected status can be approved",
+      });
     }
 
-    // Move to In Progress on acceptance
-    complaint.status = "In Progress";
+    // Move to Accepted on initial acceptance; later updates can transition to In Progress/Resolved
+    complaint.status = "Accepted";
     complaint.assignedByRole = normalizeUserRole(req.user.role);
     if (!complaint.assignmentPath) complaint.assignmentPath = [];
     const approverRole = normalizeUserRole(req.user.role);
     if (!complaint.assignmentPath.includes(approverRole)) {
       complaint.assignmentPath.push(approverRole);
     }
-    if (assignToSelf === true) {
+    // Assignment handling: prefer explicit assignedTo, else assignToSelf
+    if (assignedTo && mongoose.Types.ObjectId.isValid(String(assignedTo))) {
+      complaint.assignedTo = assignedTo;
+      complaint.assignedAt = new Date();
+    } else if (assignToSelf === true) {
       complaint.assignedTo = req.user._id;
       complaint.assignedAt = new Date();
     }
@@ -653,7 +661,8 @@ export const approveComplaint = async (req, res) => {
     // Notify student when HoD/Dean accepts
     try {
       if (
-        complaint.status === "In Progress" &&
+        (complaint.status === "Accepted" ||
+          complaint.status === "In Progress") &&
         (req.user.role === "hod" || req.user.role === "dean")
       ) {
         const submitter = await User.findById(complaint.submittedBy).select(
@@ -675,21 +684,53 @@ export const approveComplaint = async (req, res) => {
       console.warn("[approveComplaint] email notify failed:", e?.message);
     }
 
-    // Activity logs
+    // Activity logs (generic)
     await ActivityLog.create({
       user: req.user._id,
       role: req.user.role,
-      action: "Complaint Approved",
+      action: isRejected ? "Complaint Re-Approved" : "Complaint Approved",
       complaint: complaint._id,
       timestamp: new Date(),
       details: {
         status: complaint.status,
         assignToSelf: !!assignToSelf,
+        assignedTo: assignedTo || (assignToSelf ? String(req.user._id) : null),
         description: (note || "").trim(),
       },
     });
 
-    // Also record a status-update log for the timeline
+    // Explicit human-readable entry for re-approval timeline visibility
+    if (isRejected) {
+      await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: `Complaint re-approved by ${normalizeUserRole(req.user.role)}`,
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: {
+          description: (note || "").trim(),
+        },
+      });
+    }
+
+    // Human-readable acceptance entry for timeline
+    const actorName = req.user?.name || req.user?.email || undefined;
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: `Accepted by ${normalizeUserRole(req.user.role)}`,
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: {
+        description: actorName
+          ? `Complaint accepted by ${normalizeUserRole(
+              req.user.role
+            )} ${actorName}`
+          : `Complaint accepted by ${normalizeUserRole(req.user.role)}`,
+      },
+    });
+
+    // Also record a status-update log for the timeline to consolidate with status grouping
     await ActivityLog.create({
       user: req.user._id,
       role: req.user.role,
@@ -699,23 +740,45 @@ export const approveComplaint = async (req, res) => {
       details: { description: (note || "").trim() },
     });
 
-    // Notify student of acceptance
-    await safeNotify({
-      user: complaint.submittedBy,
+    // Notify student of acceptance / re-approval
+    if (isRejected) {
+      await safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "accept",
+        title: `Complaint Re-Approved (${complaint.complaintCode})`,
+        message:
+          "Your complaint has been re-approved and assigned for further review.",
+        meta: {
+          byRole: normalizeUserRole(req.user.role),
+          status: "Accepted",
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+        },
+      });
+    } else {
+      await safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "accept",
+        title: `Complaint Accepted (${complaint.complaintCode})`,
+        message: `Your complaint was accepted by ${normalizeUserRole(
+          req.user.role
+        )} and is now Accepted.`,
+        meta: {
+          byRole: normalizeUserRole(req.user.role),
+          status: "Accepted",
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+        },
+      });
+    }
+    return res.status(200).json({
+      message: isRejected
+        ? "Complaint re-approved successfully"
+        : "Complaint approved",
       complaint,
-      type: "accept",
-      title: `Complaint Accepted (${complaint.complaintCode})`,
-      message: `Your complaint was accepted by ${normalizeUserRole(
-        req.user.role
-      )} and is now In Progress.`,
-      meta: {
-        byRole: normalizeUserRole(req.user.role),
-        redirectPath: "/my-complaints",
-        complaintId: String(complaint._id),
-      },
     });
-
-    return res.status(200).json({ message: "Complaint approved", complaint });
   } catch (err) {
     return res.status(500).json({ error: "Failed to approve complaint" });
   }
@@ -1235,18 +1298,15 @@ export const updateComplaintStatus = async (req, res) => {
     const complaintId = req.params.id;
     const { status, description } = req.body || {};
 
-    if (!["Pending", "In Progress", "Resolved", "Closed"].includes(status)) {
+    if (
+      !["Pending", "Accepted", "In Progress", "Resolved", "Closed"].includes(
+        status
+      )
+    ) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    // Admin must provide a note/description for any status update; HOD/Dean optional
-    const actorRole = String(req.user.role || "").toLowerCase();
-    const requiresNote = actorRole === "admin";
-    if (requiresNote && !(description && String(description).trim())) {
-      return res
-        .status(400)
-        .json({ error: "Description is required for this role" });
-    }
+    // Note/description is optional for all roles per updated requirements
 
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
@@ -1369,7 +1429,35 @@ export const updateComplaintStatus = async (req, res) => {
         message: `Your complaint was closed by ${normalizeUserRole(
           req.user.role
         )}${description ? `: ${description}` : "."}`,
-        meta: { byRole: normalizeUserRole(req.user.role) },
+        meta: {
+          byRole: normalizeUserRole(req.user.role),
+          status: "Closed",
+          complaintCode: complaint.complaintCode,
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+          closedAt: new Date().toISOString(),
+        },
+      });
+    } else if (status === "Resolved") {
+      // Enriched resolution notification for students
+      await safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "status",
+        title: `Complaint Resolved (${complaint.complaintCode})`,
+        message: `Your complaint "${
+          complaint.title
+        }" was marked Resolved by ${normalizeUserRole(req.user.role)}${
+          description ? `: ${description}` : "."
+        }`,
+        meta: {
+          byRole: normalizeUserRole(req.user.role),
+          status: "Resolved",
+          complaintCode: complaint.complaintCode,
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+          resolvedAt: (complaint.resolvedAt || new Date()).toISOString(),
+        },
       });
     } else {
       await safeNotify({
@@ -1380,7 +1468,13 @@ export const updateComplaintStatus = async (req, res) => {
         message: `Your complaint status changed to ${status}${
           description ? `: ${description}` : ""
         }.`,
-        meta: { byRole: normalizeUserRole(req.user.role) },
+        meta: {
+          byRole: normalizeUserRole(req.user.role),
+          status,
+          complaintCode: complaint.complaintCode,
+          redirectPath: "/my-complaints",
+          complaintId: String(complaint._id),
+        },
       });
     }
 
