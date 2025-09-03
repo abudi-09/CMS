@@ -135,6 +135,107 @@ export async function getCategoryCountsApi() {
     categories: Array<{ category: string; count: number }>;
   };
 }
+
+// Admin calendar summary: only direct-to-admin-by-student and assigned to the current admin
+export async function getAdminCalendarSummaryApi(params?: {
+  month?: number; // 0-11
+  year?: number;
+  status?: string;
+  priority?: string;
+  categories?: string[];
+  submissionFrom?: string; // yyyy-mm-dd
+  submissionTo?: string; // yyyy-mm-dd
+  deadlineFrom?: string; // yyyy-mm-dd
+  deadlineTo?: string; // yyyy-mm-dd
+  viewType?: "submission" | "deadline";
+  assignedTo?: string; // admin id
+}) {
+  const qs: string[] = [];
+  if (typeof params?.month === "number") qs.push(`month=${params.month}`);
+  if (typeof params?.year === "number") qs.push(`year=${params.year}`);
+  if (params?.status) qs.push(`status=${encodeURIComponent(params.status)}`);
+  if (params?.priority)
+    qs.push(`priority=${encodeURIComponent(params.priority)}`);
+  if (params?.categories?.length)
+    qs.push(`categories=${encodeURIComponent(params.categories.join(","))}`);
+  if (params?.submissionFrom)
+    qs.push(`submissionFrom=${params.submissionFrom}`);
+  if (params?.submissionTo) qs.push(`submissionTo=${params.submissionTo}`);
+  if (params?.deadlineFrom) qs.push(`deadlineFrom=${params.deadlineFrom}`);
+  if (params?.deadlineTo) qs.push(`deadlineTo=${params.deadlineTo}`);
+  if (params?.viewType) qs.push(`viewType=${params.viewType}`);
+  if (params?.assignedTo) qs.push(`assignedTo=${encodeURIComponent(params.assignedTo)}`);
+  const url = `${API_BASE}/stats/complaints/calendar/admin-summary${
+    qs.length ? `?${qs.join("&")}` : ""
+  }`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch admin calendar summary");
+  return data as {
+    totalThisMonth: number;
+    overdue: number;
+    dueToday: number;
+    resolvedThisMonth: number;
+    countsByStatus?: Record<string, number>;
+    countsByPriority?: Record<string, number>;
+    countsByCategory?: Record<string, number>;
+  };
+}
+
+// Admin calendar day (list complaints for a specific date)
+export async function getAdminCalendarDayApi(params: {
+  date: string; // yyyy-mm-dd
+  viewType?: "submission" | "deadline";
+  status?: string;
+  priority?: string;
+  categories?: string[];
+  assignedTo?: string;
+}) {
+  const qs: string[] = [];
+  if (params?.date) qs.push(`date=${params.date}`);
+  if (params?.viewType) qs.push(`viewType=${params.viewType}`);
+  if (params?.status) qs.push(`status=${encodeURIComponent(params.status)}`);
+  if (params?.priority)
+    qs.push(`priority=${encodeURIComponent(params.priority)}`);
+  if (params?.categories?.length)
+    qs.push(`categories=${encodeURIComponent(params.categories.join(","))}`);
+  if (params?.assignedTo) qs.push(`assignedTo=${encodeURIComponent(params.assignedTo)}`);
+  const url = `${API_BASE}/stats/complaints/calendar/admin-day${qs.length ? `?${qs.join("&")}` : ""}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok)
+    throw new Error(data.error || "Failed to fetch admin day complaints");
+  return data as Array<{
+    _id?: string;
+    id?: string;
+    title?: string;
+    status?: string;
+    priority?: "Low" | "Medium" | "High" | "Critical" | string;
+    category?: string;
+    submittedBy?: { name?: string; email?: string } | string | null;
+    createdAt?: string;
+    submittedDate?: string;
+    updatedAt?: string;
+    lastUpdated?: string;
+    deadline?: string | null;
+    isEscalated?: boolean;
+    submittedTo?: string | null;
+    department?: string | null;
+    sourceRole?: string | null;
+    assignedByRole?: string | null;
+    assignmentPath?: string[];
+  }>;
+}
+
 // Approve staff (admin)
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {

@@ -20,7 +20,12 @@ import {
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useAuth } from "@/components/auth/AuthContext";
-import { apiClient, getAssignedComplaintsApi } from "@/lib/api";
+import {
+  apiClient,
+  getAssignedComplaintsApi,
+  getAdminCalendarSummaryApi,
+  getAdminCalendarDayApi,
+} from "@/lib/api";
 import { fetchCategoriesApi } from "@/lib/categoryApi";
 import {
   format,
@@ -30,7 +35,7 @@ import {
   eachDayOfInterval,
 } from "date-fns";
 
-// Local types for API mapping
+
 type CategoryRes = {
   name: string;
   roles?: string[];
@@ -63,9 +68,12 @@ type QueryComplaint = {
 
 const statusColors: Record<string, string> = {
   Pending: "bg-yellow-500 text-white",
+  Accepted: "bg-sky-500 text-white",
   "In Progress": "bg-blue-500 text-white",
   Resolved: "bg-green-500 text-white",
+  Rejected: "bg-red-500 text-white",
   Closed: "bg-gray-500 text-white",
+  Overdue: "bg-red-600 text-white",
 };
 
 const priorityColors: Record<string, string> = {
@@ -92,6 +100,11 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  // Date range filters
+  const [submissionFrom, setSubmissionFrom] = useState<Date | null>(null);
+  const [submissionTo, setSubmissionTo] = useState<Date | null>(null);
+  const [deadlineFrom, setDeadlineFrom] = useState<Date | null>(null);
+  const [deadlineTo, setDeadlineTo] = useState<Date | null>(null);
 
   const [allComplaints, setAllComplaints] = useState<Complaint[]>([]);
   const [adminCategories, setAdminCategories] = useState<string[]>([]);
@@ -102,6 +115,15 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<{
+    totalThisMonth: number;
+    overdue: number;
+    dueToday: number;
+    resolvedThisMonth: number;
+    countsByStatus?: Record<string, number>;
+    countsByPriority?: Record<string, number>;
+    countsByCategory?: Record<string, number>;
+  }>({ totalThisMonth: 0, overdue: 0, dueToday: 0, resolvedThisMonth: 0 });
 
   // Staff: load only their assigned complaints
   useEffect(() => {
@@ -135,8 +157,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           resolutionNote: undefined,
           evidenceFile: undefined,
           isEscalated: c.isEscalated,
-          submittedTo: c.sourceRole,
+          submittedTo: undefined,
           department: c.category,
+          sourceRole: (c.sourceRole || undefined) as Complaint["sourceRole"],
+          assignedByRole: (c.assignedByRole ||
+            undefined) as Complaint["assignedByRole"],
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as Complaint["assignmentPath"])
+            : undefined,
         }));
         setAllComplaints(mapped);
       } catch (e) {
@@ -181,11 +209,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         const directToAdmin = (c: QueryComplaint) => {
           const submittedTo = String(c?.submittedTo || "").toLowerCase();
           const src = String(c?.sourceRole || "").toLowerCase();
-          const assignedBy = String(c?.assignedByRole || "").toLowerCase();
-          return (
-            submittedTo === "admin" ||
-            (src === "student" && assignedBy === "admin")
-          );
+          // Only complaints submitted directly to Admin by students
+          return submittedTo.includes("admin") && src === "student";
         };
         const mapped: Complaint[] = (res || [])
           .filter(directToAdmin)
@@ -235,7 +260,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               assignedByRole: (c?.assignedByRole ||
                 undefined) as Complaint["assignedByRole"],
               assignmentPath: Array.isArray(c?.assignmentPath)
-                ? c.assignmentPath
+                ? (c.assignmentPath as Complaint["assignmentPath"])
                 : undefined,
             } as Complaint;
           });
@@ -251,6 +276,170 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [effectiveRole, user?.id, user?.name, user?.fullName]);
 
+  // Load summary from backend for Admin based on current filters
+  useEffect(() => {
+    let cancelled = false;
+    if (effectiveRole !== "admin") return;
+    (async () => {
+      try {
+        const m = selectedDate.getMonth();
+        const y = selectedDate.getFullYear();
+        const params: Parameters<typeof getAdminCalendarSummaryApi>[0] = {
+          month: m,
+          year: y,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          priority: priorityFilter !== "all" ? priorityFilter : undefined,
+          categories:
+            categoryFilter !== "all"
+              ? [categoryFilter]
+              : adminCategories.length
+              ? adminCategories
+              : undefined,
+          assignedTo: user?.id,
+          submissionFrom: submissionFrom
+            ? new Date(
+                submissionFrom.getTime() -
+                  submissionFrom.getTimezoneOffset() * 60000
+              )
+                .toISOString()
+                .slice(0, 10)
+            : undefined,
+          submissionTo: submissionTo
+            ? new Date(
+                submissionTo.getTime() -
+                  submissionTo.getTimezoneOffset() * 60000
+              )
+                .toISOString()
+                .slice(0, 10)
+            : undefined,
+          deadlineFrom: deadlineFrom
+            ? new Date(
+                deadlineFrom.getTime() -
+                  deadlineFrom.getTimezoneOffset() * 60000
+              )
+                .toISOString()
+                .slice(0, 10)
+            : undefined,
+          deadlineTo: deadlineTo
+            ? new Date(
+                deadlineTo.getTime() - deadlineTo.getTimezoneOffset() * 60000
+              )
+                .toISOString()
+                .slice(0, 10)
+            : undefined,
+          viewType: viewType,
+        };
+        const s = await getAdminCalendarSummaryApi(params);
+        if (!cancelled) setSummary(s);
+      } catch (_) {
+        if (!cancelled)
+          setSummary({
+            totalThisMonth: 0,
+            overdue: 0,
+            dueToday: 0,
+            resolvedThisMonth: 0,
+          });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    effectiveRole,
+    selectedDate,
+    statusFilter,
+    priorityFilter,
+    categoryFilter,
+    adminCategories,
+    submissionFrom,
+    submissionTo,
+    deadlineFrom,
+    deadlineTo,
+    viewType,
+  user?.id,
+  ]);
+
+  // Fetch date-specific complaints for Admin when clicking a date
+  const handleSelectDate = async (date?: Date) => {
+    if (!date) return;
+    setSelectedDate(date);
+    if (effectiveRole !== "admin" || !user?.id) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const dateStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 10);
+      const categoriesParam =
+        categoryFilter !== "all"
+          ? [categoryFilter]
+          : adminCategories.length
+          ? adminCategories
+          : undefined;
+      const items = await getAdminCalendarDayApi({
+        date: dateStr,
+        viewType,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        priority: priorityFilter !== "all" ? priorityFilter : undefined,
+        categories: categoriesParam,
+        assignedTo: user.id,
+      });
+      const mapped: Complaint[] = (items as unknown as QueryComplaint[]).map(
+        (c) => {
+          const status = (c?.status as Complaint["status"]) || "Pending";
+          const priority: Complaint["priority"] =
+            c?.priority === "Low" ||
+            c?.priority === "Medium" ||
+            c?.priority === "High" ||
+            c?.priority === "Critical"
+              ? (c.priority as Complaint["priority"]) 
+              : "Medium";
+          const submittedAt = c.createdAt ?? c.submittedDate;
+          const updatedAt = c.updatedAt ?? c.lastUpdated;
+          return {
+            id: String(c?._id || c?.id || ""),
+            title: c?.title || "Untitled Complaint",
+            description: c?.description || c?.shortDescription || "",
+            category: c?.category || "",
+            status,
+            submittedBy:
+              (c?.submittedBy && typeof c.submittedBy === "object"
+                ? c?.submittedBy?.name || c?.submittedBy?.email
+                : (c?.submittedBy as string)) || "Unknown",
+            assignedStaff: user.fullName || user.name || "You",
+            submittedDate: submittedAt ? new Date(submittedAt) : date,
+            deadline: c?.deadline ? new Date(c.deadline) : undefined,
+            lastUpdated: updatedAt ? new Date(updatedAt) : new Date(),
+            priority,
+            feedback: undefined,
+            resolutionNote: undefined,
+            evidenceFile: undefined,
+            isEscalated: !!c?.isEscalated,
+            submittedTo: (c?.submittedTo || undefined) as string | undefined,
+            department: (c?.department || c?.category || undefined) as
+              | string
+              | undefined,
+            sourceRole: (c?.sourceRole || undefined) as Complaint["sourceRole"],
+            assignedByRole: (c?.assignedByRole || undefined) as Complaint["assignedByRole"],
+            assignmentPath: Array.isArray(c?.assignmentPath)
+              ? (c.assignmentPath as string[])
+              : undefined,
+          } as Complaint;
+        }
+      );
+      // Replace current selected day subset by removing other-day entries with same ids not necessary; just merge unique to update data
+      setAllComplaints((prev) => {
+        const byId = new Map<string, Complaint>();
+        [...prev, ...mapped].forEach((it) => byId.set(it.id, it));
+        return Array.from(byId.values());
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filtering
   const filteredComplaints = useMemo(() => {
     return allComplaints.filter((complaint) => {
@@ -265,7 +454,23 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       const matchesCategory =
         (categoryFilter === "all" || complaint.category === categoryFilter) &&
         adminAllowedCategory;
-      return matchesStatus && matchesPriority && matchesCategory;
+      // Submission date range filter
+      const sd = complaint.submittedDate;
+      const submissionFromOk = !submissionFrom || (sd && sd >= submissionFrom);
+      const submissionToOk = !submissionTo || (sd && sd <= submissionTo);
+      const matchesSubmissionRange = submissionFromOk && submissionToOk;
+      // Deadline date range filter
+      const dl = complaint.deadline ?? null;
+      const deadlineFromOk = !deadlineFrom || (dl && dl >= deadlineFrom);
+      const deadlineToOk = !deadlineTo || (dl && dl <= deadlineTo);
+      const matchesDeadlineRange = deadlineFromOk && deadlineToOk;
+      return (
+        matchesStatus &&
+        matchesPriority &&
+        matchesCategory &&
+        matchesSubmissionRange &&
+        matchesDeadlineRange
+      );
     });
   }, [
     allComplaints,
@@ -274,6 +479,10 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     categoryFilter,
     adminCategories,
     effectiveRole,
+    submissionFrom,
+    submissionTo,
+    deadlineFrom,
+    deadlineTo,
   ]);
 
   const getComplaintsForDate = (date: Date) => {
@@ -431,7 +640,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
+              onSelect={handleSelectDate}
               className="w-full pointer-events-auto"
               modifiers={{ hasComplaints: getDateWithComplaints() }}
               modifiersStyles={{
@@ -540,19 +749,20 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Total This Month</p>
                 <p className="text-2xl font-bold">
-                  {
-                    filteredComplaints.filter((c) => {
-                      const compareDate =
-                        viewType === "submission"
-                          ? c.submittedDate
-                          : c.deadline;
-                      return (
-                        compareDate &&
-                        compareDate.getMonth() === selectedDate.getMonth() &&
-                        compareDate.getFullYear() === selectedDate.getFullYear()
-                      );
-                    }).length
-                  }
+                  {effectiveRole === "admin"
+                    ? summary.totalThisMonth
+                    : filteredComplaints.filter((c) => {
+                        const compareDate =
+                          viewType === "submission"
+                            ? c.submittedDate
+                            : c.deadline;
+                        return (
+                          compareDate &&
+                          compareDate.getMonth() === selectedDate.getMonth() &&
+                          compareDate.getFullYear() ===
+                            selectedDate.getFullYear()
+                        );
+                      }).length}
                 </p>
               </div>
             </div>
@@ -566,15 +776,15 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Overdue</p>
                 <p className="text-2xl font-bold text-destructive">
-                  {
-                    filteredComplaints.filter(
-                      (c) =>
-                        c.deadline &&
-                        c.deadline < new Date() &&
-                        c.status !== "Resolved" &&
-                        c.status !== "Closed"
-                    ).length
-                  }
+                  {effectiveRole === "admin"
+                    ? summary.overdue
+                    : filteredComplaints.filter(
+                        (c) =>
+                          c.deadline &&
+                          c.deadline < new Date() &&
+                          c.status !== "Resolved" &&
+                          c.status !== "Closed"
+                      ).length}
                 </p>
               </div>
             </div>
@@ -588,11 +798,11 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Due Today</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {
-                    filteredComplaints.filter(
-                      (c) => c.deadline && isSameDay(c.deadline, new Date())
-                    ).length
-                  }
+                  {effectiveRole === "admin"
+                    ? summary.dueToday
+                    : filteredComplaints.filter(
+                        (c) => c.deadline && isSameDay(c.deadline, new Date())
+                      ).length}
                 </p>
               </div>
             </div>
@@ -606,22 +816,84 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Resolved This Month</p>
                 <p className="text-2xl font-bold text-success">
-                  {
-                    filteredComplaints.filter(
-                      (c) =>
-                        c.status === "Resolved" &&
-                        c.submittedDate.getMonth() ===
-                          selectedDate.getMonth() &&
-                        c.submittedDate.getFullYear() ===
-                          selectedDate.getFullYear()
-                    ).length
-                  }
+                  {effectiveRole === "admin"
+                    ? summary.resolvedThisMonth
+                    : filteredComplaints.filter(
+                        (c) =>
+                          c.status === "Resolved" &&
+                          c.submittedDate.getMonth() ===
+                            selectedDate.getMonth() &&
+                          c.submittedDate.getFullYear() ===
+                            selectedDate.getFullYear()
+                      ).length}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {effectiveRole === "admin" && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">By Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm space-y-1">
+                {summary.countsByStatus ? (
+                  Object.entries(summary.countsByStatus).map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span>{k}</span>
+                      <span className="font-medium">{v}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">No data</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">By Priority</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm space-y-1">
+                {summary.countsByPriority ? (
+                  Object.entries(summary.countsByPriority).map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span>{k}</span>
+                      <span className="font-medium">{v}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">No data</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">By Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm space-y-1 max-h-64 overflow-auto">
+                {summary.countsByCategory ? (
+                  Object.entries(summary.countsByCategory).map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span>{k}</span>
+                      <span className="font-medium">{v}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">No data</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <RoleBasedComplaintModal
         complaint={selectedComplaint}

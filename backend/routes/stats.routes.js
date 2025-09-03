@@ -10,6 +10,8 @@ import {
   getDeanVisibleComplaintStats,
   getStudentCount,
   getCategoryCounts,
+  getAdminCalendarSummary,
+  getAdminCalendarDay,
 } from "../controllers/stats.controller.js";
 import Complaint from "../models/complaint.model.js";
 
@@ -116,5 +118,21 @@ router.get(
 router.get("/staffs", protectRoute, staffOnly, getStaffStats);
 // User stat endpoint
 router.get("/user", protectRoute, getUserStats);
+
+// Admin calendar summary (direct-to-admin-by-student, admin-assigned)
+router.get(
+  "/complaints/calendar/admin-summary",
+  protectRoute,
+  adminOnly,
+  getAdminCalendarSummary
+);
+
+// Admin calendar day items
+router.get(
+  "/complaints/calendar/admin-day",
+  protectRoute,
+  adminOnly,
+  getAdminCalendarDay
+);
 
 export default router;

@@ -331,3 +331,244 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
     });
   }
 };
+
+// Admin calendar summary: counts for the logged-in admin, direct-to-admin-by-student complaints only
+export const getAdminCalendarSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Query params
+    const assignedTo = req.query.assignedTo || String(user._id);
+    const status = req.query.status || null; // exact match
+    const priority = req.query.priority || null; // exact match
+    const categoriesParam = req.query.categories; // array or csv
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10); // 0-11
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const submissionFrom = req.query.submissionFrom
+      ? new Date(String(req.query.submissionFrom))
+      : null;
+    const submissionTo = req.query.submissionTo
+      ? new Date(String(req.query.submissionTo))
+      : null;
+    const deadlineFrom = req.query.deadlineFrom
+      ? new Date(String(req.query.deadlineFrom))
+      : null;
+    const deadlineTo = req.query.deadlineTo
+      ? new Date(String(req.query.deadlineTo))
+      : null;
+
+    // Base filter: assigned to this admin, submitted directly to admin, from student, not deleted
+    const base = {
+      isDeleted: { $ne: true },
+      assignedTo: assignedTo,
+      submittedTo: { $regex: /admin/i },
+      sourceRole: { $regex: /^student$/i },
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+    // Attach optional submission/deadline range filters
+    const submissionRange = {};
+    if (submissionFrom) submissionRange.$gte = submissionFrom;
+    if (submissionTo)
+      submissionRange.$lte = new Date(
+        new Date(submissionTo).setHours(23, 59, 59, 999)
+      );
+    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
+
+    const deadlineRange = {};
+    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
+    if (deadlineTo)
+      deadlineRange.$lte = new Date(
+        new Date(deadlineTo).setHours(23, 59, 59, 999)
+      );
+    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
+
+    // Total for selected month based on viewType
+    const monthFilter = {
+      ...base,
+      ...(viewType === "submission"
+        ? {
+            createdAt: {
+              ...(base.createdAt || {}),
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          }
+        : {
+            deadline: {
+              ...(base.deadline || {}),
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          }),
+    };
+
+    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
+      await Promise.all([
+        Complaint.countDocuments(monthFilter),
+        Complaint.countDocuments({
+          ...base,
+          deadline: { ...(base.deadline || {}), $lt: new Date() },
+          status: { $nin: ["Resolved", "Closed"] },
+        }),
+        (() => {
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          const end = new Date();
+          end.setHours(23, 59, 59, 999);
+          return Complaint.countDocuments({
+            ...base,
+            deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
+          });
+        })(),
+        Complaint.countDocuments({
+          ...base,
+          status: "Resolved",
+          createdAt: {
+            ...(base.createdAt || {}),
+            $gte: monthStart,
+            $lte: monthEnd,
+          },
+        }),
+      ]);
+
+    // Breakdown aggregations for the selected month scope
+    const breakdownMatch = monthFilter;
+
+    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$status", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$priority", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$category", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const countsByStatus = Object.fromEntries(
+      (byStatusAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByPriority = Object.fromEntries(
+      (byPriorityAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByCategory = Object.fromEntries(
+      (byCategoryAgg || []).map((r) => [r._id, r.count])
+    );
+
+    return res.status(200).json({
+      totalThisMonth,
+      overdue,
+      dueToday,
+      resolvedThisMonth,
+      countsByStatus,
+      countsByPriority,
+      countsByCategory,
+    });
+  } catch (err) {
+    console.error("getAdminCalendarSummary error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin calendar summary" });
+  }
+};
+
+// Admin calendar day list: complaints assigned to admin, direct-to-admin-by-student, for a specific date
+export const getAdminCalendarDay = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const assignedTo = req.query.assignedTo || String(user._id);
+    const status = req.query.status || null; // optional exact match
+    const priority = req.query.priority || null; // optional exact match
+    const categoriesParam = req.query.categories; // csv or array
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+      return res.status(400).json({ error: "Invalid or missing date" });
+    }
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+
+    const base = {
+      isDeleted: { $ne: true },
+      assignedTo: assignedTo,
+      submittedTo: { $regex: /admin/i },
+      sourceRole: { $regex: /^student$/i },
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const dateFilter =
+      viewType === "submission"
+        ? { createdAt: { $gte: dayStart, $lte: dayEnd } }
+        : { deadline: { $gte: dayStart, $lte: dayEnd } };
+
+    const items = await Complaint.find({ ...base, ...dateFilter })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath"
+      )
+      .populate("submittedBy", "name email")
+      .lean();
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getAdminCalendarDay error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin calendar day complaints" });
+  }
+};
