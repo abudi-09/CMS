@@ -111,6 +111,29 @@ const complaintSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Soft delete support
+    // Soft delete + edit tracking
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    lastEditedAt: { type: Date, default: null },
+    editsCount: { type: Number, default: 0 },
+    // Routing target chosen by student
+    recipientRole: {
+      type: String,
+      enum: ["staff", "hod", "dean", "admin", null],
+      default: null,
+      index: true,
+    },
+    recipientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true }
 );

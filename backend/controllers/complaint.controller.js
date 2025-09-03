@@ -65,6 +65,9 @@ export const createComplaint = async (req, res) => {
         ? assignmentPath
         : ["student"],
       submittedBy: user ? user._id : undefined,
+      // recipient routing
+      recipientRole: req.body?.recipientRole || null,
+      recipientId: req.body?.recipientId || null,
     };
 
     if (deadline) {
@@ -261,10 +264,177 @@ export const createComplaint = async (req, res) => {
   }
 };
 
+// Student: update recipient before acceptance (Pending only)
+export const updateMyComplaintRecipient = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { recipientRole, recipientId } = req.body || {};
+    const userId = req.user?._id;
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (String(complaint.submittedBy) !== String(userId))
+      return res.status(403).json({ error: "Not allowed" });
+    if (complaint.status !== "Pending")
+      return res
+        .status(400)
+        .json({ error: "Recipient can be changed only while Pending" });
+
+    const prev = { from: complaint.recipientRole || null };
+    complaint.recipientRole = recipientRole || null;
+    complaint.recipientId = recipientId || null;
+    complaint.lastEditedAt = new Date();
+    complaint.editsCount = (complaint.editsCount || 0) + 1;
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Recipient Updated",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { ...prev, to: complaint.recipientRole || null },
+    });
+
+    return res.status(200).json({ message: "Recipient updated", complaint });
+  } catch (err) {
+    console.error("updateMyComplaintRecipient error:", err?.message);
+    return res.status(500).json({ error: "Failed to update recipient" });
+  }
+};
+
+// Admin/HOD: reassign complaint to a different recipient role (post-acceptance allowed)
+export const reassignRecipient = async (req, res) => {
+  try {
+    if (!["admin", "hod", "dean"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const { id } = req.params;
+    const { recipientRole, recipientId, note } = req.body || {};
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    const prevRole = complaint.recipientRole || null;
+    complaint.recipientRole = recipientRole || null;
+    complaint.recipientId = recipientId || null;
+    complaint.lastEditedAt = new Date();
+    await complaint.save();
+
+    // Timeline log with human-readable message
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Recipient Reassigned",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: {
+        from: prevRole,
+        to: complaint.recipientRole,
+        description: note || "",
+      },
+    });
+
+    return res.status(200).json({ message: "Recipient reassigned", complaint });
+  } catch (err) {
+    console.error("reassignRecipient error:", err?.message);
+    return res.status(500).json({ error: "Failed to reassign recipient" });
+  }
+};
+
+// Student: update own complaint (allowed only when Pending)
+export const updateMyComplaint = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id;
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (String(complaint.submittedBy) !== String(userId)) {
+      return res.status(403).json({ error: "Not allowed" });
+    }
+    if (complaint.isDeleted) {
+      return res.status(400).json({ error: "Cannot edit a deleted complaint" });
+    }
+    if (!["Pending"].includes(complaint.status)) {
+      return res
+        .status(400)
+        .json({ error: "Editing allowed only when status is Pending" });
+    }
+    // Only allow editing Title, Category, and Description
+    const allowed = ["title", "description", "category"];
+    for (const key of allowed) {
+      if (key in req.body) complaint[key] = req.body[key];
+    }
+    complaint.lastEditedAt = new Date();
+    complaint.editsCount = (complaint.editsCount || 0) + 1;
+    await complaint.save();
+
+    // Log activity
+    await ActivityLog.create({
+      user: userId,
+      role: req.user.role,
+      action: "Complaint Edited",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: {
+        fields: allowed.filter((k) => k in req.body),
+      },
+    });
+
+    return res.status(200).json({ message: "Complaint updated", complaint });
+  } catch (err) {
+    console.error("updateMyComplaint error:", err?.message);
+    return res.status(500).json({ error: "Failed to update complaint" });
+  }
+};
+
+// Student: soft delete own complaint (allowed only when Pending)
+export const softDeleteMyComplaint = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id;
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (String(complaint.submittedBy) !== String(userId)) {
+      return res.status(403).json({ error: "Not allowed" });
+    }
+    if (complaint.isDeleted) {
+      return res.status(400).json({ error: "Already deleted" });
+    }
+    if (!["Pending"].includes(complaint.status)) {
+      return res
+        .status(400)
+        .json({ error: "Delete allowed only when status is Pending" });
+    }
+    complaint.isDeleted = true;
+    complaint.deletedAt = new Date();
+    complaint.deletedBy = userId;
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: userId,
+      role: req.user.role,
+      action: "Complaint Deleted",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { softDelete: true },
+    });
+
+    return res.status(200).json({ message: "Complaint deleted" });
+  } catch (err) {
+    console.error("softDeleteMyComplaint error:", err?.message);
+    return res.status(500).json({ error: "Failed to delete complaint" });
+  }
+};
+
 // 2. User views their own complaints
 export const getMyComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find({ submittedBy: req.user._id })
+    const complaints = await Complaint.find({
+      submittedBy: req.user._id,
+      isDeleted: { $ne: true },
+    })
       .populate("submittedBy", "name email")
       .populate("assignedTo", "name email")
       .sort({ updatedAt: -1 })
@@ -296,6 +466,9 @@ export const getMyComplaints = async (req, res) => {
       submittedTo: c?.submittedTo ?? null,
       feedback: c?.status === "Resolved" ? c?.feedback || null : null,
       isEscalated: !!c?.isEscalated,
+      isDeleted: !!c?.isDeleted,
+      recipientRole: c?.recipientRole ?? null,
+      recipientId: c?.recipientId ?? null,
     }));
 
     return res.status(200).json(formatted);
@@ -308,7 +481,7 @@ export const getMyComplaints = async (req, res) => {
 // 3. Admin views all complaints
 export const getAllComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find()
+    const complaints = await Complaint.find({ isDeleted: { $ne: true } })
       .populate("submittedBy", "name")
       .populate("assignedTo", "name")
       .lean();
@@ -575,7 +748,10 @@ export const getDeanInbox = async (req, res) => {
         },
       ],
     };
-    const complaints = await Complaint.find(filter)
+    const complaints = await Complaint.find({
+      ...filter,
+      isDeleted: { $ne: true },
+    })
       .populate("submittedBy", "name email")
       .sort({ createdAt: -1 })
       .limit(100);
@@ -616,7 +792,10 @@ export const getAdminInbox = async (req, res) => {
         { assignmentPath: { $in: ["admin"] } },
       ],
     };
-    const complaints = await Complaint.find(filter)
+    const complaints = await Complaint.find({
+      ...filter,
+      isDeleted: { $ne: true },
+    })
       .populate("submittedBy", "name email")
       .sort({ createdAt: -1 })
       .limit(100);
@@ -1519,11 +1698,14 @@ export const markFeedbackReviewed = async (req, res) => {
     }
     // Admin can only mark reviewed when the feedback was directed to Admin route (complaint submittedTo admin or assignedByRole admin)
     if (req.user.role === "admin") {
-      const submittedToAdmin = (complaint.submittedTo || "").toLowerCase() === "admin";
+      const submittedToAdmin =
+        (complaint.submittedTo || "").toLowerCase() === "admin";
       const adminInPath =
         (complaint.assignedByRole || "").toLowerCase() === "admin" ||
-        Array.isArray(complaint.assignmentPath) &&
-          complaint.assignmentPath.some((r) => String(r).toLowerCase() === "admin");
+        (Array.isArray(complaint.assignmentPath) &&
+          complaint.assignmentPath.some(
+            (r) => String(r).toLowerCase() === "admin"
+          ));
       if (!submittedToAdmin && !adminInPath) {
         return res.status(403).json({
           error:
@@ -1576,7 +1758,7 @@ export const queryComplaints = async (req, res) => {
       }
     }
 
-    const complaints = await Complaint.find(q)
+    const complaints = await Complaint.find({ ...q, isDeleted: { $ne: true } })
       .populate("submittedBy", "name email")
       .lean();
 

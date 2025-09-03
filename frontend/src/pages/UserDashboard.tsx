@@ -342,6 +342,7 @@ export function UserDashboard() {
               actionLabel="View"
               showOverdueColumn
               isOverdueFn={isOverdue}
+              hideIdColumn
             />
             {!loading && !error && recentComplaints.length === 0 && (
               <p className="text-sm text-muted-foreground mt-4 px-2">

@@ -173,7 +173,7 @@ export function AdminComplaints() {
   // Admin actions: Accept / Reject
   const acceptComplaint = async (c: Complaint) => {
     try {
-      await approveComplaintApi(c.id);
+      await approveComplaintApi(c.id, { assignToSelf: true });
       const adminName = (user && (user.fullName || user.name)) || "Admin";
       setComplaints((prev) =>
         prev.map((x) =>
@@ -240,7 +240,10 @@ export function AdminComplaints() {
       return;
     }
     try {
-      await approveComplaintApi(c.id, { note: note.trim() });
+      await approveComplaintApi(c.id, {
+        note: note.trim(),
+        assignToSelf: true,
+      });
       const adminName = (user && (user.fullName || user.name)) || "Admin";
       setComplaints((prev) =>
         prev.map((x) =>

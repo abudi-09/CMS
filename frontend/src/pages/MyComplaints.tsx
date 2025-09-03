@@ -17,7 +17,14 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Eye, MessageSquare } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Eye,
+  MessageSquare,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { Complaint } from "@/components/ComplaintCard";
@@ -32,10 +39,27 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-import { getMyComplaintsApi } from "@/lib/api";
+import {
+  getMyComplaintsApi,
+  updateMyComplaintApi,
+  softDeleteMyComplaintApi,
+} from "@/lib/api";
+import { fetchCategoriesApi } from "@/lib/categoryApi";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface ExtendedComplaint extends Complaint {
   friendlyCode?: string;
+  recipientRole?: "admin" | "dean" | "hod" | "staff" | null;
+  submittedTo?: string | null;
 }
 
 interface BackendComplaintDTO {
@@ -67,6 +91,7 @@ interface BackendComplaintDTO {
   evidenceFile?: string;
   isEscalated?: boolean;
   submittedTo?: string;
+  recipientRole?: string | null;
 }
 
 const statusColors = {
@@ -173,6 +198,21 @@ export function MyComplaints() {
           submittedTo: c.submittedTo,
           department: c.department,
           friendlyCode: c.complaintCode,
+          recipientRole: ((): ExtendedComplaint["recipientRole"] => {
+            const r = (c as BackendComplaintDTO).recipientRole as
+              | string
+              | undefined;
+            if (!r) return null;
+            const low = r.toLowerCase();
+            if (
+              low === "admin" ||
+              low === "dean" ||
+              low === "hod" ||
+              low === "staff"
+            )
+              return low as ExtendedComplaint["recipientRole"];
+            return null;
+          })(),
         }));
         if (!cancelled) setComplaints(mapped);
       } catch (err: unknown) {
@@ -190,12 +230,27 @@ export function MyComplaints() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
-  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
-    null
-  );
+  const [selectedComplaint, setSelectedComplaint] =
+    useState<ExtendedComplaint | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editWorking, setEditWorking] = useState(false);
+  const [editCategories, setEditCategories] = useState<Array<{ name: string }>>(
+    []
+  );
+  const [loadingEditCategories, setLoadingEditCategories] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    category: "",
+    department: "",
+    priority: "Medium" as "Low" | "Medium" | "High" | "Critical",
+    description: "",
+    evidenceFile: "",
+  });
   const [lastResolvedId, setLastResolvedId] = useState<string | null>(null);
+  const { toast } = useToast();
   const complaintsRef = useRef<ExtendedComplaint[]>([]);
   const lastResolvedIdRef = useRef<string | null>(null);
   const location = useLocation();
@@ -270,6 +325,136 @@ export function MyComplaints() {
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
+  };
+
+  const canEditOrDelete = (c?: Complaint | null) => {
+    if (!c) return false;
+    return c.status === "Pending"; // allow only when Pending per requirement
+  };
+
+  const handleOpenEdit = (c: Complaint) => {
+    if (!canEditOrDelete(c)) return;
+    setSelectedComplaint(c);
+    setEditForm({
+      title: c.title,
+      category: c.category,
+      department: c.department || "",
+      priority: c.priority || "Medium",
+      description: c.description,
+      evidenceFile: "",
+    });
+    setShowEditModal(true);
+  };
+
+  // Load categories for dropdown based on previously chosen recipient role (or fallback to student-visible)
+  useEffect(() => {
+    (async () => {
+      if (!showEditModal || !selectedComplaint) return;
+      try {
+        setLoadingEditCategories(true);
+        const role = selectedComplaint.recipientRole as
+          | "admin"
+          | "dean"
+          | "hod"
+          | "staff"
+          | null;
+        const backendRole = role || "student"; // fallback
+        const list = await fetchCategoriesApi({
+          role: backendRole,
+          status: "active",
+        });
+        const options = Array.isArray(list)
+          ? list.map((c: { name: string }) => ({ name: c.name }))
+          : [];
+        setEditCategories(options);
+        // If current category isn’t in the list (e.g., deactivated), keep value as-is; otherwise default to first
+        if (
+          options.length &&
+          !options.some((o) => o.name === editForm.category)
+        ) {
+          setEditForm((p) => ({ ...p, category: options[0].name }));
+        }
+      } catch (_) {
+        setEditCategories([]);
+      } finally {
+        setLoadingEditCategories(false);
+      }
+    })();
+  }, [showEditModal, selectedComplaint, editForm.category]);
+
+  const handleSaveEdit = async () => {
+    if (!selectedComplaint) return;
+    try {
+      setEditWorking(true);
+      const updated = await updateMyComplaintApi(String(selectedComplaint.id), {
+        title: editForm.title,
+        category: editForm.category,
+        description: editForm.description,
+      });
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === selectedComplaint.id
+            ? {
+                ...c,
+                title: editForm.title,
+                category: editForm.category,
+                priority: editForm.priority,
+                description: editForm.description,
+                lastUpdated: new Date(),
+              }
+            : c
+        )
+      );
+      setShowEditModal(false);
+      toast({
+        title: "Updated",
+        description: "Complaint updated successfully",
+      });
+      // notify other views
+      window.dispatchEvent(
+        new CustomEvent("complaint:upsert", { detail: { complaint: updated } })
+      );
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? (e as { message?: string }).message
+          : undefined;
+      toast({
+        title: "Update failed",
+        description: msg || "Unable to update complaint",
+        variant: "destructive",
+      });
+    } finally {
+      setEditWorking(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedComplaint) return;
+    try {
+      await softDeleteMyComplaintApi(String(selectedComplaint.id));
+      setComplaints((prev) =>
+        prev.filter((c) => c.id !== selectedComplaint.id)
+      );
+      setDeleteDialogOpen(false);
+      toast({ title: "Deleted", description: "Complaint removed" });
+      // notify other views
+      window.dispatchEvent(
+        new CustomEvent("complaint:deleted", {
+          detail: { id: selectedComplaint.id },
+        })
+      );
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? (e as { message?: string }).message
+          : undefined;
+      toast({
+        title: "Delete failed",
+        description: msg || "Unable to delete complaint",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleFeedback = (complaint: Complaint) => {
@@ -750,6 +935,27 @@ export function MyComplaints() {
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
+                            {canEditOrDelete(complaint) && (
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleOpenEdit(complaint)}
+                                >
+                                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedComplaint(complaint);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" /> Delete
+                                </Button>
+                              </>
+                            )}
                             {complaint.status === "Resolved" && (
                               <Button
                                 variant="default"
@@ -845,6 +1051,29 @@ export function MyComplaints() {
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Button>
+                        {canEditOrDelete(complaint) && (
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleOpenEdit(complaint)}
+                              className="flex-1 text-xs"
+                            >
+                              <Pencil className="h-3 w-3 mr-1" /> Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedComplaint(complaint);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="flex-1 text-xs"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" /> Delete
+                            </Button>
+                          </>
+                        )}
                         {complaint.status === "Resolved" && (
                           <Button
                             variant="default"
@@ -965,6 +1194,99 @@ export function MyComplaints() {
           onSubmit={handleFeedbackSubmit}
         />
       )}
+
+      {/* Edit Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Complaint</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={editForm.title}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, title: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={editForm.category}
+                onValueChange={(v) =>
+                  setEditForm((p) => ({ ...p, category: v }))
+                }
+                disabled={loadingEditCategories}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      loadingEditCategories ? "Loading..." : "Select category"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {editCategories.map((c) => (
+                    <SelectItem key={c.name} value={c.name}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                  {editCategories.length === 0 && (
+                    <SelectItem value={editForm.category}>
+                      {editForm.category || "General"}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="department">Department</Label>
+              <Input id="department" value={editForm.department} disabled />
+            </div>
+            {/* Priority is not editable during student edit per requirement */}
+            <div className="space-y-1">
+              <Label htmlFor="desc">Description</Label>
+              <Textarea
+                id="desc"
+                value={editForm.description}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, description: e.target.value }))
+                }
+              />
+            </div>
+            {/* Attachment is not editable during student edit per requirement */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditModal(false)}
+                disabled={editWorking}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={editWorking}>
+                {editWorking ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Complaint?"
+        warning="This will remove the complaint from your list. It can no longer be edited or viewed."
+        confirmText="Delete"
+        onConfirm={handleDelete}
+      >
+        <div className="text-sm text-muted-foreground">
+          Deleting is allowed only for complaints that are still Pending.
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }
