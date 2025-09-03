@@ -1,4 +1,48 @@
-// Assign or reassign a complaint to staff (admin)
+// Centralized API helper functions for frontend
+// Clean, deduplicated, and with a defined API_BASE.
+
+const API_BASE = import.meta.env.VITE_API_BASE?.toString() || "/api";
+
+type Json =
+  | Record<string, unknown>
+  | Array<unknown>
+  | string
+  | number
+  | boolean
+  | null;
+
+async function handleJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  const data: unknown = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const d = data as Record<string, unknown> | undefined;
+    const msg =
+      (d && (d.error as string)) ||
+      (d && (d.message as string)) ||
+      res.statusText ||
+      "Request failed";
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+function qs(
+  params: Record<string, string | number | boolean | undefined | null>
+): string {
+  const entries = Object.entries(params).filter(
+    ([, v]) => v !== undefined && v !== null && v !== ""
+  );
+  return entries.length
+    ? `?${entries
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+        )
+        .join("&")}`
+    : "";
+}
+
+// ========================= Complaints (Admin/Dean) =========================
 export async function assignComplaintApi(
   complaintId: string,
   staffId: string,
@@ -16,99 +60,119 @@ export async function assignComplaintApi(
     credentials: "include",
     body: JSON.stringify({ staffId, deadline, ...(opts || {}) }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to assign complaint");
-  return data.complaint || data;
+  return handleJson(res);
 }
 
-// Dean or Admin: list all complaints (dean enabled via backend)
 export async function listAllComplaintsApi() {
   const res = await fetch(`${API_BASE}/complaints/all`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch complaints");
-  return data as Array<{
-    priority: "Low" | "Medium" | "High" | "Critical";
-    id: string;
-    complaintCode?: string;
-    title: string;
-    status: string;
-    department?: string | null;
-    category?: string | null;
-    submittedDate?: string;
-    lastUpdated?: string;
-    assignedTo?: string | null;
-    submittedBy?: string | null;
-    deadline?: string | null;
-    sourceRole?: string | null;
-    assignedByRole?: string | null;
-    assignmentPath?: string[];
-    submittedTo?: string | null;
-    feedback?: unknown;
-    isEscalated?: boolean;
-  }>;
+  // Use a broad type for compatibility with existing mappers
+  return handleJson<unknown[]>(res);
 }
 
-// Dean or Admin: complaint stats summary
+// Common role-scoped complaint fetchers
+export async function getAssignedComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/assigned`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+export async function updateComplaintStatusApi(
+  id: string,
+  status: string,
+  notes?: string
+) {
+  const res = await fetch(
+    `${API_BASE}/complaints/update-status/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status, notes }),
+    }
+  );
+  return handleJson<{ success?: boolean; message?: string }>(res);
+}
+
+export async function getHodInboxApi() {
+  const res = await fetch(`${API_BASE}/complaints/inbox/hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+export async function getHodManagedComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/hod/managed`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+export async function getMyComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/my-complaints`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+// ========================= Stats (General) =========================
 export async function getComplaintStatsApi() {
   const res = await fetch(`${API_BASE}/stats/complaints`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch stats");
-  return data as {
+  return handleJson<{
     total: number;
     pending: number;
     inProgress: number;
     resolved: number;
     unassigned: number;
-  };
+  }>(res);
 }
 
-// Dean: stats excluding complaints submitted to Admin
 export async function getDeanVisibleComplaintStatsApi() {
   const res = await fetch(`${API_BASE}/stats/complaints/dean-visible`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch dean-visible stats");
-  return data as {
+  return handleJson<{
     total: number;
     pending: number;
     inProgress: number;
     resolved: number;
     unassigned: number;
-  };
+  }>(res);
 }
 
-// HoD: department-scoped complaint stats
 export async function getHodComplaintStatsApi() {
   const res = await fetch(`${API_BASE}/stats/complaints/department`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch department stats");
-  return data as {
+  return handleJson<{
     total: number;
     pending: number;
     inProgress: number;
     resolved: number;
     unassigned: number;
-  };
+  }>(res);
 }
 
-// HoD: department priority distribution
 export async function getHodPriorityDistributionApi() {
   const res = await fetch(
     `${API_BASE}/stats/complaints/department/priority-distribution`,
@@ -118,16 +182,12 @@ export async function getHodPriorityDistributionApi() {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch priority distribution");
-  return data as {
+  return handleJson<{
     total: number;
     priorities: Array<{ priority: string; count: number }>;
-  };
+  }>(res);
 }
 
-// HoD: department status distribution
 export async function getHodStatusDistributionApi() {
   const res = await fetch(
     `${API_BASE}/stats/complaints/department/status-distribution`,
@@ -137,16 +197,12 @@ export async function getHodStatusDistributionApi() {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch status distribution");
-  return data as {
+  return handleJson<{
     total: number;
     statuses: Array<{ status: string; count: number }>;
-  };
+  }>(res);
 }
 
-// HoD: department category distribution
 export async function getHodCategoryDistributionApi() {
   const res = await fetch(
     `${API_BASE}/stats/complaints/department/category-distribution`,
@@ -156,28 +212,22 @@ export async function getHodCategoryDistributionApi() {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch category distribution");
-  return data as {
+  return handleJson<{
     total: number;
     categories: Array<{ category: string; count: number }>;
-  };
+  }>(res);
 }
 
-// HoD: monthly trends (last N months)
 export async function getHodMonthlyTrendsApi(months = 6) {
   const res = await fetch(
-    `${API_BASE}/stats/complaints/department/monthly-trends?months=${months}`,
+    `${API_BASE}/stats/complaints/department/monthly-trends${qs({ months })}`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch monthly trends");
-  return data as {
+  return handleJson<{
     months: number;
     data: Array<{
       month: string;
@@ -185,10 +235,9 @@ export async function getHodMonthlyTrendsApi(months = 6) {
       submitted: number;
       resolved: number;
     }>;
-  };
+  }>(res);
 }
 
-// HoD: staff performance aggregation
 export async function getHodStaffPerformanceApi() {
   const res = await fetch(
     `${API_BASE}/stats/complaints/department/staff-performance`,
@@ -198,10 +247,7 @@ export async function getHodStaffPerformanceApi() {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch staff performance");
-  return data as {
+  return handleJson<{
     staff: Array<{
       staffId: string;
       name: string;
@@ -215,19 +261,17 @@ export async function getHodStaffPerformanceApi() {
       avgResolutionHours: number;
       avgRating: number;
     }>;
-  };
+  }>(res);
 }
 
-// Public user profile (for management profile view pages)
+// ========================= Profiles =========================
 export async function getUserPublicProfileApi(userId: string) {
   const res = await fetch(`${API_BASE}/profile/user/${userId}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch user profile");
-  return data as {
+  return handleJson<{
     id: string;
     name?: string;
     email: string;
@@ -244,38 +288,31 @@ export async function getUserPublicProfileApi(userId: string) {
     assignedTotal: number;
     resolvedAssigned: number;
     successRate: number;
-  };
+  }>(res);
 }
 
-// Admin or Dean: total student count (active students)
 export async function getStudentCountApi() {
   const res = await fetch(`${API_BASE}/stats/students/count`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch student count");
-  return data as { students: number };
+  return handleJson<{ students: number }>(res);
 }
 
-// Admin/Dean: category counts across complaints
 export async function getCategoryCountsApi() {
   const res = await fetch(`${API_BASE}/stats/categories`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch categories count");
-  return data as {
+  return handleJson<{
     total: number;
     categories: Array<{ category: string; count: number }>;
-  };
+  }>(res);
 }
 
-// Admin calendar summary: only direct-to-admin-by-student and assigned to the current admin
+// ========================= Admin Calendar =========================
 export async function getAdminCalendarSummaryApi(params?: {
   month?: number; // 0-11
   year?: number;
@@ -289,33 +326,27 @@ export async function getAdminCalendarSummaryApi(params?: {
   viewType?: "submission" | "deadline";
   assignedTo?: string; // admin id
 }) {
-  const qs: string[] = [];
-  if (typeof params?.month === "number") qs.push(`month=${params.month}`);
-  if (typeof params?.year === "number") qs.push(`year=${params.year}`);
-  if (params?.status) qs.push(`status=${encodeURIComponent(params.status)}`);
-  if (params?.priority)
-    qs.push(`priority=${encodeURIComponent(params.priority)}`);
-  if (params?.categories?.length)
-    qs.push(`categories=${encodeURIComponent(params.categories.join(","))}`);
-  if (params?.submissionFrom)
-    qs.push(`submissionFrom=${params.submissionFrom}`);
-  if (params?.submissionTo) qs.push(`submissionTo=${params.submissionTo}`);
-  if (params?.deadlineFrom) qs.push(`deadlineFrom=${params.deadlineFrom}`);
-  if (params?.deadlineTo) qs.push(`deadlineTo=${params.deadlineTo}`);
-  if (params?.viewType) qs.push(`viewType=${params.viewType}`);
-  if (params?.assignedTo) qs.push(`assignedTo=${encodeURIComponent(params.assignedTo)}`);
-  const url = `${API_BASE}/stats/complaints/calendar/admin-summary${
-    qs.length ? `?${qs.join("&")}` : ""
-  }`;
+  const url = `${API_BASE}/stats/complaints/calendar/admin-summary${qs({
+    month: typeof params?.month === "number" ? params?.month : undefined,
+    year: typeof params?.year === "number" ? params?.year : undefined,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
+    submissionFrom: params?.submissionFrom,
+    submissionTo: params?.submissionTo,
+    deadlineFrom: params?.deadlineFrom,
+    deadlineTo: params?.deadlineTo,
+    viewType: params?.viewType,
+    assignedTo: params?.assignedTo,
+  })}`;
   const res = await fetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch admin calendar summary");
-  return data as {
+  return handleJson<{
     totalThisMonth: number;
     overdue: number;
     dueToday: number;
@@ -323,10 +354,9 @@ export async function getAdminCalendarSummaryApi(params?: {
     countsByStatus?: Record<string, number>;
     countsByPriority?: Record<string, number>;
     countsByCategory?: Record<string, number>;
-  };
+  }>(res);
 }
 
-// Admin calendar day (list complaints for a specific date)
 export async function getAdminCalendarDayApi(params: {
   date: string; // yyyy-mm-dd
   viewType?: "submission" | "deadline";
@@ -336,83 +366,46 @@ export async function getAdminCalendarDayApi(params: {
   assignedTo?: string;
   tzOffset?: number; // minutes from Date.getTimezoneOffset()
 }) {
-  const qs: string[] = [];
-  if (params?.date) qs.push(`date=${params.date}`);
-  if (params?.viewType) qs.push(`viewType=${params.viewType}`);
-  if (params?.status) qs.push(`status=${encodeURIComponent(params.status)}`);
-  if (params?.priority)
-    qs.push(`priority=${encodeURIComponent(params.priority)}`);
-  if (params?.categories?.length)
-    qs.push(`categories=${encodeURIComponent(params.categories.join(","))}`);
-  if (params?.assignedTo) qs.push(`assignedTo=${encodeURIComponent(params.assignedTo)}`);
-  if (typeof params?.tzOffset === "number") qs.push(`tzOffset=${params.tzOffset}`);
-  const url = `${API_BASE}/stats/complaints/calendar/admin-day${qs.length ? `?${qs.join("&")}` : ""}`;
+  const url = `${API_BASE}/stats/complaints/calendar/admin-day${qs({
+    date: params?.date,
+    viewType: params?.viewType,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
+    assignedTo: params?.assignedTo,
+    tzOffset:
+      typeof params?.tzOffset === "number" ? params.tzOffset : undefined,
+  })}`;
   const res = await fetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch admin day complaints");
-  return data as Array<{
-    _id?: string;
-    id?: string;
-    title?: string;
-    status?: string;
-    priority?: "Low" | "Medium" | "High" | "Critical" | string;
-    category?: string;
-    submittedBy?: { name?: string; email?: string } | string | null;
-    createdAt?: string;
-    submittedDate?: string;
-    updatedAt?: string;
-    lastUpdated?: string;
-    deadline?: string | null;
-    isEscalated?: boolean;
-    submittedTo?: string | null;
-    department?: string | null;
-    sourceRole?: string | null;
-    assignedByRole?: string | null;
-    assignmentPath?: string[];
-  }>;
+  return handleJson<unknown[]>(res);
 }
 
-// Approve staff (admin)
+// ========================= Admin: Staff Approvals =========================
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve staff");
-  return data;
+  return handleJson(res);
 }
 
-// Reject staff (admin)
 export async function rejectStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/reject/${staffId}`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject staff");
-  return data;
-}
-// Get current user (session persistence)
-export type MeResponse = LoginSuccess & {
-  avatarUrl?: string;
-  workingPlace?: string;
-  status?: string;
-  registeredDate?: string | Date;
-};
-
-export async function getMeApi(): Promise<MeResponse> {
-  return apiClient.get<MeResponse>("/auth/me");
+  return handleJson(res);
 }
 
-// Update profile (basic fields like name)
+// ========================= Profile management =========================
 export async function updateProfileApi(payload: {
   name?: string;
   phone?: string;
@@ -425,12 +418,9 @@ export async function updateProfileApi(payload: {
     credentials: "include",
     body: JSON.stringify(payload),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to update profile");
-  return data.user || data;
+  return handleJson<{ user: unknown }>(res);
 }
 
-// Change password
 export async function changePasswordApi(payload: {
   oldPassword: string;
   newPassword: string;
@@ -439,17 +429,11 @@ export async function changePasswordApi(payload: {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({
-      oldPassword: payload.oldPassword,
-      newPassword: payload.newPassword,
-    }),
+    body: JSON.stringify(payload),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to change password");
-  return data;
+  return handleJson(res);
 }
 
-// Upload avatar (multipart/form-data)
 export async function uploadAvatarApi(file: File) {
   const form = new FormData();
   form.append("avatar", file);
@@ -458,21 +442,17 @@ export async function uploadAvatarApi(file: File) {
     credentials: "include",
     body: form,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to upload avatar");
-  return data as { message: string; avatarUrl: string };
+  return handleJson<{ message: string; avatarUrl: string }>(res);
 }
-// Reset avatar to default
+
 export async function resetAvatarApi() {
   const res = await fetch(`${API_BASE}/profile/avatar`, {
     method: "DELETE",
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reset avatar");
-  return data as { message: string; avatarUrl: string };
+  return handleJson<{ message: string; avatarUrl: string }>(res);
 }
-// Persist a Cloudinary-uploaded avatar (direct upload path)
+
 export async function saveCloudAvatarApi(payload: {
   avatarUrl: string;
   publicId: string;
@@ -483,44 +463,35 @@ export async function saveCloudAvatarApi(payload: {
     credentials: "include",
     body: JSON.stringify(payload),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to save cloud avatar");
-  return data as { message: string; avatarUrl: string };
+  return handleJson<{ message: string; avatarUrl: string }>(res);
 }
-// Fetch all staff (admin)
+
+// ========================= Public discovery lists =========================
 export async function getAllStaffApi() {
   const res = await fetch(`${API_BASE}/admin/all-staff`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data;
+  return handleJson(res);
 }
 
-// Fetch pending staff (admin)
 export async function getPendingStaffApi() {
   const res = await fetch(`${API_BASE}/admin/pending-staff`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch pending staff");
-  return data;
+  return handleJson(res);
 }
 
-// Admin: dean approvals
 export async function getPendingDeansApi() {
   const res = await fetch(`${API_BASE}/approvals/admin/pending-deans`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch pending deans");
-  return data;
+  return handleJson(res);
 }
 
 export async function getActiveDeansApi() {
@@ -529,43 +500,29 @@ export async function getActiveDeansApi() {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch active deans");
-  return data;
+  return handleJson(res);
 }
 
-// Authenticated: list approved & active deans for student submissions
 export async function listActiveDeansPublicApi() {
   const res = await fetch(`${API_BASE}/approvals/public/active-deans`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch active deans");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    email: string;
-    workingPlace?: string;
-  }>;
+  return handleJson<
+    Array<{ _id: string; name?: string; email: string; workingPlace?: string }>
+  >(res);
 }
 
-// Authenticated: list approved & active admins for student submissions
 export async function listActiveAdminsPublicApi() {
   const res = await fetch(`${API_BASE}/approvals/public/active-admins`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch active admins");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    email: string;
-    workingPlace?: string;
-  }>;
+  return handleJson<
+    Array<{ _id: string; name?: string; email: string; workingPlace?: string }>
+  >(res);
 }
 
 export async function approveDeanApi(deanId: string) {
@@ -577,9 +534,7 @@ export async function approveDeanApi(deanId: string) {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve dean");
-  return data;
+  return handleJson(res);
 }
 
 export async function rejectDeanApi(deanId: string) {
@@ -588,9 +543,7 @@ export async function rejectDeanApi(deanId: string) {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject dean");
-  return data;
+  return handleJson(res);
 }
 
 export async function deactivateDeanApi(deanId: string) {
@@ -602,9 +555,7 @@ export async function deactivateDeanApi(deanId: string) {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate dean");
-  return data;
+  return handleJson(res);
 }
 
 export async function reactivateDeanApi(deanId: string) {
@@ -616,71 +567,52 @@ export async function reactivateDeanApi(deanId: string) {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate dean");
-  return data;
+  return handleJson(res);
 }
 
-// Public: list active staff in the authenticated user's department (approved + active)
 export async function listMyDepartmentActiveStaffApi() {
   const res = await fetch(`${API_BASE}/staff/department/active`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
+  return handleJson<
+    Array<{
+      _id: string;
+      name?: string;
+      fullName?: string;
+      username?: string;
+      email: string;
+      department: string;
+    }>
+  >(res);
 }
 
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
 export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
   const res = await fetch(`${API_BASE}/users/department/hod/active`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
+  return handleJson<
+    Array<{
+      _id: string;
+      name?: string;
+      fullName?: string;
+      username?: string;
+      email: string;
+      department: string;
+    }>
+  >(res);
 }
 
-// Dean stage: HOD approvals
 export async function getDeanPendingHodApi() {
   const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
+  return handleJson(res);
 }
 
 export async function deanApproveHodApi(hodId: string) {
@@ -689,9 +621,7 @@ export async function deanApproveHodApi(hodId: string) {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
+  return handleJson(res);
 }
 
 export async function deanRejectHodApi(hodId: string) {
@@ -700,21 +630,16 @@ export async function deanRejectHodApi(hodId: string) {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
+  return handleJson(res);
 }
 
-// Dean: reversal and lists
 export async function deanDeapproveHodApi(hodId: string) {
   const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
+  return handleJson(res);
 }
 
 export async function deanReapproveHodApi(hodId: string) {
@@ -723,9 +648,7 @@ export async function deanReapproveHodApi(hodId: string) {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
+  return handleJson(res);
 }
 
 export async function deanDeactivateHodApi(hodId: string) {
@@ -737,9 +660,7 @@ export async function deanDeactivateHodApi(hodId: string) {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
+  return handleJson(res);
 }
 
 export async function deanReactivateHodApi(hodId: string) {
@@ -751,1324 +672,5 @@ export async function deanReactivateHodApi(hodId: string) {
       credentials: "include",
     }
   );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
+  return handleJson(res);
 }
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to re-approve HoD");
-  return data;
-}
-
-export async function deanDeactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/deactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to deactivate HoD");
-  return data;
-}
-
-export async function deanReactivateHodApi(hodId: string) {
-  const res = await fetch(
-    `${API_BASE}/approvals/dean/reactivate-hod/${hodId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reactivate HoD");
-  return data;
-}
-
-// Public: list active staff in the authenticated user's department (approved + active)
-export async function listMyDepartmentActiveStaffApi() {
-  const res = await fetch(`${API_BASE}/staff/department/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to fetch staff");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// NEW: Public: list active HoD in the authenticated user's department (approved + active)
-export async function listMyDepartmentHodApi() {
-  // This endpoint assumes the backend has a route to find the active HoD for the user's department.
-  const res = await fetch(`${API_BASE}/users/department/hod/active`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch Head of Department");
-  // The backend should return an array, even if it only contains one HoD
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-  }>;
-}
-
-// Dean stage: HOD approvals
-export async function getDeanPendingHodApi() {
-  const res = await fetch(`${API_BASE}/approvals/dean/pending-hod`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to fetch pending HoDs for dean");
-  return data as Array<{
-    _id: string;
-    name?: string;
-    fullName?: string;
-    username?: string;
-    email: string;
-    department: string;
-    status?: string;
-  }>;
-}
-
-export async function deanApproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/approve-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to approve HoD");
-  return data;
-}
-
-export async function deanRejectHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reject-hod/${hodId}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to reject HoD");
-  return data;
-}
-
-// Dean: reversal and lists
-export async function deanDeapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/deapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to set HoD to pending");
-  return data;
-}
-
-export async function deanReapproveHodApi(hodId: string) {
-  const res = await fetch(`${API_BASE}/approvals/dean/reapprove-hod/${hodId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "

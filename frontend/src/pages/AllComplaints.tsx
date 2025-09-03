@@ -87,31 +87,46 @@ export default function AllComplaints() {
         const roleNorm = (user?.role || "").toLowerCase();
         if (!user) return; // wait for auth
         if (roleNorm === "admin" || roleNorm === "dean") {
-          const raw = await listAllComplaintsApi();
+          const rawUnknown = await listAllComplaintsApi();
+          const raw = Array.isArray(rawUnknown)
+            ? rawUnknown
+            : ([] as unknown[]);
           if (cancelled) return;
-          const mapped: Complaint[] = (raw || []).map((c) => ({
-            id: c.id,
-            title: c.title || "Complaint",
-            description: "",
-            category: c.category || "General",
-            status: (c.status as Complaint["status"]) || "Pending",
-            priority: (c.priority as Complaint["priority"]) || "Medium",
-            submittedBy: c.submittedBy || "",
-            assignedStaff: c.assignedTo || undefined,
-            submittedDate: c.submittedDate
-              ? new Date(c.submittedDate)
-              : new Date(),
-            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-            deadline: c.deadline ? new Date(c.deadline) : undefined,
-            sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
-            assignedByRole:
-              (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
-            assignmentPath: Array.isArray(c.assignmentPath)
-              ? (c.assignmentPath as Complaint["assignmentPath"])
-              : [],
-            submittedTo: c.submittedTo || undefined,
-            department: c.department || undefined,
-          }));
+          const mapped: Complaint[] = (raw || []).map((c: unknown) => {
+            const obj = (c ?? {}) as Record<string, unknown>;
+            return {
+              id: (obj["id"] as string) || (obj["_id"] as string) || "",
+              title: (obj["title"] as string) || "Complaint",
+              description: "",
+              category: (obj["category"] as string) || "General",
+              status:
+                (obj["status"] as string as Complaint["status"]) || "Pending",
+              priority:
+                (obj["priority"] as string as Complaint["priority"]) ||
+                "Medium",
+              submittedBy: (obj["submittedBy"] as string) || "",
+              assignedStaff: (obj["assignedTo"] as string) || undefined,
+              submittedDate: obj["submittedDate"]
+                ? new Date(String(obj["submittedDate"]))
+                : new Date(),
+              lastUpdated: obj["lastUpdated"]
+                ? new Date(String(obj["lastUpdated"]))
+                : new Date(),
+              deadline: obj["deadline"]
+                ? new Date(String(obj["deadline"]))
+                : undefined,
+              sourceRole:
+                (obj["sourceRole"] as Complaint["sourceRole"]) || undefined,
+              assignedByRole:
+                (obj["assignedByRole"] as Complaint["assignedByRole"]) ||
+                undefined,
+              assignmentPath: Array.isArray(obj["assignmentPath"])
+                ? (obj["assignmentPath"] as Complaint["assignmentPath"])
+                : [],
+              submittedTo: (obj["submittedTo"] as string) || undefined,
+              department: (obj["department"] as string) || undefined,
+            };
+          });
           setComplaints(mapped);
         } else if (roleNorm === "hod" || roleNorm === "headofdepartment") {
           const [inbox, managed] = await Promise.all([
@@ -470,7 +485,9 @@ export default function AllComplaints() {
     const note =
       (typeof (c as unknown as { lastNote?: unknown }).lastNote === "string"
         ? (c as unknown as { lastNote?: string }).lastNote
-        : undefined) || c.resolutionNote || "";
+        : undefined) ||
+      c.resolutionNote ||
+      "";
     return /rejected/i.test(String(note));
   };
 
@@ -495,7 +512,12 @@ export default function AllComplaints() {
       const by = (complaint.assignedByRole || "").toLowerCase();
       const to = (complaint.submittedTo || "").toLowerCase();
       const want = roleFilter.toLowerCase();
-      const map: Record<string, string> = { dean: "dean", hod: "hod", staff: "staff", admin: "admin" };
+      const map: Record<string, string> = {
+        dean: "dean",
+        hod: "hod",
+        staff: "staff",
+        admin: "admin",
+      };
       const target = map[want as keyof typeof map] || want;
       return (
         to === target ||
@@ -518,8 +540,8 @@ export default function AllComplaints() {
       matchesSearch &&
       matchesStatus &&
       matchesCategory &&
-  matchesPriority &&
-  matchesRole &&
+      matchesPriority &&
+      matchesRole &&
       matchesOverdue
     );
   });
@@ -840,7 +862,7 @@ export default function AllComplaints() {
                 className="pl-10 w-full"
               />
             </div>
-      {/* Status dropdown */}
+            {/* Status dropdown */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter by status" />
@@ -851,7 +873,7 @@ export default function AllComplaints() {
                 <SelectItem value="In Progress">In Progress</SelectItem>
                 <SelectItem value="Resolved">Resolved</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
-        <SelectItem value="Rejected">Rejected</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
             {/* Priority dropdown */}

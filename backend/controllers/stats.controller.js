@@ -548,8 +548,10 @@ export const getAdminCalendarDay = async (req, res) => {
     const d = parseInt(dStr, 10);
     // Compute the client-local day bounds converted to UTC using tzOffset
     // getTimezoneOffset returns minutes to add to local time to get UTC
-    const dayStartLocalUtcMs = Date.UTC(y, m, d, 0, 0, 0, 0) - tzOffsetMin * 60000;
-    const dayEndLocalUtcMs = Date.UTC(y, m, d, 23, 59, 59, 999) - tzOffsetMin * 60000;
+    const dayStartLocalUtcMs =
+      Date.UTC(y, m, d, 0, 0, 0, 0) - tzOffsetMin * 60000;
+    const dayEndLocalUtcMs =
+      Date.UTC(y, m, d, 23, 59, 59, 999) - tzOffsetMin * 60000;
     const dayStart = new Date(dayStartLocalUtcMs);
     const dayEnd = new Date(dayEndLocalUtcMs);
 
@@ -563,7 +565,7 @@ export const getAdminCalendarDay = async (req, res) => {
     if (priority && priority !== "all") base.priority = priority;
     if (categories && categories.length) base.category = { $in: categories };
 
-  const dateFilter =
+    const dateFilter =
       viewType === "submission"
         ? { createdAt: { $gte: dayStart, $lte: dayEnd } }
         : { deadline: { $gte: dayStart, $lte: dayEnd } };

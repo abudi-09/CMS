@@ -22,38 +22,84 @@ import { CheckCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CategoryContext, Category } from "@/context/CategoryContext";
 import {
-  submitComplaintApi,
-  type Complaint as ApiComplaint,
   listActiveAdminsPublicApi,
   listActiveDeansPublicApi,
   listMyDepartmentActiveStaffApi,
 } from "@/lib/api";
 
-const departments = [
-  "ICT",
-  "Finance",
-  "Registrar",
-  "Library",
-  "Academic Affairs",
-]; // TODO: move to backend if needed
+type Priority = "Low" | "Medium" | "High" | "Critical";
 
-export function ComplaintForm() {
-  const [formData, setFormData] = useState({
+type ApiComplaint = {
+  title: string;
+  department: string;
+  category: string;
+  description: string;
+  priority: Priority;
+  isAnonymous: boolean;
+  sourceRole: "student";
+  recipientRole: "admin" | "dean" | "hod" | "staff" | null;
+  recipientId: string | null;
+  submittedTo?: "admin" | "dean" | "hod";
+  recipientStaffId?: string;
+  recipientHodId?: string;
+};
+
+async function submitComplaintApi(payload: ApiComplaint): Promise<void> {
+  try {
+    const res = await fetch("/api/complaints", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      let message = "Could not submit complaint";
+      try {
+        const data = await res.json();
+        if (data && typeof data.message === "string") {
+          message = data.message;
+        }
+      } catch {
+        // ignore parse error
+      }
+      throw new Error(message);
+    }
+  } catch (err) {
+    throw err instanceof Error ? err : new Error("Could not submit complaint");
+  }
+}
+
+export default function ComplaintForm() {
+  const departments = [
+    "ICT",
+    "Finance",
+    "Registrar",
+    "Library",
+    "Academic Affairs",
+  ];
+  const { toast } = useToast();
+  const categoryCtx = useContext(CategoryContext);
+  const categories = categoryCtx?.categories || [];
+
+  const [formData, setFormData] = useState<{
+    title: string;
+    department: string;
+    category: string;
+    description: string;
+    priority: Priority;
+    recipientRole: "" | "admin" | "dean" | "hod" | "staff";
+    recipientId: string;
+  }>({
     title: "",
     department: "",
     category: "",
     description: "",
     priority: "Medium",
-    recipientRole: "" as "" | "admin" | "dean" | "hod" | "staff",
-    recipientId: "" as string,
+    recipientRole: "",
+    recipientId: "",
   });
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const { toast } = useToast();
-  const categoryCtx = useContext(CategoryContext);
-  const categories = categoryCtx?.categories || [];
-  type Priority = "Low" | "Medium" | "High" | "Critical";
 
   // Load dynamic recipients for selection
   const [admins, setAdmins] = useState<
@@ -102,29 +148,24 @@ export function ComplaintForm() {
         department: formData.department,
         category: formData.category,
         description: formData.description,
-        priority: formData.priority as Priority,
+        priority: formData.priority,
         isAnonymous,
         sourceRole: "student",
-        recipientRole: (formData.recipientRole ||
-          null) as ApiComplaint["recipientRole"],
-        recipientId: (formData.recipientId ||
-          null) as ApiComplaint["recipientId"],
-      } as ApiComplaint;
-
+        recipientRole: formData.recipientRole || null,
+        recipientId: formData.recipientId || null,
+      };
+      if (formData.recipientRole === "hod") payload.submittedTo = "hod";
+      // If sending directly to staff or HoD with a specific person, use direct recipient ids for immediate assignment semantics supported by backend
+      if (formData.recipientRole === "staff" && formData.recipientId) {
+        payload.recipientStaffId = formData.recipientId;
+      }
+      if (formData.recipientRole === "hod" && formData.recipientId) {
+        payload.recipientHodId = formData.recipientId;
+      }
       // For role-routed visibility: set submittedTo for admin/dean/hod inboxes
       if (formData.recipientRole === "admin") payload.submittedTo = "admin";
       if (formData.recipientRole === "dean") payload.submittedTo = "dean";
       if (formData.recipientRole === "hod") payload.submittedTo = "hod";
-      // If sending directly to staff or HoD with a specific person, use direct recipient ids for immediate assignment semantics supported by backend
-      if (formData.recipientRole === "staff" && formData.recipientId) {
-        (
-          payload as ApiComplaint & { recipientStaffId?: string }
-        ).recipientStaffId = formData.recipientId;
-      }
-      if (formData.recipientRole === "hod" && formData.recipientId) {
-        (payload as ApiComplaint & { recipientHodId?: string }).recipientHodId =
-          formData.recipientId;
-      }
       await submitComplaintApi(payload);
       setSubmitted(true);
       toast({
@@ -345,7 +386,7 @@ export function ComplaintForm() {
                   <Label htmlFor="priority">Select Complaint Priority *</Label>
                   <Select
                     value={formData.priority}
-                    onValueChange={(value) =>
+                    onValueChange={(value: Priority) =>
                       setFormData((prev) => ({ ...prev, priority: value }))
                     }
                     required

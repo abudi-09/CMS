@@ -20,12 +20,7 @@ import {
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { Complaint } from "@/components/ComplaintCard";
 import { useAuth } from "@/components/auth/AuthContext";
-import {
-  apiClient,
-  getAssignedComplaintsApi,
-  getAdminCalendarSummaryApi,
-  getAdminCalendarDayApi,
-} from "@/lib/api";
+import { getAdminCalendarSummaryApi, getAdminCalendarDayApi } from "@/lib/api";
 import { fetchCategoriesApi } from "@/lib/categoryApi";
 import {
   format,
@@ -34,7 +29,6 @@ import {
   endOfMonth,
   eachDayOfInterval,
 } from "date-fns";
-
 
 type CategoryRes = {
   name: string;
@@ -65,6 +59,21 @@ type QueryComplaint = {
   shortDescription?: string;
   description?: string;
 };
+
+// Local API helper (keeps this page self-sufficient while api client is being consolidated)
+const API_BASE = import.meta.env.VITE_API_BASE?.toString() || "/api";
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Request failed: ${res.status}`);
+  }
+  return (await res.json()) as T;
+}
 
 const statusColors: Record<string, string> = {
   Pending: "bg-yellow-500 text-white",
@@ -133,7 +142,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       try {
         setLoading(true);
         setError(null);
-        const data = await getAssignedComplaintsApi();
+        const data = await fetchJson<QueryComplaint[]>(
+          `${API_BASE}/complaints/assigned`
+        );
         if (cancelled) return;
         const mapped: Complaint[] = data.map((c) => ({
           id: c.id,
@@ -141,7 +152,10 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           description: c.fullDescription || c.shortDescription || "",
           category: c.category,
           status: (c.status as Complaint["status"]) || "Pending",
-          submittedBy: c.submittedBy?.name || "Unknown",
+          submittedBy:
+            (c?.submittedBy && typeof c.submittedBy === "object"
+              ? c?.submittedBy?.name || c?.submittedBy?.email
+              : (c?.submittedBy as string)) || "Unknown",
           assignedStaff: "You",
           submittedDate: new Date(c.submittedDate as string),
           deadline: c.deadline ? new Date(c.deadline as string) : undefined,
@@ -202,8 +216,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           // ignore
         }
         // Complaints assigned to this admin
-        const res = await apiClient.get<QueryComplaint[]>(
-          `/complaints?assignedTo=${encodeURIComponent(user.id)}`
+        const res = await fetchJson<QueryComplaint[]>(
+          `${API_BASE}/complaints?assignedTo=${encodeURIComponent(user.id)}`
         );
         if (cancelled) return;
         const directToAdmin = (c: QueryComplaint) => {
@@ -356,7 +370,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     deadlineFrom,
     deadlineTo,
     viewType,
-  user?.id,
+    user?.id,
   ]);
 
   // Fetch date-specific complaints for Admin when clicking a date
@@ -396,7 +410,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             c?.priority === "Medium" ||
             c?.priority === "High" ||
             c?.priority === "Critical"
-              ? (c.priority as Complaint["priority"]) 
+              ? (c.priority as Complaint["priority"])
               : "Medium";
           const submittedAt = c.createdAt ?? c.submittedDate;
           const updatedAt = c.updatedAt ?? c.lastUpdated;
@@ -424,7 +438,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               | string
               | undefined,
             sourceRole: (c?.sourceRole || undefined) as Complaint["sourceRole"],
-            assignedByRole: (c?.assignedByRole || undefined) as Complaint["assignedByRole"],
+            assignedByRole: (c?.assignedByRole ||
+              undefined) as Complaint["assignedByRole"],
             assignmentPath: Array.isArray(c?.assignmentPath)
               ? (c.assignmentPath as string[])
               : undefined,
@@ -432,12 +447,31 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         }
       );
       // Replace current selected day's events using a day range filter
-      const startOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 0, 0, 0, 0);
-      const endOfDay = new Date(yyyy, date.getMonth(), date.getDate(), 23, 59, 59, 999);
+      const startOfDay = new Date(
+        yyyy,
+        date.getMonth(),
+        date.getDate(),
+        0,
+        0,
+        0,
+        0
+      );
+      const endOfDay = new Date(
+        yyyy,
+        date.getMonth(),
+        date.getDate(),
+        23,
+        59,
+        59,
+        999
+      );
       setAllComplaints((prev) => {
         const keep = prev.filter((c) => {
-          const compareDate = viewType === "submission" ? c.submittedDate : c.deadline;
-          return !compareDate || compareDate < startOfDay || compareDate > endOfDay;
+          const compareDate =
+            viewType === "submission" ? c.submittedDate : c.deadline;
+          return (
+            !compareDate || compareDate < startOfDay || compareDate > endOfDay
+          );
         });
         return [...keep, ...mapped];
       });
