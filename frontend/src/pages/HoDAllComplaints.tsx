@@ -458,7 +458,14 @@ export default function HoDAllComplaints() {
                       colSpan={6}
                       className="text-center text-muted-foreground py-8"
                     >
-                      No complaints found
+                      {statusFilter === "Pending" && "No pending complaints"}
+                      {statusFilter === "In Progress" &&
+                        "No in-progress complaints"}
+                      {statusFilter === "Assigned" && "No assigned complaints"}
+                      {statusFilter === "Resolved" && "No resolved complaints"}
+                      {statusFilter === "Rejected" && "No rejected complaints"}
+                      {statusFilter === "Closed" && "No closed complaints"}
+                      {statusFilter === "All" && "No complaints found"}
                     </TableCell>
                   </TableRow>
                 )}
@@ -518,6 +525,8 @@ export default function HoDAllComplaints() {
           complaint={selected}
           open={open}
           onOpenChange={setOpen}
+          hideHodActionsIfAssigned
+          timelineFilterMode="summary"
         />
       )}
     </div>

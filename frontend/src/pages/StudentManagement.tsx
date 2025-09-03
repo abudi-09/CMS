@@ -56,6 +56,7 @@ import {
   hodDeactivateStaffApi,
   hodReactivateStaffApi,
 } from "@/lib/api";
+import UserProfileModal from "@/components/UserProfileModal";
 
 interface Student {
   _id: string;
@@ -86,6 +87,8 @@ function StudentManagement() {
   } | null>(null);
   const [selectedRole, setSelectedRole] = useState<"Staff" | "">("");
   const [workingPlace, setWorkingPlace] = useState("");
+
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const openPromoteModal = (studentId: string, studentName: string) => {
     setPromoteTarget({ id: studentId, name: studentName });
@@ -510,6 +513,15 @@ function StudentManagement() {
                               Activate
                             </Button>
                           )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProfileUserId(student._id)}
+                            className="hover:bg-gray-50 dark:hover:bg-gray-900/20"
+                          >
+                            <Users className="h-4 w-4 mr-1" />
+                            View Profile
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -615,6 +627,15 @@ function StudentManagement() {
                           Activate
                         </Button>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setProfileUserId(student._id)}
+                        className="flex-1 hover:bg-gray-50 dark:hover:bg-gray-900/20"
+                      >
+                        <Users className="h-4 w-4 mr-1" />
+                        View Profile
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -705,6 +726,13 @@ function StudentManagement() {
           </Pagination>
         </div>
       )}
+
+      {/* Append User Profile Modal */}
+      <UserProfileModal
+        userId={profileUserId || ""}
+        open={!!profileUserId}
+        onOpenChange={(o) => !o && setProfileUserId(null)}
+      />
     </div>
   );
 }

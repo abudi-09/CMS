@@ -331,3 +331,272 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
     });
   }
 };
+
+// ===================== NEW: Department Analytics (HoD) ===================== //
+
+// Department priority distribution
+export const getDepartmentPriorityDistribution = async (req, res) => {
+  try {
+    const dept = req.user?.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for priority distribution" });
+    }
+    const pipeline = [
+      { $match: { department: dept } },
+      {
+        $group: {
+          _id: { $ifNull: ["$priority", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ];
+    const results = await Complaint.aggregate(pipeline);
+    const total = results.reduce((a, r) => a + (r.count || 0), 0);
+    res.status(200).json({
+      total,
+      priorities: results.map((r) => ({ priority: r._id, count: r.count })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch priority distribution" });
+  }
+};
+
+// Department status distribution
+export const getDepartmentStatusDistribution = async (req, res) => {
+  try {
+    const dept = req.user?.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for status distribution" });
+    }
+    const pipeline = [
+      { $match: { department: dept } },
+      {
+        $group: {
+          _id: { $ifNull: ["$status", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ];
+    const results = await Complaint.aggregate(pipeline);
+    const total = results.reduce((a, r) => a + (r.count || 0), 0);
+    res.status(200).json({
+      total,
+      statuses: results.map((r) => ({ status: r._id, count: r.count })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch status distribution" });
+  }
+};
+
+// Department category distribution (distinct from global category counts)
+export const getDepartmentCategoryCounts = async (req, res) => {
+  try {
+    const dept = req.user?.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for category distribution" });
+    }
+    const pipeline = [
+      { $match: { department: dept } },
+      {
+        $group: {
+          _id: { $ifNull: ["$category", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ];
+    const results = await Complaint.aggregate(pipeline);
+    const total = results.reduce((a, r) => a + (r.count || 0), 0);
+    res.status(200).json({
+      total,
+      categories: results.map((r) => ({ category: r._id, count: r.count })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch department categories" });
+  }
+};
+
+// Monthly trend (submitted vs resolved) for department
+export const getDepartmentMonthlyTrends = async (req, res) => {
+  try {
+    const dept = req.user?.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for monthly trends" });
+    }
+    const monthsParam = parseInt(req.query.months, 10);
+    const months = isNaN(monthsParam) || monthsParam <= 0 ? 6 : monthsParam; // default last 6 months
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+
+    // Build a map for submitted counts
+    const submitted = await Complaint.aggregate([
+      { $match: { department: dept, createdAt: { $gte: start } } },
+      {
+        $group: {
+          _id: {
+            y: { $year: "$createdAt" },
+            m: { $month: "$createdAt" },
+          },
+          submitted: { $sum: 1 },
+        },
+      },
+    ]);
+    // Build a map for resolved counts
+    const resolved = await Complaint.aggregate([
+      {
+        $match: {
+          department: dept,
+          resolvedAt: { $ne: null, $gte: start },
+          status: "Resolved",
+        },
+      },
+      {
+        $group: {
+          _id: { y: { $year: "$resolvedAt" }, m: { $month: "$resolvedAt" } },
+          resolved: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const submittedMap = new Map();
+    submitted.forEach((r) => {
+      const key = `${r._id.y}-${r._id.m}`;
+      submittedMap.set(key, r.submitted);
+    });
+    const resolvedMap = new Map();
+    resolved.forEach((r) => {
+      const key = `${r._id.y}-${r._id.m}`;
+      resolvedMap.set(key, r.resolved);
+    });
+
+    // Build ordered month labels
+    const data = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      const monthLabel = d.toLocaleString("default", { month: "short" });
+      data.push({
+        month: monthLabel,
+        year: d.getFullYear(),
+        submitted: submittedMap.get(key) || 0,
+        resolved: resolvedMap.get(key) || 0,
+      });
+    }
+    res.status(200).json({ months: data.length, data });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch monthly trends" });
+  }
+};
+
+// Staff performance aggregation for department
+export const getDepartmentStaffPerformance = async (req, res) => {
+  try {
+    const dept = req.user?.department;
+    if (!dept) {
+      return res
+        .status(400)
+        .json({ error: "Department is required for staff performance" });
+    }
+    // Fetch staff in department first
+    const staff = await User.find({ role: "staff", department: dept })
+      .select("_id name email department")
+      .lean();
+    if (!staff.length) return res.status(200).json({ staff: [] });
+    const staffIds = staff.map((s) => s._id);
+
+    const agg = await Complaint.aggregate([
+      { $match: { department: dept, assignedTo: { $in: staffIds } } },
+      {
+        $group: {
+          _id: "$assignedTo",
+          totalAssigned: { $sum: 1 },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+          },
+          resolved: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          sumResolutionMs: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ifNull: ["$resolvedAt", false] },
+                  ],
+                },
+                { $subtract: ["$resolvedAt", "$createdAt"] },
+                0,
+              ],
+            },
+          },
+          resolvedCount: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          ratingSum: {
+            $sum: {
+              $cond: [
+                { $ifNull: ["$feedback.rating", false] },
+                "$feedback.rating",
+                0,
+              ],
+            },
+          },
+          ratingCount: {
+            $sum: {
+              $cond: [{ $ifNull: ["$feedback.rating", false] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const perfMap = new Map();
+    agg.forEach((r) => perfMap.set(String(r._id), r));
+    const results = staff.map((s) => {
+      const stats = perfMap.get(String(s._id)) || {};
+      const totalAssigned = stats.totalAssigned || 0;
+      const resolved = stats.resolved || 0;
+      const successRate = totalAssigned
+        ? Number(((resolved / totalAssigned) * 100).toFixed(2))
+        : 0;
+      const avgResolutionHours = stats.resolvedCount
+        ? Number(
+            (stats.sumResolutionMs / stats.resolvedCount / 3600000).toFixed(2)
+          )
+        : 0;
+      const avgRating = stats.ratingCount
+        ? Number((stats.ratingSum / stats.ratingCount).toFixed(2))
+        : 0;
+      return {
+        staffId: s._id,
+        name: s.name || s.email,
+        email: s.email,
+        department: s.department,
+        totalAssigned,
+        pending: stats.pending || 0,
+        inProgress: stats.inProgress || 0,
+        resolved,
+        successRate,
+        avgResolutionHours,
+        avgRating,
+      };
+    });
+    res.status(200).json({ staff: results });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch staff performance" });
+  }
+};

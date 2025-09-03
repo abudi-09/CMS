@@ -14,7 +14,12 @@ export const getProfile = async (req, res) => {
     );
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const [totalComplaints, resolvedComplaints, inProgressComplaints, pendingComplaints] = await Promise.all([
+    const [
+      totalComplaints,
+      resolvedComplaints,
+      inProgressComplaints,
+      pendingComplaints,
+    ] = await Promise.all([
       Complaint.countDocuments({ submittedBy: userId }),
       Complaint.countDocuments({ submittedBy: userId, status: "Resolved" }),
       Complaint.countDocuments({ submittedBy: userId, status: "In Progress" }),
@@ -34,11 +39,11 @@ export const getProfile = async (req, res) => {
       username: user.username,
       avatarUrl: user.avatarUrl || "",
       memberSince,
-  totalComplaints,
-  resolvedComplaints,
-  inProgressComplaints,
-  pendingComplaints,
-  successRate,
+      totalComplaints,
+      resolvedComplaints,
+      inProgressComplaints,
+      pendingComplaints,
+      successRate,
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch profile" });
@@ -83,7 +88,7 @@ export const updateProfile = async (req, res) => {
         phone: user.phone || "",
         address: user.address || "",
         bio: user.bio || "",
-  avatarUrl: user.avatarUrl || "",
+        avatarUrl: user.avatarUrl || "",
       },
     });
   } catch (err) {
@@ -161,8 +166,8 @@ export const uploadAvatar = async (req, res) => {
       process.env.CLOUDINARY_API_KEY &&
       process.env.CLOUDINARY_API_SECRET;
 
-  let uploaded = null;
-  let fallbackReason = "";
+    let uploaded = null;
+    let fallbackReason = "";
     if (haveCloudCreds) {
       try {
         uploaded = await cloudinary.uploader.upload(localAbsPath, {
@@ -175,13 +180,16 @@ export const uploadAvatar = async (req, res) => {
           ],
         });
       } catch (err) {
-        const msg = err?.message || err?.error?.message || "Cloud upload failed";
+        const msg =
+          err?.message || err?.error?.message || "Cloud upload failed";
         console.error("[uploadAvatar] Cloudinary upload failed", msg);
         if (/stale request/i.test(msg)) {
           fallbackReason = "stale-request-clock-skew";
           if (cloudinaryUnsignedPreset) {
             try {
-              console.warn("[uploadAvatar] Retrying unsigned due to stale clock");
+              console.warn(
+                "[uploadAvatar] Retrying unsigned due to stale clock"
+              );
               uploaded = await cloudinary.uploader.unsigned_upload(
                 localAbsPath,
                 cloudinaryUnsignedPreset,
@@ -195,14 +203,17 @@ export const uploadAvatar = async (req, res) => {
               );
               if (uploaded) fallbackReason = "";
             } catch (uErr) {
-              console.error("[uploadAvatar] Unsigned fallback failed", uErr?.message || uErr);
+              console.error(
+                "[uploadAvatar] Unsigned fallback failed",
+                uErr?.message || uErr
+              );
               // Fallback to local: keep local file
               uploaded = null;
               if (!fallbackReason) fallbackReason = "unsigned-fallback-failed";
             }
           } // else fallback to local silently
         } else if (!uploaded) {
-          fallbackReason = `cloud-error:${msg}`.slice(0,120);
+          fallbackReason = `cloud-error:${msg}`.slice(0, 120);
         } // other errors -> fallback local
       } finally {
         if (uploaded) fs.unlink(localAbsPath, () => {});
@@ -284,7 +295,11 @@ export const resetAvatar = async (req, res) => {
     }
     // Delete local file if path points to our uploads folder
     if (currentUrl && currentUrl.startsWith("/uploads/avatars/")) {
-      const localPath = path.join(process.cwd(), "backend", currentUrl.replace(/^\/+/ , ""));
+      const localPath = path.join(
+        process.cwd(),
+        "backend",
+        currentUrl.replace(/^\/+/, "")
+      );
       fs.unlink(localPath, () => {});
     }
 
@@ -295,5 +310,53 @@ export const resetAvatar = async (req, res) => {
   } catch (err) {
     console.error("[resetAvatar] Error", err);
     res.status(500).json({ error: "Failed to reset avatar" });
+  }
+};
+
+// GET /api/profile/user/:id  (arbitrary user public profile for management views)
+export const getUserPublicProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || id.length < 8) {
+      return res.status(400).json({ error: "Valid user id required" });
+    }
+    const user = await User.findById(id).select(
+      "name email username role department avatarUrl isActive isApproved isRejected createdAt"
+    );
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Aggregate basic complaint stats (as submitter & as assignee if staff)
+    const [submittedTotal, resolvedSubmitted, assignedTotal, resolvedAssigned] =
+      await Promise.all([
+        Complaint.countDocuments({ submittedBy: user._id }),
+        Complaint.countDocuments({ submittedBy: user._id, status: "Resolved" }),
+        Complaint.countDocuments({ assignedTo: user._id }),
+        Complaint.countDocuments({ assignedTo: user._id, status: "Resolved" }),
+      ]);
+    const successRate = submittedTotal
+      ? Number(((resolvedSubmitted / submittedTotal) * 100).toFixed(2))
+      : 0;
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      department: user.department,
+      avatarUrl: user.avatarUrl || "",
+      isActive: user.isActive,
+      isApproved: user.isApproved,
+      isRejected: user.isRejected,
+      memberSince: user.createdAt
+        ? new Date(user.createdAt).toLocaleDateString("en-US")
+        : "-",
+      submittedTotal,
+      resolvedSubmitted,
+      assignedTotal,
+      resolvedAssigned,
+      successRate,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch user profile" });
   }
 };
