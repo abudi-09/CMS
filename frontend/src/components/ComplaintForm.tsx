@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,7 +21,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CategoryContext, Category } from "@/context/CategoryContext";
-import { submitComplaintApi, type Complaint as ApiComplaint } from "@/lib/api";
+import {
+  submitComplaintApi,
+  type Complaint as ApiComplaint,
+  listActiveAdminsPublicApi,
+  listActiveDeansPublicApi,
+  listMyDepartmentActiveStaffApi,
+} from "@/lib/api";
 
 const departments = [
   "ICT",
@@ -38,6 +44,8 @@ export function ComplaintForm() {
     category: "",
     description: "",
     priority: "Medium",
+    recipientRole: "" as "" | "admin" | "dean" | "hod" | "staff",
+    recipientId: "" as string,
   });
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,6 +54,44 @@ export function ComplaintForm() {
   const categoryCtx = useContext(CategoryContext);
   const categories = categoryCtx?.categories || [];
   type Priority = "Low" | "Medium" | "High" | "Critical";
+
+  // Load dynamic recipients for selection
+  const [admins, setAdmins] = useState<
+    Array<{ _id: string; name?: string; email: string }>
+  >([]);
+  const [deans, setDeans] = useState<
+    Array<{ _id: string; name?: string; email: string }>
+  >([]);
+  const [staff, setStaff] = useState<
+    Array<{ _id: string; name?: string; fullName?: string; email: string }>
+  >([]);
+
+  useEffect(() => {
+    // Fire-and-forget; errors will be ignored and lists remain empty
+    (async () => {
+      try {
+        const [adminsRes, deansRes, staffRes] = await Promise.allSettled([
+          listActiveAdminsPublicApi(),
+          listActiveDeansPublicApi(),
+          listMyDepartmentActiveStaffApi(),
+        ]);
+        if (adminsRes.status === "fulfilled") setAdmins(adminsRes.value || []);
+        if (deansRes.status === "fulfilled") setDeans(deansRes.value || []);
+        if (staffRes.status === "fulfilled") setStaff(staffRes.value || []);
+      } catch (_) {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const selectedRoleRequiresUser = useMemo(() => {
+    // Require explicit user selection for admin, dean, staff. HoD selection can be role-only (department HoD).
+    return (
+      formData.recipientRole === "admin" ||
+      formData.recipientRole === "dean" ||
+      formData.recipientRole === "staff"
+    );
+  }, [formData.recipientRole]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +105,26 @@ export function ComplaintForm() {
         priority: formData.priority as Priority,
         isAnonymous,
         sourceRole: "student",
+        recipientRole: (formData.recipientRole ||
+          null) as ApiComplaint["recipientRole"],
+        recipientId: (formData.recipientId ||
+          null) as ApiComplaint["recipientId"],
       } as ApiComplaint;
+
+      // For role-routed visibility: set submittedTo for admin/dean/hod inboxes
+      if (formData.recipientRole === "admin") payload.submittedTo = "admin";
+      if (formData.recipientRole === "dean") payload.submittedTo = "dean";
+      if (formData.recipientRole === "hod") payload.submittedTo = "hod";
+      // If sending directly to staff or HoD with a specific person, use direct recipient ids for immediate assignment semantics supported by backend
+      if (formData.recipientRole === "staff" && formData.recipientId) {
+        (
+          payload as ApiComplaint & { recipientStaffId?: string }
+        ).recipientStaffId = formData.recipientId;
+      }
+      if (formData.recipientRole === "hod" && formData.recipientId) {
+        (payload as ApiComplaint & { recipientHodId?: string }).recipientHodId =
+          formData.recipientId;
+      }
       await submitComplaintApi(payload);
       setSubmitted(true);
       toast({
@@ -89,33 +154,12 @@ export function ComplaintForm() {
         category: "",
         description: "",
         priority: "Medium",
+        recipientRole: "",
+        recipientId: "",
       });
       setIsAnonymous(false);
     }, 3000);
   };
-  <div className="space-y-2">
-    <Label htmlFor="category">Select Category *</Label>
-    <Select
-      value={formData.category}
-      onValueChange={(value) =>
-        setFormData((prev) => ({ ...prev, category: value }))
-      }
-      required
-    >
-      <SelectTrigger>
-        <SelectValue placeholder="Select category" />
-      </SelectTrigger>
-      <SelectContent>
-        {categories
-          .filter((c: Category) => c.status !== "inactive")
-          .map((cat: Category) => (
-            <SelectItem key={cat._id} value={cat.name}>
-              {cat.name}
-            </SelectItem>
-          ))}
-      </SelectContent>
-    </Select>
-  </div>;
 
   if (submitted) {
     return (
@@ -206,6 +250,96 @@ export function ComplaintForm() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">Select Category *</Label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, category: value }))
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories
+                        .filter((c: Category) => c.status !== "inactive")
+                        .map((cat: Category) => (
+                          <SelectItem key={cat._id} value={cat.name}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="recipientRole">Send To *</Label>
+                  <Select
+                    value={formData.recipientRole}
+                    onValueChange={(
+                      value: "admin" | "dean" | "hod" | "staff"
+                    ) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        recipientRole: value,
+                        recipientId: "",
+                      }))
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select recipient role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="dean">Dean</SelectItem>
+                      <SelectItem value="hod">Head of Department</SelectItem>
+                      <SelectItem value="staff">Staff</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedRoleRequiresUser && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recipientId">
+                      Select Specific Recipient *
+                    </Label>
+                    <Select
+                      value={formData.recipientId}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, recipientId: value }))
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select person" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.recipientRole === "admin" &&
+                          admins.map((u) => (
+                            <SelectItem key={u._id} value={u._id}>
+                              {u.name || u.email}
+                            </SelectItem>
+                          ))}
+                        {formData.recipientRole === "dean" &&
+                          deans.map((u) => (
+                            <SelectItem key={u._id} value={u._id}>
+                              {u.name || u.email}
+                            </SelectItem>
+                          ))}
+                        {formData.recipientRole === "staff" &&
+                          staff.map((u) => (
+                            <SelectItem key={u._id} value={u._id}>
+                              {u.fullName || u.name || u.email}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="priority">Select Complaint Priority *</Label>

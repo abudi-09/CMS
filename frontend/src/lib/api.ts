@@ -1069,6 +1069,40 @@ export async function getMyComplaintsApi() {
   return data.complaints || data;
 }
 
+// Edit my complaint (only when Pending)
+export async function updateMyComplaintApi(
+  id: string,
+  payload: Partial<{
+    title: string;
+    description: string;
+    category: string;
+    department: string;
+    evidenceFile: string | null;
+    priority: "Low" | "Medium" | "High" | "Critical";
+  }>
+) {
+  const res = await fetch(`${API_BASE}/complaints/my/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to update complaint");
+  return data.complaint || data;
+}
+
+// Soft delete my complaint (only when Pending)
+export async function softDeleteMyComplaintApi(id: string) {
+  const res = await fetch(`${API_BASE}/complaints/my/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to delete complaint");
+  return data;
+}
+
 // Submit a new complaint
 // Define the Complaint type according to your application's requirements
 export interface Complaint {
@@ -1089,6 +1123,9 @@ export interface Complaint {
   recipientStaffId?: string;
   // When submitting directly to HoD
   recipientHodId?: string;
+  // Recipient routing (role target and optional specific user)
+  recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
+  recipientId?: string | null;
 }
 
 export async function submitComplaintApi(complaint: Complaint) {
@@ -1126,6 +1163,8 @@ export async function submitComplaintApi(complaint: Complaint) {
     ...complaint,
     sourceRole: toBackendRole(complaint.sourceRole) ?? undefined,
     assignedByRole: toBackendRole(complaint.assignedByRole) ?? undefined,
+    recipientRole: toBackendRole(complaint.recipientRole) ?? undefined,
+    recipientId: complaint.recipientId ?? undefined,
     assignmentPath: Array.isArray(complaint.assignmentPath)
       ? complaint.assignmentPath.map((r) => toBackendRole(r) as string)
       : complaint.assignmentPath,
@@ -1174,7 +1213,7 @@ export async function getAssignedComplaintsApi() {
 // Staff: update status of an assigned complaint
 export async function updateComplaintStatusApi(
   complaintId: string,
-  status: "Pending" | "In Progress" | "Resolved" | "Closed",
+  status: "Pending" | "Accepted" | "In Progress" | "Resolved" | "Closed",
   description?: string
 ) {
   const res = await fetch(
@@ -1195,7 +1234,7 @@ export async function updateComplaintStatusApi(
 // the approver becomes the assignee.
 export async function approveComplaintApi(
   complaintId: string,
-  payload?: { assignToSelf?: boolean; note?: string }
+  payload?: { assignToSelf?: boolean; note?: string; assignedTo?: string }
 ) {
   const res = await fetch(`${API_BASE}/complaints/approve/${complaintId}`, {
     method: "PUT",

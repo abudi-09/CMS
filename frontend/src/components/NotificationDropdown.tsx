@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,35 +16,92 @@ import {
   type NotificationItem,
 } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 export function NotificationDropdown() {
   const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Track notifications we've already seen to avoid duplicate toasts
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
 
   const unreadCount = useMemo(
     () => items.filter((n) => !n.read).length,
     [items]
   );
 
-  const load = async () => {
+  type MetaShape = {
+    redirectPath?: string;
+    complaintId?: string;
+    status?: string;
+    [key: string]: unknown;
+  };
+
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       const res = await listMyNotificationsApi({ page: 1, pageSize: 20 });
-      setItems(res.items);
+      setItems((prev) => {
+        // Toast new "Resolved" notifications for students
+        const next = res.items;
+        const prevSeen = seenIdsRef.current;
+        // Build set of current ids and find new ones
+        const currentIds = new Set<string>(next.map((n) => n._id));
+        // Determine which are newly arrived (not in prevSeen)
+        const newOnes = next.filter((n) => !prevSeen.has(n._id));
+
+        // Update seen set to current
+        seenIdsRef.current = currentIds;
+
+        // Avoid spamming on the very first load
+    if (initializedRef.current && user?.role === "student") {
+          for (const n of newOnes) {
+      const meta: MetaShape = (n.meta as MetaShape) || {};
+      const isResolved = n.type === "status" && meta.status === "Resolved";
+            if (isResolved) {
+              // Prepare navigation target
+              const redirect =
+                typeof meta.redirectPath === "string"
+                  ? meta.redirectPath
+                  : undefined;
+              const complaintId =
+                typeof meta.complaintId === "string"
+                  ? meta.complaintId
+                  : undefined;
+
+              const onClick = () => {
+                if (redirect) {
+                  const url = new URL(redirect, window.location.origin);
+                  if (complaintId)
+                    url.searchParams.set("complaintId", complaintId);
+                  navigate(url.pathname + (url.search || ""));
+                }
+              };
+
+              toast({ title: n.title, description: n.message, onClick });
+            }
+          }
+        }
+
+        if (!initializedRef.current) initializedRef.current = true;
+        return next;
+      });
     } catch (e) {
       console.warn("Failed to load notifications", e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, toast, user?.role]);
 
   useEffect(() => {
     load();
     const id = window.setInterval(load, 60000); // poll every 60s
     return () => window.clearInterval(id);
-  }, []);
+  }, [load]);
 
   const markAsRead = async (id: string) => {
     try {

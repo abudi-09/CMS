@@ -10,7 +10,12 @@ type ComplaintContextType = {
     complaint: Omit<
       Complaint,
       "id" | "status" | "submittedDate" | "lastUpdated"
-    > & { recipientStaffId?: string; recipientHodId?: string }
+    > & {
+      recipientStaffId?: string;
+      recipientHodId?: string;
+      recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
+      recipientId?: string | null;
+    }
   ) => Promise<Complaint>;
   updateComplaint: (id: string, updates: Partial<Complaint>) => void;
 };
@@ -34,7 +39,12 @@ export const useComplaints = () => {
         complaint: Omit<
           Complaint,
           "id" | "status" | "submittedDate" | "lastUpdated"
-        > & { recipientStaffId?: string; recipientHodId?: string }
+        > & {
+          recipientStaffId?: string;
+          recipientHodId?: string;
+          recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
+          recipientId?: string | null;
+        }
       ) => {
         // Mirror provider behavior by delegating to API and mapping category->department
         const payload: APIComplaintPayload = {
@@ -53,6 +63,8 @@ export const useComplaints = () => {
           assignmentPath: complaint.assignmentPath,
           recipientStaffId: complaint.recipientStaffId,
           recipientHodId: complaint.recipientHodId,
+          recipientRole: complaint.recipientRole ?? null,
+          recipientId: complaint.recipientId ?? null,
         };
         const savedComplaint = await submitComplaintApi(payload);
         return savedComplaint as Complaint;
@@ -72,7 +84,12 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
     complaint: Omit<
       Complaint,
       "id" | "status" | "submittedDate" | "lastUpdated"
-    > & { recipientStaffId?: string; recipientHodId?: string }
+    > & {
+      recipientStaffId?: string;
+      recipientHodId?: string;
+      recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
+      recipientId?: string | null;
+    }
   ) => {
     try {
       // Ensure the complaint has all required fields for the API
@@ -84,6 +101,8 @@ export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
         category: complaint.category,
         recipientStaffId: complaint.recipientStaffId,
         recipientHodId: complaint.recipientHodId,
+        recipientRole: complaint.recipientRole ?? null,
+        recipientId: complaint.recipientId ?? null,
       });
       setComplaints((prev) => [savedComplaint, ...prev]);
       return savedComplaint;

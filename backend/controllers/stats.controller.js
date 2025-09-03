@@ -6,11 +6,23 @@ export const getComplaintStats = async (req, res) => {
   try {
     const [total, pending, inProgress, resolved, unassigned] =
       await Promise.all([
-        Complaint.countDocuments(),
-        Complaint.countDocuments({ status: "Pending" }),
-        Complaint.countDocuments({ status: "In Progress" }),
-        Complaint.countDocuments({ status: "Resolved" }),
-        Complaint.countDocuments({ assignedTo: null }),
+        Complaint.countDocuments({ isDeleted: { $ne: true } }),
+        Complaint.countDocuments({
+          status: "Pending",
+          isDeleted: { $ne: true },
+        }),
+        Complaint.countDocuments({
+          status: "In Progress",
+          isDeleted: { $ne: true },
+        }),
+        Complaint.countDocuments({
+          status: "Resolved",
+          isDeleted: { $ne: true },
+        }),
+        Complaint.countDocuments({
+          assignedTo: null,
+          isDeleted: { $ne: true },
+        }),
       ]);
 
     res.status(200).json({ total, pending, inProgress, resolved, unassigned });
@@ -23,6 +35,11 @@ export const getComplaintStats = async (req, res) => {
 export const getCategoryCounts = async (req, res) => {
   try {
     const results = await Complaint.aggregate([
+      {
+        $match: {
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
       {
         $group: {
           _id: {
@@ -119,10 +136,25 @@ export const getStaffStats = async (req, res) => {
     const staffId = req.user._id; // Get the staff ID from the authenticated user
 
     const [assigned, pending, inProgress, resolved] = await Promise.all([
-      Complaint.countDocuments({ assignedTo: staffId }),
-      Complaint.countDocuments({ assignedTo: staffId, status: "Pending" }),
-      Complaint.countDocuments({ assignedTo: staffId, status: "In Progress" }),
-      Complaint.countDocuments({ assignedTo: staffId, status: "Resolved" }),
+      Complaint.countDocuments({
+        assignedTo: staffId,
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        assignedTo: staffId,
+        status: "Pending",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        assignedTo: staffId,
+        status: "In Progress",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        assignedTo: staffId,
+        status: "Resolved",
+        isDeleted: { $ne: true },
+      }),
     ]);
 
     res.status(200).json({ assigned, pending, inProgress, resolved });
@@ -137,11 +169,30 @@ export const getUserStats = async (req, res) => {
     const userId = req.user._id; // Get the user ID from the authenticated user
 
     const [total, pending, inProgress, resolved, closed] = await Promise.all([
-      Complaint.countDocuments({ submittedBy: userId }),
-      Complaint.countDocuments({ submittedBy: userId, status: "Pending" }),
-      Complaint.countDocuments({ submittedBy: userId, status: "In Progress" }),
-      Complaint.countDocuments({ submittedBy: userId, status: "Resolved" }),
-      Complaint.countDocuments({ submittedBy: userId, status: "Closed" }),
+      Complaint.countDocuments({
+        submittedBy: userId,
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        submittedBy: userId,
+        status: "Pending",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        submittedBy: userId,
+        status: "In Progress",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        submittedBy: userId,
+        status: "Resolved",
+        isDeleted: { $ne: true },
+      }),
+      Complaint.countDocuments({
+        submittedBy: userId,
+        status: "Closed",
+        isDeleted: { $ne: true },
+      }),
     ]);
 
     res.status(200).json({
@@ -201,7 +252,9 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
     console.log("👤 User ID:", req.user?._id);
 
     // First, let's get the total count without any filter to see if there are complaints
-    const totalAll = await Complaint.countDocuments();
+    const totalAll = await Complaint.countDocuments({
+      isDeleted: { $ne: true },
+    });
     console.log("📊 Total complaints in DB:", totalAll);
 
     if (totalAll === 0) {
@@ -218,12 +271,14 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
     // Check how many complaints are sent to admin
     const adminComplaints = await Complaint.countDocuments({
       submittedTo: { $regex: /admin/i },
+      isDeleted: { $ne: true },
     });
     console.log("👑 Complaints sent to admin:", adminComplaints);
 
     // Check how many complaints are escalated
     const escalatedComplaints = await Complaint.countDocuments({
       isEscalated: true,
+      isDeleted: { $ne: true },
     });
     console.log("🚨 Escalated complaints:", escalatedComplaints);
 
@@ -240,6 +295,8 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
         },
         // Exclude escalated complaints
         { isEscalated: { $ne: true } },
+        // Exclude deleted complaints
+        { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
       ],
     };
 

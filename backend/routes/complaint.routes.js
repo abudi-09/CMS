@@ -10,11 +10,14 @@ import {
   getAllFeedback,
   getAssignedComplaints,
   approveComplaint,
+  updateMyComplaint,
+  softDeleteMyComplaint,
+  updateMyComplaintRecipient,
+  reassignRecipient,
   getMyFeedback,
   markFeedbackReviewed,
   getFeedbackByRole,
   queryComplaints,
-
   deanAssignToHod,
   getDeanInbox,
   getAdminInbox,
@@ -22,7 +25,6 @@ import {
   hodAssignToStaff,
   getHodManagedComplaints,
   getHodAll,
-
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -40,11 +42,22 @@ const router = express.Router();
 // USER
 router.post("/submit", protectRoute, createComplaint);
 router.get("/my-complaints", protectRoute, getMyComplaints);
+// Student-owned edit/delete (only while Pending)
+router.put("/my/:id", protectRoute, updateMyComplaint);
+router.delete("/my/:id", protectRoute, softDeleteMyComplaint);
+router.put("/my/:id/recipient", protectRoute, updateMyComplaintRecipient);
 router.post("/feedback/:id", protectRoute, giveFeedback);
 
 // ADMIN or DEAN
 router.get("/all", protectRoute, adminOrDean, getAllComplaints);
 router.put("/assign/:id", protectRoute, adminOrDean, assignComplaint);
+// Admin/HOD/Dean can reassign recipient role (post-acceptance)
+router.put(
+  "/reassign/recipient/:id",
+  protectRoute,
+  adminDeanOrHod,
+  reassignRecipient
+);
 // Approval can be performed by Dean or HoD (their respective inbox acceptance)
 router.put("/approve/:id", protectRoute, adminDeanOrHod, approveComplaint);
 // Dean -> assign to HoD (keeps status Pending for HoD acceptance)

@@ -53,6 +53,7 @@ export function AdminComplaints() {
           status: (c.status as Complaint["status"]) || "Pending",
           priority: (c.priority as Complaint["priority"]) || "Medium",
           submittedBy: c.submittedBy || "",
+          // Ensure assignedStaff shows human-readable name if present
           assignedStaff: c.assignedTo || undefined,
           submittedDate: c.submittedDate
             ? new Date(c.submittedDate)
@@ -98,6 +99,11 @@ export function AdminComplaints() {
           : c
       )
     );
+    if (updates.status === "Resolved") {
+      setStatusTab("Resolved");
+    } else if (updates.status === "Accepted") {
+      setStatusTab("Accepted");
+    }
   };
 
   // Overdue helper (deadline passed and not Resolved/Closed)
@@ -126,7 +132,8 @@ export function AdminComplaints() {
   // Tab counts (only direct-to-admin set), mapped to requested groups
   const counts = {
     Pending: adminInbox.filter((c) => c.status === "Pending").length,
-    Accepted: adminInbox.filter((c) => c.status === "In Progress").length,
+    Accepted: adminInbox.filter((c) => c.status === "Accepted").length,
+    Resolved: adminInbox.filter((c) => c.status === "Resolved").length,
     Rejected: adminInbox.filter((c) => isRejected(c)).length,
   } as const;
 
@@ -134,7 +141,8 @@ export function AdminComplaints() {
   // Apply tab grouping to determine which complaints to show
   const complaintsForTable = adminInbox.filter((c) => {
     if (statusTab === "Pending") return c.status === "Pending";
-    if (statusTab === "Accepted") return c.status === "In Progress";
+    if (statusTab === "Accepted") return c.status === "Accepted";
+    if (statusTab === "Resolved") return c.status === "Resolved";
     if (statusTab === "Rejected") return isRejected(c);
     return false;
   });
@@ -173,14 +181,14 @@ export function AdminComplaints() {
   // Admin actions: Accept / Reject
   const acceptComplaint = async (c: Complaint) => {
     try {
-      await approveComplaintApi(c.id);
+      await approveComplaintApi(c.id, { assignToSelf: true });
       const adminName = (user && (user.fullName || user.name)) || "Admin";
       setComplaints((prev) =>
         prev.map((x) =>
           x.id === c.id
             ? {
                 ...x,
-                status: "In Progress",
+                status: "Accepted",
                 assignedStaff: adminName,
                 assignedStaffRole: "admin",
               }
@@ -190,7 +198,7 @@ export function AdminComplaints() {
       window.dispatchEvent(
         new CustomEvent("complaint:status-changed", { detail: { id: c.id } })
       );
-      toast({ title: "Accepted", description: "Moved to In Progress." });
+      toast({ title: "Accepted", description: "Moved to Accepted." });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to accept";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -198,21 +206,9 @@ export function AdminComplaints() {
   };
 
   const rejectComplaint = async (c: Complaint) => {
-    const reason = window.prompt("Enter reason for rejection (required):", "");
-    if (!reason || !reason.trim()) {
-      toast({
-        title: "Reason required",
-        description: "Please enter a reason to reject.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Admin can reject without a reason
     try {
-      await updateComplaintStatusApi(
-        c.id,
-        "Closed",
-        `Rejected: ${reason.trim()}`
-      );
+      await updateComplaintStatusApi(c.id, "Closed");
       setComplaints((prev) =>
         prev.map((x) => (x.id === c.id ? { ...x, status: "Closed" } : x))
       );
@@ -227,27 +223,18 @@ export function AdminComplaints() {
   };
 
   const reapproveComplaint = async (c: Complaint) => {
-    const note = window.prompt(
-      "Enter a note/description for re-approval (required):",
-      ""
-    );
-    if (!note || !note.trim()) {
-      toast({
-        title: "Note required",
-        description: "Please provide a brief note for re-approval.",
-        variant: "destructive",
-      });
-      return;
-    }
     try {
-      await approveComplaintApi(c.id, { note: note.trim() });
+      // Admin can re-approve without a note; also assigns to self
+      await approveComplaintApi(c.id, {
+        assignToSelf: true,
+      });
       const adminName = (user && (user.fullName || user.name)) || "Admin";
       setComplaints((prev) =>
         prev.map((x) =>
           x.id === c.id
             ? {
                 ...x,
-                status: "In Progress",
+                status: "Accepted",
                 assignedStaff: adminName,
                 assignedStaffRole: "admin",
               }
@@ -277,6 +264,9 @@ export function AdminComplaints() {
                 </TabsTrigger>
                 <TabsTrigger value="Accepted">
                   Accepted ({counts["Accepted"]})
+                </TabsTrigger>
+                <TabsTrigger value="Resolved">
+                  Resolved ({counts["Resolved"]})
                 </TabsTrigger>
                 <TabsTrigger value="Rejected">
                   Rejected ({counts["Rejected"]})
