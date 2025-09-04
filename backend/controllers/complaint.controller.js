@@ -1226,16 +1226,25 @@ export const hodAcceptAssignment = async (req, res) => {
       complaint.assignmentPath.push("hod");
     await complaint.save();
 
-    await ActivityLog.create({
-      user: req.user._id,
-      role: req.user.role,
-      action: "Accepted by HOD",
+    // Create only one acceptance log entry
+    const existingAcceptance = await ActivityLog.findOne({
       complaint: complaint._id,
-      timestamp: new Date(),
-      details: {
-        description: `Accepted by HOD: ${req.user.name || req.user.email}`,
-      },
-    });
+      action: "Complaint accepted by HOD",
+    }).lean();
+    if (!existingAcceptance) {
+      await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: "Complaint accepted by HOD",
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: {
+          description: `Complaint accepted by HOD ${
+            req.user.name || req.user.email
+          }`,
+        },
+      });
+    }
 
     // Notify student and dean
     await Promise.all([
@@ -1609,86 +1618,92 @@ export const updateComplaintStatus = async (req, res) => {
       console.warn("[updateComplaintStatus] email notify failed:", e?.message);
     }
 
-    // Activity logs: For HoD/Dean create a fresh entry; else try to merge with last
-    const lastSameStatusLog = await ActivityLog.findOne({
-      complaint: complaint._id,
-      action: `Status Updated to ${status}`,
-    }).sort({ timestamp: -1 });
-
+    // Activity logs: For HoD/Dean/Admin always append a new, rich entry.
+    // For Staff, maintain previous merge behavior for same status.
+    const nowTs = new Date();
     if (
       req.user.role === "hod" ||
       req.user.role === "dean" ||
       req.user.role === "admin"
     ) {
-      await ActivityLog.create({
-        user: req.user._id,
-        role: req.user.role,
-        action: `Status Updated to ${status}`,
-        complaint: complaint._id,
-        timestamp: new Date(), // Unique timestamp for each update
-        details: { description: (description || "").trim() },
-      });
-    } else if (lastSameStatusLog) {
-      const updatedDetails = { ...(lastSameStatusLog.details || {}) };
-      if (description && String(description).trim()) {
-        updatedDetails.description = updatedDetails.description
-          ? `${
-              updatedDetails.description
-            }\n[${new Date().toISOString()}] ${description}`
-          : String(description);
+      const actorName = req.user?.name || req.user?.email || "";
+      const prettyRole = req.user.role.toUpperCase();
+      let action = `Status Updated to ${status}`;
+      let descriptionText = "";
+      if (req.user.role === "hod") {
+        // Richer, unique HOD timeline descriptions
+        if (status === "Resolved") {
+          action = "Complaint resolved by HOD";
+          descriptionText = `Complaint resolved by HOD ${actorName}${
+            description ? `: ${description}` : ""
+          }`;
+        } else if (status === "Closed") {
+          const isExplicitReject =
+            typeof description === "string" &&
+            /^\s*Rejected:/i.test(description);
+          action = isExplicitReject
+            ? "Complaint rejected by HOD"
+            : "Complaint closed by HOD";
+          descriptionText = `${action.replace("Complaint ", "")} ${actorName}${
+            description ? `: ${description}` : ""
+          }`;
+        } else if (status === "Accepted") {
+          action = "Complaint accepted by HOD";
+          descriptionText = `Complaint accepted by HOD ${actorName}${
+            description ? `: ${description}` : ""
+          }`;
+        } else if (status === "In Progress" || status === "Pending") {
+          action = `HOD update: Status changed to ${status}`;
+          descriptionText = `HOD update by ${actorName}${
+            description ? `: ${description}` : ""
+          }`;
+        }
+      } else {
+        // Dean/Admin rich entry
+        descriptionText = `${prettyRole} Update${
+          actorName ? ` by ${actorName}` : ""
+        }${description ? `: ${description}` : ""}`;
       }
-      await ActivityLog.findByIdAndUpdate(
-        lastSameStatusLog._id,
-        { timestamp: new Date(), details: updatedDetails },
-        { new: true }
-      );
-    } else {
       await ActivityLog.create({
         user: req.user._id,
         role: req.user.role,
-        action: `Status Updated to ${status}`,
+        action,
         complaint: complaint._id,
-        timestamp: new Date(),
-        details: { description: (description || "").trim() },
+        timestamp: nowTs,
+        details: { description: descriptionText, status },
       });
+    } else {
+      const lastSameStatusLog = await ActivityLog.findOne({
+        complaint: complaint._id,
+        action: `Status Updated to ${status}`,
+      }).sort({ timestamp: -1 });
+      if (lastSameStatusLog) {
+        const updatedDetails = { ...(lastSameStatusLog.details || {}) };
+        if (description && String(description).trim()) {
+          updatedDetails.description = updatedDetails.description
+            ? `${
+                updatedDetails.description
+              }\n[${nowTs.toISOString()}] ${description}`
+            : String(description);
+        }
+        await ActivityLog.findByIdAndUpdate(
+          lastSameStatusLog._id,
+          { timestamp: nowTs, details: updatedDetails },
+          { new: true }
+        );
+      } else {
+        await ActivityLog.create({
+          user: req.user._id,
+          role: req.user.role,
+          action: `Status Updated to ${status}`,
+          complaint: complaint._id,
+          timestamp: nowTs,
+          details: { description: (description || "").trim(), status },
+        });
+      }
     }
 
-    // Extra human-readable timeline entries for HoD actions
-    if (req.user.role === "hod") {
-      const actorName = req.user?.name || req.user?.email || undefined;
-      if (status === "Resolved") {
-        await ActivityLog.create({
-          user: req.user._id,
-          role: req.user.role,
-          action: "Resolved by HOD",
-          complaint: complaint._id,
-          timestamp: new Date(),
-          details: {
-            description: actorName
-              ? `Resolved by HOD ${actorName}${
-                  description ? `: ${description}` : ""
-                }`
-              : `Resolved by HOD${description ? `: ${description}` : ""}`,
-          },
-        });
-      } else if (status === "Closed") {
-        const isExplicitReject =
-          typeof description === "string" && /^\s*Rejected:/i.test(description);
-        const action = isExplicitReject ? "Rejected by HOD" : "Closed by HOD";
-        await ActivityLog.create({
-          user: req.user._id,
-          role: req.user.role,
-          action,
-          complaint: complaint._id,
-          timestamp: new Date(),
-          details: {
-            description: actorName
-              ? `${action} ${actorName}${description ? `: ${description}` : ""}`
-              : `${action}${description ? `: ${description}` : ""}`,
-          },
-        });
-      }
-    }
+    // Remove duplicate extra entries: handled by rich log creation above.
 
     // Notifications: to Student (and HoD if staff acted)
     if (status === "Closed") {

@@ -785,6 +785,13 @@ export function RoleBasedComplaintModal({
     const action = log.action || "";
     const role = String(log.role || "").toLowerCase();
 
+    // Include HoD rich updates and accept entries
+    if (
+      /^(HOD update: Status changed to|Complaint accepted by HOD)/i.test(action)
+    ) {
+      return true;
+    }
+
     // Include Dean and Admin status updates
     if (
       action.match(/status updated to\s+(.+)/i) &&
@@ -880,6 +887,46 @@ export function RoleBasedComplaintModal({
         });
         hasAcceptedEntry = true;
       }
+      continue;
+    }
+
+    // Handle new HoD rich actions: show as standalone entries
+    const hodUpdateMatch = (log.action || "").match(
+      /^HOD update: Status changed to\s+(.+)/i
+    );
+    if (hodUpdateMatch) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `hodupdate|${time.toISOString()}|${hodUpdateMatch[1]}`,
+        label: normalizeStatus((hodUpdateMatch[1] || "").trim()),
+        role: log.role || "hod",
+        icon: statusIcon(normalizeStatus((hodUpdateMatch[1] || "").trim())),
+        time,
+        desc: rawDesc,
+      });
+      continue;
+    }
+
+    if (/^Complaint accepted by HOD/i.test(log.action || "")) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `acceptedbyhod|${time.toISOString()}`,
+        label: "Accepted",
+        role: log.role || "hod",
+        icon: <CheckCircle className="h-4 w-4 text-success" />,
+        time,
+        desc: rawDesc,
+      });
       continue;
     }
 
@@ -1547,6 +1594,100 @@ export function RoleBasedComplaintModal({
           </CardContent>
         </Card>
 
+        {/* HoD Action Section - Only for HoD user; shown after acceptance (Accepted/In Progress) below the timeline */}
+        {user.role === "hod" &&
+          !hideHodPanels &&
+          (liveComplaint.status === "In Progress" ||
+            liveComplaint.status === "Accepted") && (
+            <Card id="hod-actions" className="mt-6">
+              <CardHeader>
+                <CardTitle>HoD Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="mb-2">Update Status</Label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={liveComplaint.status}
+                    onChange={(e) =>
+                      setLiveComplaint({
+                        ...liveComplaint,
+                        status: e.target.value as Complaint["status"],
+                      })
+                    }
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="mb-2">Note (optional)</Label>
+                  <Textarea
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Add an optional note visible to the user..."
+                    value={hodStatusNote}
+                    onChange={(e) =>
+                      setHodStatusNote(e.target.value.slice(0, 1000))
+                    }
+                    rows={3}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1 text-right">
+                    {hodStatusNote.length}/1000
+                  </div>
+                </div>
+                <Button
+                  className="mt-2 w-full"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    if (!liveComplaint) return;
+                    setIsLoading(true);
+                    try {
+                      await updateComplaintStatusApi(
+                        liveComplaint.id,
+                        liveComplaint.status as
+                          | "Pending"
+                          | "In Progress"
+                          | "Resolved"
+                          | "Closed",
+                        hodStatusNote.trim() || undefined
+                      );
+                      toast({
+                        title: "Status updated",
+                        description: `Updated to ${liveComplaint.status}.`,
+                      });
+                      setHodStatusNote("");
+                      try {
+                        const freshLogs = await getActivityLogsForComplaint(
+                          liveComplaint.id
+                        );
+                        setLogs(freshLogs as ActivityLog[]);
+                      } catch {
+                        // ignore errors while refreshing logs
+                      }
+                      window.dispatchEvent(
+                        new CustomEvent("complaint:status-changed", {
+                          detail: {
+                            id: liveComplaint.id,
+                            status: liveComplaint.status,
+                            newStatus: liveComplaint.status,
+                            note: hodStatusNote.trim() || undefined,
+                          },
+                        })
+                      );
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
         {/* Dean Action Section - Only for Dean user; hidden when already Resolved/Closed */}
         {user?.role === "dean" &&
           liveComplaint?.status &&
@@ -1643,282 +1784,75 @@ export function RoleBasedComplaintModal({
         {/* Only show these sections if assigned */}
         {isAssigned && (
           <>
-            {/* Role-specific Actions */}
-            {user.role === "user" && (
-              <>
-                {complaint.status === "Resolved" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Star className="h-5 w-5" />
-                        Submit Feedback
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label>Rate your experience (1-5 stars)</Label>
-                        <div className="flex gap-1 mt-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() =>
-                                setFeedback({ ...feedback, rating: star })
-                              }
-                              className={`p-1 ${
-                                star <= feedback.rating
-                                  ? "text-warning"
+            {/* End-user: submit feedback when resolved and no feedback yet */}
+            {user.role === "user" &&
+              liveComplaint.status === "Resolved" &&
+              !liveComplaint.feedback && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Star className="h-5 w-5" />
+                      Submit Feedback
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium">Rating</Label>
+                      <div className="mt-2 flex items-center gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() =>
+                              setFeedback({ ...feedback, rating: i + 1 })
+                            }
+                            className="focus:outline-none"
+                            aria-label={`Rate ${i + 1} star`}
+                          >
+                            <Star
+                              className={`h-5 w-5 ${
+                                i < (feedback.rating || 0)
+                                  ? "text-warning fill-current"
                                   : "text-muted-foreground"
                               }`}
-                            >
-                              <Star className="h-5 w-5 fill-current" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label>Comments (Optional)</Label>
-                        <Textarea
-                          placeholder="Share your feedback about the resolution..."
-                          value={feedback.comment}
-                          onChange={(e) =>
-                            setFeedback({
-                              ...feedback,
-                              comment: e.target.value,
-                            })
-                          }
-                          rows={3}
-                        />
-                      </div>
-
-                      <Button
-                        onClick={handleFeedbackSubmit}
-                        disabled={isLoading || feedback.rating === 0}
-                        className="w-full"
-                      >
-                        Submit Feedback
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {complaint.feedback && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Your Feedback</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-1 mb-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < complaint.feedback!.rating
-                                ? "text-warning fill-current"
-                                : "text-muted-foreground"
-                            }`}
-                          />
+                            />
+                          </button>
                         ))}
-                        <span className="ml-2 text-sm text-muted-foreground">
-                          ({complaint.feedback.rating}/5)
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({feedback.rating}/5)
                         </span>
                       </div>
-                      {complaint.feedback.comment && (
-                        <p className="text-sm">{complaint.feedback.comment}</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </>
-            )}
-
-            {user.role === "staff" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
-                    Staff Actions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {!(
-                    liveComplaint.status === "In Progress" || locallyAccepted
-                  ) && (
-                    <div className="text-sm text-muted-foreground">
-                      Accept this complaint from the main list to start working.
-                      Once accepted, you can update progress or resolve it here.
-                    </div>
-                  )}
-
-                  {(liveComplaint.status === "In Progress" ||
-                    locallyAccepted) && (
-                    <>
-                      <div>
-                        <Label className="mb-2">Update Status</Label>
-                        <select
-                          className="w-full border rounded px-3 py-2"
-                          value={
-                            liveComplaint.status === "In Progress"
-                              ? "In Progress"
-                              : liveComplaint.status
-                          }
-                          onChange={(e) =>
-                            setLiveComplaint({
-                              ...liveComplaint,
-                              status: e.target.value as Complaint["status"],
-                            })
-                          }
-                        >
-                          <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
-                          <option value="Closed">Closed</option>
-                        </select>
-                        <Button
-                          className="mt-2 w-full"
-                          disabled={isLoading}
-                          onClick={() => {
-                            const newStatus = liveComplaint.status;
-                            setIsLoading(true);
-                            Promise.resolve(
-                              onUpdate?.(liveComplaint.id, {
-                                status: newStatus,
-                                lastUpdated: new Date(),
-                              })
-                            )
-                              .then(() => {
-                                toast({
-                                  title: "Status updated",
-                                  description: `Updated to ${newStatus}.`,
-                                });
-                                window.dispatchEvent(
-                                  new CustomEvent("complaint:status-changed", {
-                                    detail: {
-                                      id: liveComplaint.id,
-                                      status: newStatus,
-                                      newStatus: newStatus,
-                                    },
-                                  })
-                                );
-                              })
-                              .finally(() => setIsLoading(false));
-                          }}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Save Changes
-                        </Button>
-                      </div>
-
-                      <div>
-                        <Label>Add Progress Update</Label>
-                        <Textarea
-                          placeholder="Provide updates on the complaint progress..."
-                          value={staffUpdate}
-                          onChange={(e) =>
-                            setStaffUpdate(e.target.value.slice(0, 1000))
-                          }
-                          rows={3}
-                        />
-                        <div className="text-xs text-muted-foreground mt-1 text-right">
-                          {staffUpdate.length}/1000
-                        </div>
-                        <Button
-                          onClick={handleAddUpdate}
-                          disabled={isLoading || !staffUpdate.trim()}
-                          className="mt-2 w-full"
-                        >
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Add Update
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {user.role === "hod" &&
-              liveComplaint.status === "In Progress" &&
-              !hideHodPanels && (
-                <Card id="admin-update-progress">
-                  <CardHeader>
-                    <CardTitle>HoD Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label className="mb-2">Update Status</Label>
-                      <select
-                        className="w-full border rounded px-3 py-2"
-                        value={liveComplaint.status}
-                        onChange={(e) =>
-                          setLiveComplaint({
-                            ...liveComplaint,
-                            status: e.target.value as Complaint["status"],
-                          })
-                        }
-                      >
-                        {/* Admin transitions after acceptance */}
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                        <option value="Closed">Closed</option>
-                      </select>
                     </div>
                     <div>
-                      <Label className="mb-2">Note (optional)</Label>
+                      <Label className="text-sm font-medium">Comment</Label>
                       <Textarea
-                        className="w-full border rounded px-3 py-2"
-                        placeholder="Add an optional note visible to the user..."
-                        value={hodStatusNote}
+                        placeholder="Share your experience..."
+                        value={feedback.comment}
                         onChange={(e) =>
-                          setHodStatusNote(e.target.value.slice(0, 1000))
+                          setFeedback({
+                            ...feedback,
+                            comment: e.target.value.slice(0, 1000),
+                          })
                         }
                         rows={3}
                       />
                       <div className="text-xs text-muted-foreground mt-1 text-right">
-                        {hodStatusNote.length}/1000
+                        {feedback.comment.length}/1000
                       </div>
                     </div>
                     <Button
-                      className="mt-2 w-full"
-                      disabled={isLoading}
-                      onClick={() => {
-                        if (!liveComplaint) return;
-                        setIsLoading(true);
-                        updateComplaintStatusApi(
-                          liveComplaint.id,
-                          liveComplaint.status as
-                            | "Pending"
-                            | "In Progress"
-                            | "Resolved"
-                            | "Closed",
-                          hodStatusNote.trim() || undefined
-                        )
-                          .then(() => {
-                            toast({
-                              title: "Status updated",
-                              description: `Updated to ${liveComplaint.status}.`,
-                            });
-                            // Clear HoD in-progress note input locally
-                            setHodStatusNote("");
-                            window.dispatchEvent(
-                              new CustomEvent("complaint:status-changed", {
-                                detail: {
-                                  id: liveComplaint.id,
-                                  status: liveComplaint.status,
-                                  newStatus: liveComplaint.status,
-                                  note: hodStatusNote.trim() || undefined,
-                                },
-                              })
-                            );
-                          })
-                          .finally(() => setIsLoading(false));
-                      }}
+                      onClick={handleFeedbackSubmit}
+                      disabled={isLoading || feedback.rating === 0}
+                      className="w-full"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Save Changes
+                      Submit Feedback
                     </Button>
                   </CardContent>
                 </Card>
               )}
+
+            {/* Duplicate HoD Actions removed; unified above under timeline */}
 
             {/* Duplicate Dean Actions panel removed; unified above under timeline */}
 
