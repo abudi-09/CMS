@@ -44,6 +44,7 @@ import {
   approveComplaintApi,
   getHodManagedComplaintsApi,
   getHodInboxApi,
+  hodAcceptAssignmentApi,
   hodAssignToStaffApi,
   listMyDepartmentActiveStaffApi,
   updateComplaintStatusApi,
@@ -143,7 +144,9 @@ export function HoDAssignComplaints() {
       const looksLikeObjectId = /^[a-fA-F0-9]{24}$/.test(assignedTo);
       assignedStaff = looksLikeObjectId ? undefined : assignedTo;
     } else if (assignedTo && typeof assignedTo === "object") {
+      // Prefer fullName/name/email fields from populated user
       assignedStaff =
+        ((assignedTo as Record<string, unknown>)["fullName"] as string) ||
         ((assignedTo as Record<string, unknown>)["name"] as string) ||
         ((assignedTo as Record<string, unknown>)["email"] as string) ||
         undefined;
@@ -160,11 +163,11 @@ export function HoDAssignComplaints() {
         : "";
     const allowedPathRoles = new Set<
       ComplaintType["assignmentPath"] extends Array<infer U> ? U : never
-    >(["student", "headOfDepartment", "dean", "admin", "staff"]);
+    >(["student", "hod", "dean", "admin", "staff"]);
     const assignmentPath = Array.isArray(c["assignmentPath"])
       ? (c["assignmentPath"] as unknown[])
           .filter((x): x is string => typeof x === "string")
-          .map((r) => (r.toLowerCase() === "hod" ? "headOfDepartment" : r))
+          .map((r) => (r === "headOfDepartment" ? "hod" : r))
           .filter((r): r is ComplaintType["assignmentPath"][number] =>
             allowedPathRoles.has(r as ComplaintType["assignmentPath"][number])
           )
@@ -359,19 +362,19 @@ export function HoDAssignComplaints() {
   const matchesTab = (c: ComplaintType) => {
     if (activeTab === "All") return true;
     if (activeTab === "Pending") {
-      // Pending items are unassigned and awaiting HoD action
-      return (
+      // Pending items are awaiting HoD action:
+      // - Submitted directly to HoD and unassigned
+      // - Or assigned to HoD by Dean (status Assigned) but not yet accepted
+      const isDirectToHodPending =
         (c.status === "Pending" || c.status === "Unassigned") &&
-        !c.assignedStaff
-      );
+        !c.assignedStaff;
+      const isDeanAssignedAwaitingAccept =
+        c.status === "Assigned" && !c.assignedStaff;
+      return isDirectToHodPending || isDeanAssignedAwaitingAccept;
     }
     if (activeTab === "Accepted") {
-      // Accepted: handled by HoD (assigned to self) and in progress
-
-      return (
-        (c.status === "In Progress" || c.status === "Assigned") &&
-        isAssignedToSelf(c)
-      );
+      // Accepted: handled by HoD (assigned to self) and now in progress
+      return c.status === "In Progress" && isAssignedToSelf(c);
     }
     if (activeTab === "Assigned") {
       // Assigned: delegated to staff (has assignee and not self)
@@ -764,7 +767,8 @@ export function HoDAssignComplaints() {
                       View Detail
                     </Button>
                     {(complaint.status === "Pending" ||
-                      complaint.status === "Unassigned") &&
+                      complaint.status === "Unassigned" ||
+                      complaint.status === "Assigned") &&
                       !complaint.assignedStaff && (
                         <Button
                           size="sm"
@@ -897,7 +901,8 @@ export function HoDAssignComplaints() {
                           View Detail
                         </Button>
                         {(complaint.status === "Pending" ||
-                          complaint.status === "Unassigned") &&
+                          complaint.status === "Unassigned" ||
+                          complaint.status === "Assigned") &&
                           !complaint.assignedStaff && (
                             <Button
                               size="sm"
@@ -1044,7 +1049,19 @@ export function HoDAssignComplaints() {
         complaintId={actionComplaintId}
         onAccepted={async ({ id, note, assignToSelf }) => {
           try {
-            await approveComplaintApi(id, { assignToSelf, note });
+            // Decide path: if item was assigned to HoD by Dean (status Assigned), call HoD accept API
+            const pendingItem = [...inbox, ...complaints].find(
+              (c) => c.id === id
+            );
+            const wasDeanAssigned =
+              pendingItem?.status === "Assigned" && !pendingItem?.assignedStaff;
+            if (wasDeanAssigned) {
+              await hodAcceptAssignmentApi(id);
+            } else {
+              // Direct-to-HoD submissions: accept and assign to self, then immediately move to In Progress
+              await approveComplaintApi(id, { assignToSelf: true, note });
+              await updateComplaintStatusApi(id, "In Progress", note);
+            }
             const [inboxRaw, managedRaw] = await Promise.all([
               getHodInboxApi(),
               getHodManagedComplaintsApi(),
@@ -1053,9 +1070,8 @@ export function HoDAssignComplaints() {
             setComplaints(managedRaw.map(mapApiToComplaint));
             toast({
               title: "Accepted",
-              description: assignToSelf
-                ? "Assigned to you and moved to In Progress."
-                : "Complaint moved to In Progress.",
+              description:
+                "Complaint assigned to you and moved to In Progress.",
             });
             window.dispatchEvent(
               new CustomEvent("complaint:status-changed", { detail: { id } })

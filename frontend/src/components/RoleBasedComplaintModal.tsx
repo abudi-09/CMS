@@ -148,6 +148,7 @@ export function RoleBasedComplaintModal({
       fallback?.submittedBy ||
       "User";
     const assignedStaffName =
+      (assignedTo.fullName as string) ||
       (assignedTo.name as string) ||
       (assignedTo.email as string) ||
       fallback?.assignedStaff;
@@ -172,10 +173,14 @@ export function RoleBasedComplaintModal({
       (obj.assignedByRole as Complaint["assignedByRole"]) ||
       fallback?.assignedByRole;
     const assignmentPath = Array.isArray(obj.assignmentPath)
-      ? (obj.assignmentPath as Array<
-          "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-        >)
-      : fallback?.assignmentPath || [];
+      ? (obj.assignmentPath as string[])
+          .map((r) => (r === "headOfDepartment" ? "hod" : r))
+          .filter((r): r is "student" | "hod" | "dean" | "admin" | "staff" =>
+            ["student", "hod", "dean", "admin", "staff"].includes(r as string)
+          )
+      : (fallback?.assignmentPath as Array<
+          "student" | "hod" | "dean" | "admin" | "staff"
+        >) || [];
     const evidenceFile = (obj.evidenceFile as string) || fallback?.evidenceFile;
     const isEscalated = Boolean(
       obj.isEscalated ?? fallback?.isEscalated ?? false
@@ -678,9 +683,9 @@ export function RoleBasedComplaintModal({
     ? liveComplaint.assignmentPath.map((r) => String(r).toLowerCase())
     : [];
   const viaHod =
-    roleLower === "headofdepartment" ||
     roleLower === "hod" ||
-    path.includes("headofdepartment") ||
+    roleLower === "hod" ||
+    path.includes("hod") ||
     path.includes("hod");
   const assignedByAdmin = roleLower === "admin";
   const directToStaff =
@@ -783,8 +788,13 @@ export function RoleBasedComplaintModal({
     // Include Dean and Admin status updates
     if (
       action.match(/status updated to\s+(.+)/i) &&
-      (role === "dean" || role === "admin")
+      (role === "dean" || role === "admin" || role === "hod")
     ) {
+      return true;
+    }
+
+    // Include explicit HoD terminal actions (Resolved/Closed/Rejected by HOD)
+    if (/(resolved|closed|rejected) by hod/i.test(action)) {
       return true;
     }
 
@@ -842,7 +852,7 @@ export function RoleBasedComplaintModal({
       const roleNorm = String(log.role || "").toLowerCase();
       if (
         roleNorm === "hod" ||
-        roleNorm === "headofdepartment" ||
+        roleNorm === "hod" ||
         roleNorm === "dean" ||
         roleNorm === "admin"
       ) {
@@ -1029,7 +1039,7 @@ export function RoleBasedComplaintModal({
   // Derived flags and views
   const hideHodPanels = Boolean(
     hideHodActionsIfAssigned &&
-      user?.role === "headOfDepartment" &&
+      user?.role === "hod" &&
       liveComplaint &&
       Array.isArray(liveComplaint.assignmentPath) &&
       liveComplaint.assignmentPath.some(
@@ -1182,7 +1192,7 @@ export function RoleBasedComplaintModal({
         )}
 
         {/* HoD: Pending/Assigned actions (awaiting HoD decision) */}
-        {user.role === "headOfDepartment" &&
+        {user.role === "hod" &&
           (liveComplaint.status === "Pending" ||
             liveComplaint.status === "Assigned") &&
           !hideHodPanels && (
@@ -1424,8 +1434,7 @@ export function RoleBasedComplaintModal({
                       // Case 2: Student -> HoD -> Staff
                       if (
                         src === "student" &&
-                        (assignedBy === "headOfDepartment" ||
-                          path.includes("headOfDepartment"))
+                        (assignedBy === "hod" || path.includes("hod"))
                       ) {
                         return "Complaint submitted by Student, assigned by HoD.";
                       }
@@ -1433,8 +1442,7 @@ export function RoleBasedComplaintModal({
                       if (
                         src === "student" &&
                         path.includes("dean") &&
-                        (assignedBy === "headOfDepartment" ||
-                          path.includes("headOfDepartment"))
+                        (assignedBy === "hod" || path.includes("hod"))
                       ) {
                         return "Complaint submitted by Student, passed down by Dean → HoD → assigned to you.";
                       }
@@ -1828,7 +1836,7 @@ export function RoleBasedComplaintModal({
               </Card>
             )}
 
-            {user.role === "headOfDepartment" &&
+            {user.role === "hod" &&
               liveComplaint.status === "In Progress" &&
               !hideHodPanels && (
                 <Card id="admin-update-progress">

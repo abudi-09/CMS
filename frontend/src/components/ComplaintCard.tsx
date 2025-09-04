@@ -30,15 +30,13 @@ export interface Complaint {
     | "Pending";
   submittedBy: string;
   // Who originally created/submitted the complaint (role perspective)
-  sourceRole?: "student" | "staff" | "headOfDepartment" | "dean" | "admin";
+  sourceRole?: "student" | "staff" | "hod" | "dean" | "admin";
   assignedStaff?: string;
-  assignedStaffRole?: "dean" | "headOfDepartment" | "staff" | "admin";
+  assignedStaffRole?: "dean" | "hod" | "staff" | "admin";
   // Who assigned this complaint to the current assignee (role perspective)
-  assignedByRole?: "student" | "headOfDepartment" | "dean" | "admin";
+  assignedByRole?: "student" | "hod" | "dean" | "admin";
   // Trace of roles that handed-off the complaint before it reached the current assignee
-  assignmentPath?: Array<
-    "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-  >;
+  assignmentPath?: Array<"student" | "hod" | "dean" | "admin" | "staff">;
   assignedDate?: Date;
   submittedDate: Date;
   deadline?: Date;

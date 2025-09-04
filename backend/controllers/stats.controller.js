@@ -1788,10 +1788,33 @@ export const getDeanDepartmentPerformance = async (req, res) => {
     if (from) createdRange.$gte = from;
     if (to) createdRange.$lte = to;
 
-    // Base dean-visible filter: exclude direct-to-admin, exclude soft-deleted
+    // Base dean-visible filter: exclude anything associated with Admin (directed to, assigned by, recipient role, or in assignment path), and exclude soft-deleted
     const deanBase = {
-      submittedTo: { $ne: "admin" },
-      $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+      $and: [
+        {
+          $or: [
+            { submittedTo: { $exists: false } },
+            { submittedTo: null },
+            { submittedTo: { $not: /admin/i } },
+          ],
+        },
+        {
+          $or: [
+            { assignedByRole: { $exists: false } },
+            { assignedByRole: null },
+            { assignedByRole: { $not: /admin/i } },
+          ],
+        },
+        {
+          $or: [
+            { recipientRole: { $exists: false } },
+            { recipientRole: null },
+            { recipientRole: { $not: /admin/i } },
+          ],
+        },
+        { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
+        { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
+      ],
       ...(Object.keys(createdRange).length ? { createdAt: createdRange } : {}),
     };
 
@@ -2113,10 +2136,33 @@ export const getDeanDepartmentComplaints = async (req, res) => {
     if (to) createdRange.$lte = to;
 
     const deanBase = {
-      submittedTo: { $ne: "admin" },
-      $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
-      // Match any variant of the canonical department via regex
-      department: new RegExp(canonical.replace(/\s+/g, "\\s*"), "i"),
+      $and: [
+        {
+          $or: [
+            { submittedTo: { $exists: false } },
+            { submittedTo: null },
+            { submittedTo: { $not: /admin/i } },
+          ],
+        },
+        {
+          $or: [
+            { assignedByRole: { $exists: false } },
+            { assignedByRole: null },
+            { assignedByRole: { $not: /admin/i } },
+          ],
+        },
+        {
+          $or: [
+            { recipientRole: { $exists: false } },
+            { recipientRole: null },
+            { recipientRole: { $not: /admin/i } },
+          ],
+        },
+        { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
+        { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
+        // Match any variant of the canonical department via regex
+        { department: new RegExp(canonical.replace(/\s+/g, "\\s*"), "i") },
+      ],
       ...(Object.keys(createdRange).length ? { createdAt: createdRange } : {}),
     };
 

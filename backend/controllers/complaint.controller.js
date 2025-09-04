@@ -481,7 +481,39 @@ export const getMyComplaints = async (req, res) => {
 // 3. Admin views all complaints
 export const getAllComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find({ isDeleted: { $ne: true } })
+    const role = String(req.user?.role || "").toLowerCase();
+    // Base visibility: exclude soft-deleted
+    const baseFilter = { isDeleted: { $ne: true } };
+    // For deans, hide any complaint that is directed to Admin or involves Admin in routing
+    if (role === "dean") {
+      Object.assign(baseFilter, {
+        $and: [
+          {
+            $or: [
+              { submittedTo: { $exists: false } },
+              { submittedTo: null },
+              { submittedTo: { $not: /admin/i } },
+            ],
+          },
+          {
+            $or: [
+              { assignedByRole: { $exists: false } },
+              { assignedByRole: null },
+              { assignedByRole: { $not: /admin/i } },
+            ],
+          },
+          {
+            $or: [
+              { recipientRole: { $exists: false } },
+              { recipientRole: null },
+              { recipientRole: { $not: /admin/i } },
+            ],
+          },
+          { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
+        ],
+      });
+    }
+    const complaints = await Complaint.find(baseFilter)
       .populate("submittedBy", "name")
       .populate("assignedTo", "name")
       .lean();
@@ -1092,7 +1124,7 @@ export const getHodManagedComplaints = async (req, res) => {
 
     const complaints = await Complaint.find(filter)
       .populate("submittedBy", "name email")
-      .populate("assignedTo", "name email role")
+      .populate("assignedTo", "name fullName email role")
       .sort({ updatedAt: -1 })
       .limit(500)
       .lean();
@@ -1621,6 +1653,43 @@ export const updateComplaintStatus = async (req, res) => {
       });
     }
 
+    // Extra human-readable timeline entries for HoD actions
+    if (req.user.role === "hod") {
+      const actorName = req.user?.name || req.user?.email || undefined;
+      if (status === "Resolved") {
+        await ActivityLog.create({
+          user: req.user._id,
+          role: req.user.role,
+          action: "Resolved by HOD",
+          complaint: complaint._id,
+          timestamp: new Date(),
+          details: {
+            description: actorName
+              ? `Resolved by HOD ${actorName}${
+                  description ? `: ${description}` : ""
+                }`
+              : `Resolved by HOD${description ? `: ${description}` : ""}`,
+          },
+        });
+      } else if (status === "Closed") {
+        const isExplicitReject =
+          typeof description === "string" && /^\s*Rejected:/i.test(description);
+        const action = isExplicitReject ? "Rejected by HOD" : "Closed by HOD";
+        await ActivityLog.create({
+          user: req.user._id,
+          role: req.user.role,
+          action,
+          complaint: complaint._id,
+          timestamp: new Date(),
+          details: {
+            description: actorName
+              ? `${action} ${actorName}${description ? `: ${description}` : ""}`
+              : `${action}${description ? `: ${description}` : ""}`,
+          },
+        });
+      }
+    }
+
     // Notifications: to Student (and HoD if staff acted)
     if (status === "Closed") {
       await safeNotify({
@@ -2058,7 +2127,43 @@ export const queryComplaints = async (req, res) => {
       }
     }
 
-    const complaints = await Complaint.find({ ...q, isDeleted: { $ne: true } })
+    // Always exclude soft-deleted
+    const filter = { ...q, isDeleted: { $ne: true } };
+    // Dean visibility guard: hide admin-directed/associated complaints universally
+    const role = String(user?.role || "").toLowerCase();
+    if (role === "dean") {
+      const deanExclusion = [
+        {
+          $or: [
+            { submittedTo: { $exists: false } },
+            { submittedTo: null },
+            { submittedTo: { $not: /admin/i } },
+          ],
+        },
+        {
+          $or: [
+            { assignedByRole: { $exists: false } },
+            { assignedByRole: null },
+            { assignedByRole: { $not: /admin/i } },
+          ],
+        },
+        {
+          $or: [
+            { recipientRole: { $exists: false } },
+            { recipientRole: null },
+            { recipientRole: { $not: /admin/i } },
+          ],
+        },
+        { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
+      ];
+      if (Array.isArray(filter.$and)) {
+        filter.$and = [...filter.$and, ...deanExclusion];
+      } else {
+        filter.$and = deanExclusion;
+      }
+    }
+
+    const complaints = await Complaint.find(filter)
       .populate("submittedBy", "name email")
       .populate("assignedTo", "name role")
       .sort({ createdAt: -1 })

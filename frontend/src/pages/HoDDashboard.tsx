@@ -40,6 +40,7 @@ import {
   approveComplaintApi,
   updateComplaintStatusApi,
   hodAssignToStaffApi,
+  hodAcceptAssignmentApi,
   listMyDepartmentActiveStaffApi,
   type InboxComplaint,
 } from "@/lib/api";
@@ -189,7 +190,27 @@ export function HoDDashboard() {
     assignToSelf: boolean;
   }) => {
     try {
-      await approveComplaintApi(id, { note, assignToSelf });
+      // Determine if this was assigned to HoD by Dean (use inbox cache heuristics)
+      const inboxItem = hodInbox.find((c) => String(c.id) === String(id));
+      const path = Array.isArray(inboxItem?.assignmentPath)
+        ? (inboxItem!.assignmentPath as string[])
+        : [];
+      const deanAssigned =
+        (inboxItem &&
+          ((inboxItem as any).status === "Assigned" ||
+            (inboxItem as any).assignedByRole === "dean" ||
+            path.includes("dean"))) ||
+        false;
+
+      if (deanAssigned) {
+        // Accept assignment from Dean -> backend sets In Progress and assigns to HoD
+        await hodAcceptAssignmentApi(id);
+      } else {
+        // Direct-to-HoD acceptance -> approve and move to In Progress
+        await approveComplaintApi(id, { note, assignToSelf });
+        await updateComplaintStatusApi(id, "In Progress", note);
+      }
+
       toast({
         title: "Accepted",
         description: "Complaint moved to In Progress.",

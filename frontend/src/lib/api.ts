@@ -271,10 +271,8 @@ export async function assignComplaintApi(
   staffId: string,
   deadline?: string,
   opts?: {
-    assignedByRole?: "student" | "headOfDepartment" | "dean" | "admin";
-    assignmentPath?: Array<
-      "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-    >;
+    assignedByRole?: "student" | "hod" | "dean" | "admin";
+    assignmentPath?: Array<"student" | "hod" | "dean" | "admin" | "staff">;
   }
 ) {
   const res = await fetch(`${API_BASE}/complaints/assign/${complaintId}`, {
@@ -1556,6 +1554,19 @@ export async function hodAssignToStaffApi(
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify(payload),
+    }
+  );
+  return handleJson<{ message?: string; complaint?: unknown }>(res);
+}
+
+// HoD -> accept an assignment that was assigned to the HoD by Dean
+export async function hodAcceptAssignmentApi(complaintId: string) {
+  const res = await fetch(
+    `${API_BASE}/complaints/hod/accept/${encodeURIComponent(complaintId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
     }
   );
   return handleJson<{ message?: string; complaint?: unknown }>(res);
