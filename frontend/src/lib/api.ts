@@ -323,7 +323,7 @@ export async function updateComplaintStatusApi(
       body: JSON.stringify(requestBody),
     }
   );
-  return handleJson<{ success?: boolean; message?: string }>(res);
+  return handleJson<{ message?: string; complaint?: unknown }>(res);
 }
 
 // Approve complaint (Dean/HoD/Admin acceptance flow)

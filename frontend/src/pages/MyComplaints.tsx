@@ -279,15 +279,23 @@ export function MyComplaints() {
   useEffect(() => {
     const onStatusChanged = (e: Event) => {
       const detail = (e as CustomEvent).detail as
-        | { id?: string; status?: Complaint["status"]; note?: string }
+        | {
+            id?: string;
+            status?: Complaint["status"];
+            newStatus?: Complaint["status"]; // legacy key from some emitters
+            note?: string;
+          }
         | undefined;
       if (!detail?.id) return;
+      const effectiveStatus = (detail.status || detail.newStatus) as
+        | Complaint["status"]
+        | undefined;
       setComplaints((prev) =>
         prev.map((c) =>
           c.id === detail.id
             ? {
                 ...c,
-                status: (detail.status as Complaint["status"]) || c.status,
+                status: (effectiveStatus as Complaint["status"]) || c.status,
                 lastUpdated: new Date(),
                 resolutionNote:
                   typeof detail.note === "string" && detail.note
@@ -298,7 +306,7 @@ export function MyComplaints() {
         )
       );
       // If this complaint just resolved, prompt for feedback once
-      if (detail.status === "Resolved") {
+      if (effectiveStatus === "Resolved") {
         const justResolved = complaintsRef.current.find(
           (c) => c.id === detail.id
         );

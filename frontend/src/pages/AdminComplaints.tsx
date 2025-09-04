@@ -19,6 +19,25 @@ import {
   approveComplaintApi,
   updateComplaintStatusApi,
 } from "@/lib/api";
+
+// Minimal shape for Admin list mapping
+type AdminListItem = {
+  id: string;
+  title?: string;
+  category?: string;
+  status?: string;
+  priority?: string;
+  submittedBy?: string;
+  assignedTo?: string;
+  submittedDate?: string | Date;
+  lastUpdated?: string | Date;
+  deadline?: string | Date | null;
+  sourceRole?: string;
+  assignedByRole?: string;
+  assignmentPath?: string[];
+  submittedTo?: string | null;
+  department?: string | null;
+};
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthContext";
 
@@ -43,7 +62,8 @@ export function AdminComplaints() {
     const load = async () => {
       setLoading(true);
       try {
-        const raw = await listAllComplaintsApi();
+        const raw =
+          (await listAllComplaintsApi()) as unknown as AdminListItem[];
         if (cancelled) return;
         const mapped: Complaint[] = (raw || []).map((c) => ({
           id: c.id,
@@ -101,6 +121,8 @@ export function AdminComplaints() {
     );
     if (updates.status === "Resolved") {
       setStatusTab("Resolved");
+    } else if (updates.status === "Closed") {
+      setStatusTab("Rejected");
     } else if (updates.status === "Accepted") {
       setStatusTab("Accepted");
     }

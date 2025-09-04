@@ -165,7 +165,7 @@ export function DeanAssignComplaints() {
                 ? c.assignedTo
                 : (c.assignedTo as { name?: string } | null)?.name || undefined,
             assignedStaffRole: c.assignmentPath?.includes("staff")
-              ? "dean"
+              ? "staff"
               : c.assignmentPath?.includes("hod")
               ? "headOfDepartment"
               : c.assignedByRole === "dean"
@@ -204,7 +204,7 @@ export function DeanAssignComplaints() {
               ? c.assignedTo
               : (c.assignedTo as { name?: string } | null)?.name || undefined,
           assignedStaffRole: c.assignmentPath?.includes("staff")
-            ? "dean"
+            ? "staff"
             : c.assignmentPath?.includes("hod")
             ? "headOfDepartment"
             : c.assignedByRole === "dean"
@@ -274,13 +274,7 @@ export function DeanAssignComplaints() {
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    | "All"
-    | "Pending"
-    | "Accepted"
-    | "In Progress"
-    | "Assigned"
-    | "Rejected"
-    | "Resolved"
+    "All" | "Pending" | "Accepted" | "Assigned" | "Rejected" | "Resolved"
   >("All");
   // Reset page when filters/tab change
   useEffect(() => {
@@ -290,7 +284,7 @@ export function DeanAssignComplaints() {
   // Handle real-time complaint status changes
   useEffect(() => {
     const handleStatusChange = (event: CustomEvent) => {
-      const { newStatus } = event.detail || {};
+      const { newStatus, status } = event.detail || {};
 
       // Reload complaints when status changes
       const loadComplaints = async () => {
@@ -414,10 +408,11 @@ export function DeanAssignComplaints() {
             }))
           );
 
-          // Auto-switch to Resolved tab if a complaint was resolved
-          if (newStatus === "Resolved") {
-            setActiveTab("Resolved");
-          }
+          // Auto-switch tabs based on status change
+          const s = newStatus || status;
+          if (s === "Resolved") setActiveTab("Resolved");
+          if (s === "Accepted") setActiveTab("Accepted");
+          if (s === "Closed") setActiveTab("Rejected");
         } catch (e) {
           console.error("Failed to reload complaints after status change:", e);
         }
@@ -426,12 +421,15 @@ export function DeanAssignComplaints() {
     };
 
     // Listen for complaint status change events
-    window.addEventListener("complaint:status-changed", handleStatusChange);
+    window.addEventListener(
+      "complaint:status-changed",
+      handleStatusChange as unknown as EventListener
+    );
 
     return () => {
       window.removeEventListener(
         "complaint:status-changed",
-        handleStatusChange
+        handleStatusChange as unknown as EventListener
       );
     };
   }, [user?.department, setComplaints, setStaffOptions, setActiveTab]);
@@ -494,7 +492,7 @@ export function DeanAssignComplaints() {
                   updated?.assignedTo?.name ||
                   staffOptions.find((s) => s.id === staffId)?.name ||
                   c.assignedStaff,
-                assignedStaffRole: "headOfDepartment",
+                assignedStaffRole: "staff",
                 assignedByRole: "dean",
                 assignmentPath: Array.isArray(updated.assignmentPath)
                   ? updated.assignmentPath
@@ -516,6 +514,19 @@ export function DeanAssignComplaints() {
             : ""
         }`,
       });
+      // Broadcast status change and switch to Assigned tab
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", {
+          detail: {
+            id: complaintId,
+            status: "Assigned",
+            newStatus: "Assigned",
+            byRole: "dean",
+            at: Date.now(),
+          },
+        })
+      );
+      setActiveTab("Assigned");
     } catch (e: unknown) {
       const msg =
         typeof e === "object" && e && "message" in e
@@ -760,6 +771,9 @@ export function DeanAssignComplaints() {
     setComplaints((prev) =>
       prev.map((c) => (c.id === complaintId ? { ...c, ...updates } : c))
     );
+    if (updates.status === "Resolved") setActiveTab("Resolved");
+    if (updates.status === "Accepted") setActiveTab("Accepted");
+    if (updates.status === "Assigned") setActiveTab("Assigned");
   };
 
   const isOverdue = (complaint: ComplaintType) => {
@@ -782,10 +796,16 @@ export function DeanAssignComplaints() {
         (c.status === "Pending" || c.status === "Unassigned") &&
         !c.assignedStaffRole
       );
-    if (activeTab === "Accepted")
-      return c.status === "Accepted" && c.assignedStaffRole === "dean";
-    if (activeTab === "In Progress")
-      return c.status === "In Progress" && c.assignedStaffRole === "dean";
+    if (activeTab === "Accepted") {
+      const deanTouched =
+        (c.assignedByRole && c.assignedByRole.toLowerCase() === "dean") ||
+        (Array.isArray(c.assignmentPath) &&
+          c.assignmentPath.includes("dean")) ||
+        c.assignedStaffRole === "dean";
+      return (
+        deanTouched && (c.status === "Accepted" || c.status === "In Progress")
+      );
+    }
     if (activeTab === "Assigned")
       return (
         c.assignedByRole === "dean" &&
@@ -983,7 +1003,6 @@ export function DeanAssignComplaints() {
                   <TabsTrigger value="All">All</TabsTrigger>
                   <TabsTrigger value="Pending">Pending</TabsTrigger>
                   <TabsTrigger value="Accepted">Accepted</TabsTrigger>
-                  <TabsTrigger value="In Progress">In Progress</TabsTrigger>
                   <TabsTrigger value="Assigned">Assigned</TabsTrigger>
                   <TabsTrigger value="Resolved">Resolved</TabsTrigger>
                   <TabsTrigger value="Rejected">Rejected</TabsTrigger>
@@ -1594,18 +1613,9 @@ export function DeanAssignComplaints() {
                   if (!acceptTarget) return;
                   try {
                     setAccepting(true);
-                    if (!acceptNote.trim()) {
-                      toast({
-                        title: "Note required",
-                        description: "Please enter a note before approving.",
-                        variant: "destructive",
-                      });
-                      setAccepting(false);
-                      return;
-                    }
                     await approveComplaintApi(acceptTarget.id, {
                       assignToSelf: true,
-                      note: acceptNote.trim(),
+                      note: acceptNote.trim() || undefined,
                     });
                     const updated = await getComplaintApi(acceptTarget.id);
                     const assignee =
@@ -1630,6 +1640,21 @@ export function DeanAssignComplaints() {
                           : c
                       )
                     );
+                    // Broadcast normalized event
+                    window.dispatchEvent(
+                      new CustomEvent("complaint:status-changed", {
+                        detail: {
+                          id: acceptTarget.id,
+                          status: "Accepted",
+                          newStatus: "Accepted",
+                          note: acceptNote || undefined,
+                          byRole: "dean",
+                          at: new Date().toISOString(),
+                        },
+                      })
+                    );
+                    // Switch tab to Accepted
+                    setActiveTab("Accepted");
                     toast({
                       title: "Accepted",
                       description:
@@ -1699,63 +1724,95 @@ export function DeanAssignComplaints() {
             </Button>
             <Button
               onClick={() => {
-                setBulkLoading(true);
-                const assignee =
-                  (user?.fullName as string) ||
-                  (user?.name as string) ||
-                  (user?.email as string) ||
-                  "Dean";
-                // Limit bulk accept to items visible on the current page
-                const start = (page - 1) * pageSize;
-                const idsOnPage = filteredComplaints
-                  .slice(start, start + pageSize)
-                  .map((c) => c.id);
-                setComplaints((prev) => {
-                  const passesSearch = (c: ComplaintType) =>
-                    c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    c.category
-                      .toLowerCase()
-                      .includes(searchTerm.toLowerCase()) ||
-                    c.submittedBy
-                      .toLowerCase()
-                      .includes(searchTerm.toLowerCase());
-                  const passesPriority = (c: ComplaintType) =>
-                    priorityFilter === "all" ||
-                    (c.priority || "Medium") === priorityFilter;
-                  const passesOverdue = (c: ComplaintType) =>
-                    overdueFilter === "all"
-                      ? true
-                      : overdueFilter === "overdue"
-                      ? isOverdue(c)
-                      : !isOverdue(c);
-                  return prev.map((c) => {
-                    const isPendingUnassigned =
-                      (c.status === "Pending" || c.status === "Unassigned") &&
-                      !c.assignedStaff;
-                    const isVisible =
-                      activeTab === "Pending" &&
-                      isPendingUnassigned &&
-                      passesSearch(c) &&
-                      passesPriority(c) &&
-                      passesOverdue(c) &&
-                      idsOnPage.includes(c.id);
-                    if (!isVisible) return c;
-                    return {
-                      ...c,
-                      status: "Accepted",
-                      assignedStaff: assignee,
-                      resolutionNote: bulkNote || c.resolutionNote,
-                      lastUpdated: new Date(),
-                    };
-                  });
-                });
-                setBulkLoading(false);
-                setBulkOpen(false);
-                setBulkNote("");
-                toast({
-                  title: "Accepted",
-                  description: "All visible pending complaints accepted.",
-                });
+                (async () => {
+                  try {
+                    setBulkLoading(true);
+                    const assignee =
+                      (user?.fullName as string) ||
+                      (user?.name as string) ||
+                      (user?.email as string) ||
+                      "Dean";
+                    // Limit bulk accept to items visible on the current page
+                    const start = (page - 1) * pageSize;
+                    const onPage = filteredComplaints.slice(
+                      start,
+                      start + pageSize
+                    );
+                    const targets = onPage.filter(
+                      (c) =>
+                        activeTab === "Pending" &&
+                        (c.status === "Pending" || c.status === "Unassigned") &&
+                        !c.assignedStaff
+                    );
+                    const results = await Promise.allSettled(
+                      targets.map((t) =>
+                        approveComplaintApi(t.id, {
+                          assignToSelf: true,
+                          note: (bulkNote || "").trim() || undefined,
+                        })
+                      )
+                    );
+                    const successIds: string[] = [];
+                    const failCount = results.reduce((acc, r, idx) => {
+                      if (r.status === "fulfilled") {
+                        successIds.push(targets[idx].id);
+                        return acc;
+                      }
+                      return acc + 1;
+                    }, 0);
+                    if (successIds.length) {
+                      setComplaints((prev) =>
+                        prev.map((c) =>
+                          successIds.includes(c.id)
+                            ? {
+                                ...c,
+                                status: "Accepted",
+                                assignedStaff: assignee,
+                                assignedStaffRole: "dean",
+                                resolutionNote: bulkNote || c.resolutionNote,
+                                lastUpdated: new Date(),
+                              }
+                            : c
+                        )
+                      );
+                      // Broadcast an event per success
+                      successIds.forEach((id) =>
+                        window.dispatchEvent(
+                          new CustomEvent("complaint:status-changed", {
+                            detail: {
+                              id,
+                              status: "Accepted",
+                              newStatus: "Accepted",
+                              note: (bulkNote || undefined) as
+                                | string
+                                | undefined,
+                              byRole: "dean",
+                              at: new Date().toISOString(),
+                            },
+                          })
+                        )
+                      );
+                      setActiveTab("Accepted");
+                    }
+                    toast({
+                      title: "Bulk accept complete",
+                      description: `${successIds.length} accepted${
+                        failCount ? `, ${failCount} failed` : ""
+                      }`,
+                    });
+                  } catch (e) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    toast({
+                      title: "Bulk accept failed",
+                      description: msg,
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setBulkLoading(false);
+                    setBulkOpen(false);
+                    setBulkNote("");
+                  }
+                })();
               }}
               disabled={bulkLoading}
             >

@@ -1483,9 +1483,28 @@ export const updateComplaintStatus = async (req, res) => {
     const allowedForHoD =
       isHoDOrDean && complaintDept && userDept && complaintDept === userDept;
     const canCloseAsLeader = status === "Closed" && isHoDOrDean;
-    // Allow Deans to update Accepted complaints (for their action section)
+    // Allow Deans to update complaints in their department (for status changes like Resolved)
+    const canUpdateAsDean =
+      req.user.role === "dean" &&
+      complaintDept &&
+      userDept &&
+      complaintDept === userDept;
+    // Allow Deans to update complaints they have ownership of (accepted/assigned by dean or in dean path)
+    const deanHasOwnership =
+      req.user.role === "dean" &&
+      ((Array.isArray(complaint.assignmentPath) &&
+        complaint.assignmentPath.includes("dean")) ||
+        complaint.assignedByRole === "dean");
+    // Allow Deans to update Accepted complaints (for their action section) OR any complaint they have ownership of
     const canUpdateAcceptedAsDean =
-      req.user.role === "dean" && complaint.status === "Accepted";
+      req.user.role === "dean" &&
+      (complaint.status === "Accepted" || deanHasOwnership);
+    // Only Deans and Admins can mark complaints as Resolved (final authority)
+    const canResolveAsLeader =
+      status === "Resolved" &&
+      (req.user.role === "dean" || req.user.role === "admin") &&
+      (req.user.role === "admin" ||
+        (complaintDept && userDept && complaintDept === userDept));
 
     if (
       !isAdmin &&
@@ -1493,11 +1512,21 @@ export const updateComplaintStatus = async (req, res) => {
       !isAssignedToSelf &&
       !allowedForHoD &&
       !canCloseAsLeader &&
-      !canUpdateAcceptedAsDean
+      !canUpdateAsDean &&
+      !canUpdateAcceptedAsDean &&
+      !canResolveAsLeader
     ) {
       return res
         .status(403)
         .json({ error: "Not authorized to update this complaint" });
+    }
+
+    // Prevent status updates after complaint is resolved (lock mechanism)
+    if (complaint.status === "Resolved" && status !== "Closed") {
+      return res.status(400).json({
+        error:
+          "Cannot update status after complaint is resolved. Only closing is allowed.",
+      });
     }
 
     complaint.status = status;
@@ -1527,7 +1556,7 @@ export const updateComplaintStatus = async (req, res) => {
     try {
       if (status === "Closed") {
         const actorRole = req.user.role;
-        if (["hod", "dean", "staff"].includes(actorRole)) {
+        if (["hod", "dean", "staff", "admin"].includes(actorRole)) {
           const submitter = await User.findById(complaint.submittedBy).select(
             "name email"
           );
@@ -1554,13 +1583,17 @@ export const updateComplaintStatus = async (req, res) => {
       action: `Status Updated to ${status}`,
     }).sort({ timestamp: -1 });
 
-    if (req.user.role === "hod" || req.user.role === "dean") {
+    if (
+      req.user.role === "hod" ||
+      req.user.role === "dean" ||
+      req.user.role === "admin"
+    ) {
       await ActivityLog.create({
         user: req.user._id,
         role: req.user.role,
         action: `Status Updated to ${status}`,
         complaint: complaint._id,
-        timestamp: new Date(),
+        timestamp: new Date(), // Unique timestamp for each update
         details: { description: (description || "").trim() },
       });
     } else if (lastSameStatusLog) {

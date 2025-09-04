@@ -34,7 +34,7 @@ export const getLogsForComplaint = async (req, res) => {
     const complaintId = req.params.id;
     const logs = await ActivityLog.find({ complaint: complaintId })
       .populate("user", "name email")
-      .sort({ timestamp: -1 });
+      .sort({ timestamp: 1 }); // Sort ascending (oldest first)
     res.status(200).json(logs);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch activity logs" });
