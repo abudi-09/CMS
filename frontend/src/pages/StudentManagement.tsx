@@ -237,6 +237,7 @@ function StudentManagement() {
     total: students.length,
     active: students.filter((s) => s.status === "Active").length,
     inactive: students.filter((s) => s.status === "Inactive").length,
+    complaints: students.reduce((sum, s) => sum + (s.complaintsCount || 0), 0),
   };
 
   const filteredStudents = students.filter((student) => {
@@ -335,6 +336,44 @@ function StudentManagement() {
         <h1 className="text-3xl font-bold text-foreground">
           Student Management
         </h1>
+      </div>
+
+      {/* Stats summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <Card>
+          <CardContent className="flex flex-col items-center py-4">
+            <span className="text-xs text-muted-foreground">
+              Total Students
+            </span>
+            <span className="text-2xl font-bold text-primary">
+              {stats.total}
+            </span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex flex-col items-center py-4">
+            <span className="text-xs text-muted-foreground">Active</span>
+            <span className="text-2xl font-bold text-green-600">
+              {stats.active}
+            </span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex flex-col items-center py-4">
+            <span className="text-xs text-muted-foreground">Inactive</span>
+            <span className="text-2xl font-bold text-red-600">
+              {stats.inactive}
+            </span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex flex-col items-center py-4">
+            <span className="text-xs text-muted-foreground">Complaints</span>
+            <span className="text-2xl font-bold text-blue-600">
+              {stats.complaints}
+            </span>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
