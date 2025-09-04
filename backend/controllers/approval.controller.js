@@ -31,8 +31,15 @@ export const hodApproveStaff = async (req, res) => {
     }
     staff.isApproved = true;
     staff.isActive = true;
+    // If this was previously rejected, clear the rejected flag so the
+    // staff appears in approved/active lists which filter out rejected users.
+    staff.isRejected = false;
     await staff.save();
-    res.status(200).json({ message: "Staff approved" });
+
+    // Return the updated user (without password) so frontend can render immediately
+    const returned = staff.toObject();
+    if (returned.password) delete returned.password;
+    res.status(200).json({ message: "Staff approved", user: returned });
   } catch (e) {
     res.status(500).json({ error: "Failed to approve staff" });
   }

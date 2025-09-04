@@ -20,6 +20,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Search, UserPlus, UserMinus, UserCheck, Users } from "lucide-react";
+import UserProfileModal from "@/components/UserProfileModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -75,6 +76,7 @@ export default function AdminManagement() {
     return u.isActive ? "Active" : "Inactive";
   };
   const [page, setPage] = useState(1);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const pageSize = 5;
   useEffect(() => setPage(1), [search, statusView, departmentFilter]);
 
@@ -693,6 +695,14 @@ export default function AdminManagement() {
                                 Revert to Previous
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setProfileUserId(user._id)}
+                              className="ml-2"
+                            >
+                              <Users className="h-4 w-4 mr-1" /> View Profile
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -786,6 +796,13 @@ export default function AdminManagement() {
                             Revert to Previous
                           </Button>
                         )}
+                        <Button
+                          className="w-full min-h-11"
+                          variant="outline"
+                          onClick={() => setProfileUserId(u._id)}
+                        >
+                          <Users className="h-4 w-4 mr-2" /> View Profile
+                        </Button>
                       </div>
                     </Card>
                   );
@@ -866,6 +883,11 @@ export default function AdminManagement() {
           pendingAction?.type === "activate" ? "Activate" : "Deactivate"
         }
         cancelText="Cancel"
+      />
+      <UserProfileModal
+        userId={profileUserId || ""}
+        open={!!profileUserId}
+        onOpenChange={(o) => !o && setProfileUserId(null)}
       />
     </div>
   );

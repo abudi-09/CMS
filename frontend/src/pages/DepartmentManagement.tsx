@@ -33,6 +33,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthContext";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import UserProfileModal from "@/components/UserProfileModal";
 
 // Status tabs
 type Status = "all" | "pending" | "approved" | "rejected" | "deactivated";
@@ -99,6 +100,7 @@ export default function DepartmentManagement() {
     type: ActionType;
     hod: HoDRow | null;
   }>({ type: "approve", hod: null });
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   // Summary cards
   const totalHods =
@@ -178,10 +180,11 @@ export default function DepartmentManagement() {
       // (existing + newly created) without calling the admin-only endpoint.
       const grouped = await getDeanAllHodApi();
 
-      const pendingList = grouped.pending || [];
-      const approvedList = grouped.approved || [];
-      const rejectedList = grouped.rejected || [];
-      const deactivatedList = grouped.deactivated || [];
+      const groupedTyped = grouped as DeanAllHodResponse;
+      const pendingList = groupedTyped.pending || [];
+      const approvedList = groupedTyped.approved || [];
+      const rejectedList = groupedTyped.rejected || [];
+      const deactivatedList = groupedTyped.deactivated || [];
 
       // Prefer counts returned by the endpoint if available.
       // If backend returned counts, use them; otherwise compute locally.
@@ -610,6 +613,13 @@ export default function DepartmentManagement() {
                   </div>
                   <div className="mt-3 flex flex-col gap-2 [&>button]:w-full">
                     {renderActions(h)}
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => setProfileUserId(h.id)}
+                    >
+                      <Users className="h-4 w-4 mr-2" /> View Profile
+                    </Button>
                   </div>
                 </Card>
               ))
@@ -672,6 +682,13 @@ export default function DepartmentManagement() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           {renderActions(h)}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setProfileUserId(h.id)}
+                          >
+                            <Users className="h-4 w-4 mr-1" /> View Profile
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -696,6 +713,11 @@ export default function DepartmentManagement() {
       >
         {confirmText}
       </ConfirmDialog>
+      <UserProfileModal
+        userId={profileUserId || ""}
+        open={!!profileUserId}
+        onOpenChange={(o) => !o && setProfileUserId(null)}
+      />
     </div>
   );
 }

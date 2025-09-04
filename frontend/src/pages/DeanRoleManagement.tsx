@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/pagination";
 import { Search, UserCheck, UserMinus, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import UserProfileModal from "@/components/UserProfileModal";
 import {
   approveDeanApi,
   rejectDeanApi,
@@ -59,6 +60,7 @@ export default function DeanRoleManagement() {
   const [pendingDeans, setPendingDeans] = useState<Dean[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<
     "All" | "Active" | "Inactive"
   >("All");
@@ -132,12 +134,12 @@ export default function DeanRoleManagement() {
     if (!canManage) return;
     setLoading(true);
     try {
-      const [pending, active] = await Promise.all([
+      const [pendingRes, activeRes] = (await Promise.all([
         getPendingDeansApi(),
         getActiveDeansApi(),
-      ]);
-      setPendingDeans(pending);
-      setActiveDeans(active);
+      ])) as [Dean[], Dean[]];
+      setPendingDeans(pendingRes);
+      setActiveDeans(activeRes);
     } finally {
       setLoading(false);
     }
@@ -338,6 +340,13 @@ export default function DeanRoleManagement() {
                                 Reactivate
                               </Button>
                             ))}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setProfileUserId(u._id)}
+                          >
+                            <Users className="h-4 w-4 mr-1" /> View Profile
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -628,6 +637,14 @@ export default function DeanRoleManagement() {
                       >
                         <UserMinus className="h-4 w-4 mr-2" /> Reject
                       </Button>
+                      <Button
+                        className="min-h-11"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setProfileUserId(u._id)}
+                      >
+                        <Users className="h-4 w-4 mr-2" /> View Profile
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -636,6 +653,11 @@ export default function DeanRoleManagement() {
           </div>
         </CardContent>
       </Card>
+      <UserProfileModal
+        userId={profileUserId || ""}
+        open={!!profileUserId}
+        onOpenChange={(o) => !o && setProfileUserId(null)}
+      />
     </div>
   );
 }
