@@ -321,7 +321,28 @@ export async function updateComplaintStatusApi(
       body: JSON.stringify(requestBody),
     }
   );
-  return handleJson<{ message?: string; complaint?: unknown }>(res);
+  const statusCode = res.status;
+  const ok = res.ok;
+  const parsed = await handleJson<{ message?: string; complaint?: unknown }>(
+    res
+  );
+  try {
+    const complaintObj = (parsed as Record<string, unknown>)?.complaint as
+      | Record<string, unknown>
+      | undefined;
+    const returnedStatus = complaintObj?.status as string | undefined;
+    console.log("Update response received:", {
+      id,
+      requestedStatus: status,
+      ok,
+      statusCode,
+      message: (parsed as Record<string, unknown>)?.message,
+      returnedStatus,
+    });
+  } catch {
+    // best-effort logging only
+  }
+  return parsed;
 }
 
 // Approve complaint (Dean/HoD/Admin acceptance flow)
@@ -1172,6 +1193,72 @@ export async function getDeanCalendarDayApi(params: {
   return handleJson<unknown[]>(res);
 }
 
+// HoD Calendar APIs
+export async function getHodCalendarSummaryApi(params?: {
+  month?: number; // 0-11
+  year?: number;
+  status?: string;
+  priority?: string;
+  categories?: string[];
+  submissionFrom?: string; // yyyy-mm-dd
+  submissionTo?: string; // yyyy-mm-dd
+  deadlineFrom?: string; // yyyy-mm-dd
+  deadlineTo?: string; // yyyy-mm-dd
+  viewType?: "submission" | "deadline";
+}) {
+  const url = `${API_BASE}/stats/complaints/calendar/hod-summary${qs({
+    month: typeof params?.month === "number" ? params?.month : undefined,
+    year: typeof params?.year === "number" ? params?.year : undefined,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
+    submissionFrom: params?.submissionFrom,
+    submissionTo: params?.submissionTo,
+    deadlineFrom: params?.deadlineFrom,
+    deadlineTo: params?.deadlineTo,
+    viewType: params?.viewType,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    totalThisMonth: number;
+    overdue: number;
+    dueToday: number;
+    resolvedThisMonth: number;
+    countsByStatus?: Record<string, number>;
+    countsByPriority?: Record<string, number>;
+    countsByCategory?: Record<string, number>;
+  }>(res);
+}
+
+export async function getHodCalendarDayApi(params: {
+  date: string; // yyyy-mm-dd
+  viewType?: "submission" | "deadline";
+  status?: string;
+  priority?: string;
+  categories?: string[];
+}) {
+  const url = `${API_BASE}/stats/complaints/calendar/hod-day${qs({
+    date: params?.date,
+    viewType: params?.viewType,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
 // ========================= Admin: Staff Approvals =========================
 export async function approveStaffApi(staffId: string) {
   const res = await fetch(`${API_BASE}/admin/approve/${staffId}`, {

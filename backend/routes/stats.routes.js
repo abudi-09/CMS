@@ -21,6 +21,8 @@ import {
   // New Analytics APIs
   getDeanCalendarSummary,
   getDeanCalendarDay,
+  getHodCalendarSummary,
+  getHodCalendarDay,
   getAdminAnalyticsSummary,
   getAdminPriorityDistribution,
   getAdminStatusDistribution,
@@ -59,6 +61,20 @@ router.get(
   protectRoute,
   deanOnly,
   getDeanCalendarDay
+);
+
+// HOD calendar summary/day
+router.get(
+  "/complaints/calendar/hod-summary",
+  protectRoute,
+  hodOnly,
+  getHodCalendarSummary
+);
+router.get(
+  "/complaints/calendar/hod-day",
+  protectRoute,
+  hodOnly,
+  getHodCalendarDay
 );
 
 // Admin or Dean complaint stats

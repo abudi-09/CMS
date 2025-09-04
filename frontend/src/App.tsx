@@ -43,7 +43,7 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { DeanAssignComplaints } from "@/pages/DeanAssignComplaints";
 import { HoDDashboard } from "@/pages/HoDDashboard";
 import AdminComplaints from "@/pages/AdminComplaints";
-import { HoDAssignComplaints } from "@/pages/HoDAssignComplaints";
+import HoDAssignComplaints from "@/pages/HoDAssignComplaints";
 import HoDAnalytics from "@/pages/HoDAnalytics";
 import HODStaffManagement from "@/pages/HODStaffManagement";
 import DepartmentManagement from "@/pages/DepartmentManagement";

@@ -25,6 +25,9 @@ import {
   getAdminCalendarDayApi,
   getDeanCalendarSummaryApi,
   getDeanCalendarDayApi,
+  getHodCalendarSummaryApi,
+  getHodCalendarDayApi,
+  getHodManagedComplaintsApi,
 } from "@/lib/api";
 import { fetchCategoriesApi } from "@/lib/categoryApi";
 import {
@@ -105,8 +108,14 @@ interface CalendarViewProps {
 
 export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const { user } = useAuth();
-  const effectiveRole: "admin" | "staff" | "dean" =
-    user?.role === "staff" ? "staff" : user?.role === "dean" ? "dean" : "admin";
+  const effectiveRole: "admin" | "staff" | "dean" | "hod" =
+    user?.role === "staff"
+      ? "staff"
+      : user?.role === "dean"
+      ? "dean"
+      : user?.role === "hod"
+      ? "hod"
+      : "admin";
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewType, setViewType] = useState<"submission" | "deadline">(
@@ -198,10 +207,116 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [effectiveRole]);
 
+  // HoD: initial load from inbox + managed to populate calendar markers
+  useEffect(() => {
+    let cancelled = false;
+    if (effectiveRole !== "hod") return;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const [managed] = await Promise.all([getHodManagedComplaintsApi()]);
+        if (cancelled) return;
+        const rows = [...((managed as unknown[]) || [])];
+        const mapped: Complaint[] = rows.map((raw) => {
+          const c = raw as Record<string, unknown>;
+          const ap = Array.isArray(c.assignmentPath)
+            ? ((c.assignmentPath as unknown[])
+                .map((v) => String(v))
+                .filter((v) =>
+                  ["student", "hod", "dean", "admin", "staff"].includes(v)
+                ) as Array<"student" | "hod" | "dean" | "admin" | "staff">)
+            : undefined;
+          const priorityStr = String(c.priority || "");
+          const priority =
+            priorityStr === "Low" ||
+            priorityStr === "Medium" ||
+            priorityStr === "High" ||
+            priorityStr === "Critical"
+              ? (priorityStr as Complaint["priority"])
+              : ("Medium" as Complaint["priority"]);
+          const statusStr = String(c.status || "Pending");
+          const status =
+            statusStr === "Pending" ||
+            statusStr === "Accepted" ||
+            statusStr === "Assigned" ||
+            statusStr === "In Progress" ||
+            statusStr === "Resolved" ||
+            statusStr === "Closed"
+              ? (statusStr as Complaint["status"])
+              : ("Pending" as Complaint["status"]);
+          const assignedTo = c["assignedTo"] as
+            | string
+            | { name?: string; email?: string }
+            | null
+            | undefined;
+          const assignedStaff = assignedTo
+            ? typeof assignedTo === "object"
+              ? assignedTo?.name || assignedTo?.email || "Assigned"
+              : "Assigned"
+            : "Unassigned";
+          const submittedBy = c["submittedBy"] as
+            | string
+            | { name?: string; email?: string }
+            | null
+            | undefined;
+          return {
+            id: String(c.id || c._id || c.complaintId || ""),
+            title: (c.title as string) || "Untitled Complaint",
+            description:
+              (c.description as string) || (c.shortDescription as string) || "",
+            category: (c.category as string) || (c.department as string) || "",
+            status,
+            submittedBy:
+              typeof submittedBy === "object"
+                ? submittedBy?.name || submittedBy?.email || ""
+                : (submittedBy as string) || "",
+            assignedStaff,
+            submittedDate: new Date(
+              (c.submittedDate as string) ||
+                (c.createdAt as string) ||
+                Date.now()
+            ),
+            deadline: c.deadline ? new Date(String(c.deadline)) : undefined,
+            lastUpdated: new Date(
+              (c.lastUpdated as string) || (c.updatedAt as string) || Date.now()
+            ),
+            priority,
+            feedback: undefined,
+            resolutionNote: undefined,
+            evidenceFile: undefined,
+            isEscalated: Boolean(c.isEscalated),
+            submittedTo: (c.submittedTo as string) || undefined,
+            department: (c.department as string) || (c.category as string),
+            sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
+            assignedByRole:
+              (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
+            assignmentPath: ap,
+          } as Complaint;
+        });
+        // De-dupe by id, prefer latest updated
+        const map = new Map<string, Complaint>();
+        for (const item of mapped) {
+          const prev = map.get(item.id);
+          if (!prev || item.lastUpdated > prev.lastUpdated)
+            map.set(item.id, item);
+        }
+        setAllComplaints(Array.from(map.values()));
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveRole]);
+
   // Admin/Dean: load categories (admin-only) + complaints directed to their office by students (no assignee restriction)
   useEffect(() => {
     let cancelled = false;
-    if (!user?.id) return;
+    if (!user?.id || effectiveRole === "hod") return;
     (async () => {
       try {
         setLoading(true);
@@ -317,10 +432,10 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [effectiveRole, user?.id, user?.name, user?.fullName]);
 
-  // Load summary from backend for Admin/Dean based on current filters (no assignedTo narrowing)
+  // Load summary from backend for Admin/Dean/HOD
   useEffect(() => {
     let cancelled = false;
-    if (effectiveRole !== "admin" && effectiveRole !== "dean") return;
+    if (!["admin", "dean", "hod"].includes(effectiveRole)) return;
     (async () => {
       try {
         const m = selectedDate.getMonth();
@@ -349,6 +464,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         const s =
           effectiveRole === "dean"
             ? await getDeanCalendarSummaryApi(params)
+            : effectiveRole === "hod"
+            ? await getHodCalendarSummaryApi(params)
             : await getAdminCalendarSummaryApi(params);
         if (!cancelled) setSummary(s);
       } catch (_) {
@@ -383,7 +500,12 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const handleSelectDate = async (date?: Date) => {
     if (!date) return;
     setSelectedDate(date);
-    if (!user?.id || (effectiveRole !== "admin" && effectiveRole !== "dean"))
+    if (
+      !user?.id ||
+      (effectiveRole !== "admin" &&
+        effectiveRole !== "dean" &&
+        effectiveRole !== "hod")
+    )
       return;
     try {
       setLoading(true);
@@ -401,6 +523,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       const items =
         effectiveRole === "dean"
           ? await getDeanCalendarDayApi({
+              date: dateStr,
+              viewType,
+              status: statusFilter !== "all" ? statusFilter : undefined,
+              priority: priorityFilter !== "all" ? priorityFilter : undefined,
+              categories: categoriesParam,
+            })
+          : effectiveRole === "hod"
+          ? await getHodCalendarDayApi({
               date: dateStr,
               viewType,
               status: statusFilter !== "all" ? statusFilter : undefined,
@@ -807,7 +937,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Total This Month</p>
                 <p className="text-2xl font-bold">
-                  {effectiveRole === "admin"
+                  {effectiveRole === "admin" ||
+                  effectiveRole === "dean" ||
+                  effectiveRole === "hod"
                     ? summary.totalThisMonth
                     : filteredComplaints.filter((c) => {
                         const compareDate =
@@ -834,7 +966,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Overdue</p>
                 <p className="text-2xl font-bold text-destructive">
-                  {effectiveRole === "admin"
+                  {effectiveRole === "admin" ||
+                  effectiveRole === "dean" ||
+                  effectiveRole === "hod"
                     ? summary.overdue
                     : filteredComplaints.filter(
                         (c) =>
@@ -856,7 +990,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Due Today</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {effectiveRole === "admin"
+                  {effectiveRole === "admin" ||
+                  effectiveRole === "dean" ||
+                  effectiveRole === "hod"
                     ? summary.dueToday
                     : filteredComplaints.filter(
                         (c) => c.deadline && isSameDay(c.deadline, new Date())
@@ -874,7 +1010,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Resolved This Month</p>
                 <p className="text-2xl font-bold text-success">
-                  {effectiveRole === "admin"
+                  {effectiveRole === "admin" ||
+                  effectiveRole === "dean" ||
+                  effectiveRole === "hod"
                     ? summary.resolvedThisMonth
                     : filteredComplaints.filter(
                         (c) =>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -28,9 +28,8 @@ import { Search, UserPlus } from "lucide-react";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { useState as useReactState } from "react";
 import { Complaint as ComplaintType } from "@/components/ComplaintCard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Pagination,
   PaginationContent,
@@ -53,7 +52,6 @@ import { AcceptComplaintModal } from "@/components/modals/AcceptComplaintModal";
 import { RejectComplaintModal } from "@/components/modals/RejectComplaintModal";
 import { ReopenComplaintModal } from "@/components/modals/ReopenComplaintModal";
 import { AssignStaffModal } from "@/components/AssignStaffModal";
-// Use ComplaintType for all references to Complaint
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
@@ -61,19 +59,14 @@ const statusColors = {
   Resolved: "bg-green-100 text-green-800",
   Closed: "bg-gray-100 text-gray-800",
   Delayed: "bg-red-100 text-red-800",
-};
+} as const;
 
-export function HoDAssignComplaints() {
-  // State for deadline during assignment
-  const [assigningDeadline, setAssigningDeadline] = useState<string>("");
+export default function HoDAssignComplaints() {
   const { user } = useAuth();
-  // Pagination state
+  const [assigningDeadline, setAssigningDeadline] = useState<string>("");
   const [page, setPage] = useState(1);
-
   const pageSize = 10;
-  // Data state
-  const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
-  // Inbox for pending items directed to HoD
+  const [complaints, setComplaints] = useState<ComplaintType[]>([]);
   const [inbox, setInbox] = useState<ComplaintType[]>([]);
   // Staff list in department
   const [deptStaff, setDeptStaff] = useState<
@@ -94,7 +87,7 @@ export function HoDAssignComplaints() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   // (Re)Assignment via shared modal
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
-  const [reassigningRow, setReassigningRow] = useState<string | null>(null); // kept for legacy but no longer used for inline UI
+  const [reassigningRow, setReAssigningRow] = useState<string | null>(null); // kept for legacy but no longer used for inline UI
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [updatingRow, setUpdatingRow] = useState<string | null>(null);
   const [updateStatusValue, setUpdateStatusValue] = useState<
@@ -102,7 +95,7 @@ export function HoDAssignComplaints() {
   >("");
   const [updateNote, setUpdateNote] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "All" | "Pending" | "Accepted" | "Assigned" | "Rejected"
+    "All" | "Pending" | "Accepted" | "Assigned" | "Resolved" | "Rejected"
   >("Pending");
   // Shared modals state
   const [acceptOpen, setAcceptOpen] = useState(false);
@@ -129,11 +122,7 @@ export function HoDAssignComplaints() {
     );
   };
   // Type guards and mappers
-  const toPriority = (p: unknown): ComplaintType["priority"] =>
-    p === "Low" || p === "Medium" || p === "High" || p === "Critical"
-      ? p
-      : "Medium";
-  const mapApiToComplaint = (raw: unknown): ComplaintType => {
+  const mapApiToComplaint = useCallback((raw: unknown): ComplaintType => {
     const c = (raw ?? {}) as Record<string, unknown>;
     const assignedTo = c["assignedTo"] as unknown;
     const submittedBy = c["submittedBy"] as unknown;
@@ -190,7 +179,13 @@ export function HoDAssignComplaints() {
         ? new Date(String(c["lastUpdated"]))
         : new Date(),
       deadline: c["deadline"] ? new Date(String(c["deadline"])) : undefined,
-      priority: toPriority(c["priority"]),
+      priority:
+        c["priority"] === "Low" ||
+        c["priority"] === "Medium" ||
+        c["priority"] === "High" ||
+        c["priority"] === "Critical"
+          ? (c["priority"] as ComplaintType["priority"])
+          : "Medium",
       sourceRole: (c["sourceRole"] as ComplaintType["sourceRole"]) || undefined,
       assignedByRole:
         (c["assignedByRole"] as ComplaintType["assignedByRole"]) || undefined,
@@ -198,7 +193,7 @@ export function HoDAssignComplaints() {
       submittedTo: (c["submittedTo"] as string) || undefined,
       department: (c["department"] as string) || undefined,
     };
-  };
+  }, []);
 
   // Load data
   useEffect(() => {
@@ -231,6 +226,38 @@ export function HoDAssignComplaints() {
   useEffect(() => {
     setPage(1);
   }, [searchTerm, priorityFilter, overdueFilter, activeTab]);
+
+  // Listen for cross-view status changes (e.g., from modal) and refetch to keep UI in sync
+  useEffect(() => {
+    const onStatusChanged = async (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { id?: string; newStatus?: string; status?: string }
+        | undefined;
+      try {
+        const [inboxRaw, managedRaw] = await Promise.all([
+          getHodInboxApi(),
+          getHodManagedComplaintsApi(),
+        ]);
+        setInbox(inboxRaw.map(mapApiToComplaint));
+        setComplaints(managedRaw.map(mapApiToComplaint));
+        const ns = detail?.newStatus || detail?.status;
+        if (ns === "Resolved") setActiveTab("Resolved");
+        else if (ns === "Closed") setActiveTab("Rejected");
+      } catch (err) {
+        // non-fatal sync failure
+      }
+    };
+    window.addEventListener(
+      "complaint:status-changed",
+      onStatusChanged as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "complaint:status-changed",
+        onStatusChanged as EventListener
+      );
+    };
+  }, [mapApiToComplaint]);
   const handleAssignClick = (complaint: ComplaintType) => {
     // Open modal instead of inline controls
     setSelectedComplaint(complaint);
@@ -241,7 +268,7 @@ export function HoDAssignComplaints() {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
     setAssigningStaffId("");
-    setReassigningRow(null);
+    setReAssigningRow(null);
   };
   const handleStaffAssignment = async (
     complaintId: string,
@@ -272,6 +299,8 @@ export function HoDAssignComplaints() {
           detail: { id: complaintId },
         })
       );
+      // Move UI focus to Assigned tab
+      setActiveTab("Assigned");
     } catch (err) {
       toast({
         title: "Assignment failed",
@@ -279,7 +308,7 @@ export function HoDAssignComplaints() {
         variant: "destructive",
       });
     } finally {
-      setReassigningRow(null);
+      setReAssigningRow(null);
       setAssigningStaffId("");
       setAssigningDeadline("");
       setShowAssignModal(false);
@@ -384,6 +413,7 @@ export function HoDAssignComplaints() {
         !isAssignedToSelf(c)
       );
     }
+    if (activeTab === "Resolved") return c.status === "Resolved";
     if (activeTab === "Rejected") return c.status === "Closed";
     return false;
   };
@@ -481,12 +511,11 @@ export function HoDAssignComplaints() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unassigned</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-yellow-500" />
+            <CardTitle className="text-sm font-medium">Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {unassignedCount}
+            <div className="text-sm text-muted-foreground">
+              Use the controls below
             </div>
           </CardContent>
         </Card>
@@ -497,7 +526,7 @@ export function HoDAssignComplaints() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {assignedCount}
+              {summaryBaseList.filter((c) => !!c.assignedStaff).length}
             </div>
           </CardContent>
         </Card>
@@ -560,6 +589,7 @@ export function HoDAssignComplaints() {
                 <TabsTrigger value="Pending">Pending</TabsTrigger>
                 <TabsTrigger value="Accepted">Accepted</TabsTrigger>
                 <TabsTrigger value="Assigned">Assigned</TabsTrigger>
+                <TabsTrigger value="Resolved">Resolved</TabsTrigger>
                 <TabsTrigger value="Rejected">Rejected</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -577,6 +607,7 @@ export function HoDAssignComplaints() {
                 {activeTab === "Pending" && "No pending complaints"}
                 {activeTab === "Accepted" && "No accepted complaints"}
                 {activeTab === "Assigned" && "No assigned complaints"}
+                {activeTab === "Resolved" && "No resolved complaints"}
                 {activeTab === "Rejected" && "No rejected complaints"}
                 {activeTab === "All" && "No complaints found"}
               </div>
@@ -669,14 +700,24 @@ export function HoDAssignComplaints() {
                                 disabled={!updateStatusValue}
                                 onClick={async () => {
                                   try {
-                                    await updateComplaintStatusApi(
-                                      complaint.id,
-                                      updateStatusValue as
-                                        | "Pending"
-                                        | "In Progress"
-                                        | "Resolved"
-                                        | "Closed",
-                                      updateNote.trim() || undefined
+                                    console.log("[HOD] Inline update start", {
+                                      id: complaint.id,
+                                      to: updateStatusValue,
+                                      note: updateNote.trim() || undefined,
+                                    });
+                                    const result =
+                                      await updateComplaintStatusApi(
+                                        complaint.id,
+                                        updateStatusValue as
+                                          | "Pending"
+                                          | "In Progress"
+                                          | "Resolved"
+                                          | "Closed",
+                                        updateNote.trim() || undefined
+                                      );
+                                    console.log(
+                                      "[HOD] Update API result:",
+                                      result
                                     );
                                     const [inboxRaw, managedRaw] =
                                       await Promise.all([
@@ -684,9 +725,26 @@ export function HoDAssignComplaints() {
                                         getHodManagedComplaintsApi(),
                                       ]);
                                     setInbox(inboxRaw.map(mapApiToComplaint));
-                                    setComplaints(
-                                      managedRaw.map(mapApiToComplaint)
-                                    );
+                                    const managedMapped: ComplaintType[] = (
+                                      managedRaw as unknown[]
+                                    ).map(mapApiToComplaint);
+                                    setComplaints(managedMapped);
+                                    try {
+                                      const updated = managedMapped.find(
+                                        (c) => c.id === complaint.id
+                                      );
+                                      console.log(
+                                        "[HOD] Post-refetch status:",
+                                        updated?.status,
+                                        updated
+                                      );
+                                    } catch {
+                                      // ignore debug mapping errors
+                                    }
+                                    // Keep item visible by switching to Resolved tab when resolved
+                                    if (updateStatusValue === "Resolved") {
+                                      setActiveTab("Resolved");
+                                    }
                                     // dispatch event to refresh open modals timelines
                                     try {
                                       window.dispatchEvent(
@@ -703,7 +761,7 @@ export function HoDAssignComplaints() {
                                     toast({
                                       title: "Status Updated",
                                       description:
-                                        `Updated to ${updateStatusValue}$${
+                                        `Updated to ${updateStatusValue}$$${
                                           updateNote.trim()
                                             ? `: ${updateNote.trim()}`
                                             : ""
@@ -825,6 +883,7 @@ export function HoDAssignComplaints() {
                       {activeTab === "Pending" && "No pending complaints"}
                       {activeTab === "Accepted" && "No accepted complaints"}
                       {activeTab === "Assigned" && "No assigned complaints"}
+                      {activeTab === "Resolved" && "No resolved complaints"}
                       {activeTab === "Rejected" && "No rejected complaints"}
                       {activeTab === "All" && "No complaints found"}
                     </TableCell>
@@ -1038,7 +1097,8 @@ export function HoDAssignComplaints() {
           complaint={selectedComplaint}
           open={showDetailModal}
           onOpenChange={setShowDetailModal}
-          hideHodActionsIfAssigned
+          // Hide HoD action panel when viewing from Assigned tab (only staff may update)
+          hideHodActionsIfAssigned={activeTab === "Assigned"}
           timelineFilterMode="summary"
         />
       )}
@@ -1058,9 +1118,8 @@ export function HoDAssignComplaints() {
             if (wasDeanAssigned) {
               await hodAcceptAssignmentApi(id);
             } else {
-              // Direct-to-HoD submissions: accept and assign to self, then immediately move to In Progress
+              // Direct-to-HoD submissions: accept and assign to self (this already moves to In Progress)
               await approveComplaintApi(id, { assignToSelf: true, note });
-              await updateComplaintStatusApi(id, "In Progress", note);
             }
             const [inboxRaw, managedRaw] = await Promise.all([
               getHodInboxApi(),
@@ -1070,12 +1129,13 @@ export function HoDAssignComplaints() {
             setComplaints(managedRaw.map(mapApiToComplaint));
             toast({
               title: "Accepted",
-              description:
-                "Complaint assigned to you and moved to In Progress.",
+              description: "Complaint is now In Progress.",
             });
             window.dispatchEvent(
               new CustomEvent("complaint:status-changed", { detail: { id } })
             );
+            // Move UI focus to Accepted tab
+            setActiveTab("Accepted");
           } catch (err) {
             toast({
               title: "Accept failed",
@@ -1106,6 +1166,8 @@ export function HoDAssignComplaints() {
             window.dispatchEvent(
               new CustomEvent("complaint:status-changed", { detail: { id } })
             );
+            // Move UI focus to Rejected tab
+            setActiveTab("Rejected");
           } catch (err) {
             toast({
               title: "Reject failed",
@@ -1150,6 +1212,8 @@ export function HoDAssignComplaints() {
             window.dispatchEvent(
               new CustomEvent("complaint:status-changed", { detail: { id } })
             );
+            // Move UI focus to Pending (or Accepted if auto-accepted)
+            setActiveTab(acceptImmediately ? "Accepted" : "Pending");
           } catch (err) {
             toast({
               title: "Reopen failed",
