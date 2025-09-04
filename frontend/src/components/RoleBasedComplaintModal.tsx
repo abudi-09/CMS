@@ -30,7 +30,10 @@ import {
   Settings,
 } from "lucide-react";
 import { Complaint } from "@/components/ComplaintCard";
-import { getActivityLogsForComplaint } from "@/lib/activityLogApi";
+import {
+  getActivityLogsForComplaint,
+  createActivityLog,
+} from "@/lib/activityLogApi";
 import {
   submitComplaintFeedbackApi,
   updateComplaintStatusApi,
@@ -98,6 +101,8 @@ export function RoleBasedComplaintModal({
   // HoD/Dean in-progress note inputs (decoupled from backend resolutionNote history)
   const [hodStatusNote, setHodStatusNote] = useState("");
   const [deanStatusNote, setDeanStatusNote] = useState("");
+  // Dean status update
+  const [deanStatusUpdate, setDeanStatusUpdate] = useState("");
   // Admin in-progress note and UI status (including Pending Review label)
   const [adminStatusNote, setAdminStatusNote] = useState("");
   const [adminUiStatus, setAdminUiStatus] = useState<
@@ -248,6 +253,8 @@ export function RoleBasedComplaintModal({
           getActivityLogsForComplaint(complaint.id),
         ]);
         if (cancelled) return;
+        console.log("Fetched activity logs:", logData);
+        console.log("Number of logs:", logData?.length || 0);
         if (fresh) {
           // Non-destructive merge to preserve any transient local fields
           setLiveComplaint((prev) =>
@@ -267,7 +274,9 @@ export function RoleBasedComplaintModal({
     }
     const onStatusEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as { id?: string } | undefined;
+      console.log("Received status change event:", detail);
       if (detail?.id && detail.id === complaint?.id) {
+        console.log("Refreshing logs for complaint:", complaint.id);
         loadLogsAndLatest();
       }
     };
@@ -504,6 +513,99 @@ export function RoleBasedComplaintModal({
     }
   };
 
+  // Handle Dean status update for accepted complaints
+  const handleDeanStatusUpdate = async () => {
+    if (!liveComplaint || !deanStatusUpdate) return;
+
+    console.log("Starting Dean status update:", {
+      complaintId: liveComplaint.id,
+      newStatus: deanStatusUpdate,
+      note: deanStatusNote,
+    });
+
+    setIsLoading(true);
+    try {
+      // Update complaint status in backend
+      await updateComplaintStatusApi(
+        liveComplaint.id,
+        deanStatusUpdate,
+        deanStatusNote || undefined
+      );
+
+      // Create timeline entry
+      const timelineMessage = `Status changed to ${deanStatusUpdate} by Dean on ${new Date().toLocaleString()}`;
+      const fullMessage = deanStatusNote
+        ? `${timelineMessage}\nNote: ${deanStatusNote}`
+        : timelineMessage;
+
+      // Add activity log entry
+      try {
+        await createActivityLog({
+          complaintId: liveComplaint.id,
+          action: `Status updated to ${deanStatusUpdate}`,
+          description:
+            deanStatusNote || `Status changed to ${deanStatusUpdate} by Dean`,
+          performedBy: user?.id,
+          role: "dean",
+        });
+        console.log("Activity log created successfully");
+      } catch (error) {
+        console.error("Failed to create activity log:", error);
+      }
+
+      // Update local state
+      setLiveComplaint({
+        ...liveComplaint,
+        status: deanStatusUpdate as Complaint["status"],
+        lastUpdated: new Date(),
+      });
+
+      // Reset form
+      setDeanStatusUpdate("");
+      setDeanStatusNote("");
+
+      // Notify parent component
+      onUpdate?.(liveComplaint.id, {
+        status: deanStatusUpdate as Complaint["status"],
+        lastUpdated: new Date(),
+      });
+
+      // Dispatch event for real-time updates
+      window.dispatchEvent(
+        new CustomEvent("complaint:status-changed", {
+          detail: { id: liveComplaint.id, newStatus: deanStatusUpdate },
+        })
+      );
+
+      toast({
+        title: "Status Updated Successfully",
+        description: `Complaint status changed to ${deanStatusUpdate}. ${
+          deanStatusUpdate === "Resolved"
+            ? "The complaint will now appear in the Resolved tab."
+            : ""
+        }`,
+      });
+
+      // Handle tab transitions based on status
+      if (deanStatusUpdate === "Pending") {
+        // Move to Pending tab
+      } else if (deanStatusUpdate === "Resolved") {
+        // Move to Resolved tab
+      }
+      // Note: "In Progress" stays in current tab
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to update status";
+      toast({
+        title: "Error",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
       case "critical":
@@ -673,6 +775,7 @@ export function RoleBasedComplaintModal({
   };
 
   for (const log of sortedLogs) {
+    console.log("Processing activity log:", log);
     // Explicitly add an "Accepted" step when HoD/Dean approve a complaint
     if (/^complaint approved$/i.test(log.action || "")) {
       const roleNorm = String(log.role || "").toLowerCase();
@@ -708,6 +811,7 @@ export function RoleBasedComplaintModal({
     }
 
     const m = (log.action || "").match(/status updated to\s+(.+)/i);
+    console.log("Checking status update regex:", log.action, "->", m);
     if (!m) continue;
     const status = normalizeStatus((m[1] || "").trim());
     const time = new Date(log.timestamp);
@@ -774,6 +878,11 @@ export function RoleBasedComplaintModal({
     }
   }
 
+  console.log("Final timeline entries:", timelineEntries.length);
+  timelineEntries.forEach((entry, i) => {
+    console.log(`Timeline entry ${i}:`, entry);
+  });
+
   // Ensure one entry per status, chronologically sorted
   const seen = new Set<string>();
   const timelineSteps = timelineEntries
@@ -783,7 +892,13 @@ export function RoleBasedComplaintModal({
       seen.add(key);
       return true;
     })
-    .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0))
+    .sort((a, b) => (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0));
+
+  console.log("Final timeline steps:", timelineSteps.length);
+  timelineSteps.forEach((step, i) => {
+    console.log(`Timeline step ${i}:`, step);
+  });
+
   // Direct-to-admin detection for scoping Admin Action
   const isDirectToAdmin = (() => {
     const submittedTo = String(liveComplaint?.submittedTo || "").toLowerCase();
@@ -796,6 +911,19 @@ export function RoleBasedComplaintModal({
     );
   })();
 
+  // Derived flags and views
+  const hideHodPanels = Boolean(
+    hideHodActionsIfAssigned &&
+      user?.role === "headOfDepartment" &&
+      liveComplaint &&
+      Array.isArray(liveComplaint.assignmentPath) &&
+      liveComplaint.assignmentPath.some(
+        (r) => String(r).toLowerCase() === "staff"
+      )
+  );
+
+  // For now, summary equals full steps (can be refined to reduce granularity)
+  const summarizedTimeline = timelineSteps;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -938,9 +1066,10 @@ export function RoleBasedComplaintModal({
           </>
         )}
 
-        {/* HoD: Pending actions (visible even if not assigned) */}
+        {/* HoD: Pending/Assigned actions (awaiting HoD decision) */}
         {user.role === "headOfDepartment" &&
-          liveComplaint.status === "Pending" &&
+          (liveComplaint.status === "Pending" ||
+            liveComplaint.status === "Assigned") &&
           !hideHodPanels && (
             <Card>
               <CardHeader>
@@ -978,7 +1107,10 @@ export function RoleBasedComplaintModal({
                           setHodNote("");
                           window.dispatchEvent(
                             new CustomEvent("complaint:status-changed", {
-                              detail: { id: liveComplaint.id },
+                              detail: {
+                                id: liveComplaint.id,
+                                newStatus: "In Progress",
+                              },
                             })
                           );
                           onOpenChange(false);
@@ -1030,7 +1162,10 @@ export function RoleBasedComplaintModal({
                             setHodRejectReason("");
                             window.dispatchEvent(
                               new CustomEvent("complaint:status-changed", {
-                                detail: { id: liveComplaint.id },
+                                detail: {
+                                  id: liveComplaint.id,
+                                  newStatus: "Closed",
+                                },
                               })
                             );
                             onOpenChange(false);
@@ -1046,111 +1181,7 @@ export function RoleBasedComplaintModal({
             </Card>
           )}
 
-        {/* Dean: Pending actions (visible even if not assigned) */}
-        {user.role === "dean" && liveComplaint.status === "Pending" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Dean Review</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="mb-2">Optional note to student</Label>
-                <Textarea
-                  className="w-full border rounded px-3 py-2"
-                  placeholder="Add an optional note visible to the student..."
-                  value={deanNote}
-                  onChange={(e) => setDeanNote(e.target.value.slice(0, 1000))}
-                  rows={3}
-                />
-                <div className="text-xs text-muted-foreground mt-1 text-right">
-                  {deanNote.length}/1000
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Button
-                  variant="default"
-                  disabled={isLoading}
-                  onClick={() => {
-                    if (!liveComplaint) return;
-                    setIsLoading(true);
-                    approveComplaintApi(liveComplaint.id, {
-                      note: deanNote.trim() || undefined,
-                    })
-                      .then(() => {
-                        toast({
-                          title: "Accepted",
-                          description: "Complaint moved to In Progress.",
-                        });
-                        setDeanNote("");
-                        window.dispatchEvent(
-                          new CustomEvent("complaint:status-changed", {
-                            detail: { id: liveComplaint.id },
-                          })
-                        );
-                        onOpenChange(false);
-                      })
-                      .finally(() => setIsLoading(false));
-                  }}
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" /> Accept
-                </Button>
-                <div>
-                  <Label className="mb-2 block">Reject reason</Label>
-                  <Textarea
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="Provide a reason for rejection..."
-                    value={deanRejectReason}
-                    onChange={(e) =>
-                      setDeanRejectReason(e.target.value.slice(0, 1000))
-                    }
-                    rows={2}
-                  />
-                  <div className="text-xs text-muted-foreground mt-1 text-right">
-                    {deanRejectReason.length}/1000
-                  </div>
-                  <Button
-                    variant="destructive"
-                    disabled={isLoading}
-                    className="mt-2 w-full"
-                    onClick={() => {
-                      if (!liveComplaint) return;
-                      if (!deanRejectReason.trim()) {
-                        toast({
-                          title: "Reason required",
-                          description: "Please enter a reason to reject.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      setIsLoading(true);
-                      updateComplaintStatusApi(
-                        liveComplaint.id,
-                        "Closed",
-                        `Rejected: ${deanRejectReason.trim()}`
-                      )
-                        .then(() => {
-                          toast({
-                            title: "Rejected",
-                            description: "Complaint has been rejected.",
-                          });
-                          setDeanRejectReason("");
-                          window.dispatchEvent(
-                            new CustomEvent("complaint:status-changed", {
-                              detail: { id: liveComplaint.id },
-                            })
-                          );
-                          onOpenChange(false);
-                        })
-                        .finally(() => setIsLoading(false));
-                    }}
-                  >
-                    <X className="h-4 w-4 mr-2" /> Reject
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Dean: Pending actions removed (Accept/Reject panel hidden by request) */}
 
         {/* Submission Information Section (always shown) */}
         <Card>
@@ -1389,6 +1420,92 @@ export function RoleBasedComplaintModal({
           </CardContent>
         </Card>
 
+        {/* Dean Action Section - Only for Dean user and Accepted complaints */}
+        {user?.role === "dean" && liveComplaint?.status === "Accepted" && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Dean Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  <Settings className="h-4 w-4 inline mr-2" />
+                  Select a new status and click "Save Status Change" to update
+                  the complaint.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="status-select">Update Status</Label>
+                  <select
+                    id="status-select"
+                    className={`w-full px-3 py-2 border bg-background rounded-md text-sm ${
+                      deanStatusUpdate
+                        ? "border-green-500 bg-green-50"
+                        : "border-input"
+                    }`}
+                    value={deanStatusUpdate}
+                    onChange={(e) => setDeanStatusUpdate(e.target.value)}
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
+                  {deanStatusUpdate && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Ready to change status to "{deanStatusUpdate}"
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status-note">Optional Note</Label>
+                  <Textarea
+                    id="status-note"
+                    placeholder="Add a note explaining the status change..."
+                    value={deanStatusNote}
+                    onChange={(e) => setDeanStatusNote(e.target.value)}
+                    className="min-h-[80px]"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleDeanStatusUpdate}
+                  disabled={!deanStatusUpdate || isLoading}
+                  className="flex-1"
+                >
+                  {isLoading ? (
+                    <>
+                      <Settings className="h-4 w-4 mr-2 animate-spin" />
+                      Updating Status...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Save Status Change
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeanStatusUpdate("");
+                    setDeanStatusNote("");
+                  }}
+                  disabled={isLoading}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Only show these sections if assigned */}
         {isAssigned && (
           <>
@@ -1541,7 +1658,10 @@ export function RoleBasedComplaintModal({
                                 });
                                 window.dispatchEvent(
                                   new CustomEvent("complaint:status-changed", {
-                                    detail: { id: liveComplaint.id },
+                                    detail: {
+                                      id: liveComplaint.id,
+                                      newStatus: newStatus,
+                                    },
                                   })
                                 );
                               })
@@ -1646,7 +1766,10 @@ export function RoleBasedComplaintModal({
                             setHodStatusNote("");
                             window.dispatchEvent(
                               new CustomEvent("complaint:status-changed", {
-                                detail: { id: liveComplaint.id },
+                                detail: {
+                                  id: liveComplaint.id,
+                                  newStatus: liveComplaint.status,
+                                },
                               })
                             );
                           })
@@ -1722,7 +1845,10 @@ export function RoleBasedComplaintModal({
                           setDeanStatusNote("");
                           window.dispatchEvent(
                             new CustomEvent("complaint:status-changed", {
-                              detail: { id: liveComplaint.id },
+                              detail: {
+                                id: liveComplaint.id,
+                                newStatus: liveComplaint.status,
+                              },
                             })
                           );
                         })
@@ -1815,7 +1941,10 @@ export function RoleBasedComplaintModal({
                             setAdminStatusNote("");
                             window.dispatchEvent(
                               new CustomEvent("complaint:status-changed", {
-                                detail: { id: liveComplaint.id },
+                                detail: {
+                                  id: liveComplaint.id,
+                                  newStatus: newStatus,
+                                },
                               })
                             );
                           })

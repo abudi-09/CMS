@@ -342,13 +342,15 @@ export const getAdminCalendarSummary = async (req, res) => {
     }
 
     // Query params
+    // Optional: allow narrowing to a specific assignee when requested.
+    // By default, do NOT restrict to assignedTo so admins see all direct-to-admin complaints.
     const assignedToQuery = req.query.assignedTo;
     const assignedTo =
       assignedToQuery &&
       typeof assignedToQuery === "string" &&
       assignedToQuery.match(/^[0-9a-fA-F]{24}$/)
         ? mongoose.Types.ObjectId(assignedToQuery)
-        : user._id;
+        : null;
 
     const status = req.query.status || null; // exact match
     const priority = req.query.priority || null; // exact match
@@ -389,7 +391,7 @@ export const getAdminCalendarSummary = async (req, res) => {
       isDeleted: { $ne: true },
       submittedTo: { $regex: /admin/i },
       sourceRole: { $regex: /^student$/i },
-      assignedTo: assignedTo,
+      ...(assignedTo ? { assignedTo } : {}),
     };
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
@@ -554,12 +556,13 @@ export const getAdminCalendarDay = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const assignedTo = req.query.assignedTo
-      ? typeof req.query.assignedTo === "string" &&
-        req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
+    // Optional: when provided, restrict to a specific assignee; otherwise include all
+    const assignedTo =
+      req.query.assignedTo &&
+      typeof req.query.assignedTo === "string" &&
+      req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
         ? mongoose.Types.ObjectId(req.query.assignedTo)
-        : req.query.assignedTo
-      : user._id;
+        : null;
     const status = req.query.status || null; // optional exact match
     const priority = req.query.priority || null; // optional exact match
     const categoriesParam = req.query.categories; // csv or array
@@ -591,9 +594,9 @@ export const getAdminCalendarDay = async (req, res) => {
 
     const base = {
       isDeleted: { $ne: true },
-      assignedTo: assignedTo,
       submittedTo: { $regex: /admin/i },
       sourceRole: { $regex: /^student$/i },
+      ...(assignedTo ? { assignedTo } : {}),
     };
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
@@ -623,6 +626,296 @@ export const getAdminCalendarDay = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Failed to fetch admin calendar day complaints" });
+  }
+};
+
+// Dean calendar summary: counts for the logged-in dean, direct-to-dean-by-student complaints only
+export const getDeanCalendarSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Optional: allow narrowing to a specific assignee when requested.
+    // By default, do NOT restrict to assignedTo so deans see all direct-to-dean complaints.
+    const assignedToQuery = req.query.assignedTo;
+    const assignedTo =
+      assignedToQuery &&
+      typeof assignedToQuery === "string" &&
+      assignedToQuery.match(/^[0-9a-fA-F]{24}$/)
+        ? mongoose.Types.ObjectId(assignedToQuery)
+        : null;
+
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10); // 0-11
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const submissionFrom = req.query.submissionFrom
+      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
+      : null;
+    const submissionTo = req.query.submissionTo
+      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
+      : null;
+    const deadlineFrom = req.query.deadlineFrom
+      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
+      : null;
+    const deadlineTo = req.query.deadlineTo
+      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
+      : null;
+
+    const base = {
+      isDeleted: { $ne: true },
+      submittedTo: { $regex: /dean/i },
+      sourceRole: { $regex: /^student$/i },
+      ...(assignedTo ? { assignedTo } : {}),
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+    const submissionRange = {};
+    if (submissionFrom) submissionRange.$gte = submissionFrom;
+    if (submissionTo) submissionRange.$lte = submissionTo;
+    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
+
+    const deadlineRange = {};
+    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
+    if (deadlineTo) deadlineRange.$lte = deadlineTo;
+    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
+
+    const monthFilter = {
+      ...base,
+      ...(viewType === "submission"
+        ? {
+            $or: [
+              {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+              {
+                submittedDate: {
+                  ...(base.submittedDate || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+            ],
+          }
+        : {
+            deadline: {
+              ...(base.deadline || {}),
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          }),
+    };
+
+    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
+      await Promise.all([
+        Complaint.countDocuments(monthFilter),
+        Complaint.countDocuments({
+          ...base,
+          deadline: { ...(base.deadline || {}), $lt: new Date() },
+          status: { $nin: ["Resolved", "Closed"] },
+        }),
+        (() => {
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          const end = new Date();
+          end.setHours(23, 59, 59, 999);
+          return Complaint.countDocuments({
+            ...base,
+            deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
+          });
+        })(),
+        Complaint.countDocuments({
+          ...base,
+          status: "Resolved",
+          ...(viewType === "submission"
+            ? {
+                $or: [
+                  {
+                    createdAt: {
+                      ...(base.createdAt || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                  {
+                    submittedDate: {
+                      ...(base.submittedDate || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                ],
+              }
+            : {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              }),
+        }),
+      ]);
+
+    const breakdownMatch = monthFilter;
+    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$status", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$priority", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$category", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const countsByStatus = Object.fromEntries(
+      (byStatusAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByPriority = Object.fromEntries(
+      (byPriorityAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByCategory = Object.fromEntries(
+      (byCategoryAgg || []).map((r) => [r._id, r.count])
+    );
+
+    return res.status(200).json({
+      totalThisMonth,
+      overdue,
+      dueToday,
+      resolvedThisMonth,
+      countsByStatus,
+      countsByPriority,
+      countsByCategory,
+    });
+  } catch (err) {
+    console.error("getDeanCalendarSummary error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean calendar summary" });
+  }
+};
+
+// Dean calendar day list: complaints sent to dean by students (include those assigned to HOD)
+export const getDeanCalendarDay = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Optional: when provided, restrict to a specific assignee; otherwise include all
+    const assignedTo =
+      req.query.assignedTo &&
+      typeof req.query.assignedTo === "string" &&
+      req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
+        ? mongoose.Types.ObjectId(req.query.assignedTo)
+        : null;
+
+    const status = req.query.status || null; // optional exact match
+    const priority = req.query.priority || null; // optional exact match
+    const categoriesParam = req.query.categories; // csv or array
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+      return res.status(400).json({ error: "Invalid or missing date" });
+    }
+
+    const [yStr, mStr, dStr] = dateStr.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10) - 1;
+    const d = parseInt(dStr, 10);
+
+    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+    const base = {
+      isDeleted: { $ne: true },
+      submittedTo: { $regex: /dean/i },
+      sourceRole: { $regex: /^student$/i },
+      ...(assignedTo ? { assignedTo } : {}),
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const dateFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: dayStart, $lte: dayEnd } },
+              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+            ],
+          }
+        : { deadline: { $gte: dayStart, $lte: dayEnd } };
+
+    const items = await Complaint.find({ ...base, ...dateFilter })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo"
+      )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getDeanCalendarDay error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean calendar day complaints" });
   }
 };
 

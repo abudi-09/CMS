@@ -65,6 +65,8 @@ import { getComplaintApi } from "@/lib/getComplaintApi";
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
   "In Progress": "bg-blue-100 text-blue-800",
+  Assigned: "bg-purple-100 text-purple-800",
+  Accepted: "bg-indigo-100 text-indigo-800",
   Resolved: "bg-green-100 text-green-800",
   Closed: "bg-gray-100 text-gray-800",
   Delayed: "bg-red-100 text-red-800",
@@ -77,7 +79,8 @@ export function DeanAssignComplaints() {
   const role = user?.role;
   // Pagination state
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 10;
+  const [showAll, setShowAll] = useState(false);
   const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
   const [loading, setLoading] = useState(true);
   const [staffOptions, setStaffOptions] = useState<
@@ -90,7 +93,13 @@ export function DeanAssignComplaints() {
     description?: string;
     category?: string;
     department?: string;
-    status: "Pending" | "In Progress" | "Resolved" | "Closed";
+    status:
+      | "Pending"
+      | "Assigned"
+      | "Accepted"
+      | "In Progress"
+      | "Resolved"
+      | "Closed";
     submittedBy?: string;
     submittedDate?: string | Date;
     lastUpdated?: string | Date;
@@ -155,12 +164,13 @@ export function DeanAssignComplaints() {
               typeof c.assignedTo === "string"
                 ? c.assignedTo
                 : (c.assignedTo as { name?: string } | null)?.name || undefined,
-            assignedStaffRole:
-              c.assignedByRole === "dean"
-                ? "dean"
-                : c.assignedByRole === "hod"
-                ? "headOfDepartment"
-                : undefined,
+            assignedStaffRole: c.assignmentPath?.includes("staff")
+              ? "dean"
+              : c.assignmentPath?.includes("hod")
+              ? "headOfDepartment"
+              : c.assignedByRole === "dean"
+              ? "dean"
+              : undefined,
             assignedByRole: c.assignedByRole || undefined,
             assignmentPath: Array.isArray(c.assignmentPath)
               ? (c.assignmentPath as string[])
@@ -193,7 +203,13 @@ export function DeanAssignComplaints() {
             typeof c.assignedTo === "string"
               ? c.assignedTo
               : (c.assignedTo as { name?: string } | null)?.name || undefined,
-          assignedStaffRole: undefined,
+          assignedStaffRole: c.assignmentPath?.includes("staff")
+            ? "dean"
+            : c.assignmentPath?.includes("hod")
+            ? "headOfDepartment"
+            : c.assignedByRole === "dean"
+            ? "dean"
+            : undefined,
           assignedByRole:
             typeof c.assignedByRole === "string" ? c.assignedByRole : undefined,
           assignmentPath: Array.isArray(c.assignmentPath)
@@ -210,7 +226,7 @@ export function DeanAssignComplaints() {
           submittedTo: c.submittedTo || undefined,
           department: undefined,
         })) as ComplaintType[];
-        // Merge: Pending from inbox + others from all
+        // Merge: Pending from inbox + others from all (deduplicate by id)
         const nonPending = mappedFromAll.filter((c) => {
           if (c.status === "Pending" || c.status === "Unassigned") return false;
           const path = Array.isArray(c.assignmentPath) ? c.assignmentPath : [];
@@ -222,7 +238,12 @@ export function DeanAssignComplaints() {
             /dean/.test(submittedTo)
           );
         });
-        setComplaints([...(mappedInbox || []), ...nonPending]);
+        // Remove duplicates by id (prefer inbox items over all items)
+        const inboxIds = new Set((mappedInbox || []).map((c) => c.id));
+        const deduplicatedNonPending = nonPending.filter(
+          (c) => !inboxIds.has(c.id)
+        );
+        setComplaints([...(mappedInbox || []), ...deduplicatedNonPending]);
         setStaffOptions(
           (staff || []).map((s) => ({
             id: s._id,
@@ -253,12 +274,168 @@ export function DeanAssignComplaints() {
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "Pending" | "Accepted" | "Assigned" | "Rejected"
-  >("Pending");
+    | "All"
+    | "Pending"
+    | "Accepted"
+    | "In Progress"
+    | "Assigned"
+    | "Rejected"
+    | "Resolved"
+  >("All");
   // Reset page when filters/tab change
   useEffect(() => {
     setPage(1);
   }, [searchTerm, priorityFilter, overdueFilter, activeTab]);
+
+  // Handle real-time complaint status changes
+  useEffect(() => {
+    const handleStatusChange = (event: CustomEvent) => {
+      const { newStatus } = event.detail || {};
+
+      // Reload complaints when status changes
+      const loadComplaints = async () => {
+        try {
+          const inboxP = getDeanInboxApi().catch(() => []);
+          const allP = listAllComplaintsApi().catch(() => []);
+          const staffP = (
+            user?.department
+              ? listMyDepartmentActiveStaffApi()
+              : Promise.resolve([])
+          ).catch(() => []);
+          const [inboxRaw, allRaw, staffRaw] = await Promise.all([
+            inboxP,
+            allP,
+            staffP,
+          ]);
+          const inbox = inboxRaw as InboxComplaint[];
+          const all = allRaw as unknown as RawComplaint[];
+          const staff = staffRaw as unknown as DeptStaff[];
+          const mappedFromAll = (all as RawComplaint[])
+            .filter((c) => c && c.id && c.status)
+            .map((c) => ({
+              id: c.id,
+              title: c.title || c.complaintCode || "Complaint",
+              description: c.description || "",
+              category: c.category || c.department || "General",
+              status: c.status,
+              submittedBy: c.submittedBy || "",
+              sourceRole: c.sourceRole,
+              assignedStaff:
+                typeof c.assignedTo === "string"
+                  ? c.assignedTo
+                  : (c.assignedTo as { name?: string } | null)?.name ||
+                    undefined,
+              assignedStaffRole: c.assignmentPath?.includes("staff")
+                ? "staff"
+                : c.assignmentPath?.includes("hod")
+                ? "headOfDepartment"
+                : c.assignedByRole === "dean"
+                ? "dean"
+                : undefined,
+              assignedByRole: c.assignedByRole || undefined,
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? (c.assignmentPath as string[])
+                : [],
+              submittedDate: c.submittedDate
+                ? new Date(c.submittedDate)
+                : new Date(),
+              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+              deadline: c.deadline ? new Date(c.deadline) : undefined,
+              priority: c.priority || "Medium",
+              feedback: c.feedback || undefined,
+              isEscalated: !!c.isEscalated,
+              submittedTo: c.submittedTo || undefined,
+              department: c.department || undefined,
+            })) as ComplaintType[];
+          const mappedInbox = (inbox || []).map((c: InboxComplaint) => ({
+            id: String(c.id || ""),
+            title: String(c.title || "Complaint"),
+            description: "",
+            category: String(c.category || "General"),
+            status: (c.status as ComplaintType["status"]) || "Pending",
+            submittedBy:
+              typeof c.submittedBy === "string"
+                ? c.submittedBy
+                : c.submittedBy?.name || "",
+            sourceRole:
+              (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+            assignedStaff:
+              typeof c.assignedTo === "string"
+                ? c.assignedTo
+                : (c.assignedTo as { name?: string } | null)?.name || undefined,
+            assignedStaffRole: c.assignmentPath?.includes("staff")
+              ? "staff"
+              : c.assignmentPath?.includes("hod")
+              ? "headOfDepartment"
+              : c.assignedByRole === "dean"
+              ? "dean"
+              : undefined,
+            assignedByRole:
+              typeof c.assignedByRole === "string"
+                ? c.assignedByRole
+                : undefined,
+            assignmentPath: Array.isArray(c.assignmentPath)
+              ? (c.assignmentPath as string[])
+              : [],
+            submittedDate: c.submittedDate
+              ? new Date(c.submittedDate)
+              : new Date(),
+            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+            deadline: c.deadline ? new Date(c.deadline) : undefined,
+            priority: (c.priority as ComplaintType["priority"]) || "Medium",
+            feedback: undefined,
+            isEscalated: false,
+            submittedTo: c.submittedTo || undefined,
+            department: undefined,
+          })) as ComplaintType[];
+          const nonPending = mappedFromAll.filter((c) => {
+            if (c.status === "Pending" || c.status === "Unassigned")
+              return false;
+            const path = Array.isArray(c.assignmentPath)
+              ? c.assignmentPath
+              : [];
+            const submittedTo = (c.submittedTo || "").toLowerCase();
+            const byRole = (c.assignedByRole || "").toLowerCase();
+            return (
+              path.includes("dean") ||
+              byRole === "dean" ||
+              /dean/.test(submittedTo)
+            );
+          });
+          const inboxIds = new Set((mappedInbox || []).map((c) => c.id));
+          const deduplicatedNonPending = nonPending.filter(
+            (c) => !inboxIds.has(c.id)
+          );
+          setComplaints([...(mappedInbox || []), ...deduplicatedNonPending]);
+          setStaffOptions(
+            (staff || []).map((s) => ({
+              id: s._id,
+              name: s.fullName || s.name || s.username || s.email,
+            }))
+          );
+
+          // Auto-switch to Resolved tab if a complaint was resolved
+          if (newStatus === "Resolved") {
+            setActiveTab("Resolved");
+          }
+        } catch (e) {
+          console.error("Failed to reload complaints after status change:", e);
+        }
+      };
+      loadComplaints();
+    };
+
+    // Listen for complaint status change events
+    window.addEventListener("complaint:status-changed", handleStatusChange);
+
+    return () => {
+      window.removeEventListener(
+        "complaint:status-changed",
+        handleStatusChange
+      );
+    };
+  }, [user?.department, setComplaints, setStaffOptions, setActiveTab]);
+
   // Accept flow state
   const [acceptTarget, setAcceptTarget] = useState<ComplaintType | null>(null);
   const [acceptNote, setAcceptNote] = useState("");
@@ -326,7 +503,7 @@ export function DeanAssignComplaints() {
                 deadline: updated.deadline
                   ? new Date(updated.deadline)
                   : c.deadline,
-                status: "In Progress",
+                status: "Assigned",
               }
             : c
         )
@@ -483,7 +660,7 @@ export function DeanAssignComplaints() {
           c.id === complaintId
             ? {
                 ...c,
-                status: updated.status || "In Progress",
+                status: updated.status || "Accepted",
                 assignedStaff:
                   (user?.fullName as string) ||
                   (user?.name as string) ||
@@ -534,7 +711,7 @@ export function DeanAssignComplaints() {
         hodId: selectedHodId,
         deadline: hodDeadline || undefined,
       });
-      // Update local state: remains Pending but shows as Assigned tab when HoD accepts
+      // Update local state: set status to Assigned and assignedStaffRole to headOfDepartment
       setComplaints((prev) =>
         prev.map((c) =>
           c.id === assignHodOpen.id
@@ -543,16 +720,13 @@ export function DeanAssignComplaints() {
                 assignedStaff:
                   hodOptions.find((h) => h.id === selectedHodId)?.name ||
                   c.assignedStaff,
-                // Keep assignedStaffRole undefined until HoD accepts
+                assignedStaffRole: "headOfDepartment",
                 assignedByRole: "dean",
                 assignmentPath: Array.from(
-                  new Set([
-                    ...(c.assignmentPath || []),
-                    "dean",
-                    "headOfDepartment",
-                  ])
+                  new Set([...(c.assignmentPath || []), "dean", "hod"])
                 ) as ComplaintType["assignmentPath"],
                 deadline: hodDeadline ? new Date(hodDeadline) : c.deadline,
+                status: "Assigned",
               }
             : c
         )
@@ -564,6 +738,8 @@ export function DeanAssignComplaints() {
       setAssignHodOpen(null);
       setSelectedHodId("");
       setHodDeadline("");
+      // Switch to Assigned tab to show the newly assigned complaint
+      setActiveTab("Assigned");
     } catch (e: unknown) {
       const msg =
         typeof e === "object" && e && "message" in e
@@ -600,25 +776,28 @@ export function DeanAssignComplaints() {
   };
 
   const matchesTab = (c: ComplaintType) => {
+    if (activeTab === "All") return true;
     if (activeTab === "Pending")
       return (
         (c.status === "Pending" || c.status === "Unassigned") &&
         !c.assignedStaffRole
       );
     if (activeTab === "Accepted")
+      return c.status === "Accepted" && c.assignedStaffRole === "dean";
+    if (activeTab === "In Progress")
       return c.status === "In Progress" && c.assignedStaffRole === "dean";
     if (activeTab === "Assigned")
       return (
-        (c.status === "In Progress" || c.status === "Assigned") &&
-        c.assignedStaffRole === "headOfDepartment"
+        c.assignedByRole === "dean" &&
+        c.assignedStaffRole === "headOfDepartment" &&
+        ["Assigned", "In Progress", "Resolved", "Closed"].includes(c.status)
       );
+    if (activeTab === "Resolved") return c.status === "Resolved";
     if (activeTab === "Rejected") return c.status === "Closed";
-    return false; // exclude other statuses like Resolved entirely
+    return false;
   };
   const filteredComplaints = complaints
     .filter(matchesTab)
-    // ensure resolved never shows regardless of tab/filter
-    .filter((c) => c.status !== "Resolved")
     .filter((complaint) => {
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -637,24 +816,29 @@ export function DeanAssignComplaints() {
     });
 
   // Pagination calculations
+  const effectivePageSize = showAll ? filteredComplaints.length : pageSize;
   const totalItems = filteredComplaints.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const startIndex = (page - 1) * pageSize;
-  const paginatedComplaints = filteredComplaints.slice(
-    startIndex,
-    startIndex + pageSize
-  );
+  const totalPages = showAll
+    ? 1
+    : Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = showAll ? 0 : (page - 1) * pageSize;
+  const endIndex = showAll ? filteredComplaints.length : startIndex + pageSize;
+  const paginatedComplaints = filteredComplaints.slice(startIndex, endIndex);
 
   // Clamp page if filtered size shrinks
   useEffect(() => {
+    if (showAll) return;
     const newTotal = Math.max(
       1,
       Math.ceil(filteredComplaints.length / pageSize)
     );
     if (page > newTotal) setPage(newTotal);
-  }, [filteredComplaints.length, page]);
+  }, [filteredComplaints.length, page, showAll]);
 
-  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
+  const goToPage = (p: number) => {
+    if (showAll) return;
+    setPage(Math.min(Math.max(1, p), totalPages));
+  };
   const getVisiblePages = () => {
     const maxToShow = 5;
     if (totalPages <= maxToShow)
@@ -666,8 +850,12 @@ export function DeanAssignComplaints() {
     return pages;
   };
 
-  const unassignedCount = complaints.filter((c) => !c.assignedStaff).length;
-  const assignedCount = complaints.filter((c) => c.assignedStaff).length;
+  const unassignedCount = filteredComplaints.filter(
+    (c) => !c.assignedStaff
+  ).length;
+  const assignedCount = filteredComplaints.filter(
+    (c) => c.assignedStaff
+  ).length;
   const priorityColors = {
     Low: "bg-gray-200 text-gray-700 border-gray-300",
     Medium: "bg-blue-100 text-blue-800 border-blue-200",
@@ -690,17 +878,21 @@ export function DeanAssignComplaints() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Complaints
+              Filtered Complaints
             </CardTitle>
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{complaints.length}</div>
+            <div className="text-2xl font-bold">
+              {filteredComplaints.length}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unassigned</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Unassigned (Filtered)
+            </CardTitle>
             <div className="h-4 w-4 rounded-full bg-yellow-500" />
           </CardHeader>
           <CardContent>
@@ -711,7 +903,9 @@ export function DeanAssignComplaints() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assigned</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Assigned (Filtered)
+            </CardTitle>
             <div className="h-4 w-4 rounded-full bg-blue-500" />
           </CardHeader>
           <CardContent>
@@ -770,17 +964,32 @@ export function DeanAssignComplaints() {
         <CardHeader>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle>Complaints</CardTitle>
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-            >
-              <TabsList>
-                <TabsTrigger value="Pending">Pending</TabsTrigger>
-                <TabsTrigger value="Accepted">Accepted</TabsTrigger>
-                <TabsTrigger value="Assigned">Assigned</TabsTrigger>
-                <TabsTrigger value="Rejected">Rejected</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowAll(!showAll);
+                  if (!showAll) setPage(1);
+                }}
+              >
+                {showAll ? "Show Paginated" : "Show All"}
+              </Button>
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+              >
+                <TabsList>
+                  <TabsTrigger value="All">All</TabsTrigger>
+                  <TabsTrigger value="Pending">Pending</TabsTrigger>
+                  <TabsTrigger value="Accepted">Accepted</TabsTrigger>
+                  <TabsTrigger value="In Progress">In Progress</TabsTrigger>
+                  <TabsTrigger value="Assigned">Assigned</TabsTrigger>
+                  <TabsTrigger value="Resolved">Resolved</TabsTrigger>
+                  <TabsTrigger value="Rejected">Rejected</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
           <CardDescription>
             {filteredComplaints.length} complaint
@@ -798,6 +1007,8 @@ export function DeanAssignComplaints() {
                   <TableHead className="text-sm">Priority</TableHead>
                   <TableHead className="text-sm">Status</TableHead>
                   <TableHead className="text-sm">Assignee</TableHead>
+                  <TableHead className="text-sm">Submission Date</TableHead>
+                  <TableHead className="text-sm">Deadline</TableHead>
                   <TableHead className="text-sm">Overdue</TableHead>
                   <TableHead className="text-sm">
                     <div className="flex items-center justify-between gap-2">
@@ -854,7 +1065,16 @@ export function DeanAssignComplaints() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {complaint.assignedStaff ? (
+                      {complaint.status === "Assigned" &&
+                      complaint.assignedStaffRole === "headOfDepartment" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
+                          Assigned
+                        </span>
+                      ) : complaint.status === "Accepted" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                          {complaint.assignedStaff || "Accepted"}
+                        </span>
+                      ) : complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
                           {complaint.assignedStaff}
                         </span>
@@ -863,6 +1083,16 @@ export function DeanAssignComplaints() {
                           Not Yet Assigned
                         </span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.submittedDate
+                        ? new Date(complaint.submittedDate).toLocaleDateString()
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.deadline
+                        ? new Date(complaint.deadline).toLocaleDateString()
+                        : "No deadline"}
                     </TableCell>
                     <TableCell>
                       {isOverdue(complaint) ? (
@@ -891,8 +1121,9 @@ export function DeanAssignComplaints() {
                         >
                           View Detail
                         </Button>
-                        {/* Dean can accept to solve and assign to HoD */}
-                        {!complaint.assignedStaff &&
+                        {/* Dean can accept to solve and assign to HoD (hide on Resolved tab) */}
+                        {activeTab !== "Resolved" &&
+                          !complaint.assignedStaff &&
                           (complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
                             <Button
@@ -907,8 +1138,10 @@ export function DeanAssignComplaints() {
                               Accept
                             </Button>
                           )}
-                        {(!complaint.assignedStaff ||
-                          complaint.assignedStaffRole !== "headOfDepartment") &&
+                        {activeTab !== "Resolved" &&
+                          (!complaint.assignedStaff ||
+                            complaint.assignedStaffRole !==
+                              "headOfDepartment") &&
                           (complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
                             <Button
@@ -930,16 +1163,19 @@ export function DeanAssignComplaints() {
                             Re-approve
                           </Button>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="text-xs"
-                            onClick={() => handleReject(complaint.id)}
-                          >
-                            Reject
-                          </Button>
+                          activeTab !== "Resolved" && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="text-xs"
+                              onClick={() => handleReject(complaint.id)}
+                            >
+                              Reject
+                            </Button>
+                          )
                         )}
-                        {reassigningRow === complaint.id ? (
+                        {activeTab !== "Resolved" &&
+                        reassigningRow === complaint.id ? (
                           <>
                             <Select
                               value={assigningStaffId}
@@ -992,19 +1228,7 @@ export function DeanAssignComplaints() {
                               Cancel
                             </Button>
                           </>
-                        ) : (
-                          (!complaint.assignedStaff ||
-                            isOverdue(complaint)) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs dark:hover:text-blue-400"
-                              onClick={() => handleAssignClick(complaint)}
-                            >
-                              {complaint.assignedStaff ? "Reassign" : "Assign"}
-                            </Button>
-                          )
-                        )}
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1056,7 +1280,16 @@ export function DeanAssignComplaints() {
                       </Badge>
                     </div>
                     <div>
-                      {complaint.assignedStaff ? (
+                      {complaint.status === "Assigned" &&
+                      complaint.assignedStaffRole === "headOfDepartment" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
+                          Assigned
+                        </span>
+                      ) : complaint.status === "Accepted" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                          Assigned to: {complaint.assignedStaff || "Accepted"}
+                        </span>
+                      ) : complaint.assignedStaff ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
                           Assigned to: {complaint.assignedStaff}
                         </span>
@@ -1065,6 +1298,26 @@ export function DeanAssignComplaints() {
                           Not Yet Assigned
                         </span>
                       )}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        Submission Date:
+                      </span>
+                      <span className="font-medium ml-2">
+                        {complaint.submittedDate
+                          ? new Date(
+                              complaint.submittedDate
+                            ).toLocaleDateString()
+                          : "N/A"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Deadline:</span>
+                      <span className="font-medium ml-2">
+                        {complaint.deadline
+                          ? new Date(complaint.deadline).toLocaleDateString()
+                          : "No deadline"}
+                      </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Overdue:</span>
@@ -1094,8 +1347,9 @@ export function DeanAssignComplaints() {
                     >
                       View Detail
                     </Button>
-                    {/* Dean actions on mobile */}
-                    {!complaint.assignedStaff &&
+                    {/* Dean actions on mobile (hide on Resolved tab) */}
+                    {activeTab !== "Resolved" &&
+                      !complaint.assignedStaff &&
                       (complaint.status === "Pending" ||
                         complaint.status === "Unassigned") && (
                         <Button
@@ -1110,8 +1364,9 @@ export function DeanAssignComplaints() {
                           Accept
                         </Button>
                       )}
-                    {(!complaint.assignedStaff ||
-                      complaint.assignedStaffRole !== "headOfDepartment") &&
+                    {activeTab !== "Resolved" &&
+                      (!complaint.assignedStaff ||
+                        complaint.assignedStaffRole !== "headOfDepartment") &&
                       (complaint.status === "Pending" ||
                         complaint.status === "Unassigned") && (
                         <Button
@@ -1133,16 +1388,19 @@ export function DeanAssignComplaints() {
                         Re-approve
                       </Button>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="w-full text-xs"
-                        onClick={() => handleReject(complaint.id)}
-                      >
-                        Reject
-                      </Button>
+                      activeTab !== "Resolved" && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="w-full text-xs"
+                          onClick={() => handleReject(complaint.id)}
+                        >
+                          Reject
+                        </Button>
+                      )
                     )}
-                    {reassigningRow === complaint.id ? (
+                    {activeTab !== "Resolved" &&
+                    reassigningRow === complaint.id ? (
                       <>
                         <Select
                           value={assigningStaffId}
@@ -1193,18 +1451,7 @@ export function DeanAssignComplaints() {
                           Cancel
                         </Button>
                       </>
-                    ) : (
-                      (!complaint.assignedStaff || isOverdue(complaint)) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full text-xs dark:hover:text-blue-400"
-                          onClick={() => handleAssignClick(complaint)}
-                        >
-                          {complaint.assignedStaff ? "Reassign" : "Assign"}
-                        </Button>
-                      )
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </Card>
@@ -1213,7 +1460,7 @@ export function DeanAssignComplaints() {
         </CardContent>
       </Card>
       {/* Pagination Controls - aligned with AllComplaints */}
-      {totalPages > 1 && (
+      {totalPages > 1 && !showAll && (
         <div className="px-4 md:px-0">
           <Pagination>
             <PaginationContent>
@@ -1320,8 +1567,8 @@ export function DeanAssignComplaints() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are accepting this complaint. Status will change to "In
-              Progress" and it will be assigned to you.
+              You are accepting this complaint. Status will change to "Accepted"
+              and it will be assigned to you.
             </p>
             <Textarea
               placeholder="Optional note visible to the user..."
@@ -1373,7 +1620,7 @@ export function DeanAssignComplaints() {
                               ...c,
                               status:
                                 (updated?.status as ComplaintType["status"]) ||
-                                "In Progress",
+                                "Accepted",
                               assignedStaff:
                                 updated?.assignedTo?.name || assignee,
                               assignedStaffRole: "dean",
@@ -1386,7 +1633,7 @@ export function DeanAssignComplaints() {
                     toast({
                       title: "Accepted",
                       description:
-                        "Complaint assigned to you and set In Progress.",
+                        "Complaint assigned to you and set Accepted.",
                     });
                   } catch (e: unknown) {
                     const msg =
@@ -1430,7 +1677,7 @@ export function DeanAssignComplaints() {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               All currently visible Pending/Unassigned complaints will be set to
-              "In Progress" and assigned to you.
+              "Accepted" and assigned to you.
             </p>
             <Textarea
               placeholder="Optional note applied to all..."
@@ -1495,7 +1742,7 @@ export function DeanAssignComplaints() {
                     if (!isVisible) return c;
                     return {
                       ...c,
-                      status: "In Progress",
+                      status: "Accepted",
                       assignedStaff: assignee,
                       resolutionNote: bulkNote || c.resolutionNote,
                       lastUpdated: new Date(),

@@ -793,7 +793,7 @@ export const getDeanInbox = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     // Student -> Dean submissions or items in dean path that are still pending (not escalated/admin)
     const filter = {
-      status: "Pending",
+      status: { $in: ["Pending", "Assigned"] },
       isEscalated: { $ne: true },
       $and: [
         {
@@ -900,10 +900,10 @@ export const deanAssignToHod = async (req, res) => {
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
-    // Set assignment details for HoD acceptance
+    // Set assignment details for HoD acceptance (intermediate Assigned state)
     complaint.assignedTo = hod._id;
     complaint.assignedAt = new Date();
-    complaint.status = "Pending"; // Pending until HoD accepts
+    complaint.status = "Assigned"; // Intermediate state until HoD accepts/rejects
     if (deadline) complaint.deadline = new Date(deadline);
     complaint.assignedByRole = "dean";
     if (!Array.isArray(complaint.assignmentPath)) complaint.assignmentPath = [];
@@ -920,7 +920,12 @@ export const deanAssignToHod = async (req, res) => {
       action: "Assigned To HoD",
       complaint: complaint._id,
       timestamp: new Date(),
-      details: { hodId, deadline: complaint.deadline },
+      details: {
+        hodId,
+        hodName: (await User.findById(hodId).select("name email").lean())?.name,
+        deadline: complaint.deadline,
+        description: `Assigned to HOD by Dean`,
+      },
     });
 
     // Notifications: to HoD and to student
@@ -1127,7 +1132,7 @@ export const getHodInbox = async (req, res) => {
     if (req.user.role !== "hod")
       return res.status(403).json({ error: "Access denied" });
     const filter = {
-      status: "Pending",
+      status: { $in: ["Pending", "Assigned"] },
       isEscalated: { $ne: true },
       $or: [
         { submittedTo: { $regex: /hod/i } },
@@ -1163,6 +1168,148 @@ export const getHodInbox = async (req, res) => {
   }
 };
 
+// HoD: accept assignment (assign to self and move to In Progress)
+export const hodAcceptAssignment = async (req, res) => {
+  try {
+    if (req.user.role !== "hod")
+      return res.status(403).json({ error: "Access denied" });
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    // Must be assigned to this HoD and in Assigned/Pending
+    if (
+      !complaint.assignedTo ||
+      String(complaint.assignedTo) !== String(req.user._id) ||
+      !["Assigned", "Pending"].includes(String(complaint.status))
+    ) {
+      return res
+        .status(400)
+        .json({ error: "No pending HoD assignment to accept" });
+    }
+    complaint.status = "In Progress";
+    complaint.assignedByRole = "hod";
+    complaint.assignedAt = new Date();
+    if (!Array.isArray(complaint.assignmentPath)) complaint.assignmentPath = [];
+    if (!complaint.assignmentPath.includes("hod"))
+      complaint.assignmentPath.push("hod");
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Accepted by HOD",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: {
+        description: `Accepted by HOD: ${req.user.name || req.user.email}`,
+      },
+    });
+
+    // Notify student and dean
+    await Promise.all([
+      safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "status",
+        title: `Accepted by HoD (${complaint.complaintCode})`,
+        message: `Your complaint was accepted by the Head of Department and is now In Progress.`,
+        meta: { status: "In Progress" },
+      }),
+      (async () => {
+        const dean = await User.findOne({ role: "dean", isActive: true })
+          .select("_id")
+          .lean();
+        if (dean?._id) {
+          await safeNotify({
+            user: dean._id,
+            complaint,
+            type: "status",
+            title: `HoD Accepted (${complaint.complaintCode})`,
+            message: `HoD accepted the assignment: ${complaint.title}.`,
+            meta: { byRole: "hod" },
+          });
+        }
+      })(),
+    ]);
+
+    return res.status(200).json({ message: "Assignment accepted", complaint });
+  } catch (err) {
+    console.error("hodAcceptAssignment error:", err?.message);
+    return res.status(500).json({ error: "Failed to accept assignment" });
+  }
+};
+
+// HoD: reject assignment (return to Dean for reassignment)
+export const hodRejectAssignment = async (req, res) => {
+  try {
+    if (req.user.role !== "hod")
+      return res.status(403).json({ error: "Access denied" });
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (
+      !complaint.assignedTo ||
+      String(complaint.assignedTo) !== String(req.user._id) ||
+      !["Assigned", "Pending"].includes(String(complaint.status))
+    ) {
+      return res
+        .status(400)
+        .json({ error: "No pending HoD assignment to reject" });
+    }
+
+    // Clear HoD assignment and return to Dean pending queue
+    complaint.assignedTo = null;
+    complaint.assignedAt = null;
+    complaint.status = "Pending";
+    if (!Array.isArray(complaint.assignmentPath)) complaint.assignmentPath = [];
+    if (!complaint.assignmentPath.includes("dean"))
+      complaint.assignmentPath.push("dean");
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Rejected by HOD",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: {
+        description: `Rejected by HOD: ${req.user.name || req.user.email}`,
+      },
+    });
+
+    // Notify Dean and Student
+    const dean = await User.findOne({ role: "dean", isActive: true })
+      .select("_id")
+      .lean();
+    await Promise.all([
+      dean?._id
+        ? safeNotify({
+            user: dean._id,
+            complaint,
+            type: "reject",
+            title: `HoD Rejected (${complaint.complaintCode})`,
+            message: `HoD rejected the assignment: ${complaint.title}.`,
+            meta: { byRole: "hod" },
+          })
+        : Promise.resolve(),
+      safeNotify({
+        user: complaint.submittedBy,
+        complaint,
+        type: "status",
+        title: `Assignment Rejected by HoD`,
+        message: `Your complaint is back to Dean for reassignment.`,
+        meta: { status: "Pending" },
+      }),
+    ]);
+
+    return res
+      .status(200)
+      .json({ message: "Assignment rejected and returned to Dean", complaint });
+  } catch (err) {
+    console.error("hodRejectAssignment error:", err?.message);
+    return res.status(500).json({ error: "Failed to reject assignment" });
+  }
+};
 // HoD: Fetch all relevant data grouped by movement tabs
 export const getHodAll = async (req, res) => {
   try {
@@ -1298,6 +1445,14 @@ export const updateComplaintStatus = async (req, res) => {
     const complaintId = req.params.id;
     const { status, description } = req.body || {};
 
+    console.log("Update complaint status request:", {
+      complaintId,
+      status,
+      description,
+      userRole: req.user?.role,
+      userId: req.user?.id,
+    });
+
     if (
       !["Pending", "Accepted", "In Progress", "Resolved", "Closed"].includes(
         status
@@ -1328,13 +1483,17 @@ export const updateComplaintStatus = async (req, res) => {
     const allowedForHoD =
       isHoDOrDean && complaintDept && userDept && complaintDept === userDept;
     const canCloseAsLeader = status === "Closed" && isHoDOrDean;
+    // Allow Deans to update Accepted complaints (for their action section)
+    const canUpdateAcceptedAsDean =
+      req.user.role === "dean" && complaint.status === "Accepted";
 
     if (
       !isAdmin &&
       !(isStaff && isAssignedToSelf) &&
       !isAssignedToSelf &&
       !allowedForHoD &&
-      !canCloseAsLeader
+      !canCloseAsLeader &&
+      !canUpdateAcceptedAsDean
     ) {
       return res
         .status(403)
@@ -1342,12 +1501,22 @@ export const updateComplaintStatus = async (req, res) => {
     }
 
     complaint.status = status;
+    console.log(
+      "Processing description:",
+      description,
+      "Type:",
+      typeof description
+    );
     if (description && String(description).trim()) {
+      console.log("Description is valid, updating resolutionNote");
       const ts = new Date().toISOString();
       const prefix = `[${ts}]`;
       complaint.resolutionNote = complaint.resolutionNote
         ? `${complaint.resolutionNote}\n${prefix} ${description}`
         : `${prefix} ${description}`;
+      console.log("Updated resolutionNote:", complaint.resolutionNote);
+    } else {
+      console.log("Description is empty or invalid");
     }
     if (status === "Resolved") {
       complaint.resolvedAt = new Date();
@@ -1858,6 +2027,7 @@ export const queryComplaints = async (req, res) => {
 
     const complaints = await Complaint.find({ ...q, isDeleted: { $ne: true } })
       .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
       .sort({ createdAt: -1 })
       .lean();
 

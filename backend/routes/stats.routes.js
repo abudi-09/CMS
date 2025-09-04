@@ -19,6 +19,8 @@ import {
   getDepartmentMonthlyTrends,
   getDepartmentStaffPerformance,
   // New Analytics APIs
+  getDeanCalendarSummary,
+  getDeanCalendarDay,
   getAdminAnalyticsSummary,
   getAdminPriorityDistribution,
   getAdminStatusDistribution,
@@ -43,6 +45,19 @@ import {
 } from "../middleware/protectRoute.js";
 
 const router = express.Router();
+
+router.get(
+  "/complaints/calendar/dean-summary",
+  protectRoute,
+  deanOnly,
+  getDeanCalendarSummary
+);
+router.get(
+  "/complaints/calendar/dean-day",
+  protectRoute,
+  deanOnly,
+  getDeanCalendarDay
+);
 
 // Admin or Dean complaint stats
 router.get(

@@ -41,6 +41,47 @@ export const getLogsForComplaint = async (req, res) => {
   }
 };
 
+// Create a new activity log entry
+export const createActivityLog = async (req, res) => {
+  try {
+    const { complaintId, action, description, performedBy, role } = req.body;
+
+    console.log("Creating activity log:", {
+      complaintId,
+      action,
+      description,
+      performedBy,
+      role,
+    });
+
+    if (!complaintId || !action || !description) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const activityLog = new ActivityLog({
+      complaint: complaintId,
+      action,
+      user: performedBy,
+      role: role || "unknown",
+      timestamp: new Date(),
+      details: {
+        description: description,
+      },
+    });
+
+    await activityLog.save();
+    console.log("Activity log saved successfully");
+
+    // Populate user data for response
+    await activityLog.populate("user", "name email");
+
+    res.status(201).json(activityLog);
+  } catch (err) {
+    console.error("Error creating activity log:", err);
+    res.status(500).json({ error: "Failed to create activity log" });
+  }
+};
+
 // Get all logs (admin dashboard)
 export const getAllLogs = async (req, res) => {
   try {

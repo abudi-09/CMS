@@ -311,13 +311,16 @@ export async function updateComplaintStatusApi(
   status: string,
   notes?: string
 ) {
+  const requestBody = { status, description: notes };
+  console.log("Sending update request:", { id, status, notes, requestBody });
+
   const res = await fetch(
     `${API_BASE}/complaints/update-status/${encodeURIComponent(id)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ status, notes }),
+      body: JSON.stringify(requestBody),
     }
   );
   return handleJson<{ success?: boolean; message?: string }>(res);
@@ -1084,6 +1087,76 @@ export async function getAdminCalendarDayApi(params: {
   assignedTo?: string;
 }) {
   const url = `${API_BASE}/stats/complaints/calendar/admin-day${qs({
+    date: params?.date,
+    viewType: params?.viewType,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
+    assignedTo: params?.assignedTo,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+export async function getDeanCalendarSummaryApi(params?: {
+  month?: number; // 0-11
+  year?: number;
+  status?: string;
+  priority?: string;
+  categories?: string[];
+  submissionFrom?: string; // yyyy-mm-dd
+  submissionTo?: string; // yyyy-mm-dd
+  deadlineFrom?: string; // yyyy-mm-dd
+  deadlineTo?: string; // yyyy-mm-dd
+  viewType?: "submission" | "deadline";
+  assignedTo?: string; // dean id (optional narrowing)
+}) {
+  const url = `${API_BASE}/stats/complaints/calendar/dean-summary${qs({
+    month: typeof params?.month === "number" ? params?.month : undefined,
+    year: typeof params?.year === "number" ? params?.year : undefined,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
+    submissionFrom: params?.submissionFrom,
+    submissionTo: params?.submissionTo,
+    deadlineFrom: params?.deadlineFrom,
+    deadlineTo: params?.deadlineTo,
+    viewType: params?.viewType,
+    assignedTo: params?.assignedTo,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    totalThisMonth: number;
+    overdue: number;
+    dueToday: number;
+    resolvedThisMonth: number;
+    countsByStatus?: Record<string, number>;
+    countsByPriority?: Record<string, number>;
+    countsByCategory?: Record<string, number>;
+  }>(res);
+}
+
+export async function getDeanCalendarDayApi(params: {
+  date: string; // yyyy-mm-dd
+  viewType?: "submission" | "deadline";
+  status?: string;
+  priority?: string;
+  categories?: string[];
+  assignedTo?: string;
+}) {
+  const url = `${API_BASE}/stats/complaints/calendar/dean-day${qs({
     date: params?.date,
     viewType: params?.viewType,
     status: params?.status,
