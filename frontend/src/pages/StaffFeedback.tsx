@@ -185,12 +185,21 @@ export function StaffFeedback() {
   };
 
   const filteredItems = useMemo(() => {
+    const userEmail = (user?.email || "").toLowerCase();
+    // apply review filter first
+    let base = items;
     if (reviewFilter === "reviewed")
-      return items.filter((it) => !!it.feedback?.reviewed);
-    if (reviewFilter === "unreviewed")
-      return items.filter((it) => !it.feedback?.reviewed);
-    return items;
-  }, [items, reviewFilter]);
+      base = items.filter((it) => !!it.feedback?.reviewed);
+    else if (reviewFilter === "unreviewed")
+      base = items.filter((it) => !it.feedback?.reviewed);
+
+    // show only feedback for complaints directly assigned to the current user
+    if (!userEmail) return base;
+    return base.filter((it) => {
+      const assigned = (it.assignedTo?.email || "").toLowerCase();
+      return assigned === userEmail;
+    });
+  }, [items, reviewFilter, user]);
 
   return (
     <div className="space-y-6">

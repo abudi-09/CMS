@@ -2,6 +2,27 @@ import mongoose from "mongoose";
 import Complaint from "../models/complaint.model.js";
 import User from "../models/user.model.js";
 
+// Small helpers to provide color hints for priority/status distribution
+function getPriorityColor(priority) {
+  if (!priority) return "#8884d8";
+  const p = String(priority).toLowerCase();
+  if (p === "critical") return "#ef4444";
+  if (p === "high") return "#f97316";
+  if (p === "medium") return "#eab308";
+  if (p === "low") return "#22c55e";
+  return "#8884d8";
+}
+
+function getStatusColor(status) {
+  if (!status) return "#82ca9d";
+  const s = String(status).toLowerCase();
+  if (s === "pending") return "#f59e0b"; // amber
+  if (s === "in progress" || s === "in-progress") return "#3b82f6"; // blue
+  if (s === "resolved") return "#10b981"; // green
+  if (s === "rejected") return "#ef4444"; // red
+  return "#94a3b8"; // gray
+}
+
 // Complaints Stats //  admin
 export const getComplaintStats = async (req, res) => {
   try {
