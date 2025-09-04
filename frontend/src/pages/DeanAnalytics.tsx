@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 import {
   getDeanVisibleComplaintStatsApi,
+  getDeanMonthlyTrendsApi,
+  getDeanDepartmentOverviewApi,
   listAllComplaintsApi,
   getStudentCountApi,
 } from "@/lib/api";
@@ -144,28 +146,103 @@ export default function DeanAnalytics() {
     }>
   >([]);
   const [loading, setLoading] = useState(true);
+  const [monthlyTrendDataDyn, setMonthlyTrendDataDyn] = useState<
+    Array<{ month: string; submitted: number; resolved: number }>
+  >([]);
+  const [totalDepartments, setTotalDepartments] = useState<number>(0);
+
+  // Normalize unknown complaints to a lightweight shape used by charts
+  type LiteComplaint = {
+    id: string;
+    title: string;
+    status: string;
+    department?: string | null;
+    category?: string | null;
+    priority?: string | null;
+    submittedDate?: string | Date | null;
+    resolvedAt?: string | Date | null;
+  };
+  const normalizeComplaints = useCallback((raw: unknown[]): LiteComplaint[] => {
+    return raw
+      .map((o) => {
+        const r = (
+          o && typeof o === "object" ? (o as Record<string, unknown>) : {}
+        ) as Record<string, unknown>;
+        const id = String(r._id ?? r.id ?? "");
+        const title = String(r.title ?? "");
+        const status = String(r.status ?? "");
+        const department =
+          typeof r.department === "string" ? (r.department as string) : null;
+        const category =
+          typeof r.category === "string" ? (r.category as string) : null;
+        const priority =
+          typeof r.priority === "string" ? (r.priority as string) : null;
+        const submittedDate =
+          (r.submittedDate as string | undefined) ??
+          (r.createdAt as string | undefined) ??
+          null;
+        const resolvedAt = (r.resolvedAt as string | undefined) ?? null;
+        return {
+          id,
+          title,
+          status,
+          department,
+          category,
+          priority,
+          submittedDate,
+          resolvedAt,
+        };
+      })
+      .filter((c) => c.id && c.title && c.status);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
-        const [stats, all, studentsResp] = await Promise.all([
-          getDeanVisibleComplaintStatsApi().catch((e) => {
-            throw new Error(
-              e instanceof Error ? e.message : "Failed to fetch dean stats"
-            );
-          }),
-          listAllComplaintsApi().catch((e) => {
-            throw new Error(
-              e instanceof Error ? e.message : "Failed to fetch complaints"
-            );
-          }),
-          getStudentCountApi().catch(() => ({ students: null })),
-        ]);
+        const [stats, monthly, overview, all, studentsResp] = await Promise.all(
+          [
+            getDeanVisibleComplaintStatsApi().catch((e) => {
+              throw new Error(
+                e instanceof Error ? e.message : "Failed to fetch dean stats"
+              );
+            }),
+            getDeanMonthlyTrendsApi({ months: 6 }).catch((e) => {
+              throw new Error(
+                e instanceof Error
+                  ? e.message
+                  : "Failed to fetch dean monthly trends"
+              );
+            }),
+            getDeanDepartmentOverviewApi().catch((e) => {
+              throw new Error(
+                e instanceof Error
+                  ? e.message
+                  : "Failed to fetch dean department overview"
+              );
+            }),
+            listAllComplaintsApi().catch((e) => {
+              throw new Error(
+                e instanceof Error ? e.message : "Failed to fetch complaints"
+              );
+            }),
+            getStudentCountApi().catch(() => ({ students: null })),
+          ]
+        );
         if (cancelled) return;
         setSummary(stats);
-        setComplaints(all);
+        setMonthlyTrendDataDyn(
+          (monthly?.data || []).map((d) => ({
+            month: d.month,
+            submitted: d.submitted,
+            resolved: d.resolved,
+          }))
+        );
+        setTotalDepartments(
+          Array.isArray(overview?.departments) ? overview.departments.length : 0
+        );
+        setComplaints(normalizeComplaints(all as unknown[]));
         setTotalStudents(
           typeof studentsResp?.students === "number"
             ? studentsResp.students
@@ -186,16 +263,11 @@ export default function DeanAnalytics() {
     return () => {
       cancelled = true;
     };
-  }, [toast]);
+  }, [toast, normalizeComplaints]);
 
   // Compute datasets
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
-  const totalDepartments = useMemo(() => {
-    const set = new Set(
-      (complaints || []).map((c) => String(c.department || "")).filter(Boolean)
-    );
-    return set.size;
-  }, [complaints]);
+  // totalDepartments now comes from backend department overview
 
   const categoryDataDyn = useMemo(() => {
     const map = new Map<string, number>();
@@ -240,39 +312,7 @@ export default function DeanAnalytics() {
       .map((s) => ({ status: s, count: counts[s] }));
   }, [complaints]);
 
-  const monthlyTrendDataDyn = useMemo(() => {
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const submittedCounts = new Array(12).fill(0);
-    const resolvedCounts = new Array(12).fill(0);
-    complaints.forEach((c) => {
-      const sub = c.submittedDate ? new Date(c.submittedDate as string) : null;
-      if (sub && !isNaN(sub.getTime())) {
-        submittedCounts[sub.getMonth()] += 1;
-      }
-      const res = c.resolvedAt ? new Date(c.resolvedAt as string) : null;
-      if (res && !isNaN(res.getTime())) {
-        resolvedCounts[res.getMonth()] += 1;
-      }
-    });
-    return months.map((month, i) => ({
-      month,
-      submitted: submittedCounts[i],
-      resolved: resolvedCounts[i],
-    }));
-  }, [complaints]);
+  // monthlyTrendDataDyn now comes from backend
 
   // Placeholder staff table derived from complaints if needed later
   const sortedStaff = staffPerformance; // keep mock until we add staff aggregation

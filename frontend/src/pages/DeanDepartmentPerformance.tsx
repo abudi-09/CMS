@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -75,15 +74,16 @@ export default function DeanDepartmentPerformance() {
   const [departmentFilter, setDepartmentFilter] = useState<"All" | string>(
     "All"
   );
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortKey>("successRate");
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<DeptRow[]>([]);
   const [deptComplaints, setDeptComplaints] = useState<DeptComplaint[] | null>(
     null
   );
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   // Load department performance
   useEffect(() => {
@@ -94,9 +94,7 @@ export default function DeanDepartmentPerformance() {
         const q = new URLSearchParams();
         if (dateFrom) q.set("from", dateFrom);
         if (dateTo) q.set("to", dateTo);
-        const path = `/stats/analytics/dean/department-performance${
-          q.toString() ? `?${q.toString()}` : ""
-        }`;
+        const path = `/stats/analytics/dean/department-performance?${q.toString()}`;
         const data = await apiClient.get<{ departments: DeptRow[] }>(path);
         if (!cancelled) setRows(data.departments || []);
       } catch (e) {
@@ -186,6 +184,8 @@ export default function DeanDepartmentPerformance() {
     const load = async () => {
       if (!selectedDept) return;
       try {
+        setDetailsLoading(true);
+        setDeptComplaints(null);
         const q = new URLSearchParams({ department: selectedDept });
         if (dateFrom) q.set("from", dateFrom);
         if (dateTo) q.set("to", dateTo);
@@ -199,6 +199,8 @@ export default function DeanDepartmentPerformance() {
           title: "Failed to load complaints",
           description: msg,
         });
+      } finally {
+        if (!cancelled) setDetailsLoading(false);
       }
     };
     load();
@@ -530,15 +532,18 @@ export default function DeanDepartmentPerformance() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             {/* Mobile modal list as cards */}
             <div className="md:hidden space-y-3">
+              {detailsLoading && (
+                <div className="text-center py-6 text-muted-foreground">
+                  Loading…
+                </div>
+              )}
               {deptComplaints?.map((c) => (
                 <div key={c.id} className="border rounded-lg p-4 bg-card">
                   <div className="flex items-center justify-between">
-                    <div className="font-mono text-sm font-semibold">
-                      {c.code || c.id}
-                    </div>
+                    <div className="text-sm font-semibold">{c.title}</div>
                     <Badge
                       className={
                         c.status === "Resolved"
@@ -550,9 +555,6 @@ export default function DeanDepartmentPerformance() {
                     >
                       {c.status}
                     </Badge>
-                  </div>
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    {c.title}
                   </div>
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                     <div>
@@ -593,7 +595,6 @@ export default function DeanDepartmentPerformance() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Assigned To</TableHead>
@@ -603,11 +604,18 @@ export default function DeanDepartmentPerformance() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {detailsLoading && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center text-muted-foreground"
+                      >
+                        Loading…
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {deptComplaints?.map((c) => (
                     <TableRow key={c.id}>
-                      <TableCell className="font-mono text-xs">
-                        {c.code || c.id}
-                      </TableCell>
                       <TableCell>{c.title}</TableCell>
                       <TableCell>
                         <Badge
