@@ -301,25 +301,40 @@ export default function HoDAnalytics() {
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie
-                  data={categoryData.map((c) => ({
-                    name: c.category,
-                    count: c.count,
-                  }))}
-                  dataKey="count"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
+                {(() => {
+                  // Sort categories by count descending
+                  const sorted = [...categoryData].sort(
+                    (a, b) => b.count - a.count
+                  );
+                  const top4 = sorted.slice(0, 4);
+                  const othersCount = sorted
+                    .slice(4)
+                    .reduce((sum, c) => sum + c.count, 0);
+                  const pieData = [
+                    ...top4.map((c) => ({ name: c.category, count: c.count })),
+                    ...(othersCount > 0
+                      ? [{ name: "Others", count: othersCount }]
+                      : []),
+                  ];
+                  return (
+                    <Pie
+                      data={pieData}
+                      dataKey="count"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                  );
+                })()}
                 <Tooltip />
                 <Legend />
               </PieChart>
