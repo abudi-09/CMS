@@ -1769,6 +1769,418 @@ export const getDeanAnalyticsMonthlyTrends = async (req, res) => {
   }
 };
 
+// Dean Department Performance (per-department aggregates, dean-visible only)
+export const getDeanDepartmentPerformance = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Optional date filters (createdAt range)
+    const from = req.query.from
+      ? new Date(String(req.query.from) + "T00:00:00.000Z")
+      : null;
+    const to = req.query.to
+      ? new Date(String(req.query.to) + "T23:59:59.999Z")
+      : null;
+    const createdRange = {};
+    if (from) createdRange.$gte = from;
+    if (to) createdRange.$lte = to;
+
+    // Base dean-visible filter: exclude direct-to-admin, exclude soft-deleted
+    const deanBase = {
+      submittedTo: { $ne: "admin" },
+      $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+      ...(Object.keys(createdRange).length ? { createdAt: createdRange } : {}),
+    };
+
+    // Canonical department list (enforced)
+    const CANONICAL_DEPTS = [
+      "Information Technology",
+      "Information Science",
+      "Computer Science",
+      "Information System",
+    ];
+
+    // Aggregate per department core counts (normalized department)
+    const departmentAgg = await Complaint.aggregate([
+      { $match: deanBase },
+      {
+        $addFields: {
+          deptNorm: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /information\s*technology/i,
+                    },
+                  },
+                  then: "Information Technology",
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /information\s*science/i,
+                    },
+                  },
+                  then: "Information Science",
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /computer\s*science/i,
+                    },
+                  },
+                  then: "Computer Science",
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /information\s*system/i,
+                    },
+                  },
+                  then: "Information System",
+                },
+              ],
+              default: "Unknown",
+            },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$deptNorm",
+          totalComplaints: { $sum: 1 },
+          resolvedComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          pendingCount: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          inProgressCount: {
+            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+          },
+          // Overdue: deadline passed and not Resolved/Closed
+          overdueCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ifNull: ["$deadline", false] },
+                    { $lt: ["$deadline", new Date()] },
+                    { $not: [{ $in: ["$status", ["Resolved", "Closed"]] }] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          sumResolutionDays: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$createdAt", null] },
+                    { $ne: ["$updatedAt", null] },
+                  ],
+                },
+                {
+                  $divide: [
+                    { $subtract: ["$updatedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          resolvedCountForAvg: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    // Staff count per department (normalized)
+    const staffCounts = await User.aggregate([
+      { $match: { role: "staff", isActive: true } },
+      {
+        $addFields: {
+          deptNorm: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /information\s*technology/i,
+                    },
+                  },
+                  then: "Information Technology",
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /information\s*science/i,
+                    },
+                  },
+                  then: "Information Science",
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /computer\s*science/i,
+                    },
+                  },
+                  then: "Computer Science",
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ["$department", ""] },
+                      regex: /information\s*system/i,
+                    },
+                  },
+                  then: "Information System",
+                },
+              ],
+              default: "Unknown",
+            },
+          },
+        },
+      },
+      { $group: { _id: "$deptNorm", staffCount: { $sum: 1 } } },
+    ]);
+    const staffCountMap = new Map();
+    staffCounts.forEach((s) => staffCountMap.set(String(s._id), s.staffCount));
+
+    // Resolve-by role using ActivityLog for resolved complaints (latest resolved log per complaint)
+    // First, get resolved complaints ids per department for deanBase
+    const resolvedComplaints = await Complaint.find({
+      ...deanBase,
+      status: "Resolved",
+    })
+      .select("_id department")
+      .lean();
+    const resolvedIds = resolvedComplaints.map((c) => c._id);
+    let resolvedRoleAgg = [];
+    if (resolvedIds.length) {
+      resolvedRoleAgg = await (
+        await mongoose.connection.db
+      )
+        .collection("activitylogs")
+        .aggregate([
+          {
+            $match: {
+              complaint: { $in: resolvedIds },
+              action: "Status Updated to Resolved",
+            },
+          },
+          { $sort: { timestamp: -1 } },
+          { $group: { _id: "$complaint", role: { $first: "$role" } } },
+        ])
+        .toArray();
+    }
+    const roleByComplaint = new Map();
+    resolvedRoleAgg.forEach((r) => roleByComplaint.set(String(r._id), r.role));
+    const deptResolvedBy = new Map(); // dept -> {hod, staff}
+    resolvedComplaints.forEach((c) => {
+      const name = c.department || "";
+      const dept = /information\s*technology/i.test(name)
+        ? "Information Technology"
+        : /information\s*science/i.test(name)
+        ? "Information Science"
+        : /computer\s*science/i.test(name)
+        ? "Computer Science"
+        : /information\s*system/i.test(name)
+        ? "Information System"
+        : "Unknown";
+      const role = roleByComplaint.get(String(c._id));
+      const cur = deptResolvedBy.get(dept) || { hod: 0, staff: 0 };
+      if (role === "hod") cur.hod += 1;
+      else if (role === "staff") cur.staff += 1;
+      else {
+        // count others (dean/admin) towards hod bucket for presentation if needed
+        // but we'll keep only hod/staff in our response
+      }
+      deptResolvedBy.set(dept, cur);
+    });
+
+    // Restrict to canonical depts only and map rows
+    const departments = departmentAgg
+      .filter((row) => CANONICAL_DEPTS.includes(String(row._id)))
+      .map((row) => {
+        const department = String(row._id);
+        const totalComplaints = row.totalComplaints || 0;
+        const resolvedComplaints = row.resolvedComplaints || 0;
+        const pending = row.pendingCount || 0;
+        const inProgress = (row.inProgressCount || 0) + 0; // kept separate
+        const overdue = row.overdueCount || 0;
+        const staffCount = Number(staffCountMap.get(department) || 0);
+        const avgResolutionTime = row.resolvedCountForAvg
+          ? Math.round((row.sumResolutionDays / row.resolvedCountForAvg) * 10) /
+            10
+          : 0;
+        const successRate = totalComplaints
+          ? Math.round((resolvedComplaints / totalComplaints) * 100 * 10) / 10
+          : 0;
+        const rb = deptResolvedBy.get(department) || { hod: 0, staff: 0 };
+        return {
+          department,
+          totalComplaints,
+          resolvedComplaints,
+          pendingComplaints: pending,
+          inProgress,
+          overdue,
+          resolvedHoD: rb.hod || 0,
+          resolvedStaff: rb.staff || 0,
+          staffCount,
+          avgResolutionTime,
+          successRate,
+        };
+      });
+
+    // Ensure fixed order and include missing canonical depts with zeros
+    const mapByDept = new Map(departments.map((d) => [d.department, d]));
+    const ordered = CANONICAL_DEPTS.map(
+      (name) =>
+        mapByDept.get(name) || {
+          department: name,
+          totalComplaints: 0,
+          resolvedComplaints: 0,
+          pendingComplaints: 0,
+          inProgress: 0,
+          overdue: 0,
+          resolvedHoD: 0,
+          resolvedStaff: 0,
+          staffCount: Number(staffCountMap.get(name) || 0),
+          avgResolutionTime: 0,
+          successRate: 0,
+        }
+    );
+
+    res.status(200).json({ departments: ordered });
+  } catch (err) {
+    console.error("getDeanDepartmentPerformance error:", err?.message || err);
+    res
+      .status(500)
+      .json({ error: "Failed to fetch dean department performance" });
+  }
+};
+
+// Dean Department Complaints (detail list for a department)
+export const getDeanDepartmentComplaints = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const rawDept = String(req.query.department || "").trim();
+    if (!rawDept)
+      return res.status(400).json({ error: "department is required" });
+    // Normalize to canonical name
+    const canonical = /information\s*technology/i.test(rawDept)
+      ? "Information Technology"
+      : /information\s*science/i.test(rawDept)
+      ? "Information Science"
+      : /computer\s*science/i.test(rawDept)
+      ? "Computer Science"
+      : /information\s*system/i.test(rawDept)
+      ? "Information System"
+      : null;
+    if (!canonical)
+      return res.status(400).json({ error: "Unsupported department" });
+
+    const from = req.query.from
+      ? new Date(String(req.query.from) + "T00:00:00.000Z")
+      : null;
+    const to = req.query.to
+      ? new Date(String(req.query.to) + "T23:59:59.999Z")
+      : null;
+    const createdRange = {};
+    if (from) createdRange.$gte = from;
+    if (to) createdRange.$lte = to;
+
+    const deanBase = {
+      submittedTo: { $ne: "admin" },
+      $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+      // Match any variant of the canonical department via regex
+      department: new RegExp(canonical.replace(/\s+/g, "\\s*"), "i"),
+      ...(Object.keys(createdRange).length ? { createdAt: createdRange } : {}),
+    };
+
+    const items = await Complaint.find(deanBase)
+      .select(
+        "complaintCode title status assignedTo deadline createdAt updatedAt resolvedAt"
+      )
+      .populate({ path: "assignedTo", select: "name role" })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Lookup latest resolved-by role per complaint
+    const ids = items.map((c) => c._id);
+    let roleByComplaint = new Map();
+    if (ids.length) {
+      const logs = await (
+        await mongoose.connection.db
+      )
+        .collection("activitylogs")
+        .aggregate([
+          {
+            $match: {
+              complaint: { $in: ids },
+              action: "Status Updated to Resolved",
+            },
+          },
+          { $sort: { timestamp: -1 } },
+          {
+            $group: {
+              _id: "$complaint",
+              role: { $first: "$role" },
+              ts: { $first: "$timestamp" },
+            },
+          },
+        ])
+        .toArray();
+      roleByComplaint = new Map(
+        logs.map((l) => [String(l._id), { role: l.role, ts: l.ts }])
+      );
+    }
+
+    const complaints = items.map((c) => ({
+      id: String(c._id),
+      code: c.complaintCode,
+      title: c.title,
+      status: c.status,
+      assignedTo: c.assignedTo
+        ? { name: c.assignedTo.name, role: c.assignedTo.role }
+        : null,
+      createdAt: c.createdAt,
+      deadline: c.deadline || null,
+      resolvedAt: c.resolvedAt || null,
+      resolvedBy: (() => {
+        const entry = roleByComplaint.get(String(c._id));
+        return entry ? entry.role : null;
+      })(),
+    }));
+
+    res.status(200).json({ complaints });
+  } catch (err) {
+    console.error("getDeanDepartmentComplaints error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch department complaints" });
+  }
+};
 // HoD Analytics Summary
 export const getHodAnalyticsSummary = async (req, res) => {
   try {

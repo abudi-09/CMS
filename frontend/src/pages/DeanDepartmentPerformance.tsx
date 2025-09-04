@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,242 +32,107 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-
-type DepartmentName =
-  | "Computer Science"
-  | "IT"
-  | "Information System"
-  | "Information Science";
-
-type ComplaintStatus = "resolved" | "in-progress" | "pending" | "overdue";
-type AssignedTo = "HoD" | "Staff";
-
-interface ComplaintItem {
-  id: string;
-  title: string;
-  status: ComplaintStatus;
-  assignedTo: AssignedTo;
-  createdAt: string; // ISO date
-  deadline: string; // ISO date
-  resolvedBy?: AssignedTo;
-  resolvedAt?: string; // ISO date
-}
-
-interface DepartmentData {
-  id: string;
-  department: DepartmentName;
-  complaints: ComplaintItem[];
-}
-
-const DEPARTMENTS: DepartmentName[] = [
-  "Computer Science",
-  "IT",
-  "Information System",
-  "Information Science",
-];
-
-// Mock helper to create dates in 2025
-function d(dateStr: string) {
-  return new Date(dateStr).toISOString();
-}
-
-const MOCK_DATA: DepartmentData[] = [
-  {
-    id: "cs",
-    department: "Computer Science",
-    complaints: [
-      {
-        id: "CS-101",
-        title: "Lab PCs not working",
-        status: "resolved",
-        assignedTo: "Staff",
-        createdAt: d("2025-01-05"),
-        deadline: d("2025-01-10"),
-        resolvedBy: "Staff",
-        resolvedAt: d("2025-01-09"),
-      },
-      {
-        id: "CS-102",
-        title: "WiFi issues",
-        status: "in-progress",
-        assignedTo: "HoD",
-        createdAt: d("2025-02-01"),
-        deadline: d("2025-02-05"),
-      },
-      {
-        id: "CS-103",
-        title: "Projector broken",
-        status: "overdue",
-        assignedTo: "Staff",
-        createdAt: d("2025-02-12"),
-        deadline: d("2025-02-20"),
-      },
-      {
-        id: "CS-104",
-        title: "Course portal access",
-        status: "resolved",
-        assignedTo: "HoD",
-        createdAt: d("2025-03-03"),
-        deadline: d("2025-03-06"),
-        resolvedBy: "HoD",
-        resolvedAt: d("2025-03-05"),
-      },
-    ],
-  },
-  {
-    id: "it",
-    department: "IT",
-    complaints: [
-      {
-        id: "IT-201",
-        title: "Server downtime",
-        status: "resolved",
-        assignedTo: "Staff",
-        createdAt: d("2025-01-14"),
-        deadline: d("2025-01-18"),
-        resolvedBy: "Staff",
-        resolvedAt: d("2025-01-17"),
-      },
-      {
-        id: "IT-202",
-        title: "Account locked",
-        status: "pending",
-        assignedTo: "Staff",
-        createdAt: d("2025-03-10"),
-        deadline: d("2025-03-12"),
-      },
-      {
-        id: "IT-203",
-        title: "Email delivery failure",
-        status: "resolved",
-        assignedTo: "HoD",
-        createdAt: d("2025-04-02"),
-        deadline: d("2025-04-05"),
-        resolvedBy: "HoD",
-        resolvedAt: d("2025-04-04"),
-      },
-    ],
-  },
-  {
-    id: "is",
-    department: "Information System",
-    complaints: [
-      {
-        id: "IS-301",
-        title: "ERP slow",
-        status: "resolved",
-        assignedTo: "Staff",
-        createdAt: d("2025-02-05"),
-        deadline: d("2025-02-10"),
-        resolvedBy: "Staff",
-        resolvedAt: d("2025-02-09"),
-      },
-      {
-        id: "IS-302",
-        title: "Report generation bug",
-        status: "overdue",
-        assignedTo: "HoD",
-        createdAt: d("2025-03-20"),
-        deadline: d("2025-03-28"),
-      },
-      {
-        id: "IS-303",
-        title: "Data sync issue",
-        status: "in-progress",
-        assignedTo: "Staff",
-        createdAt: d("2025-04-08"),
-        deadline: d("2025-04-12"),
-      },
-    ],
-  },
-  {
-    id: "isc",
-    department: "Information Science",
-    complaints: [
-      {
-        id: "ISC-401",
-        title: "Library system access",
-        status: "resolved",
-        assignedTo: "Staff",
-        createdAt: d("2025-01-22"),
-        deadline: d("2025-01-27"),
-        resolvedBy: "Staff",
-        resolvedAt: d("2025-01-26"),
-      },
-      {
-        id: "ISC-402",
-        title: "Thesis submission portal",
-        status: "pending",
-        assignedTo: "HoD",
-        createdAt: d("2025-04-15"),
-        deadline: d("2025-04-20"),
-      },
-    ],
-  },
-];
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api";
 
 type SortKey = "successRate" | "total" | "resolved" | "overdue" | "inProgress";
 
+type DeptRow = {
+  department: string;
+  totalComplaints: number;
+  resolvedComplaints: number;
+  pendingComplaints: number;
+  inProgress: number;
+  overdue: number;
+  resolvedHoD: number;
+  resolvedStaff: number;
+  staffCount: number;
+  avgResolutionTime: number;
+  successRate: number;
+};
+
+type DeptComplaint = {
+  id: string;
+  code?: string;
+  title: string;
+  status: string;
+  assignedTo: { name?: string; role?: string } | null;
+  createdAt: string;
+  deadline: string | null;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+};
+
+const CANONICAL_DEPARTMENTS = [
+  "Information Technology",
+  "Information Science",
+  "Computer Science",
+  "Information System",
+] as const;
+
 export default function DeanDepartmentPerformance() {
-  const [departmentFilter, setDepartmentFilter] = useState<
-    "All" | DepartmentName
-  >("All");
+  const { toast } = useToast();
+  const [departmentFilter, setDepartmentFilter] = useState<"All" | string>(
+    "All"
+  );
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortKey>("successRate");
-  const [selectedDept, setSelectedDept] = useState<DepartmentName | null>(null);
-
-  const dateInRange = useMemo(
-    () => (dateISO: string) => {
-      if (!dateFrom && !dateTo) return true;
-      const t = new Date(dateISO).getTime();
-      if (dateFrom && t < new Date(dateFrom).getTime()) return false;
-      if (dateTo && t > new Date(dateTo).getTime()) return false;
-      return true;
-    },
-    [dateFrom, dateTo]
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<DeptRow[]>([]);
+  const [deptComplaints, setDeptComplaints] = useState<DeptComplaint[] | null>(
+    null
   );
 
-  // Filter complaints by department and date range
-  const filtered = useMemo(() => {
+  // Load department performance
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const q = new URLSearchParams();
+        if (dateFrom) q.set("from", dateFrom);
+        if (dateTo) q.set("to", dateTo);
+        const path = `/stats/analytics/dean/department-performance${
+          q.toString() ? `?${q.toString()}` : ""
+        }`;
+        const data = await apiClient.get<{ departments: DeptRow[] }>(path);
+        if (!cancelled) setRows(data.departments || []);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast({
+          variant: "destructive",
+          title: "Failed to load performance",
+          description: msg,
+        });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateFrom, dateTo, toast]);
+
+  // Filter rows by department
+  const perDept = useMemo(() => {
     const base =
       departmentFilter === "All"
-        ? MOCK_DATA
-        : MOCK_DATA.filter((d) => d.department === departmentFilter);
-    return base.map((d) => ({
-      ...d,
-      complaints: d.complaints.filter((c) => dateInRange(c.createdAt)),
+        ? rows
+        : rows.filter((r) => r.department === departmentFilter);
+    return base.map((r) => ({
+      department: r.department,
+      total: r.totalComplaints,
+      resolvedHoD: r.resolvedHoD || 0,
+      resolvedStaff: r.resolvedStaff || 0,
+      inProgress: r.inProgress || 0,
+      overdue: r.overdue || 0,
+      resolved: r.resolvedComplaints || 0,
+      successRate: Math.round(r.successRate || 0),
     }));
-  }, [departmentFilter, dateInRange]);
-
-  // Aggregate per-department metrics
-  const perDept = useMemo(() => {
-    return filtered.map((d) => {
-      const total = d.complaints.length;
-      const resolvedHoD = d.complaints.filter(
-        (c) => c.status === "resolved" && c.resolvedBy === "HoD"
-      ).length;
-      const resolvedStaff = d.complaints.filter(
-        (c) => c.status === "resolved" && c.resolvedBy === "Staff"
-      ).length;
-      const inProgress = d.complaints.filter(
-        (c) => c.status === "in-progress" || c.status === "pending"
-      ).length;
-      const overdue = d.complaints.filter((c) => c.status === "overdue").length;
-      const resolved = resolvedHoD + resolvedStaff;
-      const successRate = total ? Math.round((resolved / total) * 100) : 0;
-      return {
-        department: d.department,
-        total,
-        resolvedHoD,
-        resolvedStaff,
-        inProgress,
-        overdue,
-        resolved,
-        successRate,
-      };
-    });
-  }, [filtered]);
+  }, [rows, departmentFilter]);
 
   const totals = useMemo(() => {
     return perDept.reduce(
@@ -311,9 +176,36 @@ export default function DeanDepartmentPerformance() {
   // Modal selection
   const selectedDetails = useMemo(() => {
     if (!selectedDept) return null;
-    const dept = filtered.find((d) => d.department === selectedDept);
-    return dept || null;
-  }, [selectedDept, filtered]);
+    const dept = perDept.find((d) => d.department === selectedDept);
+    return dept ? { department: dept.department } : null;
+  }, [selectedDept, perDept]);
+
+  // Load complaints for selected department
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!selectedDept) return;
+      try {
+        const q = new URLSearchParams({ department: selectedDept });
+        if (dateFrom) q.set("from", dateFrom);
+        if (dateTo) q.set("to", dateTo);
+        const path = `/stats/analytics/dean/department-complaints?${q.toString()}`;
+        const data = await apiClient.get<{ complaints: DeptComplaint[] }>(path);
+        if (!cancelled) setDeptComplaints(data.complaints || []);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast({
+          variant: "destructive",
+          title: "Failed to load complaints",
+          description: msg,
+        });
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDept, dateFrom, dateTo, toast]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -386,16 +278,14 @@ export default function DeanDepartmentPerformance() {
               </label>
               <Select
                 value={departmentFilter}
-                onValueChange={(v: DepartmentName | "All") =>
-                  setDepartmentFilter(v)
-                }
+                onValueChange={(v: string | "All") => setDepartmentFilter(v)}
               >
                 <SelectTrigger className="w-full sm:w-56 h-11">
                   <SelectValue placeholder="All Departments" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Departments</SelectItem>
-                  {DEPARTMENTS.map((d) => (
+                  {CANONICAL_DEPARTMENTS.map((d) => (
                     <SelectItem key={d} value={d}>
                       {d}
                     </SelectItem>
@@ -462,9 +352,7 @@ export default function DeanDepartmentPerformance() {
                 <div
                   key={d.department}
                   className="border rounded-lg p-4 bg-card cursor-pointer hover:bg-accent/50"
-                  onClick={() =>
-                    setSelectedDept(d.department as DepartmentName)
-                  }
+                  onClick={() => setSelectedDept(d.department)}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -545,9 +433,7 @@ export default function DeanDepartmentPerformance() {
                     <TableRow
                       key={d.department}
                       className="cursor-pointer hover:bg-accent/50"
-                      onClick={() =>
-                        setSelectedDept(d.department as DepartmentName)
-                      }
+                      onClick={() => setSelectedDept(d.department)}
                     >
                       <TableCell className="font-medium">
                         {d.department}
@@ -647,17 +533,17 @@ export default function DeanDepartmentPerformance() {
           <div className="space-y-4">
             {/* Mobile modal list as cards */}
             <div className="md:hidden space-y-3">
-              {selectedDetails?.complaints.map((c) => (
+              {deptComplaints?.map((c) => (
                 <div key={c.id} className="border rounded-lg p-4 bg-card">
                   <div className="flex items-center justify-between">
                     <div className="font-mono text-sm font-semibold">
-                      {c.id}
+                      {c.code || c.id}
                     </div>
                     <Badge
                       className={
-                        c.status === "resolved"
+                        c.status === "Resolved"
                           ? "bg-green-100 text-green-800"
-                          : c.status === "overdue"
+                          : c.status === "Overdue"
                           ? "bg-red-100 text-red-800"
                           : "bg-yellow-100 text-yellow-800"
                       }
@@ -671,12 +557,18 @@ export default function DeanDepartmentPerformance() {
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                     <div>
                       <p className="text-muted-foreground">Assigned To</p>
-                      <p className="font-medium">{c.assignedTo}</p>
+                      <p className="font-medium">
+                        {c.assignedTo?.name
+                          ? `${c.assignedTo.name} (${c.assignedTo.role || ""})`
+                          : "-"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Deadline</p>
                       <p className="font-medium">
-                        {new Date(c.deadline).toLocaleDateString()}
+                        {c.deadline
+                          ? new Date(c.deadline).toLocaleDateString()
+                          : "-"}
                       </p>
                     </div>
                     <div>
@@ -711,18 +603,18 @@ export default function DeanDepartmentPerformance() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedDetails?.complaints.map((c) => (
+                  {deptComplaints?.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs">
-                        {c.id}
+                        {c.code || c.id}
                       </TableCell>
                       <TableCell>{c.title}</TableCell>
                       <TableCell>
                         <Badge
                           className={
-                            c.status === "resolved"
+                            c.status === "Resolved"
                               ? "bg-green-100 text-green-800"
-                              : c.status === "overdue"
+                              : c.status === "Overdue"
                               ? "bg-red-100 text-red-800"
                               : "bg-yellow-100 text-yellow-800"
                           }
@@ -730,9 +622,15 @@ export default function DeanDepartmentPerformance() {
                           {c.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{c.assignedTo}</TableCell>
                       <TableCell>
-                        {new Date(c.deadline).toLocaleDateString()}
+                        {c.assignedTo?.name
+                          ? `${c.assignedTo.name} (${c.assignedTo.role || ""})`
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {c.deadline
+                          ? new Date(c.deadline).toLocaleDateString()
+                          : "-"}
                       </TableCell>
                       <TableCell>{c.resolvedBy || "-"}</TableCell>
                       <TableCell>

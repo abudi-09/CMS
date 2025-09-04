@@ -30,6 +30,8 @@ import {
   getDeanAnalyticsSummary,
   getDeanDepartmentOverview,
   getDeanAnalyticsMonthlyTrends,
+  getDeanDepartmentPerformance,
+  getDeanDepartmentComplaints,
   getHodAnalyticsSummary,
   getHodStaffOverview,
   getHodAnalyticsMonthlyTrends,
@@ -277,6 +279,28 @@ router.get(
     return res.status(403).json({ error: "Access denied" });
   },
   getDeanAnalyticsMonthlyTrends
+);
+
+router.get(
+  "/analytics/dean/department-performance",
+  protectRoute,
+  (req, res, next) => {
+    const role = req.user?.role;
+    if (role === "admin" || role === "dean") return next();
+    return res.status(403).json({ error: "Access denied" });
+  },
+  getDeanDepartmentPerformance
+);
+
+router.get(
+  "/analytics/dean/department-complaints",
+  protectRoute,
+  (req, res, next) => {
+    const role = req.user?.role;
+    if (role === "admin" || role === "dean") return next();
+    return res.status(403).json({ error: "Access denied" });
+  },
+  getDeanDepartmentComplaints
 );
 
 // HoD Analytics Routes
