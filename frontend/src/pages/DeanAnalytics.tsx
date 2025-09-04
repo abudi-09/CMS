@@ -42,6 +42,7 @@ import {
   listAllComplaintsApi,
   getStudentCountApi,
 } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 // Mock data for charts (Dean-specific or filtered for department)
@@ -75,48 +76,20 @@ const monthlyTrendData = [
   { month: "Jun", submitted: 15, resolved: 13 },
 ];
 
-const staffPerformance = [
-  {
-    id: "1",
-    name: "Dr. Alice Carter",
-    department: "Computer Science",
-    totalAssigned: 20,
-    resolved: 18,
-    pending: 1,
-    inProgress: 1,
-    successRate: 90.0,
-  },
-  {
-    id: "2",
-    name: "Dr. Bob Lee",
-    department: "Information System",
-    totalAssigned: 15,
-    resolved: 13,
-    pending: 1,
-    inProgress: 1,
-    successRate: 86.7,
-  },
-  {
-    id: "3",
-    name: "Dr. Carol Smith",
-    department: "Information Science",
-    totalAssigned: 12,
-    resolved: 10,
-    pending: 1,
-    inProgress: 1,
-    successRate: 83.3,
-  },
-  {
-    id: "4",
-    name: "Dr. David Kim",
-    department: "Information Technology",
-    totalAssigned: 18,
-    resolved: 16,
-    pending: 1,
-    inProgress: 1,
-    successRate: 88.9,
-  },
-];
+// Department performance row shape
+type DeptPerfRow = {
+  department: string;
+  totalComplaints: number;
+  resolvedComplaints: number;
+  pendingComplaints: number;
+  inProgress: number;
+  overdue: number;
+  resolvedHoD?: number;
+  resolvedStaff?: number;
+  staffCount?: number;
+  avgResolutionTime?: number;
+  successRate: number;
+};
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
@@ -150,6 +123,8 @@ export default function DeanAnalytics() {
     Array<{ month: string; submitted: number; resolved: number }>
   >([]);
   const [totalDepartments, setTotalDepartments] = useState<number>(0);
+  const [deptRows, setDeptRows] = useState<DeptPerfRow[]>([]);
+  const [deptLoading, setDeptLoading] = useState<boolean>(false);
 
   // Normalize unknown complaints to a lightweight shape used by charts
   type LiteComplaint = {
@@ -265,6 +240,33 @@ export default function DeanAnalytics() {
     };
   }, [toast, normalizeComplaints]);
 
+  // Load department performance list for the bottom section
+  useEffect(() => {
+    let cancelled = false;
+    const loadDept = async () => {
+      setDeptLoading(true);
+      try {
+        const data = await apiClient.get<{ departments: DeptPerfRow[] }>(
+          "/stats/analytics/dean/department-performance"
+        );
+        if (!cancelled) setDeptRows(data.departments || []);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast({
+          variant: "destructive",
+          title: "Failed to load department performance",
+          description: msg,
+        });
+      } finally {
+        if (!cancelled) setDeptLoading(false);
+      }
+    };
+    loadDept();
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
+
   // Compute datasets
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   // totalDepartments now comes from backend department overview
@@ -313,9 +315,6 @@ export default function DeanAnalytics() {
   }, [complaints]);
 
   // monthlyTrendDataDyn now comes from backend
-
-  // Placeholder staff table derived from complaints if needed later
-  const sortedStaff = staffPerformance; // keep mock until we add staff aggregation
 
   // No selected state for hover-only tooltips
 
@@ -455,73 +454,82 @@ export default function DeanAnalytics() {
         </Card>
       </div>
 
-      {/* Department Performance Table */}
+      {/* Department Performance (real data) */}
       <Card>
         <CardHeader>
           <CardTitle>Department Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {sortedStaff.map((staff, index) => (
-              <div
-                key={staff.id}
-                className="flex flex-col md:flex-row items-center justify-between gap-4 border-b pb-4"
-              >
-                <div className="flex items-center gap-4 min-w-[200px]">
-                  <div className="w-8 h-8 flex items-center justify-center font-bold text-lg">
-                    {index + 1}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{staff.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {staff.department}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-center">
-                    <div className="text-lg font-bold">
-                      {staff.totalAssigned}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-success">
-                      {staff.resolved}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Resolved
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-warning">
-                      {staff.pending}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Pending</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-info">
-                      {staff.inProgress}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      In Progress
-                    </div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      staff.successRate >= 90
-                        ? "border-success text-success"
-                        : staff.successRate >= 80
-                        ? "border-warning text-warning"
-                        : "border-destructive text-destructive"
-                    }
-                  >
-                    {staff.successRate.toFixed(1)}%
-                  </Badge>
-                </div>
+            {deptLoading && deptRows.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                Loading…
               </div>
-            ))}
+            ) : deptRows.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                No data
+              </div>
+            ) : (
+              deptRows.map((row, index) => (
+                <div
+                  key={row.department}
+                  className="flex flex-col md:flex-row items-center justify-between gap-4 border-b pb-4"
+                >
+                  <div className="flex items-center gap-4 min-w-[200px]">
+                    <div className="w-8 h-8 flex items-center justify-center font-bold text-lg">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{row.department}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Staff: {row.staffCount ?? 0}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-center">
+                      <div className="text-lg font-bold">
+                        {row.totalComplaints}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Total</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-green-600">
+                        {row.resolvedComplaints}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Resolved
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-amber-600">
+                        {row.pendingComplaints}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Pending
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-blue-600">
+                        {row.inProgress}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        In Progress
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-red-600">
+                        {row.overdue}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Overdue
+                      </div>
+                    </div>
+                    <Badge>{Math.round(row.successRate)}%</Badge>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

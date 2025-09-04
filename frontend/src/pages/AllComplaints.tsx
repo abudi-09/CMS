@@ -60,6 +60,7 @@ export default function AllComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -92,7 +93,7 @@ export default function AllComplaints() {
             ? rawUnknown
             : ([] as unknown[]);
           if (cancelled) return;
-          const mapped: Complaint[] = (raw || []).map((c: unknown) => {
+          let mapped: Complaint[] = (raw || []).map((c: unknown) => {
             const obj = (c ?? {}) as Record<string, unknown>;
             return {
               id: (obj["id"] as string) || (obj["_id"] as string) || "",
@@ -127,6 +128,12 @@ export default function AllComplaints() {
               department: (obj["department"] as string) || undefined,
             };
           });
+          // Dean: show all except those submitted directly to Admin by student
+          if (roleNorm === "dean") {
+            mapped = mapped.filter(
+              (c) => String(c.submittedTo || "").toLowerCase() !== "admin"
+            );
+          }
           setComplaints(mapped);
         } else if (roleNorm === "hod" || roleNorm === "headofdepartment") {
           const [inbox, managed] = await Promise.all([
@@ -663,13 +670,14 @@ export default function AllComplaints() {
   useEffect(() => {
     async function fetchComplaints() {
       try {
+        setLoadingList(true);
         const res = await fetch("http://localhost:5000/api/complaints", {
           credentials: "include",
         });
         const data = await res.json();
         if (!Array.isArray(data)) {
           setComplaints([]);
-          setLoading(false);
+          setLoadingList(false);
           return;
         }
         const mapped: Complaint[] = (
@@ -764,7 +772,7 @@ export default function AllComplaints() {
       } catch (err) {
         setComplaints([]);
       } finally {
-        setLoading(false);
+        setLoadingList(false);
       }
     }
     fetchComplaints();
@@ -1238,7 +1246,4 @@ export default function AllComplaints() {
       />
     </div>
   );
-}
-function setLoading(arg0: boolean) {
-  throw new Error("Function not implemented.");
 }
