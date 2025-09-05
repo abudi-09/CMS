@@ -21,6 +21,8 @@ import {
   // New Analytics APIs
   getDeanCalendarSummary,
   getDeanCalendarDay,
+  getStaffCalendarSummary,
+  getStaffCalendarDay,
   getHodCalendarSummary,
   getHodCalendarDay,
   getAdminAnalyticsSummary,
@@ -216,6 +218,20 @@ router.get(
   protectRoute,
   adminOnly,
   getAdminCalendarDay
+);
+
+// Staff calendar summary/day
+router.get(
+  "/complaints/calendar/staff-summary",
+  protectRoute,
+  staffOnly,
+  getStaffCalendarSummary
+);
+router.get(
+  "/complaints/calendar/staff-day",
+  protectRoute,
+  staffOnly,
+  getStaffCalendarDay
 );
 
 // ========================= New Analytics Routes =========================

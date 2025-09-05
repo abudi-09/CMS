@@ -833,30 +833,18 @@ export const getDeanInbox = async (req, res) => {
   try {
     if (req.user.role !== "dean")
       return res.status(403).json({ error: "Access denied" });
-    // Student -> Dean submissions or items in dean path that are still pending (not escalated/admin)
+    // Private per-Dean: only items sent directly to this dean (student -> specific dean)
+    // or currently assigned to this dean. Exclude escalated/deleted.
     const filter = {
       status: { $in: ["Pending", "Assigned"] },
       isEscalated: { $ne: true },
-      $and: [
-        {
-          $or: [
-            { submittedTo: { $regex: /dean/i } },
-            { assignmentPath: { $in: ["dean"] } },
-          ],
-        },
-        {
-          $or: [
-            { submittedTo: { $exists: false } },
-            { submittedTo: null },
-            { submittedTo: { $not: /admin/i } },
-          ],
-        },
+      isDeleted: { $ne: true },
+      $or: [
+        { recipientRole: "dean", recipientId: req.user._id },
+        { assignedTo: req.user._id },
       ],
     };
-    const complaints = await Complaint.find({
-      ...filter,
-      isDeleted: { $ne: true },
-    })
+    const complaints = await Complaint.find(filter)
       .populate("submittedBy", "name email")
       .sort({ createdAt: -1 })
       .limit(100);
@@ -1893,6 +1881,56 @@ export const getAssignedComplaints = async (req, res) => {
   }
 };
 
+// Staff inbox: direct-to-staff complaints sent by students to this staff member
+export const getStaffInbox = async (req, res) => {
+  try {
+    if (req.user.role !== "staff") {
+      return res.status(403).json({ error: "Access denied: Staff only" });
+    }
+    const staffId = req.user._id;
+    const items = await Complaint.find({
+      isDeleted: { $ne: true },
+      recipientRole: { $regex: /^staff$/i },
+      recipientId: staffId,
+      sourceRole: { $regex: /^student$/i },
+    })
+      .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = items.map((c) => ({
+      id: c._id.toString(),
+      title: c.title,
+      category: c.category,
+      status: c.status,
+      priority: c.priority || "Medium",
+      submittedDate: c.createdAt,
+      lastUpdated: c.updatedAt,
+      assignedAt: c.assignedAt || null,
+      submittedBy: {
+        name: c.submittedBy?.name,
+        email: c.submittedBy?.email,
+      },
+      shortDescription: c.shortDescription,
+      fullDescription: c.description,
+      isEscalated: c.isEscalated || false,
+      deadline: c.deadline || null,
+      sourceRole: c.sourceRole,
+      assignedByRole: c.assignedByRole,
+      assignmentPath: c.assignmentPath || [],
+      submittedTo: c.submittedTo || null,
+      department: c.department || null,
+      recipientRole: c.recipientRole || null,
+      recipientId: c.recipientId || null,
+    }));
+
+    return res.status(200).json(formatted);
+  } catch (error) {
+    console.error("getStaffInbox error:", error?.message);
+    return res.status(500).json({ error: "Failed to fetch staff inbox" });
+  }
+};
+
 // 6. User submits feedback after resolution
 export const giveFeedback = async (req, res) => {
   try {
@@ -2008,6 +2046,7 @@ export const getFeedbackByRole = async (req, res) => {
 
     let filters = { status: "Resolved", "feedback.rating": { $exists: true } };
     let assignedToIn = null;
+    let idIn = null;
 
     if (role === "staff") {
       // Only their own assigned complaints
@@ -2021,16 +2060,47 @@ export const getFeedbackByRole = async (req, res) => {
       }).select("_id");
       const ids = [req.user._id, ...staffInDept.map((u) => u._id)];
       assignedToIn = ids;
-    } else if (role === "dean" || role === "admin") {
-      // All resolved with feedback
+    } else if (role === "dean") {
+      // Dean private: only complaints directly sent to this dean, or assigned by this dean
+      // Direct-to-this-dean
+      const directIdsDocs = await Complaint.find({
+        recipientRole: "dean",
+        recipientId: req.user._id,
+      }).select("_id");
+      const directIds = directIdsDocs.map((d) => d._id);
+      // Assigned by this dean (from ActivityLog)
+      const deanAssignedLogs = await ActivityLog.aggregate([
+        {
+          $match: {
+            role: "dean",
+            user: req.user._id,
+            action: { $regex: /assign/i },
+          },
+        },
+        { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
+      ]);
+      const assignedIds = deanAssignedLogs.map((r) => r._id);
+      const combined = [
+        ...new Set([...directIds.map(String), ...assignedIds.map(String)]),
+      ];
+      if (!combined.length) {
+        return res.status(200).json([]);
+      }
+      idIn = combined;
+    } else if (role === "admin") {
+      // Admin sees all resolved with feedback
       // no extra filter
     } else {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const query = Complaint.find(
-      assignedToIn ? { ...filters, assignedTo: { $in: assignedToIn } } : filters
-    )
+    const baseQuery = assignedToIn
+      ? { ...filters, assignedTo: { $in: assignedToIn } }
+      : idIn
+      ? { ...filters, _id: { $in: idIn } }
+      : filters;
+
+    const query = Complaint.find(baseQuery)
       .populate("submittedBy", "name email")
       .populate("assignedTo", "name email role department");
 
@@ -2171,8 +2241,8 @@ export const queryComplaints = async (req, res) => {
 
     // Build query
     const q = {};
-    if (assignedTo) q.assignedTo = assignedTo;
-    if (department) q.department = department;
+  if (assignedTo) q.assignedTo = assignedTo;
+  if (department) q.department = department;
     if (status) q.status = status;
     if (submittedTo) q.submittedTo = { $regex: new RegExp(submittedTo, "i") };
     if (sourceRole)
@@ -2202,6 +2272,24 @@ export const queryComplaints = async (req, res) => {
     const filter = { ...q, isDeleted: { $ne: true } };
     // Dean visibility guard: hide admin-directed/associated complaints universally
     const role = String(user?.role || "").toLowerCase();
+
+    // Staff/HOD department guard: ensure department filters (when present) match user's own department
+    if ((role === "staff" || role === "hod") && filter.department) {
+      try {
+        const userDept = user?.department ? String(user.department) : null;
+        if (!userDept) {
+          return res
+            .status(400)
+            .json({ error: "Department information missing for user" });
+        }
+        // Force department to the user's department regardless of requested value
+        filter.department = userDept;
+      } catch {
+        return res
+          .status(400)
+          .json({ error: "Invalid department filter for this role" });
+      }
+    }
     if (role === "dean") {
       const deanExclusion = [
         {

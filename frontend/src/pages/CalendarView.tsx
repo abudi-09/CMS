@@ -28,6 +28,9 @@ import {
   getHodCalendarSummaryApi,
   getHodCalendarDayApi,
   getHodManagedComplaintsApi,
+  getStaffCalendarSummaryApi,
+  getStaffCalendarDayApi,
+  getAssignedComplaintsApi,
 } from "@/lib/api";
 import { fetchCategoriesApi } from "@/lib/categoryApi";
 import {
@@ -108,14 +111,14 @@ interface CalendarViewProps {
 
 export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const { user } = useAuth();
-  const effectiveRole: "admin" | "staff" | "dean" | "hod" =
-    user?.role === "staff"
-      ? "staff"
-      : user?.role === "dean"
-      ? "dean"
-      : user?.role === "hod"
-      ? "hod"
-      : "admin";
+  // Normalize role to one of: admin | staff | dean | hod
+  const effectiveRole: "admin" | "staff" | "dean" | "hod" = (() => {
+    const raw = String((user?.role as string) || role || "admin").toLowerCase();
+    if (raw === "staff") return "staff";
+    if (raw === "dean") return "dean";
+    if (raw === "hod" || raw === "headofdepartment") return "hod";
+    return "admin";
+  })();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewType, setViewType] = useState<"submission" | "deadline">(
@@ -149,7 +152,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     countsByCategory?: Record<string, number>;
   }>({ totalThisMonth: 0, overdue: 0, dueToday: 0, resolvedThisMonth: 0 });
 
-  // Staff: load only their assigned complaints
+  // Staff: prefill calendar with assigned and direct-to-staff inbox items
   useEffect(() => {
     let cancelled = false;
     if (effectiveRole !== "staff") return;
@@ -157,11 +160,15 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchJson<QueryComplaint[]>(
-          `${API_BASE}/complaints/assigned`
-        );
+        const [assigned, inbox] = await Promise.all([
+          getAssignedComplaintsApi(),
+          fetchJson<QueryComplaint[]>(`${API_BASE}/complaints/inbox/staff`),
+        ]);
         if (cancelled) return;
-        const mapped: Complaint[] = data.map((c) => ({
+        const assignedList = (assigned as QueryComplaint[]) ?? [];
+        const inboxList = (inbox as QueryComplaint[]) ?? [];
+        const merged: QueryComplaint[] = [...assignedList, ...inboxList];
+        const mapped: Complaint[] = merged.map((c: QueryComplaint) => ({
           id: c.id,
           title: c.title,
           description: c.fullDescription || c.shortDescription || "",
@@ -172,22 +179,22 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               ? c?.submittedBy?.name || c?.submittedBy?.email
               : (c?.submittedBy as string)) || "Unknown",
           assignedStaff: "You",
-          submittedDate: new Date(c.submittedDate as string),
+          submittedDate: new Date((c.submittedDate as string) || Date.now()),
           deadline: c.deadline ? new Date(c.deadline as string) : undefined,
-          lastUpdated: new Date(c.lastUpdated as string),
+          lastUpdated: new Date((c.lastUpdated as string) || Date.now()),
           priority:
             c.priority === "Low" ||
             c.priority === "Medium" ||
             c.priority === "High" ||
             c.priority === "Critical"
-              ? c.priority
+              ? (c.priority as Complaint["priority"])
               : "Medium",
           feedback: undefined,
           resolutionNote: undefined,
           evidenceFile: undefined,
-          isEscalated: c.isEscalated,
+          isEscalated: c.isEscalated as boolean,
           submittedTo: undefined,
-          department: c.category,
+          department: c.category as string,
           sourceRole: (c.sourceRole || undefined) as Complaint["sourceRole"],
           assignedByRole: (c.assignedByRole ||
             undefined) as Complaint["assignedByRole"],
@@ -195,7 +202,13 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             ? (c.assignmentPath as Complaint["assignmentPath"])
             : undefined,
         }));
-        setAllComplaints(mapped);
+        // De-dupe by id
+        const dedup = new Map<string, Complaint>();
+        for (const it of mapped) {
+          const prev = dedup.get(it.id);
+          if (!prev || it.lastUpdated > prev.lastUpdated) dedup.set(it.id, it);
+        }
+        setAllComplaints(Array.from(dedup.values()));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -432,10 +445,10 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [effectiveRole, user?.id, user?.name, user?.fullName]);
 
-  // Load summary from backend for Admin/Dean/HOD
+  // Load summary from backend for Admin/Dean/HOD/Staff
   useEffect(() => {
     let cancelled = false;
-    if (!["admin", "dean", "hod"].includes(effectiveRole)) return;
+    if (!["admin", "dean", "hod", "staff"].includes(effectiveRole)) return;
     (async () => {
       try {
         const m = selectedDate.getMonth();
@@ -466,6 +479,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             ? await getDeanCalendarSummaryApi(params)
             : effectiveRole === "hod"
             ? await getHodCalendarSummaryApi(params)
+            : effectiveRole === "staff"
+            ? await getStaffCalendarSummaryApi(params)
             : await getAdminCalendarSummaryApi(params);
         if (!cancelled) setSummary(s);
       } catch (_) {
@@ -496,7 +511,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     user?.id,
   ]);
 
-  // Fetch date-specific complaints for Admin when clicking a date
+  // Fetch date-specific complaints for Admin/Dean/HOD/Staff when clicking a date
   const handleSelectDate = async (date?: Date) => {
     if (!date) return;
     setSelectedDate(date);
@@ -504,7 +519,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       !user?.id ||
       (effectiveRole !== "admin" &&
         effectiveRole !== "dean" &&
-        effectiveRole !== "hod")
+        effectiveRole !== "hod" &&
+        effectiveRole !== "staff")
     )
       return;
     try {
@@ -531,6 +547,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             })
           : effectiveRole === "hod"
           ? await getHodCalendarDayApi({
+              date: dateStr,
+              viewType,
+              status: statusFilter !== "all" ? statusFilter : undefined,
+              priority: priorityFilter !== "all" ? priorityFilter : undefined,
+              categories: categoriesParam,
+            })
+          : effectiveRole === "staff"
+          ? await getStaffCalendarDayApi({
               date: dateStr,
               viewType,
               status: statusFilter !== "all" ? statusFilter : undefined,
@@ -937,9 +961,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Total This Month</p>
                 <p className="text-2xl font-bold">
-                  {effectiveRole === "admin" ||
-                  effectiveRole === "dean" ||
-                  effectiveRole === "hod"
+                  {(["admin", "dean", "hod"] as string[]).includes(
+                    effectiveRole
+                  )
                     ? summary.totalThisMonth
                     : filteredComplaints.filter((c) => {
                         const compareDate =
@@ -966,9 +990,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Overdue</p>
                 <p className="text-2xl font-bold text-destructive">
-                  {effectiveRole === "admin" ||
-                  effectiveRole === "dean" ||
-                  effectiveRole === "hod"
+                  {(["admin", "dean", "hod"] as string[]).includes(
+                    effectiveRole
+                  )
                     ? summary.overdue
                     : filteredComplaints.filter(
                         (c) =>
@@ -990,9 +1014,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Due Today</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {effectiveRole === "admin" ||
-                  effectiveRole === "dean" ||
-                  effectiveRole === "hod"
+                  {(["admin", "dean", "hod"] as string[]).includes(
+                    effectiveRole
+                  )
                     ? summary.dueToday
                     : filteredComplaints.filter(
                         (c) => c.deadline && isSameDay(c.deadline, new Date())
@@ -1010,9 +1034,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               <div>
                 <p className="text-sm font-medium">Resolved This Month</p>
                 <p className="text-2xl font-bold text-success">
-                  {effectiveRole === "admin" ||
-                  effectiveRole === "dean" ||
-                  effectiveRole === "hod"
+                  {(["admin", "dean", "hod"] as string[]).includes(
+                    effectiveRole
+                  )
                     ? summary.resolvedThisMonth
                     : filteredComplaints.filter(
                         (c) =>

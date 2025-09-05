@@ -53,6 +53,7 @@ import { Layout } from "@/components/Layout";
 import NotFound from "./pages/NotFound";
 import { ComplaintProvider } from "@/context/ComplaintContext";
 import { CategoryProvider } from "@/context/CategoryContext";
+import RequireRole from "@/components/RequireRole";
 
 const queryClient = new QueryClient();
 
@@ -163,51 +164,113 @@ function AppContent() {
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/dashboard" element={<DashboardRouter />} />
                 <Route path="/user-dashboard" element={<UserDashboard />} />
-                <Route path="/staff-dashboard" element={<StaffDashboard />} />
+                <Route
+                  path="/staff-dashboard"
+                  element={
+                    <RequireRole allowed={["staff"]}>
+                      <StaffDashboard />
+                    </RequireRole>
+                  }
+                />
                 <Route path="/admin-dashboard" element={<AdminDashboard />} />
-                <Route path="/dean-dashboard" element={<DeanDashboard />} />
+                <Route
+                  path="/dean-dashboard"
+                  element={
+                    <RequireRole allowed={["dean"]}>
+                      <DeanDashboard />
+                    </RequireRole>
+                  }
+                />
                 <Route path="/hod-dashboard" element={<HoDDashboard />} />
                 <Route path="/hod-analytics" element={<HoDAnalytics />} />
                 <Route
                   path="/hod-staff-performance"
                   element={<StaffPerformance />}
                 />
-                <Route path="/my-performance" element={<MyPerformance />} />
+                <Route
+                  path="/my-performance"
+                  element={
+                    <RequireRole allowed={["staff"]}>
+                      <MyPerformance />
+                    </RequireRole>
+                  }
+                />
                 <Route path="/calendar-view" element={<CalendarView />} />
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route
                   path="/dean-user-management"
-                  element={<DeanUserManagement />}
+                  element={
+                    <RequireRole allowed={["dean"]}>
+                      <DeanUserManagement />
+                    </RequireRole>
+                  }
                 />
                 <Route
                   path="/dean-staff-management"
-                  element={<DeanStaffManagement />}
+                  element={
+                    <RequireRole allowed={["dean"]}>
+                      <DeanStaffManagement />
+                    </RequireRole>
+                  }
                 />
-                <Route path="/dean-analytics" element={<DeanAnalytics />} />
+                <Route
+                  path="/dean-analytics"
+                  element={
+                    <RequireRole allowed={["dean", "admin"]}>
+                      <DeanAnalytics />
+                    </RequireRole>
+                  }
+                />
                 <Route
                   path="/dean-department-performance"
-                  element={<DeanDepartmentPerformance />}
+                  element={
+                    <RequireRole allowed={["dean", "admin"]}>
+                      <DeanDepartmentPerformance />
+                    </RequireRole>
+                  }
                 />
                 <Route
                   path="/department-management"
-                  element={<DepartmentManagement />}
+                  element={
+                    <RequireRole allowed={["dean"]}>
+                      <DepartmentManagement />
+                    </RequireRole>
+                  }
                 />
                 <Route
                   path="/dean/assign-complaints"
-                  element={<DeanAssignComplaints />}
+                  element={
+                    <RequireRole allowed={["dean"]}>
+                      <DeanAssignComplaints />
+                    </RequireRole>
+                  }
                 />
                 <Route path="/submit-complaint" element={<SubmitComplaint />} />
                 <Route path="/my-complaints" element={<MyComplaints />} />
                 <Route path="/staff-management" element={<StaffManagement />} />
                 <Route path="/feedback-review" element={<FeedbackReview />} />
-                <Route path="/my-assigned" element={<MyAssignedComplaints />} />
+                <Route
+                  path="/my-assigned"
+                  element={
+                    <RequireRole allowed={["staff"]}>
+                      <MyAssignedComplaints />
+                    </RequireRole>
+                  }
+                />
                 <Route
                   path="/assign-complaints"
                   element={<AssignComplaints />}
                 />
-                <Route path="/staff-feedback" element={<StaffFeedback />} />
+                <Route
+                  path="/staff-feedback"
+                  element={
+                    <RequireRole allowed={["staff"]}>
+                      <StaffFeedback />
+                    </RequireRole>
+                  }
+                />
                 <Route
                   path="/student-management"
                   element={<StudentManagement />}
@@ -215,7 +278,11 @@ function AppContent() {
                 <Route path="/admin-management" element={<AdminManagement />} />
                 <Route
                   path="/dean-role-management"
-                  element={<DeanRoleManagement />}
+                  element={
+                    <RequireRole allowed={["admin"]}>
+                      <DeanRoleManagement />
+                    </RequireRole>
+                  }
                 />
 
                 <Route
@@ -223,10 +290,21 @@ function AppContent() {
                   element={<CategoryManagement />}
                 />
                 <Route path="/admin-complaints" element={<AdminComplaints />} />
-                <Route path="/dean-analytics" element={<DeanAnalytics />} />
+                <Route
+                  path="/dean-analytics"
+                  element={
+                    <RequireRole allowed={["dean", "admin"]}>
+                      <DeanAnalytics />
+                    </RequireRole>
+                  }
+                />
                 <Route
                   path="/dean-staff-performance"
-                  element={<StaffPerformance />}
+                  element={
+                    <RequireRole allowed={["dean", "admin"]}>
+                      <StaffPerformance />
+                    </RequireRole>
+                  }
                 />
                 <Route
                   path="/hod/assign-complaints"

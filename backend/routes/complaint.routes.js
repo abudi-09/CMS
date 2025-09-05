@@ -27,6 +27,7 @@ import {
   hodRejectAssignment,
   getHodManagedComplaints,
   getHodAll,
+  getStaffInbox,
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -86,6 +87,8 @@ router.get("/feedback/my", protectRoute, staffOnly, getMyFeedback);
 // Role-aware hierarchical feedback
 router.get("/feedback/by-role", protectRoute, getFeedbackByRole);
 router.put("/feedback/reviewed/:id", protectRoute, markFeedbackReviewed);
+// Staff inbox (direct student -> this staff)
+router.get("/inbox/staff", protectRoute, staffOnly, getStaffInbox);
 
 // Allow role-aware querying of complaints (used by frontend AllComplaints and dashboards)
 router.get("/", protectRoute, queryComplaints); // keep existing behavior for root
