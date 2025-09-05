@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import Complaint from "../models/complaint.model.js";
 import User from "../models/user.model.js";
+import Notification from "../models/notification.model.js";
+import fs from "fs";
+import path from "path";
 
 // Small helpers to provide color hints for priority/status distribution
 function getPriorityColor(priority) {
@@ -87,7 +90,7 @@ export const getCategoryCounts = async (req, res) => {
 // Department-scoped complaint stats (for HoD)
 export const getDepartmentComplaintStats = async (req, res) => {
   try {
-    const dept = req.user?.department;
+    // Query parameters
     if (!dept) {
       return res
         .status(400)
@@ -354,7 +357,7 @@ export const getDeanVisibleComplaintStats = async (req, res) => {
   }
 };
 
-// Admin calendar summary: counts for the logged-in admin, direct-to-admin-by-student complaints only
+// Admin calendar summary: STRICT per-admin scoping (only complaints where admin is recipient or assignee)
 export const getAdminCalendarSummary = async (req, res) => {
   try {
     const user = req.user;
@@ -362,20 +365,30 @@ export const getAdminCalendarSummary = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Query params
-    // Optional: allow narrowing to a specific assignee when requested.
-    // By default, do NOT restrict to assignedTo so admins see all direct-to-admin complaints.
+    // Accept optional assignedTo param but ignore unless it's this admin
     const assignedToQuery = req.query.assignedTo;
-    const assignedTo =
+    const requestedAssignedTo =
       assignedToQuery &&
       typeof assignedToQuery === "string" &&
       assignedToQuery.match(/^[0-9a-fA-F]{24}$/)
-        ? mongoose.Types.ObjectId(assignedToQuery)
+        ? new mongoose.Types.ObjectId(assignedToQuery)
         : null;
+    const adminId = new mongoose.Types.ObjectId(user._id);
+    const assignedFilter =
+      requestedAssignedTo && String(requestedAssignedTo) === String(adminId)
+        ? adminId
+        : adminId; // always restrict to current admin
 
-    const status = req.query.status || null; // exact match
-    const priority = req.query.priority || null; // exact match
-    const categoriesParam = req.query.categories; // array or csv
+    // Debug: log admin scoping and filters
+    console.log("getAdminCalendarSummary: adminId=", String(adminId));
+    console.log(
+      "getAdminCalendarSummary: requestedAssignedTo=",
+      String(requestedAssignedTo)
+    );
+
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
     const categories = Array.isArray(categoriesParam)
       ? categoriesParam
       : typeof categoriesParam === "string" && categoriesParam.length
@@ -386,7 +399,7 @@ export const getAdminCalendarSummary = async (req, res) => {
       : [];
     const viewType =
       req.query.viewType === "deadline" ? "deadline" : "submission";
-    const month = parseInt(req.query.month, 10); // 0-11
+    const month = parseInt(req.query.month, 10);
     const year = parseInt(req.query.year, 10);
     const now = new Date();
     const baseMonth = isNaN(month) ? now.getMonth() : month;
@@ -407,31 +420,27 @@ export const getAdminCalendarSummary = async (req, res) => {
       ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
       : null;
 
-    // Base filter: submitted directly to admin, from student, assigned to this admin, not deleted
+    // STRICT base: admin must be either recipientId or assignedTo (no unassigned admin pool)
     const base = {
       isDeleted: { $ne: true },
-      submittedTo: { $regex: /admin/i },
-      sourceRole: { $regex: /^student$/i },
-      ...(assignedTo ? { assignedTo } : {}),
+      $or: [{ recipientId: assignedFilter }, { assignedTo: assignedFilter }],
     };
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
     if (categories && categories.length) base.category = { $in: categories };
-    // Attach optional submission/deadline range filters
-    const submissionRange = {};
-    if (submissionFrom) submissionRange.$gte = submissionFrom;
-    if (submissionTo) submissionRange.$lte = submissionTo;
-    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
+    if (submissionFrom || submissionTo) {
+      base.createdAt = {};
+      if (submissionFrom) base.createdAt.$gte = submissionFrom;
+      if (submissionTo) base.createdAt.$lte = submissionTo;
+    }
+    if (deadlineFrom || deadlineTo) {
+      base.deadline = {};
+      if (deadlineFrom) base.deadline.$gte = deadlineFrom;
+      if (deadlineTo) base.deadline.$lte = deadlineTo;
+    }
 
-    const deadlineRange = {};
-    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
-    if (deadlineTo) deadlineRange.$lte = deadlineTo;
-    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
-
-    // Total for selected month based on viewType
-    const monthFilter = {
-      ...base,
-      ...(viewType === "submission"
+    const summaryDateConstraint =
+      viewType === "submission"
         ? {
             $or: [
               {
@@ -441,13 +450,7 @@ export const getAdminCalendarSummary = async (req, res) => {
                   $lte: monthEnd,
                 },
               },
-              {
-                submittedDate: {
-                  ...(base.submittedDate || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              },
+              { submittedDate: { $gte: monthStart, $lte: monthEnd } },
             ],
           }
         : {
@@ -456,8 +459,9 @@ export const getAdminCalendarSummary = async (req, res) => {
               $gte: monthStart,
               $lte: monthEnd,
             },
-          }),
-    };
+          };
+
+    const monthFilter = { $and: [base, summaryDateConstraint] };
 
     const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
       await Promise.all([
@@ -490,13 +494,7 @@ export const getAdminCalendarSummary = async (req, res) => {
                       $lte: monthEnd,
                     },
                   },
-                  {
-                    submittedDate: {
-                      ...(base.submittedDate || {}),
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
+                  { submittedDate: { $gte: monthStart, $lte: monthEnd } },
                 ],
               }
             : {
@@ -509,12 +507,9 @@ export const getAdminCalendarSummary = async (req, res) => {
         }),
       ]);
 
-    // Breakdown aggregations for the selected month scope
-    const breakdownMatch = monthFilter;
-
     const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
       Complaint.aggregate([
-        { $match: breakdownMatch },
+        { $match: monthFilter },
         {
           $group: {
             _id: { $ifNull: ["$status", "Unknown"] },
@@ -523,7 +518,7 @@ export const getAdminCalendarSummary = async (req, res) => {
         },
       ]),
       Complaint.aggregate([
-        { $match: breakdownMatch },
+        { $match: monthFilter },
         {
           $group: {
             _id: { $ifNull: ["$priority", "Unknown"] },
@@ -532,7 +527,7 @@ export const getAdminCalendarSummary = async (req, res) => {
         },
       ]),
       Complaint.aggregate([
-        { $match: breakdownMatch },
+        { $match: monthFilter },
         {
           $group: {
             _id: { $ifNull: ["$category", "Unknown"] },
@@ -569,7 +564,7 @@ export const getAdminCalendarSummary = async (req, res) => {
   }
 };
 
-// Admin calendar day list: complaints assigned to admin, direct-to-admin-by-student, for a specific date
+// Admin calendar day list: STRICT per-admin scoping (recipientId or assignedTo = current admin)
 export const getAdminCalendarDay = async (req, res) => {
   try {
     const user = req.user;
@@ -577,16 +572,9 @@ export const getAdminCalendarDay = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Optional: when provided, restrict to a specific assignee; otherwise include all
-    const assignedTo =
-      req.query.assignedTo &&
-      typeof req.query.assignedTo === "string" &&
-      req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
-        ? mongoose.Types.ObjectId(req.query.assignedTo)
-        : null;
-    const status = req.query.status || null; // optional exact match
-    const priority = req.query.priority || null; // optional exact match
-    const categoriesParam = req.query.categories; // csv or array
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
     const categories = Array.isArray(categoriesParam)
       ? categoriesParam
       : typeof categoriesParam === "string" && categoriesParam.length
@@ -595,29 +583,23 @@ export const getAdminCalendarDay = async (req, res) => {
           .map((s) => s.trim())
           .filter(Boolean)
       : [];
-
     const viewType =
       req.query.viewType === "deadline" ? "deadline" : "submission";
-    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
+    const dateStr = String(req.query.date || "");
     if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
       return res.status(400).json({ error: "Invalid or missing date" });
     }
-
-    // Parse the date string and create day boundaries in UTC
     const [yStr, mStr, dStr] = dateStr.split("-");
     const y = parseInt(yStr, 10);
     const m = parseInt(mStr, 10) - 1;
     const d = parseInt(dStr, 10);
-
-    // Create date boundaries for the entire day in UTC
     const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
     const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
 
+    const adminId = new mongoose.Types.ObjectId(user._id);
     const base = {
       isDeleted: { $ne: true },
-      submittedTo: { $regex: /admin/i },
-      sourceRole: { $regex: /^student$/i },
-      ...(assignedTo ? { assignedTo } : {}),
+      $or: [{ recipientId: adminId }, { assignedTo: adminId }],
     };
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
@@ -633,13 +615,43 @@ export const getAdminCalendarDay = async (req, res) => {
           }
         : { deadline: { $gte: dayStart, $lte: dayEnd } };
 
-    const items = await Complaint.find({ ...base, ...dateFilter })
+    // Debug: log effective query for day
+    console.log("getAdminCalendarDay: adminId=", String(adminId));
+    console.log(
+      "getAdminCalendarDay: date=",
+      dateStr,
+      "dayStart=",
+      dayStart.toISOString(),
+      "dayEnd=",
+      dayEnd.toISOString()
+    );
+    console.log("getAdminCalendarDay: base=", JSON.stringify(base));
+    console.log("getAdminCalendarDay: dateFilter=", JSON.stringify(dateFilter));
+
+    const items = await Complaint.find({ $and: [base, dateFilter] })
       .select(
         "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath"
       )
       .populate("submittedBy", "name email")
       .sort({ createdAt: -1 })
       .lean();
+    // Debug: show which complaints matched and their ownership fields
+    try {
+      console.log(
+        "getAdminCalendarDay: matched items=",
+        (items || []).map((it) => ({
+          id: String(it._id),
+          title: it.title,
+          assignedTo: it.assignedTo ? String(it.assignedTo) : null,
+          recipientId: it.recipientId ? String(it.recipientId) : null,
+        }))
+      );
+    } catch (e) {
+      console.error(
+        "getAdminCalendarDay: failed to log items",
+        e?.message || e
+      );
+    }
 
     return res.status(200).json(items || []);
   } catch (err) {
@@ -647,6 +659,102 @@ export const getAdminCalendarDay = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Failed to fetch admin calendar day complaints" });
+  }
+};
+
+// Admin calendar month list (all complaints in selected month for this admin)
+export const getAdminCalendarMonth = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10);
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const adminId = new mongoose.Types.ObjectId(user._id);
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    const base = {
+      isDeleted: { $ne: true },
+      $or: [{ recipientId: adminId }, { assignedTo: adminId }],
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const monthFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: monthStart, $lte: monthEnd } },
+              { submittedDate: { $gte: monthStart, $lte: monthEnd } },
+            ],
+          }
+        : { deadline: { $gte: monthStart, $lte: monthEnd } };
+
+    // Debug: log effective query for month
+    console.log("getAdminCalendarMonth: adminId=", String(adminId));
+    console.log(
+      "getAdminCalendarMonth: monthStart=",
+      monthStart.toISOString(),
+      "monthEnd=",
+      monthEnd.toISOString()
+    );
+    console.log("getAdminCalendarMonth: base=", JSON.stringify(base));
+    console.log(
+      "getAdminCalendarMonth: monthFilter=",
+      JSON.stringify(monthFilter)
+    );
+
+    const items = await Complaint.find({ $and: [base, monthFilter] })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath"
+      )
+      .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+    // Debug: show which complaints matched and their ownership fields
+    try {
+      console.log(
+        "getAdminCalendarMonth: matched items=",
+        (items || []).map((it) => ({
+          id: String(it._id),
+          title: it.title,
+          assignedTo: it.assignedTo ? String(it.assignedTo) : null,
+          recipientId: it.recipientId ? String(it.recipientId) : null,
+        }))
+      );
+    } catch (e) {
+      console.error(
+        "getAdminCalendarMonth: failed to log items",
+        e?.message || e
+      );
+    }
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getAdminCalendarMonth error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin calendar month complaints" });
   }
 };
 
@@ -665,7 +773,7 @@ export const getDeanCalendarSummary = async (req, res) => {
       assignedToQuery &&
       typeof assignedToQuery === "string" &&
       assignedToQuery.match(/^[0-9a-fA-F]{24}$/)
-        ? mongoose.Types.ObjectId(assignedToQuery)
+        ? new mongoose.Types.ObjectId(assignedToQuery)
         : null;
 
     const status = req.query.status || null;
@@ -872,7 +980,7 @@ export const getDeanCalendarDay = async (req, res) => {
       req.query.assignedTo &&
       typeof req.query.assignedTo === "string" &&
       req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
-        ? mongoose.Types.ObjectId(req.query.assignedTo)
+        ? new mongoose.Types.ObjectId(req.query.assignedTo)
         : null;
 
     const status = req.query.status || null; // optional exact match

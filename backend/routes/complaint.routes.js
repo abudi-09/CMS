@@ -27,6 +27,7 @@ import {
   hodRejectAssignment,
   getHodManagedComplaints,
   getHodAll,
+  getAdminComplaintsDebug,
 } from "../controllers/complaint.controller.js";
 import { getComplaint } from "../controllers/getComplaint.js";
 import {
@@ -68,6 +69,15 @@ router.put("/dean/assign-to-hod/:id", protectRoute, deanOnly, deanAssignToHod);
 router.get("/inbox/dean", protectRoute, deanOnly, getDeanInbox);
 router.get("/inbox/admin", protectRoute, adminOnly, getAdminInbox);
 router.get("/inbox/hod", protectRoute, hodOnly, getHodInbox);
+// Development-only debug route: GET /api/complaints/debug/admin-complaints/:adminId
+if (process.env.NODE_ENV !== "production") {
+  router.get(
+    "/debug/admin-complaints/:adminId",
+    protectRoute,
+    adminOnly,
+    getAdminComplaintsDebug
+  );
+}
 // HoD assignment to staff within department
 router.put("/hod/assign-to-staff/:id", protectRoute, hodOnly, hodAssignToStaff);
 // HoD decision on dean-assigned item

@@ -186,6 +186,25 @@ export const createComplaint = async (req, res) => {
           },
         }),
       ]);
+    } else if (complaint.recipientId) {
+      // If the complaint was submitted to a specific recipient id (explicit routing),
+      // notify only that recipient instead of broadcasting to the entire office pool.
+      try {
+        await safeNotify({
+          user: complaint.recipientId,
+          complaint,
+          type: "submission",
+          title: `New Complaint (${complaint.complaintCode})`,
+          message: `A new complaint was submitted and routed to you: "${complaint.title}".`,
+          meta: {
+            audience: "recipient",
+            redirectPath: "/admin-complaints",
+            complaintId: String(complaint._id),
+          },
+        });
+      } catch (e) {
+        // non-fatal
+      }
     } else if (complaint.submittedTo) {
       // If direct submission to an office, notify active users in that office
       const to = String(complaint.submittedTo).toLowerCase();
@@ -513,9 +532,38 @@ export const getAllComplaints = async (req, res) => {
         ],
       });
     }
+
+    // --- Pagination & filtering support (query params)
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.max(
+      1,
+      parseInt(String(req.query.limit || "25"), 10) || 25
+    );
+    const skip = (page - 1) * limit;
+
+    // Optional server-side filters from query string (used by frontend)
+    const { status, priority, category, search, submittedTo } = req.query || {};
+    if (status) baseFilter.status = String(status);
+    if (priority) baseFilter.priority = String(priority);
+    if (category) baseFilter.category = String(category);
+    if (submittedTo)
+      baseFilter.submittedTo = { $regex: new RegExp(String(submittedTo), "i") };
+    if (search) {
+      const s = String(search);
+      baseFilter.$or = [
+        { title: { $regex: new RegExp(s, "i") } },
+        { complaintCode: { $regex: new RegExp(s, "i") } },
+        { department: { $regex: new RegExp(s, "i") } },
+      ];
+    }
+
+    const total = await Complaint.countDocuments(baseFilter);
     const complaints = await Complaint.find(baseFilter)
       .populate("submittedBy", "name")
       .populate("assignedTo", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
     const formatted = (complaints || [])
@@ -559,7 +607,7 @@ export const getAllComplaints = async (req, res) => {
         }
       })
       .filter(Boolean);
-    res.status(200).json(formatted);
+    res.status(200).json({ items: formatted, total, page, pageSize: limit });
   } catch (error) {
     console.error("getAllComplaints error:", error?.message, error?.stack);
     res.status(500).json({
@@ -879,12 +927,38 @@ export const getAdminInbox = async (req, res) => {
   try {
     if (req.user.role !== "admin")
       return res.status(403).json({ error: "Access denied" });
+    // Admin inbox logic:
+    // - Include complaints explicitly assigned to or addressed to this admin
+    // - Also include unassigned complaints that were submitted to the "admin" role
+    //   (these are pending admin-level items any admin can pick up)
+    // In short: show (assignedTo === me) OR (recipientId === me) OR (submittedTo/admin AND not assigned)
     const filter = {
-      status: "Pending",
+      // Return complaints across common lifecycle states so admin UI can show
+      // Pending, Accepted (assigned to admin), In Progress, Resolved, and Closed
+      status: {
+        $in: ["Pending", "Accepted", "In Progress", "Resolved", "Closed"],
+      },
       isEscalated: { $ne: true },
       $or: [
-        { submittedTo: { $regex: /admin/i } },
-        { assignmentPath: { $in: ["admin"] } },
+        // specifically assigned or routed to this admin
+        { assignedTo: req.user._id },
+        { recipientId: req.user._id },
+        // unassigned admin-level submissions
+        {
+          $and: [
+            {
+              $or: [
+                { submittedTo: { $regex: /admin/i } },
+                { assignmentPath: { $in: ["admin"] } },
+              ],
+            },
+            { $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }] },
+            // Exclude complaints that were explicitly addressed to a specific admin
+            {
+              $or: [{ recipientId: { $exists: false } }, { recipientId: null }],
+            },
+          ],
+        },
       ],
     };
     const complaints = await Complaint.find({
@@ -1197,6 +1271,33 @@ export const getHodInbox = async (req, res) => {
     );
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch HOD inbox" });
+  }
+};
+
+// Development-only: fetch complaints related to a given admin id (assignedTo or recipientId)
+export const getAdminComplaintsDebug = async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(403).json({ error: "Not allowed in production" });
+    }
+    const { adminId } = req.params;
+    if (!adminId || !mongoose.Types.ObjectId.isValid(String(adminId))) {
+      return res.status(400).json({ error: "Invalid admin id" });
+    }
+    const id = new mongoose.Types.ObjectId(String(adminId));
+    const complaints = await Complaint.find({
+      isDeleted: { $ne: true },
+      $or: [{ assignedTo: id }, { recipientId: id }],
+    })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(complaints || []);
+  } catch (err) {
+    console.error("getAdminComplaintsDebug error:", err?.message || err);
+    return res.status(500).json({ error: "Failed to fetch debug complaints" });
   }
 };
 
@@ -1891,7 +1992,14 @@ export const giveFeedback = async (req, res) => {
 
 export const getAllFeedback = async (req, res) => {
   try {
-    const complaints = await Complaint.find()
+    // For security, if an admin is requesting, return only feedback relevant to that admin
+    let query = {};
+    if (req.user && req.user.role === "admin") {
+      query = {
+        $or: [{ assignedTo: req.user._id }, { recipientId: req.user._id }],
+      };
+    }
+    const complaints = await Complaint.find(query)
       .populate("submittedBy", "name")
       .populate("assignedTo", "name")
       .lean({ virtuals: false });
@@ -1965,9 +2073,16 @@ export const getFeedbackByRole = async (req, res) => {
       }).select("_id");
       const ids = [req.user._id, ...staffInDept.map((u) => u._id)];
       assignedToIn = ids;
-    } else if (role === "dean" || role === "admin") {
-      // All resolved with feedback
-      // no extra filter
+    } else if (role === "dean") {
+      // Dean: all resolved with feedback (dean sees dean-visible items)
+      // no extra filter here (controller-level dean visibility is broad)
+    } else if (role === "admin") {
+      // Admins should only see feedback items that are addressed to them
+      // i.e. where assignedTo === admin or recipientId === admin
+      filters = {
+        ...filters,
+        $or: [{ assignedTo: req.user._id }, { recipientId: req.user._id }],
+      };
     } else {
       return res.status(403).json({ error: "Access denied" });
     }
@@ -2076,20 +2191,16 @@ export const markFeedbackReviewed = async (req, res) => {
           "Access denied: Dean can only mark reviewed for complaints they resolved",
       });
     }
-    // Admin can only mark reviewed when the feedback was directed to Admin route (complaint submittedTo admin or assignedByRole admin)
+    // Admins may mark feedback reviewed only for complaints addressed to them
     if (req.user.role === "admin") {
-      const submittedToAdmin =
-        (complaint.submittedTo || "").toLowerCase() === "admin";
-      const adminInPath =
-        (complaint.assignedByRole || "").toLowerCase() === "admin" ||
-        (Array.isArray(complaint.assignmentPath) &&
-          complaint.assignmentPath.some(
-            (r) => String(r).toLowerCase() === "admin"
-          ));
-      if (!submittedToAdmin && !adminInPath) {
+      const isAssignedToAdmin =
+        complaint.assignedTo && complaint.assignedTo.equals(req.user._id);
+      const isRecipientAdmin =
+        complaint.recipientId && complaint.recipientId.equals(req.user._id);
+      if (!isAssignedToAdmin && !isRecipientAdmin) {
         return res.status(403).json({
           error:
-            "Admins may mark reviewed only for feedback on complaints directed to Admin",
+            "Admins may mark reviewed only for feedback on complaints addressed to them",
         });
       }
     }
@@ -2131,8 +2242,46 @@ export const queryComplaints = async (req, res) => {
       } else if (role === "hod") {
         // HoD: by default, show only items assigned to the HoD themself
         q.assignedTo = user._id;
-      } else if (role === "admin" || role === "dean") {
-        // Admin/Dean: see all unless filters are provided
+      } else if (role === "admin") {
+        // Admin: by default, scope to complaints relevant to this admin only
+        // - assignedTo === me
+        // - recipientId === me
+        // - OR unassigned admin-level submissions (submittedTo/admin or assignmentPath includes 'admin')
+        // Build list of complaint ids that were notified to this admin (fallback)
+        const notifiedComplaintIds = await Notification.find({
+          user: user._id,
+          complaint: { $ne: null },
+          type: { $in: ["submission", "assignment"] },
+        }).distinct("complaint");
+
+        q.$or = [
+          { assignedTo: user._id },
+          { recipientId: user._id },
+          ...(Array.isArray(notifiedComplaintIds) && notifiedComplaintIds.length
+            ? [{ _id: { $in: notifiedComplaintIds } }]
+            : []),
+          {
+            $and: [
+              {
+                $or: [
+                  { submittedTo: { $regex: /admin/i } },
+                  { assignmentPath: { $in: ["admin"] } },
+                ],
+              },
+              {
+                $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }],
+              },
+              {
+                $or: [
+                  { recipientId: { $exists: false } },
+                  { recipientId: null },
+                ],
+              },
+            ],
+          },
+        ];
+      } else if (role === "dean") {
+        // Dean: see all unless filters are provided (handled below by dean guards)
         // no-op
       } else if (role === "student") {
         // Student: restrict to their own submissions

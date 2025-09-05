@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import {
   getAdminCalendarSummaryApi,
   getAdminCalendarDayApi,
+  getAdminCalendarMonthApi,
   getDeanCalendarSummaryApi,
   getDeanCalendarDayApi,
 } from "@/lib/api";
@@ -105,8 +106,15 @@ interface CalendarViewProps {
 
 export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const { user } = useAuth();
-  const effectiveRole: "admin" | "staff" | "dean" =
-    user?.role === "staff" ? "staff" : user?.role === "dean" ? "dean" : "admin";
+  // Compute effective role explicitly to avoid accidentally treating non-admins as admins
+  const effectiveRole: "admin" | "staff" | "dean" = (() => {
+    const r = (user?.role || "").toString();
+    if (r === "staff") return "staff";
+    if (r === "dean") return "dean";
+    if (r === "admin") return "admin";
+    // default to 'staff' for safety (prevents accidental admin API calls by other roles)
+    return "staff";
+  })();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewType, setViewType] = useState<"submission" | "deadline">(
@@ -141,6 +149,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   }>({ totalThisMonth: 0, overdue: 0, dueToday: 0, resolvedThisMonth: 0 });
 
   // Staff: load only their assigned complaints
+  // Normalized current user id (supports both id and _id fields)
+  const adminId = useMemo(() => {
+    if (!user) return undefined;
+    return (
+      (user as { id?: string; _id?: string }).id ||
+      (user as { id?: string; _id?: string })._id
+    );
+  }, [user]);
   useEffect(() => {
     let cancelled = false;
     if (effectiveRole !== "staff") return;
@@ -198,124 +214,30 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [effectiveRole]);
 
-  // Admin/Dean: load categories (admin-only) + complaints directed to their office by students (no assignee restriction)
+  // Admin: load active categories (no broad complaint prefetch to preserve strict isolation)
   useEffect(() => {
     let cancelled = false;
-    if (!user?.id) return;
+    if (effectiveRole !== "admin") return;
     (async () => {
       try {
-        setLoading(true);
-        setError(null);
-        if (effectiveRole === "admin") {
-          // Categories for admin role
-          try {
-            const cats = (await fetchCategoriesApi({
-              role: "admin",
-              status: "active",
-            })) as unknown as CategoryRes[];
-            if (!cancelled && Array.isArray(cats)) {
-              const names = cats
-                .map((cat) => (typeof cat?.name === "string" ? cat.name : null))
-                .filter(Boolean) as string[];
-              setAdminCategories(names);
-            }
-          } catch {
-            // ignore
-          }
+        const cats = (await fetchCategoriesApi({
+          role: "admin",
+          status: "active",
+        })) as unknown as CategoryRes[];
+        if (!cancelled && Array.isArray(cats)) {
+          const names = cats
+            .map((cat) => (typeof cat?.name === "string" ? cat.name : null))
+            .filter(Boolean) as string[];
+          setAdminCategories(names);
         }
-        // Fetch all complaints submitted to Admin/Dean by students (not restricted by assignee)
-        const target =
-          effectiveRole === "dean"
-            ? "dean"
-            : effectiveRole === "admin"
-            ? "admin"
-            : null;
-        if (!target) return;
-        const res = await fetchJson<QueryComplaint[]>(
-          `${API_BASE}/complaints?submittedTo=${target}&sourceRole=student`
-        );
-        if (cancelled) return;
-        const mapped: Complaint[] = (res || []).map((c) => {
-          const status = (c?.status as Complaint["status"]) || "Pending";
-          const priority: Complaint["priority"] =
-            c?.priority === "Low" ||
-            c?.priority === "Medium" ||
-            c?.priority === "High" ||
-            c?.priority === "Critical"
-              ? (c.priority as Complaint["priority"])
-              : "Medium";
-          const submittedAt =
-            c.createdAt ?? c.submittedDate ?? new Date().toISOString();
-          const updatedAt =
-            c.updatedAt ?? c.lastUpdated ?? new Date().toISOString();
-          return {
-            id: String(c?._id || c?.id || ""),
-            title: c?.title || "Untitled Complaint",
-            description:
-              c?.fullDescription || c?.shortDescription || c?.description || "",
-            category: c?.category || "",
-            status,
-            submittedBy:
-              (c?.submittedBy && typeof c.submittedBy === "object"
-                ? c?.submittedBy?.name || c?.submittedBy?.email
-                : (c?.submittedBy as string)) || "Unknown",
-            assignedStaff:
-              effectiveRole === "dean" &&
-              c &&
-              typeof c === "object" &&
-              "assignedTo" in c &&
-              c.assignedTo
-                ? (() => {
-                    const at = c.assignedTo;
-                    if (typeof at === "object" && at) {
-                      const name = (at as { name?: string }).name;
-                      const role = (at as { role?: string }).role;
-                      if (role && role.toLowerCase() === "hod") {
-                        return name
-                          ? `Assigned to HOD: ${name}`
-                          : "Assigned to HOD";
-                      }
-                      return name ? `Assigned: ${name}` : "Assigned";
-                    }
-                    return "Assigned";
-                  })()
-                : c &&
-                  typeof c === "object" &&
-                  "assignedTo" in c &&
-                  c.assignedTo
-                ? "Assigned"
-                : "Unassigned",
-            submittedDate: new Date(submittedAt),
-            deadline: c?.deadline ? new Date(c.deadline) : undefined,
-            lastUpdated: new Date(updatedAt),
-            priority,
-            feedback: undefined,
-            resolutionNote: undefined,
-            evidenceFile: undefined,
-            isEscalated: !!c?.isEscalated,
-            submittedTo: (c?.submittedTo || undefined) as string | undefined,
-            department: (c?.department || c?.category || undefined) as
-              | string
-              | undefined,
-            sourceRole: (c?.sourceRole || undefined) as Complaint["sourceRole"],
-            assignedByRole: (c?.assignedByRole ||
-              undefined) as Complaint["assignedByRole"],
-            assignmentPath: Array.isArray(c?.assignmentPath)
-              ? (c.assignmentPath as Complaint["assignmentPath"])
-              : undefined,
-          } as Complaint;
-        });
-        setAllComplaints(mapped);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch {
+        // ignore
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [effectiveRole, user?.id, user?.name, user?.fullName]);
+  }, [effectiveRole]);
 
   // Load summary from backend for Admin/Dean based on current filters (no assignedTo narrowing)
   useEffect(() => {
@@ -349,7 +271,10 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         const s =
           effectiveRole === "dean"
             ? await getDeanCalendarSummaryApi(params)
-            : await getAdminCalendarSummaryApi(params);
+            : await getAdminCalendarSummaryApi({
+                ...params,
+                assignedTo: adminId,
+              });
         if (!cancelled) setSummary(s);
       } catch (_) {
         if (!cancelled)
@@ -376,14 +301,15 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     deadlineFrom,
     deadlineTo,
     viewType,
-    user?.id,
+    adminId,
   ]);
 
   // Fetch date-specific complaints for Admin when clicking a date
   const handleSelectDate = async (date?: Date) => {
     if (!date) return;
     setSelectedDate(date);
-    if (!user?.id || (effectiveRole !== "admin" && effectiveRole !== "dean"))
+    // Require a logged-in user id (normalized to adminId) and the correct role
+    if (!adminId || (effectiveRole !== "admin" && effectiveRole !== "dean"))
       return;
     try {
       setLoading(true);
@@ -413,6 +339,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               status: statusFilter !== "all" ? statusFilter : undefined,
               priority: priorityFilter !== "all" ? priorityFilter : undefined,
               categories: categoriesParam,
+              assignedTo: adminId,
             });
       const mapped: Complaint[] = (items as unknown as QueryComplaint[]).map(
         (c) => {
@@ -497,11 +424,134 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         return [...keep, ...newComplaints];
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Surface error to console and UI so we can see why the backend returned nothing
+      console.error("Calendar day fetch error:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg || "Failed to fetch complaints for the selected date");
     } finally {
       setLoading(false);
     }
   };
+  const handleSelectDateCb = useCallback(handleSelectDate, [
+    adminId,
+    user?.fullName,
+    user?.name,
+    effectiveRole,
+    statusFilter,
+    priorityFilter,
+    categoryFilter,
+    viewType,
+  ]);
+
+  // Prefetch month complaints for Admin to populate calendar dots & immediate day display
+  const monthFetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (effectiveRole !== "admin") return;
+    const key = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${statusFilter}-${priorityFilter}-${categoryFilter}-${viewType}`;
+    if (monthFetchedRef.current === key) return;
+    monthFetchedRef.current = key;
+    (async () => {
+      try {
+        const params = {
+          month: selectedDate.getMonth(),
+          year: selectedDate.getFullYear(),
+          viewType,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          priority: priorityFilter !== "all" ? priorityFilter : undefined,
+          categories: categoryFilter !== "all" ? [categoryFilter] : undefined,
+        };
+        const items = (await getAdminCalendarMonthApi({
+          month: params.month,
+          year: params.year,
+          viewType: params.viewType,
+          status: params.status,
+          priority: params.priority,
+          categories: params.categories,
+        })) as unknown as QueryComplaint[];
+        const mapped: Complaint[] = items.map((c) => {
+          const status = (c?.status as Complaint["status"]) || "Pending";
+          const priority: Complaint["priority"] =
+            c?.priority === "Low" ||
+            c?.priority === "Medium" ||
+            c?.priority === "High" ||
+            c?.priority === "Critical"
+              ? (c.priority as Complaint["priority"])
+              : "Medium";
+          const submittedAt = c.createdAt ?? c.submittedDate;
+          const updatedAt = c.updatedAt ?? c.lastUpdated;
+          const submittedByStr = (() => {
+            const sb = c?.submittedBy as unknown;
+            if (!sb) return "Unknown";
+            if (typeof sb === "string") return sb;
+            if (typeof sb === "object") {
+              const o = sb as { name?: string; email?: string };
+              return o.name || o.email || "Unknown";
+            }
+            return "Unknown";
+          })();
+          return {
+            id: String(c?._id || c?.id || ""),
+            title: c?.title || "Untitled Complaint",
+            description: c?.description || c?.shortDescription || "",
+            category: c?.category || "",
+            status,
+            submittedBy: submittedByStr,
+            assignedStaff: user?.fullName || user?.name || "You",
+            submittedDate: submittedAt ? new Date(submittedAt) : undefined,
+            deadline: c?.deadline ? new Date(c.deadline) : undefined,
+            lastUpdated: updatedAt ? new Date(updatedAt) : new Date(),
+            priority,
+            feedback: undefined,
+            resolutionNote: undefined,
+            evidenceFile: undefined,
+            isEscalated: !!c?.isEscalated,
+            submittedTo: (c?.submittedTo || undefined) as string | undefined,
+            department: (c?.department || c?.category || undefined) as
+              | string
+              | undefined,
+            sourceRole: (c?.sourceRole || undefined) as Complaint["sourceRole"],
+            assignedByRole: (c?.assignedByRole ||
+              undefined) as Complaint["assignedByRole"],
+            assignmentPath: Array.isArray(c?.assignmentPath)
+              ? (c.assignmentPath as string[])
+              : undefined,
+          } as Complaint;
+        });
+        setAllComplaints(mapped);
+        // If today is in this month and we have no day items loaded yet for selectedDate, synthesize them
+        if (
+          !mapped.some((m) =>
+            isSameDay(m.submittedDate || m.deadline || new Date(), selectedDate)
+          )
+        ) {
+          handleSelectDateCb(selectedDate);
+        }
+      } catch (e) {
+        // silent
+      }
+    })();
+  }, [
+    effectiveRole,
+    selectedDate,
+    statusFilter,
+    priorityFilter,
+    categoryFilter,
+    viewType,
+    user?.fullName,
+    user?.name,
+    handleSelectDateCb,
+  ]);
+
+  // Auto-fetch current day items on mount if none loaded yet (admin/dean)
+  const initialDayFetchedRef = useRef(false);
+  useEffect(() => {
+    if (initialDayFetchedRef.current) return;
+    if (effectiveRole !== "admin" && effectiveRole !== "dean") return;
+    // Use normalized adminId which supports both `id` and `_id` on the user
+    if (!adminId) return;
+    initialDayFetchedRef.current = true;
+    handleSelectDateCb(selectedDate);
+  }, [effectiveRole, adminId, selectedDate, handleSelectDateCb]);
 
   // Filtering
   const filteredComplaints = useMemo(() => {

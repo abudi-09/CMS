@@ -88,10 +88,8 @@ export default function AllComplaints() {
         const roleNorm = (user?.role || "").toLowerCase();
         if (!user) return; // wait for auth
         if (roleNorm === "admin" || roleNorm === "dean") {
-          const rawUnknown = await listAllComplaintsApi();
-          const raw = Array.isArray(rawUnknown)
-            ? rawUnknown
-            : ([] as unknown[]);
+          const res = await listAllComplaintsApi({ page, limit: pageSize });
+          const raw = Array.isArray(res?.items) ? res.items : ([] as unknown[]);
           if (cancelled) return;
           let mapped: Complaint[] = (raw || []).map((c: unknown) => {
             const obj = (c ?? {}) as Record<string, unknown>;
@@ -122,7 +120,15 @@ export default function AllComplaints() {
                 (obj["assignedByRole"] as Complaint["assignedByRole"]) ||
                 undefined,
               assignmentPath: Array.isArray(obj["assignmentPath"])
-                ? (obj["assignmentPath"] as Complaint["assignmentPath"])
+                ? (obj["assignmentPath"] as string[]).map(
+                    (v) =>
+                      (String(v) === "headOfDepartment" ? "hod" : String(v)) as
+                        | "student"
+                        | "hod"
+                        | "staff"
+                        | "dean"
+                        | "admin"
+                  )
                 : [],
               submittedTo: (obj["submittedTo"] as string) || undefined,
               department: (obj["department"] as string) || undefined,
@@ -309,7 +315,7 @@ export default function AllComplaints() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [user]);
+  }, [user, page]);
 
   type MinimalUser = {
     fullName?: string;
@@ -382,9 +388,15 @@ export default function AllComplaints() {
             assignedStaffRole: "staff",
             assignedByRole: obj.assignedByRole as Complaint["assignedByRole"],
             assignmentPath: Array.isArray(obj.assignmentPath)
-              ? (obj.assignmentPath as Array<
-                  "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-                >)
+              ? (obj.assignmentPath as string[]).map(
+                  (v) =>
+                    (String(v) === "headOfDepartment" ? "hod" : String(v)) as
+                      | "student"
+                      | "hod"
+                      | "staff"
+                      | "dean"
+                      | "admin"
+                )
               : [],
             assignedDate: obj.assignedAt
               ? new Date(String(obj.assignedAt))
@@ -671,18 +683,10 @@ export default function AllComplaints() {
     async function fetchComplaints() {
       try {
         setLoadingList(true);
-        const res = await fetch("http://localhost:5000/api/complaints", {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (!Array.isArray(data)) {
-          setComplaints([]);
-          setLoadingList(false);
-          return;
-        }
-        const mapped: Complaint[] = (
-          data as Array<Record<string, unknown>>
-        ).map((raw) => {
+        const res = await listAllComplaintsApi({ page, limit: pageSize });
+        const data = res;
+        const arr = Array.isArray(data.items) ? data.items : [];
+        const mapped: Complaint[] = arr.map((raw) => {
           const obj = raw as Record<string, unknown>;
           // submittedBy may be an object or string
           let submittedBy = "Unknown";
@@ -698,7 +702,6 @@ export default function AllComplaints() {
           }
 
           const assignedStaffRaw = obj["assignedTo"] ?? obj["assignedStaff"];
-          // Prefer the human-readable submittedTo when present (e.g., "HoD (Computer Science)")
           const assignedStaff = obj["submittedTo"]
             ? String(obj["submittedTo"])
             : typeof assignedStaffRaw === "string"
@@ -738,11 +741,10 @@ export default function AllComplaints() {
             assignedDate: obj["assignedAt"]
               ? new Date(String(obj["assignedAt"]))
               : undefined,
-            // Prefer createdAt from the backend as the submitted date when available
-            submittedDate: obj["createdAt"]
-              ? new Date(String(obj["createdAt"]))
-              : obj["submittedDate"]
+            submittedDate: obj["submittedDate"]
               ? new Date(String(obj["submittedDate"]))
+              : obj["createdAt"]
+              ? new Date(String(obj["createdAt"]))
               : new Date(),
             lastUpdated: obj["lastUpdated"]
               ? new Date(String(obj["lastUpdated"]))
@@ -776,7 +778,7 @@ export default function AllComplaints() {
       }
     }
     fetchComplaints();
-  }, []);
+  }, [page]);
 
   return (
     <div className="space-y-6">

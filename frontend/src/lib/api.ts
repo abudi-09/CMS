@@ -284,14 +284,37 @@ export async function assignComplaintApi(
   return handleJson(res);
 }
 
-export async function listAllComplaintsApi() {
-  const res = await fetch(`${API_BASE}/complaints/all`, {
+export type ListAllComplaintsResponse = {
+  items: unknown[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export async function listAllComplaintsApi(params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  priority?: string;
+  category?: string;
+  search?: string;
+  submittedTo?: string;
+}) {
+  const url = `${API_BASE}/complaints/all${qs({
+    page: params?.page,
+    limit: params?.limit,
+    status: params?.status,
+    priority: params?.priority,
+    category: params?.category,
+    search: params?.search,
+    submittedTo: params?.submittedTo,
+  })}`;
+  const res = await fetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  // Use a broad type for compatibility with existing mappers
-  return handleJson<unknown[]>(res);
+  return handleJson<ListAllComplaintsResponse>(res);
 }
 
 // Common role-scoped complaint fetchers
@@ -363,6 +386,16 @@ export async function submitComplaintFeedbackApi(
 
 export async function getHodInboxApi() {
   const res = await fetch(`${API_BASE}/complaints/inbox/hod`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+// Admin inbox (server will scope to logged-in admin)
+export async function getAdminInboxApi() {
+  const res = await fetch(`${API_BASE}/complaints/inbox/admin`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -1093,6 +1126,32 @@ export async function getAdminCalendarDayApi(params: {
       ? params.categories.join(",")
       : undefined,
     assignedTo: params?.assignedTo,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+export async function getAdminCalendarMonthApi(params: {
+  month: number; // 0-11
+  year: number;
+  viewType?: "submission" | "deadline";
+  status?: string;
+  priority?: string;
+  categories?: string[];
+}) {
+  const url = `${API_BASE}/stats/complaints/calendar/admin-month${qs({
+    month: params.month,
+    year: params.year,
+    viewType: params.viewType,
+    status: params.status,
+    priority: params.priority,
+    categories: params.categories?.length
+      ? params.categories.join(",")
+      : undefined,
   })}`;
   const res = await fetch(url, {
     method: "GET",
