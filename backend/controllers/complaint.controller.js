@@ -1,4 +1,5 @@
 import Complaint from "../models/complaint.model.js";
+import Feedback from "../models/Feedback.js";
 import mongoose from "mongoose";
 import ActivityLog from "../models/activityLog.model.js";
 import User, {
@@ -2184,18 +2185,52 @@ export const getFeedbackByRole = async (req, res) => {
       // Dean: all resolved with feedback (dean sees dean-visible items)
       // no extra filter here (controller-level dean visibility is broad)
     } else if (role === "admin") {
-      // Admin: restrict to complaints that have feedback targeted/admin-relevant.
-      // We derive complaint IDs from Feedback model where targetAdmin = current admin
-      // and complaint is resolved.
+      // Admin: return per-feedback entries targeted to this admin (multi-entry model)
       const targeted = await Feedback.find({
         targetAdmin: req.user._id,
         archived: false,
-      }).select("complaintId");
-      const complaintIds = targeted.map((f) => f.complaintId);
-      if (!complaintIds.length) {
-        return res.status(200).json([]); // no feedback targeted to this admin
-      }
-      filters = { ...filters, _id: { $in: complaintIds } };
+      })
+        .populate({ path: "user", select: "name email" })
+        .populate({
+          path: "complaintId",
+          select:
+            "title complaintCode category department resolvedAt updatedAt createdAt status assignedTo submittedBy",
+          populate: [
+            { path: "assignedTo", select: "name email role department" },
+            { path: "submittedBy", select: "name email" },
+          ],
+        })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const filtered = targeted.filter(
+        (f) => f.complaintId && f.complaintId.status === "Resolved"
+      );
+      const formatted = filtered.map((f) => {
+        const c = f.complaintId || {};
+        return {
+          complaintId: c._id,
+          title: c.title,
+          complaintCode: c.complaintCode,
+          submittedBy: c.submittedBy,
+          assignedTo: c.assignedTo,
+          feedback: { rating: f.rating, comment: f.comments },
+          resolvedAt: c.resolvedAt || c.updatedAt,
+          submittedAt: c.createdAt,
+          avgResolutionMs:
+            c.resolvedAt && c.createdAt
+              ? new Date(c.resolvedAt).getTime() -
+                new Date(c.createdAt).getTime()
+              : undefined,
+          category: c.category,
+          department: c.department,
+          submittedTo: c.submittedTo || null,
+          reviewed: f.reviewStatus === "Reviewed",
+          feedbackEntryId: f._id,
+          createdAt: f.createdAt,
+        };
+      });
+      return res.status(200).json(formatted);
     } else {
       return res.status(403).json({ error: "Access denied" });
     }
