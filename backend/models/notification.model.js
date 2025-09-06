@@ -29,5 +29,8 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: true } }
 );
 
+// Optimize per-user sorted queries
+notificationSchema.index({ user: 1, createdAt: -1 });
+
 const Notification = mongoose.model("Notification", notificationSchema);
 export default Notification;

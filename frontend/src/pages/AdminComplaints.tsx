@@ -15,7 +15,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
-  listAllComplaintsApi,
+  getAdminInboxApi,
   approveComplaintApi,
   updateComplaintStatusApi,
 } from "@/lib/api";
@@ -40,65 +40,70 @@ type AdminListItem = {
 };
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthContext";
+import {
+  getAdminAnalyticsSummaryApi,
+  getAdminStatusDistributionApi,
+} from "@/lib/api";
 
-export function AdminComplaints() {
+// Small server-driven stats row component (computes counts from server-scoped complaints)
+function ServerStatsRow({ complaints }: { complaints: Complaint[] }) {
+  const total = complaints.length;
+  const pending = complaints.filter((c) => c.status === "Pending").length;
+  // user requested: Accepted should NOT include "In Progress"
+  const accepted = complaints.filter((c) => c.status === "Accepted").length;
+  const resolved = complaints.filter((c) => c.status === "Resolved").length;
+  const rejected = complaints.filter((c) => c.status === "Closed").length;
+
+  const cards = [
+    { title: "Direct Complaints", value: total },
+    { title: "Pending", value: pending },
+    { title: "Accepted", value: accepted },
+    { title: "Resolved", value: resolved },
+    { title: "Rejected", value: rejected },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
+      {cards.map((c) => (
+        <div
+          key={c.title}
+          className="p-4 bg-white rounded shadow flex flex-col justify-between"
+        >
+          <div className="text-xs text-muted-foreground">{c.title}</div>
+          <div className="text-2xl font-bold">{c.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AdminComplaints() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Keep complaints in local state so updates reflect in the table
+
   const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
   const [modalOpen, setModalOpen] = useState(false);
-  // Updates will be handled inside the View Detail modal (RoleBasedComplaintModal)
-  // Tabs: Pending (status Pending), Accepted (status In Progress), Rejected (Closed with Rejected: note)
-  const [statusTab, setStatusTab] = useState<string>("Pending");
-  // No separate updatingComplaint; use selectedComplaint in the detail modal
+  const [statusTab, setStatusTab] = useState<
+    "Pending" | "Accepted" | "Resolved" | "Rejected"
+  >("Pending");
 
-  // Load from backend
+  // Load admin-scoped inbox on mount
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
+    let alive = true;
+    (async () => {
       try {
-        const raw =
-          (await listAllComplaintsApi()) as unknown as AdminListItem[];
-        if (cancelled) return;
-        const mapped: Complaint[] = (raw || []).map((c) => ({
-          id: c.id,
-          title: c.title || "Complaint",
-          description: "",
-          category: c.category || "General",
-          status: (c.status as Complaint["status"]) || "Pending",
-          priority: (c.priority as Complaint["priority"]) || "Medium",
-          submittedBy: c.submittedBy || "",
-          // Ensure assignedStaff shows human-readable name if present
-          assignedStaff: c.assignedTo || undefined,
-          submittedDate: c.submittedDate
-            ? new Date(c.submittedDate)
-            : new Date(),
-          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-          deadline: c.deadline ? new Date(c.deadline) : undefined,
-          sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
-          assignedByRole:
-            (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
-          assignmentPath: Array.isArray(c.assignmentPath)
-            ? (c.assignmentPath as Complaint["assignmentPath"])
-            : [],
-          submittedTo: c.submittedTo || undefined,
-          department: c.department || undefined,
-        }));
-        setComplaints(mapped);
-      } catch {
-        // stay empty on failure
-      } finally {
-        if (!cancelled) setLoading(false);
+        const data = await getAdminInboxApi();
+        if (!alive) return;
+        if (Array.isArray(data)) setComplaints(data as Complaint[]);
+      } catch (e) {
+        // ignore load error
       }
-    };
-    load();
+    })();
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, []);
 
@@ -135,16 +140,8 @@ export function AdminComplaints() {
     c.status !== "Resolved" &&
     c.status !== "Closed";
 
-  // Scope this page to complaints sent directly to Admin by students
-  const isDirectToAdmin = (c: Complaint) => {
-    const submittedTo = (c.submittedTo || "").toLowerCase();
-    const src = (c.sourceRole || "").toLowerCase();
-    const assignedBy = (c.assignedByRole || "").toLowerCase();
-    return (
-      submittedTo === "admin" || (src === "student" && assignedBy === "admin")
-    );
-  };
-  const adminInbox = complaints.filter(isDirectToAdmin);
+  // Complaints are already server-scoped to this admin; use full list
+  const adminInbox = complaints;
 
   // Helper: detect rejected (Closed with Rejected: prefix)
   // Backend models rejections as status Closed with a note. Without note access here,
@@ -275,6 +272,12 @@ export function AdminComplaints() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-6">
+      {/* Top summary counters (fetched from server): Total, Pending, Accepted, Resolved, Rejected */}
+      <ServerStatsRow
+        complaints={complaints}
+        // fetch server-side counts on mount
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Admin Complaints</CardTitle>

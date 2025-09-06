@@ -388,6 +388,9 @@ export function SubmitComplaint() {
         // NEW: send Hod id when role is hod
         recipientHodId:
           formData.role === "hod" ? formData.recipient : undefined,
+        // NEW: when sending to a specific admin, include canonical recipientId
+        recipientId: formData.role === "admin" ? formData.recipient : undefined,
+        recipientRole: formData.role === "admin" ? "admin" : undefined,
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);

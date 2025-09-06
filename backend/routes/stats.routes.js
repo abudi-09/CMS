@@ -12,6 +12,7 @@ import {
   getCategoryCounts,
   getAdminCalendarSummary,
   getAdminCalendarDay,
+  getAdminCalendarMonth,
   // HoD analytics
   getDepartmentPriorityDistribution,
   getDepartmentStatusDistribution,
@@ -220,18 +221,13 @@ router.get(
   getAdminCalendarDay
 );
 
-// Staff calendar summary/day
+
 router.get(
-  "/complaints/calendar/staff-summary",
+  "/complaints/calendar/admin-month",
   protectRoute,
-  staffOnly,
-  getStaffCalendarSummary
-);
-router.get(
-  "/complaints/calendar/staff-day",
-  protectRoute,
-  staffOnly,
-  getStaffCalendarDay
+  adminOnly,
+  getAdminCalendarMonth
+
 );
 
 // ========================= New Analytics Routes =========================

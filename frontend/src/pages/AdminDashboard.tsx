@@ -39,7 +39,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   getRoleCountsApi,
   updateComplaintStatusApi,
-  listAllComplaintsApi,
+  getAdminInboxApi,
   approveComplaintApi,
 } from "@/lib/api";
 
@@ -55,6 +55,7 @@ export function AdminDashboard() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   // No separate status modal; update inside detail modal
   const [priorityFilter] = useState<string | undefined>(undefined);
 
@@ -142,44 +143,132 @@ export function AdminDashboard() {
   const categories = Array.from(new Set(complaints.map((c) => c.category)));
   const priorities = ["Critical", "High", "Medium", "Low"];
 
-  // Load complaints for recent list (admin/dean)
+  // Load complaints for recent list (admin inbox) — keep only up to 3 pending/unassigned
   useEffect(() => {
     let cancelled = false;
+
     const load = async () => {
       try {
-        const raw = await listAllComplaintsApi();
+        const inbox = (await getAdminInboxApi()) as unknown as Array<
+          Record<string, unknown>
+        >;
         if (cancelled) return;
-        const mapped: Complaint[] = (raw || []).map((c) => ({
-          id: c.id,
-          title: c.title || "Complaint",
-          description: "",
-          category: c.category || "General",
-          status: (c.status as Complaint["status"]) || "Pending",
-          priority: (c.priority as Complaint["priority"]) || "Medium",
-          submittedBy: c.submittedBy || "",
-          assignedStaff: c.assignedTo || undefined,
-          submittedDate: c.submittedDate
-            ? new Date(c.submittedDate)
-            : new Date(),
-          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-          deadline: c.deadline ? new Date(c.deadline) : undefined,
-          sourceRole: (c.sourceRole as Complaint["sourceRole"]) || undefined,
-          assignedByRole:
-            (c.assignedByRole as Complaint["assignedByRole"]) || undefined,
-          assignmentPath: Array.isArray(c.assignmentPath)
-            ? (c.assignmentPath as Complaint["assignmentPath"])
-            : [],
-          submittedTo: c.submittedTo || undefined,
-          department: c.department || undefined,
-        }));
-        setComplaints(mapped);
-      } catch {
-        // leave empty on failure
+
+        const mapped: Complaint[] = (inbox || []).map((raw) => {
+          const c =
+            raw && typeof raw === "object"
+              ? (raw as Record<string, unknown>)
+              : {};
+          const id = String(c._id ?? c.id ?? "");
+          const title = String(c.title ?? c.complaintCode ?? "Complaint");
+          const category = String(c.category ?? c.department ?? "General");
+          const status = String(c.status ?? "Pending") as Complaint["status"];
+          const priority = String(
+            c.priority ?? "Medium"
+          ) as Complaint["priority"];
+          const submittedBy =
+            typeof c.submittedBy === "string"
+              ? String(c.submittedBy)
+              : c.submittedBy && typeof c.submittedBy === "object"
+              ? String(
+                  (c.submittedBy as Record<string, unknown>).name ??
+                    (c.submittedBy as Record<string, unknown>).fullName ??
+                    ""
+                )
+              : "";
+          const assignedStaff =
+            typeof c.assignedTo === "string"
+              ? String(c.assignedTo)
+              : c.assignedTo && typeof c.assignedTo === "object"
+              ? String(
+                  (c.assignedTo as Record<string, unknown>).name ??
+                    (c.assignedTo as Record<string, unknown>).fullName ??
+                    ""
+                )
+              : undefined;
+          const submittedDate = c.submittedDate
+            ? new Date(String(c.submittedDate))
+            : new Date();
+          const lastUpdated = c.lastUpdated
+            ? new Date(String(c.lastUpdated))
+            : new Date();
+          const deadline = c.deadline
+            ? new Date(String(c.deadline))
+            : undefined;
+          const assignmentPath = Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as string[])
+            : [];
+          const submittedTo =
+            typeof c.submittedTo === "string" ? c.submittedTo : undefined;
+
+          return {
+            id,
+            title,
+            description: String(c.description ?? ""),
+            category,
+            status,
+            priority,
+            submittedBy,
+            assignedStaff,
+            submittedDate,
+            lastUpdated,
+            deadline,
+            sourceRole: (String(c.sourceRole ?? "") ||
+              undefined) as Complaint["sourceRole"],
+            assignedByRole: (String(c.assignedByRole ?? "") ||
+              undefined) as Complaint["assignedByRole"],
+            assignmentPath,
+            submittedTo: submittedTo as string | undefined,
+            department:
+              typeof c.department === "string" ? c.department : undefined,
+          } as Complaint;
+        });
+
+        // Keep only pending/unassigned and limit to latest 3 by submittedDate
+        const pending = mapped
+          .filter((x) => {
+            const s = (x.status || "").toLowerCase();
+            return s === "pending" || s === "unassigned";
+          })
+          .sort((a, b) => {
+            const t1 = a.submittedDate
+              ? new Date(a.submittedDate).getTime()
+              : 0;
+            const t2 = b.submittedDate
+              ? new Date(b.submittedDate).getTime()
+              : 0;
+            return t2 - t1;
+          })
+          .slice(0, 3);
+
+        setComplaints(pending);
+      } catch (err) {
+        // ignore
       }
     };
+
     load();
+    const pollingId = window.setInterval(load, 15000);
+
+    const onCreated = () => load();
+    const onStatusChange = () => load();
+    window.addEventListener("complaint:created", onCreated as EventListener);
+    window.addEventListener(
+      "complaint:status-changed",
+      onStatusChange as EventListener
+    );
+
     return () => {
       cancelled = true;
+      if (pollingId) clearInterval(pollingId);
+      window.removeEventListener(
+        "complaint:created",
+        onCreated as EventListener
+      );
+      window.removeEventListener(
+        "complaint:status-changed",
+        onStatusChange as EventListener
+      );
     };
   }, []);
 
@@ -455,7 +544,7 @@ export function AdminDashboard() {
       {/** Note: ComplaintTable will call onView with a Complaint */}
 
       <ComplaintTable
-        complaints={recentDirectAdmin}
+        complaints={complaints}
         onView={(c) => {
           setSelectedComplaint(c);
           setShowDetailModal(true);
@@ -544,6 +633,4 @@ function getAllStaff(): Array<{
   return [];
 }
 
-function setShowAssignModal(arg0: boolean) {
-  throw new Error("Function not implemented.");
-}
+// showAssignModal state is managed above; AssignStaffModal can use it when wired
