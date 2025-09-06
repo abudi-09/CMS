@@ -55,15 +55,16 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Category Management",
       href: "/category-management",
     },
-    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
-    { icon: TrendingUp, label: "Admin Analytics", href: "/admin-analytics" },
     { icon: Users, label: "Admin Management", href: "/admin-management" },
+    { icon: TrendingUp, label: "Admin Analytics", href: "/admin-analytics" },
+
     {
       icon: GraduationCap,
       label: "Dean Role Management",
       href: "/dean-role-management",
     },
-    { icon: Calendar, label: "Calendar View", href: "/calendar-view" }, // Removed due to missing export
+    { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
+    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
 
     { icon: Settings, label: "Profile", href: "/profile" },
   ];

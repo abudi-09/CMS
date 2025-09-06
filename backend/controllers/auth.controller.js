@@ -40,6 +40,7 @@ export const getMe = async (req, res) => {
 };
 import User from "../models/user.model.js";
 import Notification from "../models/notification.model.js";
+import { broadcastNotification } from "../utils/notificationStream.js";
 import bcrypt from "bcryptjs";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 import VerificationToken from "../models/verificationToken.model.js";
@@ -146,7 +147,19 @@ export const signup = async (req, res) => {
                   newUser.department
                 }.`,
                 meta: { ...baseMeta, redirectPath: "/student-management" },
-              })
+              }).then((doc) =>
+                broadcastNotification({
+                  _id: doc._id,
+                  user: doc.user,
+                  type: doc.type,
+                  title: doc.title,
+                  message: doc.message,
+                  read: doc.read,
+                  meta: doc.meta,
+                  createdAt: doc.createdAt,
+                  updatedAt: doc.updatedAt,
+                })
+              )
             )
           );
         } else if (newUser.role === "staff") {
@@ -169,7 +182,19 @@ export const signup = async (req, res) => {
                   newUser.department
                 }. Approval may be required.`,
                 meta: { ...baseMeta, redirectPath: "/hod/staff-management" },
-              })
+              }).then((doc) =>
+                broadcastNotification({
+                  _id: doc._id,
+                  user: doc.user,
+                  type: doc.type,
+                  title: doc.title,
+                  message: doc.message,
+                  read: doc.read,
+                  meta: doc.meta,
+                  createdAt: doc.createdAt,
+                  updatedAt: doc.updatedAt,
+                })
+              )
             )
           );
         } else if (newUser.role === "hod") {
@@ -189,7 +214,19 @@ export const signup = async (req, res) => {
                   newUser.name || newUser.username
                 } registered as HoD for ${newUser.department}.`,
                 meta: { ...baseMeta, redirectPath: "/dean-user-management" },
-              })
+              }).then((doc) =>
+                broadcastNotification({
+                  _id: doc._id,
+                  user: doc.user,
+                  type: doc.type,
+                  title: doc.title,
+                  message: doc.message,
+                  read: doc.read,
+                  meta: doc.meta,
+                  createdAt: doc.createdAt,
+                  updatedAt: doc.updatedAt,
+                })
+              )
             )
           );
         } else if (newUser.role === "dean") {
@@ -209,7 +246,19 @@ export const signup = async (req, res) => {
                   newUser.name || newUser.username
                 } registered as Dean (${newUser.workingPlace}).`,
                 meta: { ...baseMeta, redirectPath: "/dean-role-management" },
-              })
+              }).then((doc) =>
+                broadcastNotification({
+                  _id: doc._id,
+                  user: doc.user,
+                  type: doc.type,
+                  title: doc.title,
+                  message: doc.message,
+                  read: doc.read,
+                  meta: doc.meta,
+                  createdAt: doc.createdAt,
+                  updatedAt: doc.updatedAt,
+                })
+              )
             )
           );
         }

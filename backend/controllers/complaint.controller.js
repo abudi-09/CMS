@@ -6,6 +6,7 @@ import User, {
 } from "../models/user.model.js";
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
+import { broadcastNotification } from "../utils/notificationStream.js";
 
 // Helper: create a notification without blocking the main flow
 async function safeNotify({
@@ -18,13 +19,24 @@ async function safeNotify({
 }) {
   try {
     if (!user) return;
-    await Notification.create({
+    const doc = await Notification.create({
       user,
       complaint: complaint?._id || complaint || null,
       type,
       title,
       message,
       meta,
+    });
+    broadcastNotification({
+      _id: doc._id,
+      user: doc.user,
+      type: doc.type,
+      title: doc.title,
+      message: doc.message,
+      read: doc.read,
+      meta: doc.meta,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
     });
   } catch (e) {
     console.warn("[notify] failed:", e?.message);
@@ -2169,18 +2181,21 @@ export const getFeedbackByRole = async (req, res) => {
       const ids = [req.user._id, ...staffInDept.map((u) => u._id)];
       assignedToIn = ids;
     } else if (role === "dean") {
-
       // Dean: all resolved with feedback (dean sees dean-visible items)
       // no extra filter here (controller-level dean visibility is broad)
     } else if (role === "admin") {
-      // Admins should only see feedback items that are addressed to them
-      // i.e. where assignedTo === admin or recipientId === admin
-      filters = {
-        ...filters,
-        $or: [{ assignedTo: req.user._id }, { recipientId: req.user._id }],
-      };
- filter
-
+      // Admin: restrict to complaints that have feedback targeted/admin-relevant.
+      // We derive complaint IDs from Feedback model where targetAdmin = current admin
+      // and complaint is resolved.
+      const targeted = await Feedback.find({
+        targetAdmin: req.user._id,
+        archived: false,
+      }).select("complaintId");
+      const complaintIds = targeted.map((f) => f.complaintId);
+      if (!complaintIds.length) {
+        return res.status(200).json([]); // no feedback targeted to this admin
+      }
+      filters = { ...filters, _id: { $in: complaintIds } };
     } else {
       return res.status(403).json({ error: "Access denied" });
     }

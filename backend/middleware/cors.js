@@ -1,7 +1,11 @@
 // CORS middleware for Express
 import cors from "cors";
 
-const allowedOrigins = ["http://localhost:8080", "http://localhost:8081"];
+const allowedOrigins = [
+  "http://localhost:8080",
+  "http://localhost:8081",
+  "http://localhost:8082",
+];
 const corsOptions = {
   origin: function (origin, callback) {
     // allow requests with no origin (like mobile apps, curl, etc.)

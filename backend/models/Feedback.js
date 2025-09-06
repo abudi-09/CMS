@@ -12,6 +12,14 @@ const feedbackSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    // If feedback is explicitly addressed to an admin (private), store target admin
+    targetAdmin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    // Flag identifying this entry as admin-directed (student -> admin channel)
+    isAdminFeedback: { type: Boolean, default: false },
     rating: {
       type: Number,
       min: 1,
@@ -22,6 +30,19 @@ const feedbackSchema = new mongoose.Schema(
       type: String,
       maxlength: 1000,
     },
+    // Review workflow (admin marks reviewed)
+    reviewStatus: {
+      type: String,
+      enum: ["Not Reviewed", "Reviewed"],
+      default: "Not Reviewed",
+    },
+    reviewedAt: { type: Date, default: null },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    archived: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

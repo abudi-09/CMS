@@ -510,28 +510,28 @@ export async function getFeedbackByRoleApi() {
   >(res);
 }
 
-export async function markFeedbackReviewedApi(complaintId: string) {
-  const res = await fetch(
-    `${API_BASE}/complaints/feedback/reviewed/${encodeURIComponent(
-      complaintId
-    )}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    }
-  );
-  return handleJson<{ message?: string }>(res);
-}
-
-// Staff-only: my feedback items (as assignee)
+// Staff: get feedback for complaints they resolved
 export async function getStaffFeedbackApi() {
   const res = await fetch(`${API_BASE}/complaints/feedback/my`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  return handleJson<unknown[]>(res);
+  return handleJson<
+    Array<{
+      complaintId: string;
+      title: string;
+      complaintCode: string;
+      submittedBy: { name?: string; email?: string };
+      assignedTo: { name?: string; email?: string };
+      feedback: { rating: number; comment?: string };
+      resolvedAt: string;
+      submittedAt: string;
+      avgResolutionMs?: number;
+      category: string;
+      department: string;
+    }>
+  >(res);
 }
 
 // ========================= Stats (General) =========================
@@ -1967,12 +1967,10 @@ export type NotificationItem = {
 export async function listMyNotificationsApi(params?: {
   page?: number;
   pageSize?: number;
-  unread?: boolean;
 }) {
   const url = `${API_BASE}/notifications/my${qs({
     page: params?.page,
     pageSize: params?.pageSize,
-    unread: params?.unread,
   })}`;
   const res = await fetch(url, {
     method: "GET",
@@ -2006,6 +2004,68 @@ export async function markAllNotificationsReadApi() {
     credentials: "include",
   });
   return handleJson<{ message?: string }>(res);
+}
+
+// New unified notification API (added for SSE integration)
+export async function getNotificationsApi(params?: {
+  page?: number;
+  pageSize?: number;
+  unread?: boolean;
+}) {
+  const url = `${API_BASE}/notifications/${qs({
+    page: params?.page,
+    pageSize: params?.pageSize,
+    unread: params?.unread,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{
+    items: NotificationItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>(res);
+}
+
+export async function patchNotificationReadApi(id: string) {
+  const res = await fetch(
+    `${API_BASE}/notifications/${encodeURIComponent(id)}/read`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{ message?: string; notification?: NotificationItem }>(res);
+}
+
+export async function patchAllNotificationsReadApi() {
+  const res = await fetch(`${API_BASE}/notifications/read-all`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{ message?: string }>(res);
+}
+
+export function openNotificationsEventSource(
+  onMessage: (n: NotificationItem) => void
+) {
+  const es = new EventSource(`${API_BASE}/notifications/stream`);
+  es.onmessage = (ev) => {
+    try {
+      const parsed = JSON.parse(ev.data);
+      if (parsed?.type === "notification" && parsed.data?._id) {
+        onMessage(parsed.data as NotificationItem);
+      }
+    } catch (e) {
+      // Swallow JSON parse errors silently (ignore non-JSON stream keep-alives)
+    }
+  };
+  return es;
 }
 
 // ========================= HoD All Complaints =========================
@@ -2050,4 +2110,115 @@ export async function getHodAllApi() {
     credentials: "include",
   });
   return handleJson<HodAllResponse>(res);
+}
+
+// ========================= Complaint Feedback =========================
+export type ComplaintFeedback = {
+  _id: string;
+  complaintId: string;
+  user: { _id: string; name?: string; email?: string } | string;
+  rating: number;
+  comments?: string;
+  createdAt: string;
+  updatedAt: string;
+  // admin-targeted private feedback additions
+  isAdminFeedback?: boolean;
+  targetAdmin?: { _id: string; name?: string; email?: string } | string;
+  reviewStatus?: "Pending" | "Reviewed";
+  reviewedAt?: string;
+  reviewedBy?: { _id: string; name?: string; email?: string } | string;
+  archived?: boolean;
+};
+
+export async function getComplaintFeedbackApi(complaintId: string) {
+  const res = await fetch(
+    `${API_BASE}/feedback/complaint/${encodeURIComponent(complaintId)}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{ items: ComplaintFeedback[] }>(res);
+}
+export async function addComplaintFeedbackApi(
+  complaintId: string,
+  data: { rating: number; comment?: string }
+) {
+  const res = await fetch(
+    `${API_BASE}/feedback/complaint/${encodeURIComponent(complaintId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ rating: data.rating, comment: data.comment }),
+    }
+  );
+  return handleJson<{ feedback: ComplaintFeedback; message?: string }>(res);
+}
+export async function updateComplaintFeedbackApi(
+  id: string,
+  data: { rating?: number; comment?: string }
+) {
+  const res = await fetch(`${API_BASE}/feedback/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(data),
+  });
+  return handleJson<{ feedback: ComplaintFeedback; message?: string }>(res);
+}
+export async function deleteComplaintFeedbackApi(id: string) {
+  const res = await fetch(`${API_BASE}/feedback/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{ message?: string }>(res);
+}
+
+// Admin review action
+export async function markFeedbackReviewedApi(id: string) {
+  const res = await fetch(
+    `${API_BASE}/feedback/${encodeURIComponent(id)}/review`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{ feedback: ComplaintFeedback }>(res);
+}
+
+// Add admin-targeted feedback
+export async function addAdminTargetedFeedbackApi(
+  complaintId: string,
+  data: { rating: number; comment?: string; adminTarget: string }
+) {
+  const res = await fetch(
+    `${API_BASE}/feedback/complaint/${encodeURIComponent(complaintId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        rating: data.rating,
+        comment: data.comment,
+        adminTarget: data.adminTarget,
+      }),
+    }
+  );
+  return handleJson<{ feedback: ComplaintFeedback; message?: string }>(res);
+}
+
+// Basic users list (for admin selection)
+export interface BasicUser {
+  _id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+export async function listUsersApi() {
+  const res = await fetch(`${API_BASE}/users`, { credentials: "include" });
+  return handleJson<{ users: BasicUser[] }>(res);
 }

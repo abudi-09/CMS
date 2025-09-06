@@ -266,7 +266,7 @@ function AppContent() {
                 <Route
                   path="/staff-feedback"
                   element={
-                    <RequireRole allowed={["staff"]}>
+                    <RequireRole allowed={["staff", "admin", "dean", "hod"]}>
                       <StaffFeedback />
                     </RequireRole>
                   }

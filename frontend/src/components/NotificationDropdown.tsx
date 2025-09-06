@@ -10,10 +10,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth/AuthContext";
 import {
-  listMyNotificationsApi,
-  markAllNotificationsReadApi,
-  markNotificationReadApi,
+  listMyNotificationsApi, // returns unread only (backend enforced)
   type NotificationItem,
+  openNotificationsEventSource,
+  patchNotificationReadApi,
+  patchAllNotificationsReadApi,
 } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,7 @@ export function NotificationDropdown() {
   const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -46,24 +48,18 @@ export function NotificationDropdown() {
       setLoading(true);
       const res = await listMyNotificationsApi({ page: 1, pageSize: 20 });
       setItems((prev) => {
-        // Toast new "Resolved" notifications for students
         const next = res.items;
         const prevSeen = seenIdsRef.current;
-        // Build set of current ids and find new ones
         const currentIds = new Set<string>(next.map((n) => n._id));
-        // Determine which are newly arrived (not in prevSeen)
         const newOnes = next.filter((n) => !prevSeen.has(n._id));
-
-        // Update seen set to current
         seenIdsRef.current = currentIds;
 
-        // Avoid spamming on the very first load
-    if (initializedRef.current && user?.role === "student") {
+        if (initializedRef.current && user?.role === "student") {
           for (const n of newOnes) {
-      const meta: MetaShape = (n.meta as MetaShape) || {};
-      const isResolved = n.type === "status" && meta.status === "Resolved";
+            const meta: MetaShape = (n.meta as MetaShape) || {};
+            const isResolved =
+              n.type === "status" && meta.status === "Resolved";
             if (isResolved) {
-              // Prepare navigation target
               const redirect =
                 typeof meta.redirectPath === "string"
                   ? meta.redirectPath
@@ -99,16 +95,23 @@ export function NotificationDropdown() {
 
   useEffect(() => {
     load();
-    const id = window.setInterval(load, 60000); // poll every 60s
-    return () => window.clearInterval(id);
+    const id = window.setInterval(load, 60000);
+    const es = openNotificationsEventSource((n) => {
+      setItems((prev) => {
+        if (prev.some((p) => p._id === n._id)) return prev;
+        return [n, ...prev].slice(0, 50);
+      });
+    });
+    return () => {
+      window.clearInterval(id);
+      es.close();
+    };
   }, [load]);
 
   const markAsRead = async (id: string) => {
     try {
-      await markNotificationReadApi(id);
-      setItems((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, read: true } : n))
-      );
+      await patchNotificationReadApi(id);
+      setItems((prev) => prev.filter((n) => n._id !== id)); // remove from UI (unread list)
     } catch (e) {
       console.warn("Failed to mark notification read", e);
     }
@@ -137,8 +140,8 @@ export function NotificationDropdown() {
 
   const markAllAsRead = async () => {
     try {
-      await markAllNotificationsReadApi();
-      setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+      await patchAllNotificationsReadApi();
+      setItems([]); // all cleared (no unread remain)
     } catch (e) {
       console.warn("Failed to mark all notifications read", e);
     }
@@ -164,8 +167,24 @@ export function NotificationDropdown() {
     }
   };
 
+  const handleOpenChange = async (next: boolean) => {
+    setOpen(next);
+    if (next) {
+      // Auto-mark unread as read when opening
+      const hasUnread = items.some((n) => !n.read);
+      if (hasUnread) {
+        try {
+          await patchAllNotificationsReadApi();
+          setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+        } catch (e) {
+          console.warn("Auto mark-all failed", e);
+        }
+      }
+    }
+  };
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="relative">
           <Bell className="h-5 w-5" />

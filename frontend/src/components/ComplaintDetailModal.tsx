@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,17 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Complaint } from "./ComplaintCard";
+import { useAuth } from "@/components/auth/AuthContext";
+import {
+  getComplaintFeedbackApi,
+  addComplaintFeedbackApi,
+  updateComplaintFeedbackApi,
+  deleteComplaintFeedbackApi,
+  addAdminTargetedFeedbackApi,
+  markFeedbackReviewedApi,
+  listUsersApi,
+  type ComplaintFeedback,
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface ComplaintDetailModalProps {
@@ -53,6 +64,7 @@ export function ComplaintDetailModal({
   open,
   onOpenChange,
 }: ComplaintDetailModalProps) {
+  const { user } = useAuth();
   const [isEditingFeedback, setIsEditingFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState(
     complaint?.feedback?.comment || ""
@@ -62,6 +74,157 @@ export function ComplaintDetailModal({
   );
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  const [feedbackItems, setFeedbackItems] = useState<ComplaintFeedback[]>([]);
+  const [fbLoading, setFbLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newRating, setNewRating] = useState(0);
+  const [newComment, setNewComment] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRating, setEditRating] = useState(0);
+  const [editComment, setEditComment] = useState("");
+  // admin-targeted feedback state
+  const [admins, setAdmins] = useState<
+    Array<{ _id: string; name?: string; email?: string }>
+  >([]);
+  const [adminTarget, setAdminTarget] = useState<string>("");
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const isStudent = user?.role === "student";
+  const isAdmin = user?.role === "admin";
+
+  // Extract user id from auth object (support _id or id) without using any
+  const currentUserId = (() => {
+    if (!user) return undefined;
+    const u = user as unknown as Record<string, unknown>;
+    const v = u["_id"] || u["id"];
+    return typeof v === "string" ? v : undefined;
+  })();
+  const canSubmitFeedback = Boolean(
+    user &&
+      currentUserId &&
+      complaint &&
+      complaint.submittedBy === currentUserId &&
+      complaint.status === "Resolved"
+  );
+
+  // Load feedback entries when modal opens
+  useEffect(() => {
+    if (!(open && complaint)) return;
+    (async () => {
+      setFbLoading(true);
+      try {
+        const res = await getComplaintFeedbackApi(complaint.id);
+        setFeedbackItems(res.items);
+      } catch (e) {
+        // silent
+      } finally {
+        setFbLoading(false);
+      }
+    })();
+    if (isStudent) {
+      (async () => {
+        setLoadingAdmins(true);
+        try {
+          const res = await listUsersApi();
+          setAdmins(res.users.filter((u) => u.role === "admin"));
+        } catch (e) {
+          // ignore
+        } finally {
+          setLoadingAdmins(false);
+        }
+      })();
+    }
+  }, [open, complaint, isStudent]);
+
+  const handleAddFeedback = async () => {
+    if (newRating === 0) return;
+    setAdding(true);
+    try {
+      let res;
+      if (adminTarget) {
+        res = await addAdminTargetedFeedbackApi(complaint!.id, {
+          rating: newRating,
+          comment: newComment.trim() || undefined,
+          adminTarget,
+        });
+      } else {
+        res = await addComplaintFeedbackApi(complaint!.id, {
+          rating: newRating,
+          comment: newComment.trim() || undefined,
+        });
+      }
+      setFeedbackItems((prev) => [res.feedback, ...prev]);
+      setNewRating(0);
+      setNewComment("");
+      setAdminTarget("");
+      toast({ title: "Feedback Added" });
+    } catch (e) {
+      toast({
+        title: "Failed",
+        description: "Could not add feedback",
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const startEdit = (f: ComplaintFeedback) => {
+    setEditingId(f._id);
+    setEditRating(f.rating);
+    setEditComment(f.comments || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    try {
+      const res = await updateComplaintFeedbackApi(editingId, {
+        rating: editRating,
+        comment: editComment,
+      });
+      setFeedbackItems((prev) =>
+        prev.map((f) => (f._id === editingId ? res.feedback : f))
+      );
+      setEditingId(null);
+      toast({ title: "Feedback Updated" });
+    } catch (e) {
+      toast({
+        title: "Failed",
+        description: "Could not update feedback",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteComplaintFeedbackApi(id);
+      setFeedbackItems((prev) => prev.filter((f) => f._id !== id));
+      toast({ title: "Feedback Deleted" });
+    } catch (e) {
+      toast({
+        title: "Failed",
+        description: "Could not delete",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkReviewed = async (id: string) => {
+    try {
+      const res = await markFeedbackReviewedApi(id);
+      setFeedbackItems((prev) =>
+        prev.map((f) => (f._id === id ? res.feedback : f))
+      );
+      toast({ title: "Marked Reviewed" });
+    } catch (e) {
+      toast({
+        title: "Failed",
+        description: "Could not mark reviewed",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (!complaint) return null;
 
@@ -294,6 +457,209 @@ export function ComplaintDetailModal({
             </Card>
           </div>
 
+          {/* Student Feedback (multi-entry) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-4 w-4" /> Student Feedback
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {fbLoading && (
+                <div className="text-sm text-muted-foreground">
+                  Loading feedback...
+                </div>
+              )}
+              {!fbLoading && feedbackItems.length === 0 && (
+                <div className="text-sm text-muted-foreground">
+                  No feedback yet
+                </div>
+              )}
+              {canSubmitFeedback && (
+                <div className="border rounded-md p-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Rating *</span>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          onClick={() => setNewRating(i + 1)}
+                          className={`h-5 w-5 cursor-pointer transition ${
+                            i < newRating
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "text-gray-300 hover:text-yellow-400"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {isStudent && (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">
+                        Target Admin (optional)
+                      </label>
+                      <select
+                        className="w-full border rounded-md px-2 py-1 text-sm bg-background"
+                        value={adminTarget}
+                        onChange={(e) => setAdminTarget(e.target.value)}
+                      >
+                        <option value="">-- None (public) --</option>
+                        {admins.map((a) => (
+                          <option key={a._id} value={a._id}>
+                            {a.name || a.email || a._id}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <Textarea
+                    placeholder="Share your experience..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={adding || newRating === 0}
+                    onClick={handleAddFeedback}
+                  >
+                    {adding ? "Adding..." : "Submit Feedback"}
+                  </Button>
+                </div>
+              )}
+              <div className="space-y-3">
+                {feedbackItems.map((f) => {
+                  const mine =
+                    currentUserId &&
+                    (typeof f.user === "string"
+                      ? f.user === currentUserId
+                      : f.user?._id === currentUserId);
+                  const editable = mine && f.reviewStatus !== "Reviewed";
+                  const isTargetAdmin =
+                    isAdmin &&
+                    ((typeof f.targetAdmin === "string" &&
+                      f.targetAdmin === currentUserId) ||
+                      (typeof f.targetAdmin !== "string" &&
+                        f.targetAdmin?._id === currentUserId) ||
+                      !f.targetAdmin); // public admin feedback visible to all admins
+                  return (
+                    <div key={f._id} className="border rounded-md p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-4 w-4 ${
+                                i < f.rating
+                                  ? "fill-yellow-400 text-yellow-400"
+                                  : "text-gray-300"
+                              }`}
+                            />
+                          ))}
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(f.createdAt).toLocaleString()}
+                          </span>
+                          {isAdmin && (
+                            <Badge
+                              variant={
+                                f.reviewStatus === "Reviewed"
+                                  ? "default"
+                                  : "outline"
+                              }
+                              className="ml-2 text-[10px] uppercase tracking-wide"
+                            >
+                              {f.reviewStatus === "Reviewed"
+                                ? "Reviewed"
+                                : "Pending"}
+                            </Badge>
+                          )}
+                          {f.isAdminFeedback && isAdmin && f.targetAdmin && (
+                            <span className="text-[10px] text-muted-foreground ml-1">
+                              Targeted
+                            </span>
+                          )}
+                        </div>
+                        {editable && !editingId && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEdit(f)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(f._id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        )}
+                        {!editable &&
+                          isTargetAdmin &&
+                          f.reviewStatus !== "Reviewed" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleMarkReviewed(f._id)}
+                            >
+                              Mark Reviewed
+                            </Button>
+                          )}
+                      </div>
+                      <div className="mt-2 text-sm font-medium">
+                        {typeof f.user === "string"
+                          ? f.user
+                          : f.user?.name || f.user?.email || "Student"}
+                      </div>
+                      {editingId === f._id ? (
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                onClick={() => setEditRating(i + 1)}
+                                className={`h-5 w-5 cursor-pointer ${
+                                  i < editRating
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <Textarea
+                            value={editComment}
+                            onChange={(e) => setEditComment(e.target.value)}
+                            rows={3}
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleSaveEdit}>
+                              Save
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm whitespace-pre-wrap">
+                          {f.comments || "No comment provided."}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Original single-feedback card retained below (optional could be removed) */}
           {/* Your Feedback */}
           <Card>
             <CardHeader>
