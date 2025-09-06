@@ -461,7 +461,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       const dateStr = `${yyyy}-${mm}-${dd}`;
       const categoriesParam =
         categoryFilter !== "all" ? [categoryFilter] : undefined;
-      let items =
+      const items =
         effectiveRole === "dean"
           ? await getDeanCalendarDayApi({
               date: dateStr,
@@ -494,33 +494,6 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
               categories: categoriesParam,
               assignedTo: adminId,
             });
-
-      // Frontend hard filter for dean privacy: only keep items truly scoped to logged-in dean
-      if (effectiveRole === "dean") {
-        const deanId = adminId; // normalized user id
-        interface DeanCalItem {
-          recipientRole?: string;
-          recipientId?: string;
-          assignmentPath?: string[];
-        }
-        items = (items || []).filter((c: DeanCalItem) => {
-          const recRole = (c?.recipientRole || "").toLowerCase();
-          const recId = String(c?.recipientId || "");
-          if (recRole === "dean" && recId && deanId && recId === deanId)
-            return true; // direct to this dean
-          // If assignmentPath shows dean involvement but recipient is missing id, allow only if no recipientId set (legacy) and not from another dean
-          const pathOk = Array.isArray(c?.assignmentPath)
-            ? c.assignmentPath.some(
-                (r: string) => String(r).toLowerCase() === "dean"
-              )
-            : false;
-          const otherDeanTargeted =
-            recRole === "dean" && recId && recId !== deanId;
-          if (otherDeanTargeted) return false; // another dean's item
-          if (pathOk && !otherDeanTargeted) return true;
-          return false;
-        });
-      }
       const mapped: Complaint[] = (items as unknown as QueryComplaint[]).map(
         (c) => {
           const status = (c?.status as Complaint["status"]) || "Pending";

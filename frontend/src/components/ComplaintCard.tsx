@@ -34,7 +34,7 @@ export interface Complaint {
   assignedStaff?: string;
   assignedStaffRole?: "dean" | "hod" | "staff" | "admin";
   // Who assigned this complaint to the current assignee (role perspective)
-  assignedByRole?: "student" | "hod" | "dean" | "admin";
+  assignedByRole?: "student" | "hod" | "dean" | "admin" | "staff";
   // Trace of roles that handed-off the complaint before it reached the current assignee
   assignmentPath?: Array<"student" | "hod" | "dean" | "admin" | "staff">;
   assignedDate?: Date;

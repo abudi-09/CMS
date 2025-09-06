@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Complaint from "../models/complaint.model.js";
 import User from "../models/user.model.js";
+// Added missing ActivityLog import (was causing ReferenceError -> 500 responses for dean calendar endpoints)
+import ActivityLog from "../models/activityLog.model.js";
 
 import Notification from "../models/notification.model.js";
 import fs from "fs";
@@ -822,6 +824,7 @@ export const getDeanCalendarSummary = async (req, res) => {
     //  - Complaints in the dean's department (department filter) so they can monitor departmental flow
     // NOTE: This ensures no cross-dean leakage across departments; if multiple deans share a department
     // and stricter isolation is later desired, remove the department clause.
+    // ActivityLog lookup (assign actions by this dean)
     const deanAssignedLogs = await ActivityLog.aggregate([
       {
         $match: { role: "dean", user: user._id, action: { $regex: /assign/i } },
@@ -829,6 +832,8 @@ export const getDeanCalendarSummary = async (req, res) => {
       { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
     ]);
     const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
+    // Strict per-dean isolation: ONLY direct-to-this-dean OR dean-assigned complaints.
+    // Removed department clause to prevent cross-dean leakage.
     const base = {
       isDeleted: { $ne: true },
       $and: [
@@ -836,12 +841,20 @@ export const getDeanCalendarSummary = async (req, res) => {
           $or: [
             { recipientRole: "dean", recipientId: user._id },
             { _id: { $in: deanAssignedIds } },
-            { department: user.department || null },
           ],
         },
       ],
       ...(assignedTo ? { assignedTo } : {}),
     };
+    // Debug logging for parity verification
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[DeanCalendarSummary] user=", String(user._id));
+      console.log(
+        "[DeanCalendarSummary] assignedIds=",
+        deanAssignedIds.map(String)
+      );
+      console.log("[DeanCalendarSummary] baseFilter=", JSON.stringify(base));
+    }
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
     if (categories && categories.length) base.category = { $in: categories };
@@ -1044,7 +1057,6 @@ export const getDeanCalendarDay = async (req, res) => {
       { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
     ]);
     const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
-
     const base = {
       isDeleted: { $ne: true },
       $and: [
@@ -1052,12 +1064,24 @@ export const getDeanCalendarDay = async (req, res) => {
           $or: [
             { recipientRole: "dean", recipientId: user._id },
             { _id: { $in: deanAssignedIds } },
-            { department: user.department || null },
           ],
         },
       ],
       ...(assignedTo ? { assignedTo } : {}),
     };
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        "[DeanCalendarDay] user=",
+        String(user._id),
+        "date=",
+        dateStr
+      );
+      console.log(
+        "[DeanCalendarDay] assignedIds=",
+        deanAssignedIds.map(String)
+      );
+      console.log("[DeanCalendarDay] baseFilter=", JSON.stringify(base));
+    }
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;
     if (categories && categories.length) base.category = { $in: categories };
