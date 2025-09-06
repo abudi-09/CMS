@@ -19,6 +19,8 @@ import {
   getFeedbackByRole,
   queryComplaints,
   deanAssignToHod,
+  deanAcceptComplaint,
+  deanRejectComplaint,
   getDeanInbox,
   getAdminInbox,
   getHodInbox,
@@ -66,6 +68,8 @@ router.put(
 router.put("/approve/:id", protectRoute, adminDeanOrHod, approveComplaint);
 // Dean -> assign to HoD (keeps status Pending for HoD acceptance)
 router.put("/dean/assign-to-hod/:id", protectRoute, deanOnly, deanAssignToHod);
+router.put("/dean/accept/:id", protectRoute, deanOnly, deanAcceptComplaint);
+router.put("/dean/reject/:id", protectRoute, deanOnly, deanRejectComplaint);
 // Role-scoped inboxes
 router.get("/inbox/dean", protectRoute, deanOnly, getDeanInbox);
 router.get("/inbox/admin", protectRoute, adminOnly, getAdminInbox);

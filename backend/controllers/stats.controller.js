@@ -816,9 +816,12 @@ export const getDeanCalendarSummary = async (req, res) => {
       ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
       : null;
 
-    // Per-dean private scope:
-    // - Direct-to-this-dean (recipientRole=dean, recipientId=this dean)
-    // - Or assigned-by-this-dean (via ActivityLog), excluding dean->staff items if needed on UI
+    // Per-dean private scope (protected calendar):
+    //  - Direct to this dean (recipientRole=dean & recipientId=this dean)
+    //  - Complaints this dean has ever assigned (activity log)
+    //  - Complaints in the dean's department (department filter) so they can monitor departmental flow
+    // NOTE: This ensures no cross-dean leakage across departments; if multiple deans share a department
+    // and stricter isolation is later desired, remove the department clause.
     const deanAssignedLogs = await ActivityLog.aggregate([
       {
         $match: { role: "dean", user: user._id, action: { $regex: /assign/i } },
@@ -828,9 +831,14 @@ export const getDeanCalendarSummary = async (req, res) => {
     const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
     const base = {
       isDeleted: { $ne: true },
-      $or: [
-        { recipientRole: "dean", recipientId: user._id },
-        { _id: { $in: deanAssignedIds } },
+      $and: [
+        {
+          $or: [
+            { recipientRole: "dean", recipientId: user._id },
+            { _id: { $in: deanAssignedIds } },
+            { department: user.department || null },
+          ],
+        },
       ],
       ...(assignedTo ? { assignedTo } : {}),
     };
@@ -1039,9 +1047,14 @@ export const getDeanCalendarDay = async (req, res) => {
 
     const base = {
       isDeleted: { $ne: true },
-      $or: [
-        { recipientRole: "dean", recipientId: user._id },
-        { _id: { $in: deanAssignedIds } },
+      $and: [
+        {
+          $or: [
+            { recipientRole: "dean", recipientId: user._id },
+            { _id: { $in: deanAssignedIds } },
+            { department: user.department || null },
+          ],
+        },
       ],
       ...(assignedTo ? { assignedTo } : {}),
     };

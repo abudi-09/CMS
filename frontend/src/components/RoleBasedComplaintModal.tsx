@@ -113,6 +113,33 @@ export function RoleBasedComplaintModal({
   const [deanStatusNote, setDeanStatusNote] = useState("");
   // Dean status update
   const [deanStatusUpdate, setDeanStatusUpdate] = useState("");
+  // Dean action section visible only when:
+  // 1) User is dean
+  // 2) Complaint status === "In Progress"
+  // 3) Dean has accepted / is part of the chain (accepted meaning it passed through dean or dean assigned it)
+  // Dean acceptance heuristic: complaint passed through dean if assignmentPath or assignedByRole includes dean
+  const acceptedByDean = (() => {
+    if (!liveComplaint) return false;
+    const byRole = (liveComplaint.assignedByRole || "").trim().toLowerCase();
+    if (byRole === "dean") return true;
+    if (
+      Array.isArray(liveComplaint.assignmentPath) &&
+      liveComplaint.assignmentPath.some(
+        (r) => String(r).toLowerCase() === "dean"
+      )
+    )
+      return true;
+    return false;
+  })();
+  // Treat "Accepted" as equivalent to "In Progress" for Dean visibility
+  const deanStatus = liveComplaint?.status;
+  const deanVisiblePhase =
+    deanStatus === "In Progress" || deanStatus === "Accepted";
+  const showDeanActionSection =
+    user?.role === "dean" && deanVisiblePhase && acceptedByDean;
+  // (Optional) Normalized status if you want to render unified label elsewhere
+  const deanEffectiveStatus =
+    deanStatus === "Accepted" ? "In Progress" : deanStatus;
   // Admin in-progress note and UI status (including Pending Review label)
   const [adminStatusNote, setAdminStatusNote] = useState("");
   const [adminUiStatus, setAdminUiStatus] = useState<
@@ -199,6 +226,20 @@ export function RoleBasedComplaintModal({
       obj.isEscalated ?? fallback?.isEscalated ?? false
     );
     const submittedTo = (obj.submittedTo as string) || fallback?.submittedTo;
+    const fallbackRecord: Record<string, unknown> | null = fallback
+      ? (fallback as unknown as Record<string, unknown>)
+      : null;
+    const complaintCode =
+      (obj.complaintCode as string) ||
+      (obj.friendlyCode as string) ||
+      (fallbackRecord?.friendlyCode as string | undefined) ||
+      undefined;
+    const recipientRole = ((obj.recipientRole as string | null | undefined) ||
+      (fallbackRecord?.recipientRole as string | null | undefined) ||
+      null) as string | null;
+    const recipientId = ((obj.recipientId as string | null | undefined) ||
+      (fallbackRecord?.recipientId as string | null | undefined) ||
+      null) as string | null;
 
     return {
       id,
@@ -224,6 +265,9 @@ export function RoleBasedComplaintModal({
       submittedTo,
       // Prefer backend department if present; fall back to existing
       department: (obj.department as string) || fallback?.department,
+      // Extra routing meta (augment separately if needed)
+      recipientRole: recipientRole as unknown as Complaint["recipientRole"],
+      recipientId: recipientId || undefined,
     };
   }
 
@@ -1519,6 +1563,18 @@ export function RoleBasedComplaintModal({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {liveComplaint &&
+              (liveComplaint.friendlyCode || liveComplaint.complaintCode) ? (
+                <div>
+                  <Label className="text-sm text-muted-foreground">
+                    Complaint Code
+                  </Label>
+                  <div className="mt-1 text-sm font-mono break-all">
+                    {liveComplaint.friendlyCode || liveComplaint.complaintCode}
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <Label className="text-sm text-muted-foreground">
                   Student Name
@@ -1539,6 +1595,17 @@ export function RoleBasedComplaintModal({
                   {liveComplaint.category}
                 </Badge>
               </div>
+
+              {liveComplaint.recipientRole && (
+                <div>
+                  <Label className="text-sm text-muted-foreground">
+                    Target Role
+                  </Label>
+                  <Badge variant="outline" className="mt-1 capitalize">
+                    {liveComplaint.recipientRole}
+                  </Badge>
+                </div>
+              )}
 
               {liveComplaint.department && (
                 <div>
@@ -1871,97 +1938,94 @@ export function RoleBasedComplaintModal({
           )}
 
         {/* Dean Action Section - Only for Dean user; hidden when already Resolved/Closed */}
-        {user?.role === "dean" &&
-          liveComplaint?.status &&
-          !["Resolved", "Closed", "Assigned"].includes(
-            liveComplaint.status
-          ) && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Dean Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-blue-800">
-                    <Settings className="h-4 w-4 inline mr-2" />
-                    Select a status and optionally add a note for the student.
+        {showDeanActionSection && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Dean Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  <Settings className="h-4 w-4 inline mr-2" />
+                  Select a status and optionally add a note for the student.
+                  Visible only while complaint is In Progress.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="status-select">Update Status</Label>
+                  <select
+                    id="status-select"
+                    className={`w-full px-3 py-2 border bg-background rounded-md text-sm ${
+                      deanStatusUpdate
+                        ? "border-green-500 bg-green-50"
+                        : "border-input"
+                    }`}
+                    value={deanStatusUpdate}
+                    onChange={(e) => setDeanStatusUpdate(e.target.value)}
+                  >
+                    <option value="">Select Status</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Close">Close</option>
+                  </select>
+                  {deanStatusUpdate && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Ready to change status to "{deanStatusUpdate}"
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status-note">Optional Note</Label>
+                  <Textarea
+                    id="status-note"
+                    placeholder="Add a note explaining the status change..."
+                    value={deanStatusNote}
+                    onChange={(e) => setDeanStatusNote(e.target.value)}
+                    className="min-h-[80px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Students will see this status and note in their timeline
+                    until the complaint is resolved.
                   </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="status-select">Update Status</Label>
-                    <select
-                      id="status-select"
-                      className={`w-full px-3 py-2 border bg-background rounded-md text-sm ${
-                        deanStatusUpdate
-                          ? "border-green-500 bg-green-50"
-                          : "border-input"
-                      }`}
-                      value={deanStatusUpdate}
-                      onChange={(e) => setDeanStatusUpdate(e.target.value)}
-                    >
-                      <option value="">Select Status</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Resolved">Resolved</option>
-                      <option value="Close">Close</option>
-                    </select>
-                    {deanStatusUpdate && (
-                      <p className="text-xs text-green-600 mt-1">
-                        ✓ Ready to change status to "{deanStatusUpdate}"
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="status-note">Optional Note</Label>
-                    <Textarea
-                      id="status-note"
-                      placeholder="Add a note explaining the status change..."
-                      value={deanStatusNote}
-                      onChange={(e) => setDeanStatusNote(e.target.value)}
-                      className="min-h-[80px]"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Students will see this status and note in their timeline
-                      until the complaint is resolved.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleDeanStatusUpdate}
-                    disabled={!deanStatusUpdate || isLoading}
-                    className="flex-1"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Settings className="h-4 w-4 mr-2 animate-spin" />
-                        Updating Status...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Save Status Change
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setDeanStatusUpdate("");
-                      setDeanStatusNote("");
-                    }}
-                    disabled={isLoading}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleDeanStatusUpdate}
+                  disabled={!deanStatusUpdate || isLoading}
+                  className="flex-1"
+                >
+                  {isLoading ? (
+                    <>
+                      <Settings className="h-4 w-4 mr-2 animate-spin" />
+                      Updating Status...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Save Status Change
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeanStatusUpdate("");
+                    setDeanStatusNote("");
+                  }}
+                  disabled={isLoading}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Only show these sections if assigned */}
         {isAssigned && (

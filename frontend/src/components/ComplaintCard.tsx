@@ -53,6 +53,11 @@ export interface Complaint {
   department?: string; // Add department for routing
   // Stores the latest action note (e.g., "Rejected: ..." or accept note) for lightweight list rendering
   lastNote?: string;
+  // Extended identifiers / routing metadata (optional on some views)
+  friendlyCode?: string;
+  complaintCode?: string;
+  recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
+  recipientId?: string | null;
 }
 
 interface ComplaintCardProps {

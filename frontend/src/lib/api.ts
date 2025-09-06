@@ -169,6 +169,9 @@ export type Complaint = {
   // role-based routing target
   recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
   recipientId?: string | null;
+  // Extended (returned from backend) identifiers & meta (optional so creation payload not forced)
+  complaintCode?: string;
+  friendlyCode?: string; // UI alias for complaintCode
 };
 
 // Minimal UI complaint mapping used by cards/lists

@@ -250,25 +250,42 @@ export const createComplaint = async (req, res) => {
           )
         );
       } else if (to.includes("dean")) {
-        const deans = await User.find({ role: "dean", isActive: true })
-          .select("_id")
-          .lean();
-        await Promise.all(
-          deans.map((d) =>
-            safeNotify({
-              user: d._id,
-              complaint,
-              type: "submission",
-              title: `New Complaint (${complaint.complaintCode})`,
-              message: `A new complaint was submitted: "${complaint.title}".`,
-              meta: {
-                audience: "dean",
-                redirectPath: "/dean/assign-complaints",
-                complaintId: String(complaint._id),
-              },
-            })
-          )
-        );
+        // If a specific dean recipient was provided, restrict notification
+        if (complaint.recipientRole === "dean" && complaint.recipientId) {
+          await safeNotify({
+            user: complaint.recipientId,
+            complaint,
+            type: "submission",
+            title: `New Complaint (${complaint.complaintCode})`,
+            message: `A new complaint was submitted and routed to you: "${complaint.title}".`,
+            meta: {
+              audience: "dean",
+              redirectPath: "/dean/assign-complaints",
+              complaintId: String(complaint._id),
+            },
+          });
+        } else {
+          // Fallback: broadcast to all active deans (legacy behavior)
+          const deans = await User.find({ role: "dean", isActive: true })
+            .select("_id")
+            .lean();
+          await Promise.all(
+            deans.map((d) =>
+              safeNotify({
+                user: d._id,
+                complaint,
+                type: "submission",
+                title: `New Complaint (${complaint.complaintCode})`,
+                message: `A new complaint was submitted: "${complaint.title}".`,
+                meta: {
+                  audience: "dean",
+                  redirectPath: "/dean/assign-complaints",
+                  complaintId: String(complaint._id),
+                },
+              })
+            )
+          );
+        }
       } else if (to.includes("hod")) {
         // Notify active HoD in same department if known
         if (complaint.department) {
@@ -524,32 +541,18 @@ export const getAllComplaints = async (req, res) => {
     const role = String(req.user?.role || "").toLowerCase();
     // Base visibility: exclude soft-deleted
     const baseFilter = { isDeleted: { $ne: true } };
-    // For deans, hide any complaint that is directed to Admin or involves Admin in routing
+    // Dean strict isolation: only complaints directly targeted to this dean OR assigned to this dean.
     if (role === "dean") {
       Object.assign(baseFilter, {
         $and: [
           {
             $or: [
-              { submittedTo: { $exists: false } },
-              { submittedTo: null },
-              { submittedTo: { $not: /admin/i } },
+              // Student (or other) explicitly targeted this dean
+              { recipientRole: "dean", recipientId: req.user._id },
+              // Dean currently assigned (working or previously accepted)
+              { assignedTo: req.user._id },
             ],
           },
-          {
-            $or: [
-              { assignedByRole: { $exists: false } },
-              { assignedByRole: null },
-              { assignedByRole: { $not: /admin/i } },
-            ],
-          },
-          {
-            $or: [
-              { recipientRole: { $exists: false } },
-              { recipientRole: null },
-              { recipientRole: { $not: /admin/i } },
-            ],
-          },
-          { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
         ],
       });
     }
@@ -901,8 +904,23 @@ export const getDeanInbox = async (req, res) => {
       isEscalated: { $ne: true },
       isDeleted: { $ne: true },
       $or: [
+        // Directly routed to this specific dean
         { recipientRole: "dean", recipientId: req.user._id },
+        // General dean-targeted (no specific dean chosen yet)
+        { recipientRole: "dean", recipientId: null },
+        // Already assigned to this dean (work in progress)
         { assignedTo: req.user._id },
+        // NEW: General submissions addressed to "dean" (pool) and still unassigned
+        {
+          $and: [
+            { submittedTo: { $regex: /dean/i } },
+            { assignedTo: null },
+            // ensure not explicitly routed to another dean via recipientId
+            {
+              $or: [{ recipientRole: { $ne: "dean" } }, { recipientId: null }],
+            },
+          ],
+        },
       ],
     };
     const complaints = await Complaint.find(filter)
@@ -1080,6 +1098,130 @@ export const deanAssignToHod = async (req, res) => {
   } catch (err) {
     console.error("deanAssignToHod error:", err?.message);
     res.status(500).json({ error: "Failed to assign to HoD" });
+  }
+};
+
+// Dean accepts a complaint (Pending -> In Progress)
+export const deanAcceptComplaint = async (req, res) => {
+  try {
+    if (req.user.role !== "dean") {
+      return res.status(403).json({ error: "Only deans can accept" });
+    }
+    const { id } = req.params;
+    const { note } = req.body || {};
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    // Visibility enforcement: only targeted dean (recipient) or assignedTo dean
+    const isTargeted =
+      complaint.recipientRole === "dean" &&
+      complaint.recipientId &&
+      String(complaint.recipientId) === String(req.user._id);
+    const isAssigned =
+      complaint.assignedTo &&
+      String(complaint.assignedTo) === String(req.user._id);
+    if (!isTargeted && !isAssigned) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    if (complaint.status !== "Pending" && complaint.status !== "Accepted") {
+      return res.status(400).json({ error: "Cannot accept in current state" });
+    }
+    complaint.status = "In Progress"; // or "Accepted" if business prefers
+    complaint.assignedTo = req.user._id; // ensure dean is recorded as handler
+    complaint.assignedAt = complaint.assignedAt || new Date();
+    if (!Array.isArray(complaint.assignmentPath))
+      complaint.assignmentPath = ["student"];
+    if (!complaint.assignmentPath.includes("dean"))
+      complaint.assignmentPath.push("dean");
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Dean Accepted",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { note: (note || "").trim() || undefined },
+    });
+
+    await safeNotify({
+      user: complaint.submittedBy,
+      complaint,
+      type: "status",
+      title: `Complaint Accepted (${complaint.complaintCode})`,
+      message: `Your complaint is now In Progress with the Dean.
+${note ? "Note: " + note : ""}`.trim(),
+      meta: {
+        status: complaint.status,
+        redirectPath: "/my-complaints",
+        complaintId: String(complaint._id),
+      },
+    });
+
+    return res.status(200).json({ message: "Complaint accepted", complaint });
+  } catch (err) {
+    console.error("deanAcceptComplaint error", err?.message);
+    return res.status(500).json({ error: "Failed to accept complaint" });
+  }
+};
+
+// Dean rejects a complaint (Pending -> Closed)
+export const deanRejectComplaint = async (req, res) => {
+  try {
+    if (req.user.role !== "dean") {
+      return res.status(403).json({ error: "Only deans can reject" });
+    }
+    const { id } = req.params;
+    const { note } = req.body || {};
+    const complaint = await Complaint.findById(id);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    const isTargeted =
+      complaint.recipientRole === "dean" &&
+      complaint.recipientId &&
+      String(complaint.recipientId) === String(req.user._id);
+    const isAssigned =
+      complaint.assignedTo &&
+      String(complaint.assignedTo) === String(req.user._id);
+    if (!isTargeted && !isAssigned) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    if (complaint.status !== "Pending" && complaint.status !== "Accepted") {
+      return res.status(400).json({ error: "Cannot reject in current state" });
+    }
+    complaint.status = "Closed";
+    complaint.resolutionNote = note || complaint.resolutionNote;
+    complaint.resolvedAt = new Date();
+    await complaint.save();
+
+    await ActivityLog.create({
+      user: req.user._id,
+      role: req.user.role,
+      action: "Dean Rejected",
+      complaint: complaint._id,
+      timestamp: new Date(),
+      details: { note: (note || "").trim() || undefined },
+    });
+
+    await safeNotify({
+      user: complaint.submittedBy,
+      complaint,
+      type: "status",
+      title: `Complaint Closed (${complaint.complaintCode})`,
+      message: `Your complaint was closed by the Dean.${
+        note ? " Reason: " + note : ""
+      }`,
+      meta: {
+        status: complaint.status,
+        redirectPath: "/my-complaints",
+        complaintId: String(complaint._id),
+      },
+    });
+
+    return res.status(200).json({ message: "Complaint rejected", complaint });
+  } catch (err) {
+    console.error("deanRejectComplaint error", err?.message);
+    return res.status(500).json({ error: "Failed to reject complaint" });
   }
 };
 
@@ -2285,6 +2427,36 @@ export const getFeedbackByRole = async (req, res) => {
         return bTime - aTime;
       });
       return res.status(200).json(merged);
+    } else if (role === "dean") {
+      // Dean protected feedback view: only complaints resolved by this dean OR within dean's department (resolved & assigned under that dept)
+      const deanDept = req.user.department || null;
+      const base = {
+        status: "Resolved",
+        $or: [{ assignedTo: req.user._id }, { department: deanDept }],
+        "feedback.rating": { $exists: true },
+      };
+      const complaints = await Complaint.find(base)
+        .populate("submittedBy", "name email")
+        .populate("assignedTo", "name email role department")
+        .lean();
+      const list = complaints.map((c) => ({
+        complaintId: c._id,
+        title: c.title,
+        complaintCode: c.complaintCode,
+        submittedBy: c.submittedBy,
+        assignedTo: c.assignedTo,
+        feedback: c.feedback,
+        resolvedAt: c.resolvedAt || c.updatedAt,
+        submittedAt: c.createdAt,
+        avgResolutionMs:
+          c.resolvedAt && c.createdAt
+            ? new Date(c.resolvedAt).getTime() - new Date(c.createdAt).getTime()
+            : undefined,
+        category: c.category,
+        department: c.department,
+        submittedTo: c.submittedTo || null,
+      }));
+      return res.status(200).json(list);
     } else {
       return res.status(403).json({ error: "Access denied" });
     }
