@@ -2241,8 +2241,8 @@ export const queryComplaints = async (req, res) => {
 
     // Build query
     const q = {};
-  if (assignedTo) q.assignedTo = assignedTo;
-  if (department) q.department = department;
+    if (assignedTo) q.assignedTo = assignedTo;
+    if (department) q.department = department;
     if (status) q.status = status;
     if (submittedTo) q.submittedTo = { $regex: new RegExp(submittedTo, "i") };
     if (sourceRole)

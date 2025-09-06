@@ -81,6 +81,38 @@ export default function AllComplaints() {
     setShowDetailModal(true);
   };
 
+  // Normalize roles in assignmentPath to allowed tokens
+  const normalizeRoleToken = useCallback(
+    (
+      s: unknown
+    ): "student" | "staff" | "hod" | "dean" | "admin" | undefined => {
+      const v = String(s || "").toLowerCase();
+      if (!v) return undefined;
+      if (
+        v === "headofdepartment" ||
+        v === "head_of_department" ||
+        v === "head-of-department"
+      )
+        return "hod";
+      if (["student", "staff", "hod", "dean", "admin"].includes(v))
+        return v as "student" | "staff" | "hod" | "dean" | "admin";
+      return undefined;
+    },
+    []
+  );
+  const normalizeAssignmentPath = useCallback(
+    (input: unknown): Complaint["assignmentPath"] => {
+      const arr = Array.isArray(input) ? input : [];
+      const out: Complaint["assignmentPath"] = [];
+      for (const r of arr) {
+        const t = normalizeRoleToken(r);
+        if (t) out.push(t);
+      }
+      return out;
+    },
+    [normalizeRoleToken]
+  );
+
   // Load complaints based on role
   useEffect(() => {
     let cancelled = false;
@@ -222,13 +254,13 @@ export default function AllComplaints() {
               | { name?: string; email?: string }
               | undefined;
             const submittedByName =
-              typeof sb === "string"
-                ? sb
-                : sb?.name || sb?.email || "User";
+              typeof sb === "string" ? sb : sb?.name || sb?.email || "User";
             return {
               id: String((obj?.id as string) || (obj?._id as string) || ""),
               title: String(
-                (obj?.title as string) || (obj?.subject as string) || "Complaint"
+                (obj?.title as string) ||
+                  (obj?.subject as string) ||
+                  "Complaint"
               ),
               description: String(
                 (obj?.fullDescription as string) ||
@@ -243,7 +275,8 @@ export default function AllComplaints() {
               assignedStaff: obj?.assignedTo
                 ? typeof obj.assignedTo === "string"
                   ? (obj.assignedTo as string)
-                  : (obj.assignedTo as { name?: string; email?: string })?.name ||
+                  : (obj.assignedTo as { name?: string; email?: string })
+                      ?.name ||
                     (obj.assignedTo as { name?: string; email?: string })?.email
                 : undefined,
               submittedDate: obj?.createdAt
@@ -260,7 +293,8 @@ export default function AllComplaints() {
                 ? new Date(String(obj.deadline))
                 : undefined,
               sourceRole: obj?.sourceRole as Complaint["sourceRole"],
-              assignedByRole: obj?.assignedByRole as Complaint["assignedByRole"],
+              assignedByRole:
+                obj?.assignedByRole as Complaint["assignedByRole"],
               assignmentPath: Array.isArray(obj?.assignmentPath)
                 ? (obj.assignmentPath as Complaint["assignmentPath"])
                 : [],
@@ -377,37 +411,6 @@ export default function AllComplaints() {
   const getSubmitterDept = useCallback(
     (c: Complaint) => c.department || "",
     []
-  );
-  // Normalize roles in assignmentPath to allowed tokens
-  const normalizeRoleToken = useCallback(
-    (
-      s: unknown
-    ): "student" | "staff" | "hod" | "dean" | "admin" | undefined => {
-      const v = String(s || "").toLowerCase();
-      if (!v) return undefined;
-      if (
-        v === "headofdepartment" ||
-        v === "head_of_department" ||
-        v === "head-of-department"
-      )
-        return "hod";
-      if (["student", "staff", "hod", "dean", "admin"].includes(v))
-        return v as "student" | "staff" | "hod" | "dean" | "admin";
-      return undefined;
-    },
-    []
-  );
-  const normalizeAssignmentPath = useCallback(
-    (input: unknown): Complaint["assignmentPath"] => {
-      const arr = Array.isArray(input) ? input : [];
-      const out: Complaint["assignmentPath"] = [];
-      for (const r of arr) {
-        const t = normalizeRoleToken(r);
-        if (t) out.push(t);
-      }
-      return out;
-    },
-    [normalizeRoleToken]
   );
   const role = normalize(((user || {}) as MinimalUser).role);
   const myDept = ((user || {}) as MinimalUser).department || "";
@@ -774,19 +777,17 @@ export default function AllComplaints() {
             ? String(assignedStaffRaw)
             : undefined;
 
-          const assignedStaffRole = String(
+          const assignedStaffRole = normalizeRoleToken(
             obj["assignedStaffRole"] ?? ""
-          ) as unknown as Complaint["assignedStaffRole"];
-          const assignedByRole = String(
+          ) as Complaint["assignedStaffRole"];
+          const assignedByRole = normalizeRoleToken(
             obj["assignedByRole"] ?? ""
-          ) as unknown as Complaint["assignedByRole"];
-          const sourceRole = String(
+          ) as Complaint["assignedByRole"];
+          const sourceRole = normalizeRoleToken(
             obj["sourceRole"] ?? ""
-          ) as unknown as Complaint["sourceRole"];
+          ) as Complaint["sourceRole"];
 
-          const assignmentPath = Array.isArray(obj["assignmentPath"])
-            ? (obj["assignmentPath"] as string[])
-            : [];
+          const assignmentPath = normalizeAssignmentPath(obj["assignmentPath"]);
 
           return {
             id: String(obj["id"] ?? obj["_id"] ?? ""),
@@ -845,7 +846,7 @@ export default function AllComplaints() {
       }
     }
     fetchComplaints();
-  }, []);
+  }, [normalizeAssignmentPath, normalizeRoleToken]);
 
   return (
     <div className="space-y-6">
