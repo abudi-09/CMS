@@ -217,7 +217,7 @@ export default function DeanAnalytics() {
         setTotalDepartments(
           Array.isArray(overview?.departments) ? overview.departments.length : 0
         );
-        setComplaints(normalizeComplaints(all as unknown[]));
+        setComplaints(normalizeComplaints(all as unknown as unknown[]));
         setTotalStudents(
           typeof studentsResp?.students === "number"
             ? studentsResp.students
@@ -282,8 +282,6 @@ export default function DeanAnalytics() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 3);
   }, [complaints]);
-
-  // Hover-only interaction; no selection state needed
 
   const priorityDataDyn = useMemo(() => {
     const palette: Record<string, string> = {

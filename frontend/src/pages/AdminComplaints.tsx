@@ -282,7 +282,20 @@ function AdminComplaints() {
         <CardHeader>
           <CardTitle>Admin Complaints</CardTitle>
           <div className="mt-2">
-            <Tabs value={statusTab} onValueChange={setStatusTab}>
+            <Tabs
+              value={statusTab}
+              onValueChange={(value) => {
+                if (
+                  ["Pending", "Accepted", "Resolved", "Rejected"].includes(
+                    value
+                  )
+                ) {
+                  setStatusTab(
+                    value as "Pending" | "Accepted" | "Resolved" | "Rejected"
+                  );
+                }
+              }}
+            >
               <TabsList className="flex flex-wrap gap-1">
                 <TabsTrigger value="Pending">
                   Pending ({counts["Pending"]})

@@ -114,14 +114,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const { user } = useAuth();
 
   // Compute effective role explicitly to avoid accidentally treating non-admins as admins
-  const effectiveRole: "admin" | "staff" | "dean" = (() => {
+  const effectiveRole: "admin" | "staff" | "dean" | "hod" = (() => {
     const r = (user?.role || "").toString();
     if (r === "staff") return "staff";
     if (r === "dean") return "dean";
+    if (r === "hod") return "hod";
     if (r === "admin") return "admin";
     // default to 'staff' for safety (prevents accidental admin API calls by other roles)
     return "staff";
-
   })();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -156,7 +156,6 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     countsByCategory?: Record<string, number>;
   }>({ totalThisMonth: 0, overdue: 0, dueToday: 0, resolvedThisMonth: 0 });
 
-
   // Staff: load only their assigned complaints
   // Normalized current user id (supports both id and _id fields)
   const adminId = useMemo(() => {
@@ -166,7 +165,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       (user as { id?: string; _id?: string })._id
     );
   }, [user]);
-\
+
   useEffect(() => {
     let cancelled = false;
     if (effectiveRole !== "staff") return;
@@ -399,7 +398,6 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         const s =
           effectiveRole === "dean"
             ? await getDeanCalendarSummaryApi(params)
-
             : await getAdminCalendarSummaryApi({
                 ...params,
                 assignedTo: adminId,
@@ -440,8 +438,13 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     setSelectedDate(date);
 
     // Require a logged-in user id (normalized to adminId) and the correct role
-    if (!adminId || (effectiveRole !== "admin" && effectiveRole !== "dean"))
-
+    if (
+      !adminId ||
+      (effectiveRole !== "admin" &&
+        effectiveRole !== "dean" &&
+        effectiveRole !== "hod" &&
+        effectiveRole !== "staff")
+    )
       return;
     try {
       setLoading(true);
