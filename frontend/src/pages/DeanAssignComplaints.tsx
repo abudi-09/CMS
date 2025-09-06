@@ -167,7 +167,7 @@ export function DeanAssignComplaints() {
             assignedStaffRole: c.assignmentPath?.includes("staff")
               ? "staff"
               : c.assignmentPath?.includes("hod")
-              ? "headOfDepartment"
+              ? "hod"
               : c.assignedByRole === "dean"
               ? "dean"
               : undefined,
@@ -206,7 +206,7 @@ export function DeanAssignComplaints() {
           assignedStaffRole: c.assignmentPath?.includes("staff")
             ? "staff"
             : c.assignmentPath?.includes("hod")
-            ? "headOfDepartment"
+            ? "hod"
             : c.assignedByRole === "dean"
             ? "dean"
             : undefined,
@@ -322,7 +322,7 @@ export function DeanAssignComplaints() {
               assignedStaffRole: c.assignmentPath?.includes("staff")
                 ? "staff"
                 : c.assignmentPath?.includes("hod")
-                ? "headOfDepartment"
+                ? "hod"
                 : c.assignedByRole === "dean"
                 ? "dean"
                 : undefined,
@@ -360,7 +360,7 @@ export function DeanAssignComplaints() {
             assignedStaffRole: c.assignmentPath?.includes("staff")
               ? "staff"
               : c.assignmentPath?.includes("hod")
-              ? "headOfDepartment"
+              ? "hod"
               : c.assignedByRole === "dean"
               ? "dean"
               : undefined,
@@ -576,7 +576,7 @@ export function DeanAssignComplaints() {
             c.assignedByRole === "dean"
               ? "dean"
               : c.assignedByRole === "hod"
-              ? "headOfDepartment"
+              ? "hod"
               : undefined,
           assignedByRole: c.assignedByRole || undefined,
           assignmentPath: Array.isArray(c.assignmentPath)
@@ -722,7 +722,7 @@ export function DeanAssignComplaints() {
         hodId: selectedHodId,
         deadline: hodDeadline || undefined,
       });
-      // Update local state: set status to Assigned and assignedStaffRole to headOfDepartment
+      // Update local state: set status to Assigned and assignedStaffRole to hod
       setComplaints((prev) =>
         prev.map((c) =>
           c.id === assignHodOpen.id
@@ -731,7 +731,7 @@ export function DeanAssignComplaints() {
                 assignedStaff:
                   hodOptions.find((h) => h.id === selectedHodId)?.name ||
                   c.assignedStaff,
-                assignedStaffRole: "headOfDepartment",
+                assignedStaffRole: "hod",
                 assignedByRole: "dean",
                 assignmentPath: Array.from(
                   new Set([...(c.assignmentPath || []), "dean", "hod"])
@@ -809,7 +809,7 @@ export function DeanAssignComplaints() {
     if (activeTab === "Assigned")
       return (
         c.assignedByRole === "dean" &&
-        c.assignedStaffRole === "headOfDepartment" &&
+        c.assignedStaffRole === "hod" &&
         ["Assigned", "In Progress", "Resolved", "Closed"].includes(c.status)
       );
     if (activeTab === "Resolved") return c.status === "Resolved";
@@ -1085,7 +1085,7 @@ export function DeanAssignComplaints() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {complaint.status === "Assigned" &&
-                      complaint.assignedStaffRole === "headOfDepartment" ? (
+                      complaint.assignedStaffRole === "hod" ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
                           Assigned
                         </span>
@@ -1159,8 +1159,7 @@ export function DeanAssignComplaints() {
                           )}
                         {activeTab !== "Resolved" &&
                           (!complaint.assignedStaff ||
-                            complaint.assignedStaffRole !==
-                              "headOfDepartment") &&
+                            complaint.assignedStaffRole !== "hod") &&
                           (complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
                             <Button
@@ -1300,7 +1299,7 @@ export function DeanAssignComplaints() {
                     </div>
                     <div>
                       {complaint.status === "Assigned" &&
-                      complaint.assignedStaffRole === "headOfDepartment" ? (
+                      complaint.assignedStaffRole === "hod" ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
                           Assigned
                         </span>
@@ -1385,7 +1384,7 @@ export function DeanAssignComplaints() {
                       )}
                     {activeTab !== "Resolved" &&
                       (!complaint.assignedStaff ||
-                        complaint.assignedStaffRole !== "headOfDepartment") &&
+                        complaint.assignedStaffRole !== "hod") &&
                       (complaint.status === "Pending" ||
                         complaint.status === "Unassigned") && (
                         <Button

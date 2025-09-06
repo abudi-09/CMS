@@ -108,7 +108,7 @@ export function MyComplaints() {
   const [error, setError] = useState<string | null>(null);
 
   // Role mapping helpers (component scope so they can be reused in effects and handlers)
-  type RoleU = "student" | "staff" | "headOfDepartment" | "dean" | "admin";
+  type RoleU = "student" | "staff" | "hod" | "dean" | "admin";
   type RoleNoStaff = Exclude<RoleU, "staff">;
   const roleGuard = useCallback((r?: string | null): RoleU | undefined => {
     switch ((r || "").toLowerCase()) {
@@ -118,7 +118,7 @@ export function MyComplaints() {
         return "staff";
       case "headofdepartment":
       case "hod":
-        return "headOfDepartment";
+        return "hod";
       case "dean":
         return "dean";
       case "admin":

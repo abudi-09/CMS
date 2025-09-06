@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Complaint from "../models/complaint.model.js";
 import User from "../models/user.model.js";
+
 import Notification from "../models/notification.model.js";
 import fs from "fs";
 import path from "path";
@@ -810,10 +811,22 @@ export const getDeanCalendarSummary = async (req, res) => {
       ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
       : null;
 
+    // Per-dean private scope:
+    // - Direct-to-this-dean (recipientRole=dean, recipientId=this dean)
+    // - Or assigned-by-this-dean (via ActivityLog), excluding dean->staff items if needed on UI
+    const deanAssignedLogs = await ActivityLog.aggregate([
+      {
+        $match: { role: "dean", user: user._id, action: { $regex: /assign/i } },
+      },
+      { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
+    ]);
+    const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
     const base = {
       isDeleted: { $ne: true },
-      submittedTo: { $regex: /dean/i },
-      sourceRole: { $regex: /^student$/i },
+      $or: [
+        { recipientRole: "dean", recipientId: user._id },
+        { _id: { $in: deanAssignedIds } },
+      ],
       ...(assignedTo ? { assignedTo } : {}),
     };
     if (status && status !== "all") base.status = status;
@@ -1010,10 +1023,21 @@ export const getDeanCalendarDay = async (req, res) => {
     const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
     const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
 
+    // Per-dean private scope for the day list (same as summary): direct-to-this-dean or assigned by this dean
+    const deanAssignedLogs = await ActivityLog.aggregate([
+      {
+        $match: { role: "dean", user: user._id, action: { $regex: /assign/i } },
+      },
+      { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
+    ]);
+    const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
+
     const base = {
       isDeleted: { $ne: true },
-      submittedTo: { $regex: /dean/i },
-      sourceRole: { $regex: /^student$/i },
+      $or: [
+        { recipientRole: "dean", recipientId: user._id },
+        { _id: { $in: deanAssignedIds } },
+      ],
       ...(assignedTo ? { assignedTo } : {}),
     };
     if (status && status !== "all") base.status = status;
@@ -1045,6 +1069,649 @@ export const getDeanCalendarDay = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Failed to fetch dean calendar day complaints" });
+  }
+};
+
+// HoD calendar summary: per-HoD isolation including
+// - Direct to this department HoD (submittedTo contains 'hod' and same department)
+// - Items assigned to this HoD (assignedTo = hodId)
+// - Items assigned to staff by this HoD (latest HOD assignment log user = this hod)
+export const getHodCalendarSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const hodId = mongoose.Types.ObjectId(String(user._id));
+    const department = user.department || null;
+
+    const status = req.query.status || null; // exact match
+    const priority = req.query.priority || null; // exact match
+    const categoriesParam = req.query.categories; // array or csv
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10); // 0-11
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const submissionFrom = req.query.submissionFrom
+      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
+      : null;
+    const submissionTo = req.query.submissionTo
+      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
+      : null;
+    const deadlineFrom = req.query.deadlineFrom
+      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
+      : null;
+    const deadlineTo = req.query.deadlineTo
+      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
+      : null;
+
+    // Discover complaints managed by this HOD via latest HOD assignment logs
+    const latestHodAssignments = await ActivityLog.aggregate([
+      {
+        $match: {
+          role: { $regex: /^hod$/i },
+          action: { $in: ["Assigned by HOD", "Reassigned by HOD"] },
+        },
+      },
+      { $sort: { complaint: 1, timestamp: -1 } },
+      {
+        $group: {
+          _id: "$complaint",
+          latestUser: { $first: "$user" },
+          latestTs: { $first: "$timestamp" },
+        },
+      },
+      { $match: { latestUser: hodId } },
+      { $project: { _id: 0, complaint: "$_id" } },
+    ]);
+    const managedByThisHodIds = new Set(
+      (latestHodAssignments || []).map((r) => String(r.complaint))
+    );
+
+    // Build base OR filter for HOD scope
+    const baseOr = [
+      { assignedTo: hodId },
+      {
+        _id: {
+          $in: Array.from(managedByThisHodIds).map((id) =>
+            mongoose.Types.ObjectId(id)
+          ),
+        },
+      },
+    ];
+
+    const base = {
+      isDeleted: { $ne: true },
+      $or: baseOr,
+    };
+    if (department) base.department = department;
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const submissionRange = {};
+    if (submissionFrom) submissionRange.$gte = submissionFrom;
+    if (submissionTo) submissionRange.$lte = submissionTo;
+    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
+
+    const deadlineRange = {};
+    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
+    if (deadlineTo) deadlineRange.$lte = deadlineTo;
+    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
+
+    const monthFilter = {
+      ...base,
+      ...(viewType === "submission"
+        ? {
+            $or: [
+              {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+              {
+                submittedDate: {
+                  ...(base.submittedDate || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+            ],
+          }
+        : {
+            deadline: {
+              ...(base.deadline || {}),
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          }),
+    };
+
+    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
+      await Promise.all([
+        Complaint.countDocuments(monthFilter),
+        Complaint.countDocuments({
+          ...base,
+          deadline: { ...(base.deadline || {}), $lt: new Date() },
+          status: { $nin: ["Resolved", "Closed"] },
+        }),
+        (() => {
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          const end = new Date();
+          end.setHours(23, 59, 59, 999);
+          return Complaint.countDocuments({
+            ...base,
+            deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
+          });
+        })(),
+        Complaint.countDocuments({
+          ...base,
+          status: "Resolved",
+          ...(viewType === "submission"
+            ? {
+                $or: [
+                  {
+                    createdAt: {
+                      ...(base.createdAt || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                  {
+                    submittedDate: {
+                      ...(base.submittedDate || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                ],
+              }
+            : {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              }),
+        }),
+      ]);
+
+    // Optional breakdowns for the selected month scope
+    const breakdownMatch = monthFilter;
+    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$status", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$priority", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$category", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const countsByStatus = Object.fromEntries(
+      (byStatusAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByPriority = Object.fromEntries(
+      (byPriorityAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByCategory = Object.fromEntries(
+      (byCategoryAgg || []).map((r) => [r._id, r.count])
+    );
+
+    return res.status(200).json({
+      totalThisMonth,
+      overdue,
+      dueToday,
+      resolvedThisMonth,
+      countsByStatus,
+      countsByPriority,
+      countsByCategory,
+    });
+  } catch (err) {
+    console.error("getHodCalendarSummary error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch HOD calendar summary" });
+  }
+};
+
+// Staff calendar summary: counts for the logged-in staff
+// Includes:
+// - Items assigned to this staff (assignedTo = staffId)
+// - Items sent directly from a student to this staff (recipientRole = 'staff' AND recipientId = staffId)
+export const getStaffCalendarSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "staff") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const staffId = mongoose.Types.ObjectId(String(user._id));
+
+    const status = req.query.status || null; // exact match
+    const priority = req.query.priority || null; // exact match
+    const categoriesParam = req.query.categories; // array or csv
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10); // 0-11
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const submissionFrom = req.query.submissionFrom
+      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
+      : null;
+    const submissionTo = req.query.submissionTo
+      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
+      : null;
+    const deadlineFrom = req.query.deadlineFrom
+      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
+      : null;
+    const deadlineTo = req.query.deadlineTo
+      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
+      : null;
+
+    const baseOr = [
+      { assignedTo: staffId },
+      {
+        recipientRole: { $regex: /^staff$/i },
+        recipientId: staffId,
+        sourceRole: { $regex: /^student$/i },
+      },
+    ];
+
+    const base = {
+      isDeleted: { $ne: true },
+      $or: baseOr,
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const submissionRange = {};
+    if (submissionFrom) submissionRange.$gte = submissionFrom;
+    if (submissionTo) submissionRange.$lte = submissionTo;
+    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
+
+    const deadlineRange = {};
+    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
+    if (deadlineTo) deadlineRange.$lte = deadlineTo;
+    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
+
+    const monthFilter = {
+      ...base,
+      ...(viewType === "submission"
+        ? {
+            $or: [
+              {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+              {
+                submittedDate: {
+                  ...(base.submittedDate || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+            ],
+          }
+        : {
+            deadline: {
+              ...(base.deadline || {}),
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          }),
+    };
+
+    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
+      await Promise.all([
+        Complaint.countDocuments(monthFilter),
+        Complaint.countDocuments({
+          ...base,
+          deadline: { ...(base.deadline || {}), $lt: new Date() },
+          status: { $nin: ["Resolved", "Closed"] },
+        }),
+        (() => {
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          const end = new Date();
+          end.setHours(23, 59, 59, 999);
+          return Complaint.countDocuments({
+            ...base,
+            deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
+          });
+        })(),
+        Complaint.countDocuments({
+          ...base,
+          status: "Resolved",
+          ...(viewType === "submission"
+            ? {
+                $or: [
+                  {
+                    createdAt: {
+                      ...(base.createdAt || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                  {
+                    submittedDate: {
+                      ...(base.submittedDate || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                ],
+              }
+            : {
+                createdAt: {
+                  ...(base.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              }),
+        }),
+      ]);
+
+    const breakdownMatch = monthFilter;
+    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$status", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$priority", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: breakdownMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$category", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const countsByStatus = Object.fromEntries(
+      (byStatusAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByPriority = Object.fromEntries(
+      (byPriorityAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByCategory = Object.fromEntries(
+      (byCategoryAgg || []).map((r) => [r._id, r.count])
+    );
+
+    return res.status(200).json({
+      totalThisMonth,
+      overdue,
+      dueToday,
+      resolvedThisMonth,
+      countsByStatus,
+      countsByPriority,
+      countsByCategory,
+    });
+  } catch (err) {
+    console.error("getStaffCalendarSummary error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch staff calendar summary" });
+  }
+};
+
+// Staff calendar day list: complaints relevant to this staff on a specific date
+export const getStaffCalendarDay = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "staff") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const staffId = mongoose.Types.ObjectId(String(user._id));
+    const status = req.query.status || null; // optional exact match
+    const priority = req.query.priority || null; // optional exact match
+    const categoriesParam = req.query.categories; // csv or array
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+      return res.status(400).json({ error: "Invalid or missing date" });
+    }
+
+    const [yStr, mStr, dStr] = dateStr.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10) - 1;
+    const d = parseInt(dStr, 10);
+
+    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+    const baseOr = [
+      { assignedTo: staffId },
+      {
+        recipientRole: { $regex: /^staff$/i },
+        recipientId: staffId,
+        sourceRole: { $regex: /^student$/i },
+      },
+    ];
+
+    const base = {
+      isDeleted: { $ne: true },
+      $or: baseOr,
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const dateFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: dayStart, $lte: dayEnd } },
+              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+            ],
+          }
+        : { deadline: { $gte: dayStart, $lte: dayEnd } };
+
+    const items = await Complaint.find({ ...base, ...dateFilter })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo recipientRole recipientId"
+      )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getStaffCalendarDay error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch staff calendar day complaints" });
+  }
+};
+
+// HoD calendar day list: complaints in scope for this HOD for a specific date
+export const getHodCalendarDay = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const hodId = mongoose.Types.ObjectId(String(user._id));
+    const department = user.department || null;
+
+    const status = req.query.status || null; // optional exact match
+    const priority = req.query.priority || null; // optional exact match
+    const categoriesParam = req.query.categories; // csv or array
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+      return res.status(400).json({ error: "Invalid or missing date" });
+    }
+
+    const [yStr, mStr, dStr] = dateStr.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10) - 1;
+    const d = parseInt(dStr, 10);
+
+    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+    // Latest HOD assignment ownership
+    const latestHodAssignments = await ActivityLog.aggregate([
+      {
+        $match: {
+          role: { $regex: /^hod$/i },
+          action: { $in: ["Assigned by HOD", "Reassigned by HOD"] },
+        },
+      },
+      { $sort: { complaint: 1, timestamp: -1 } },
+      {
+        $group: {
+          _id: "$complaint",
+          latestUser: { $first: "$user" },
+          latestTs: { $first: "$timestamp" },
+        },
+      },
+      { $match: { latestUser: hodId } },
+      { $project: { _id: 0, complaint: "$_id" } },
+    ]);
+    const managedByThisHodIds = new Set(
+      (latestHodAssignments || []).map((r) => String(r.complaint))
+    );
+
+    const baseOr = [
+      { assignedTo: hodId },
+      {
+        _id: {
+          $in: Array.from(managedByThisHodIds).map((id) =>
+            mongoose.Types.ObjectId(id)
+          ),
+        },
+      },
+    ];
+
+    const base = {
+      isDeleted: { $ne: true },
+      $or: baseOr,
+    };
+    if (department) base.department = department;
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const dateFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: dayStart, $lte: dayEnd } },
+              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+            ],
+          }
+        : { deadline: { $gte: dayStart, $lte: dayEnd } };
+
+    const items = await Complaint.find({ ...base, ...dateFilter })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo"
+      )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getHodCalendarDay error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch HOD calendar day complaints" });
   }
 };
 

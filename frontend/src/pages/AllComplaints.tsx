@@ -49,6 +49,7 @@ import {
   getHodInboxApi,
   getHodManagedComplaintsApi,
   getMyComplaintsApi,
+  API_BASE,
 } from "@/lib/api";
 
 // Fetch all complaints from backend
@@ -79,6 +80,38 @@ export default function AllComplaints() {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
   };
+
+  // Normalize roles in assignmentPath to allowed tokens
+  const normalizeRoleToken = useCallback(
+    (
+      s: unknown
+    ): "student" | "staff" | "hod" | "dean" | "admin" | undefined => {
+      const v = String(s || "").toLowerCase();
+      if (!v) return undefined;
+      if (
+        v === "headofdepartment" ||
+        v === "head_of_department" ||
+        v === "head-of-department"
+      )
+        return "hod";
+      if (["student", "staff", "hod", "dean", "admin"].includes(v))
+        return v as "student" | "staff" | "hod" | "dean" | "admin";
+      return undefined;
+    },
+    []
+  );
+  const normalizeAssignmentPath = useCallback(
+    (input: unknown): Complaint["assignmentPath"] => {
+      const arr = Array.isArray(input) ? input : [];
+      const out: Complaint["assignmentPath"] = [];
+      for (const r of arr) {
+        const t = normalizeRoleToken(r);
+        if (t) out.push(t);
+      }
+      return out;
+    },
+    [normalizeRoleToken]
+  );
 
   // Load complaints based on role
   useEffect(() => {
@@ -200,61 +233,100 @@ export default function AllComplaints() {
           for (const c of merged) byId.set(c.id, c);
           setComplaints(Array.from(byId.values()));
         } else if (roleNorm === "staff") {
-          const data = await getAssignedComplaintsApi();
-          if (cancelled) return;
+          // Staff: show department-wide complaints (shared) + ensure own assigned appear
           const staffName = user.fullName || user.name || "";
-          type StaffAssigned = {
-            id?: string;
-            _id?: string;
-            title?: string;
-            fullDescription?: string;
-            description?: string;
-            shortDescription?: string;
-            category?: string;
-            status?: Complaint["status"];
-            priority?: Complaint["priority"];
-            submittedBy?: string | { name?: string; email?: string };
-            assignedByRole?: string;
-            assignmentPath?: string[];
-            submittedDate?: string | Date;
-            lastUpdated?: string | Date;
-            deadline?: string | Date | null;
-            sourceRole?: string;
-            submittedTo?: string;
+          const dept = user.department || "";
+          // Fetch department-scoped items via query endpoint
+          const url = `${API_BASE}/complaints${
+            dept ? `?department=${encodeURIComponent(dept)}` : ""
+          }`;
+          const [deptRes, assigned] = await Promise.all([
+            fetch(url, {
+              method: "GET",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+            })
+              .then((r) => r.text())
+              .then((t) => (t ? JSON.parse(t) : []))
+              .catch(() => []),
+            getAssignedComplaintsApi().catch(() => []),
+          ]);
+          if (cancelled) return;
+
+          // Normalize both lists to Complaint
+          const mapAny = (obj: Record<string, unknown>): Complaint => {
+            const sb = obj?.submittedBy as
+              | string
+              | { name?: string; email?: string }
+              | undefined;
+            const submittedByName =
+              typeof sb === "string" ? sb : sb?.name || sb?.email || "User";
+            return {
+              id: String((obj?.id as string) || (obj?._id as string) || ""),
+              title: String(
+                (obj?.title as string) ||
+                  (obj?.subject as string) ||
+                  "Complaint"
+              ),
+              description: String(
+                (obj?.fullDescription as string) ||
+                  (obj?.description as string) ||
+                  (obj?.shortDescription as string) ||
+                  ""
+              ),
+              category: String((obj?.category as string) || "General"),
+              status: (obj?.status as Complaint["status"]) || "Pending",
+              priority: (obj?.priority as Complaint["priority"]) || "Medium",
+              submittedBy: submittedByName,
+              assignedStaff: obj?.assignedTo
+                ? typeof obj.assignedTo === "string"
+                  ? (obj.assignedTo as string)
+                  : (obj.assignedTo as { name?: string; email?: string })
+                      ?.name ||
+                    (obj.assignedTo as { name?: string; email?: string })?.email
+                : undefined,
+              submittedDate: obj?.createdAt
+                ? new Date(String(obj.createdAt))
+                : obj?.submittedDate
+                ? new Date(String(obj.submittedDate))
+                : new Date(),
+              lastUpdated: obj?.updatedAt
+                ? new Date(String(obj.updatedAt))
+                : obj?.lastUpdated
+                ? new Date(String(obj.lastUpdated))
+                : new Date(),
+              deadline: obj?.deadline
+                ? new Date(String(obj.deadline))
+                : undefined,
+              sourceRole: obj?.sourceRole as Complaint["sourceRole"],
+              assignedByRole:
+                obj?.assignedByRole as Complaint["assignedByRole"],
+              assignmentPath: Array.isArray(obj?.assignmentPath)
+                ? (obj.assignmentPath as Complaint["assignmentPath"])
+                : [],
+              submittedTo: (obj?.submittedTo as string) || undefined,
+              department: String((obj?.department as string) || dept || ""),
+            };
           };
-          const items: StaffAssigned[] = Array.isArray(data)
-            ? (data as StaffAssigned[])
+          const deptMapped: Complaint[] = Array.isArray(deptRes)
+            ? (deptRes as unknown[]).map((o) =>
+                mapAny((o || {}) as Record<string, unknown>)
+              )
             : [];
-          const mapped: Complaint[] = items.map((d) => ({
-            id: String(d.id || d._id || ""),
-            title: String(d.title || ""),
-            description: String(
-              d.fullDescription || d.description || d.shortDescription || ""
-            ),
-            category: String(d.category || ""),
-            status: (d.status as Complaint["status"]) || "Pending",
-            priority: (d.priority as Complaint["priority"]) || "Medium",
-            submittedBy:
-              typeof d.submittedBy === "object"
-                ? d.submittedBy.name || d.submittedBy.email || ""
-                : String(d.submittedBy || ""),
-            assignedStaff: staffName || undefined,
-            assignedByRole: d.assignedByRole as Complaint["assignedByRole"],
-            assignmentPath: Array.isArray(d.assignmentPath)
-              ? (d.assignmentPath as Complaint["assignmentPath"])
-              : [],
-            submittedDate: d.submittedDate
-              ? new Date(String(d.submittedDate))
-              : new Date(),
-            lastUpdated: d.lastUpdated
-              ? new Date(String(d.lastUpdated))
-              : new Date(),
-            deadline: d.deadline ? new Date(String(d.deadline)) : undefined,
-            sourceRole: d.sourceRole as Complaint["sourceRole"],
-            submittedTo: d.submittedTo,
-            department: user.department,
-          }));
-          setComplaints(mapped);
+          const assignedMapped: Complaint[] = Array.isArray(assigned)
+            ? (assigned as unknown[]).map((o: unknown) => {
+                const c = mapAny((o || {}) as Record<string, unknown>);
+                // Ensure assignedStaff names reflect logged-in staff for consistency
+                return { ...c, assignedStaff: staffName || c.assignedStaff };
+              })
+            : [];
+          // Merge and de-duplicate by id
+          const byId = new Map<string, Complaint>();
+          for (const c of [...deptMapped, ...assignedMapped]) {
+            if (!c.id) continue;
+            byId.set(c.id, c);
+          }
+          setComplaints(Array.from(byId.values()));
         } else {
           // Student: my complaints
           const raw = await getMyComplaintsApi();
@@ -387,6 +459,7 @@ export default function AllComplaints() {
             assignedStaff: staffName || undefined,
             assignedStaffRole: "staff",
             assignedByRole: obj.assignedByRole as Complaint["assignedByRole"],
+
             assignmentPath: Array.isArray(obj.assignmentPath)
               ? (obj.assignmentPath as string[]).map(
                   (v) =>
@@ -398,6 +471,7 @@ export default function AllComplaints() {
                       | "admin"
                 )
               : [],
+
             assignedDate: obj.assignedAt
               ? new Date(String(obj.assignedAt))
               : undefined,
@@ -438,7 +512,7 @@ export default function AllComplaints() {
       cancelled = true;
       if (intervalId) window.clearInterval(intervalId);
     };
-  }, [user]);
+  }, [user, normalizeAssignmentPath]);
 
   // Role-based visibility filter (hierarchical)
   const visibleComplaints = useMemo(() => {
@@ -451,7 +525,11 @@ export default function AllComplaints() {
         (c) => matchesUser(c) || getSubmitterDept(c) === myDept
       );
     }
-    // staff and other roles: show complaints assigned to this staff member
+    // Staff: department-shared view (All Complaints) -> show within my department
+    if (role === "staff") {
+      return complaints.filter((c) => getSubmitterDept(c) === myDept);
+    }
+    // other roles: conservative default
     return complaints.filter(matchesAssignedStaff);
   }, [
     user,
@@ -708,19 +786,17 @@ export default function AllComplaints() {
             ? String(assignedStaffRaw)
             : undefined;
 
-          const assignedStaffRole = String(
+          const assignedStaffRole = normalizeRoleToken(
             obj["assignedStaffRole"] ?? ""
-          ) as unknown as Complaint["assignedStaffRole"];
-          const assignedByRole = String(
+          ) as Complaint["assignedStaffRole"];
+          const assignedByRole = normalizeRoleToken(
             obj["assignedByRole"] ?? ""
-          ) as unknown as Complaint["assignedByRole"];
-          const sourceRole = String(
+          ) as Complaint["assignedByRole"];
+          const sourceRole = normalizeRoleToken(
             obj["sourceRole"] ?? ""
-          ) as unknown as Complaint["sourceRole"];
+          ) as Complaint["sourceRole"];
 
-          const assignmentPath = Array.isArray(obj["assignmentPath"])
-            ? (obj["assignmentPath"] as string[])
-            : [];
+          const assignmentPath = normalizeAssignmentPath(obj["assignmentPath"]);
 
           return {
             id: String(obj["id"] ?? obj["_id"] ?? ""),
@@ -778,7 +854,9 @@ export default function AllComplaints() {
       }
     }
     fetchComplaints();
+
   }, [page]);
+
 
   return (
     <div className="space-y-6">

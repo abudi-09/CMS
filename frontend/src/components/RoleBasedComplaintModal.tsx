@@ -82,6 +82,12 @@ export function RoleBasedComplaintModal({
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  // Normalize role checks (case/space-insensitive) - compute after user is available
+  const roleNorm = String(user?.role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+  const isHod = roleNorm === "hod" || roleNorm === "headofdepartment";
 
   const [staffUpdate, setStaffUpdate] = useState("");
   const [rejectReason, setRejectReason] = useState("");
@@ -97,6 +103,13 @@ export function RoleBasedComplaintModal({
   const [deanRejectReason, setDeanRejectReason] = useState("");
   // HoD/Dean in-progress note inputs (decoupled from backend resolutionNote history)
   const [hodStatusNote, setHodStatusNote] = useState("");
+  // HoD local status selection that won't be overwritten by polling while editing
+  const [hodActionStatus, setHodActionStatus] =
+    useState<Complaint["status"]>("In Progress");
+  const [isEditingHodStatus, setIsEditingHodStatus] = useState(false);
+  const [lastHodStatusEditAt, setLastHodStatusEditAt] = useState<number | null>(
+    null
+  );
   const [deanStatusNote, setDeanStatusNote] = useState("");
   // Dean status update
   const [deanStatusUpdate, setDeanStatusUpdate] = useState("");
@@ -209,7 +222,8 @@ export function RoleBasedComplaintModal({
       evidenceFile,
       isEscalated,
       submittedTo,
-      department: fallback?.department,
+      // Prefer backend department if present; fall back to existing
+      department: (obj.department as string) || fallback?.department,
     };
   }
 
@@ -312,6 +326,19 @@ export function RoleBasedComplaintModal({
       setAdminUiStatus("In Progress");
     else setAdminUiStatus("In Progress");
   }, [liveComplaint]);
+
+  // Sync HoD local action dropdown from live complaint when not actively editing
+  useEffect(() => {
+    if (!isHod) return;
+    if (!liveComplaint?.status) return;
+    const now = Date.now();
+    const withinCooldown =
+      typeof lastHodStatusEditAt === "number" &&
+      now - lastHodStatusEditAt < 4000;
+    if (!isEditingHodStatus && !withinCooldown) {
+      setHodActionStatus(liveComplaint.status as Complaint["status"]);
+    }
+  }, [isHod, liveComplaint?.status, isEditingHodStatus, lastHodStatusEditAt]);
 
   // Prefill Dean status to Resolved on Accepted complaints so Save isn’t disabled
   useEffect(() => {
@@ -800,16 +827,13 @@ export function RoleBasedComplaintModal({
       return true;
     }
 
-    // Include explicit HoD terminal actions (Resolved/Closed/Rejected by HOD)
-    if (/(resolved|closed|rejected) by hod/i.test(action)) {
+    // Include explicit HoD terminal actions (Resolved/Closed/Rejected/Reopened by HOD)
+    if (/(resolved|closed|rejected|reopened) by hod/i.test(action)) {
       return true;
     }
 
-    // Include system-generated assignment and acceptance logs
-    if (
-      action.includes("Complaint Assigned") ||
-      action.includes("Complaint Reassigned")
-    ) {
+    // Include HoD assignment/reassignment human-readable logs
+    if (/^(Assigned by HOD|Reassigned by HOD)/i.test(action)) {
       return true;
     }
 
@@ -913,6 +937,9 @@ export function RoleBasedComplaintModal({
     }
 
     if (/^Complaint accepted by HOD/i.test(log.action || "")) {
+      if (hasAcceptedEntry) {
+        continue;
+      }
       const time = new Date(log.timestamp);
       const details = (log.details || {}) as Record<string, unknown>;
       const rawDesc =
@@ -924,6 +951,105 @@ export function RoleBasedComplaintModal({
         label: "Accepted",
         role: log.role || "hod",
         icon: <CheckCircle className="h-4 w-4 text-success" />,
+        time,
+        desc: rawDesc,
+      });
+      hasAcceptedEntry = true;
+      continue;
+    }
+
+    if (/^Accepted by HOD/i.test(log.action || "")) {
+      if (hasAcceptedEntry) {
+        continue;
+      }
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `acceptedbyhod2|${time.toISOString()}`,
+        label: "Accepted",
+        role: log.role || "hod",
+        icon: <CheckCircle className="h-4 w-4 text-success" />,
+        time,
+        desc: rawDesc,
+      });
+      hasAcceptedEntry = true;
+      continue;
+    }
+
+    // HoD assignment/reassignment entries
+    if (/^(Assigned by HOD|Reassigned by HOD)/i.test(log.action || "")) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `hodassign|${time.toISOString()}|${rawDesc}`,
+        label: "Assigned",
+        role: log.role || "hod",
+        icon: <UserCheck className="h-4 w-4" />,
+        time,
+        desc: rawDesc,
+      });
+      continue;
+    }
+
+    // HoD reopen entries
+    if (/^Complaint reopened by HOD/i.test(log.action || "")) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `hodreopen|${time.toISOString()}`,
+        label: "Pending",
+        role: log.role || "hod",
+        icon: <Clock className="h-4 w-4" />,
+        time,
+        desc: rawDesc,
+      });
+      continue;
+    }
+
+    // HoD terminal entries (Resolved/Closed/Rejected by HOD)
+    if (/^Complaint resolved by HOD/i.test(log.action || "")) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `hodresolved|${time.toISOString()}`,
+        label: "Resolved",
+        role: log.role || "hod",
+        icon: statusIcon("Resolved"),
+        time,
+        desc: rawDesc,
+      });
+      // Mark as resolved to avoid conflicting later entries
+      isResolved = true;
+      continue;
+    }
+    if (/^Complaint (closed|rejected) by HOD/i.test(log.action || "")) {
+      const time = new Date(log.timestamp);
+      const details = (log.details || {}) as Record<string, unknown>;
+      const rawDesc =
+        typeof details.description === "string"
+          ? details.description.trim()
+          : "";
+      timelineEntries.push({
+        key: `hodclosed|${time.toISOString()}`,
+        label: "Closed",
+        role: log.role || "hod",
+        icon: statusIcon("Closed"),
         time,
         desc: rawDesc,
       });
@@ -1086,12 +1212,28 @@ export function RoleBasedComplaintModal({
   // Derived flags and views
   const hideHodPanels = Boolean(
     hideHodActionsIfAssigned &&
-      user?.role === "hod" &&
+      isHod &&
       liveComplaint &&
       Array.isArray(liveComplaint.assignmentPath) &&
       liveComplaint.assignmentPath.some(
         (r) => String(r).toLowerCase() === "staff"
       )
+  );
+
+  // HoD Actions should be hidden only when complaint is resolved or closed
+  const hideHodActions = Boolean(
+    isHod &&
+      liveComplaint &&
+      (liveComplaint.status === "Resolved" ||
+        liveComplaint.status === "Closed" ||
+        // Additionally hide for Assigned-to-staff view when requested by parent (HOD Assign tab)
+        (hideHodActionsIfAssigned &&
+          ((Array.isArray(liveComplaint.assignmentPath) &&
+            liveComplaint.assignmentPath.some(
+              (r) => String(r).toLowerCase() === "staff"
+            )) ||
+            // Fallback: if assignedStaff exists, treat as delegated to staff
+            Boolean(liveComplaint.assignedStaff))))
   );
 
   // For now, summary equals full steps (can be refined to reduce granularity)
@@ -1203,6 +1345,17 @@ export function RoleBasedComplaintModal({
                 )}
                 {/* Staff Update section removed as per request */}
 
+                {liveComplaint.department && (
+                  <div>
+                    <Label className="text-sm font-medium">Department</Label>
+                    <div className="mt-1">
+                      <Badge variant="outline">
+                        {liveComplaint.department}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+
                 {liveComplaint.feedback && user.role !== "user" && (
                   <div>
                     <Label className="text-sm font-medium">
@@ -1239,7 +1392,7 @@ export function RoleBasedComplaintModal({
         )}
 
         {/* HoD: Pending/Assigned actions (awaiting HoD decision) */}
-        {user.role === "hod" &&
+        {isHod &&
           (liveComplaint.status === "Pending" ||
             liveComplaint.status === "Assigned") &&
           !hideHodPanels && (
@@ -1386,6 +1539,17 @@ export function RoleBasedComplaintModal({
                   {liveComplaint.category}
                 </Badge>
               </div>
+
+              {liveComplaint.department && (
+                <div>
+                  <Label className="text-sm text-muted-foreground">
+                    Department
+                  </Label>
+                  <Badge variant="outline" className="mt-1">
+                    {liveComplaint.department}
+                  </Badge>
+                </div>
+              )}
 
               <div>
                 <Label className="text-sm text-muted-foreground">
@@ -1595,8 +1759,8 @@ export function RoleBasedComplaintModal({
         </Card>
 
         {/* HoD Action Section - Only for HoD user; shown after acceptance (Accepted/In Progress) below the timeline */}
-        {user.role === "hod" &&
-          !hideHodPanels &&
+        {isHod &&
+          !hideHodActions &&
           (liveComplaint.status === "In Progress" ||
             liveComplaint.status === "Accepted") && (
             <Card id="hod-actions" className="mt-6">
@@ -1608,16 +1772,16 @@ export function RoleBasedComplaintModal({
                   <Label className="mb-2">Update Status</Label>
                   <select
                     className="w-full border rounded px-3 py-2"
-                    value={liveComplaint.status}
-                    onChange={(e) =>
-                      setLiveComplaint({
-                        ...liveComplaint,
-                        status: e.target.value as Complaint["status"],
-                      })
-                    }
+                    value={hodActionStatus}
+                    onChange={(e) => {
+                      setHodActionStatus(e.target.value as Complaint["status"]);
+                      setIsEditingHodStatus(true);
+                      setLastHodStatusEditAt(Date.now());
+                    }}
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
+                    {/* HoD and Staff can resolve now */}
                     <option value="Resolved">Resolved</option>
                     <option value="Closed">Closed</option>
                   </select>
@@ -1644,20 +1808,38 @@ export function RoleBasedComplaintModal({
                     if (!liveComplaint) return;
                     setIsLoading(true);
                     try {
-                      await updateComplaintStatusApi(
+                      console.log("[HOD Modal] Update start", {
+                        id: liveComplaint.id,
+                        to: hodActionStatus,
+                        note: hodStatusNote.trim() || undefined,
+                      });
+                      const result = await updateComplaintStatusApi(
                         liveComplaint.id,
-                        liveComplaint.status as
+                        hodActionStatus as
                           | "Pending"
                           | "In Progress"
                           | "Resolved"
                           | "Closed",
                         hodStatusNote.trim() || undefined
                       );
+                      console.log("[HOD Modal] Update result", result);
+                      // Reflect new status locally
+                      setLiveComplaint((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              status: hodActionStatus,
+                              lastUpdated: new Date(),
+                            }
+                          : prev
+                      );
                       toast({
                         title: "Status updated",
-                        description: `Updated to ${liveComplaint.status}.`,
+                        description: `Updated to ${hodActionStatus}.`,
                       });
                       setHodStatusNote("");
+                      setIsEditingHodStatus(false);
+                      setLastHodStatusEditAt(Date.now());
                       try {
                         const freshLogs = await getActivityLogsForComplaint(
                           liveComplaint.id
@@ -1670,8 +1852,8 @@ export function RoleBasedComplaintModal({
                         new CustomEvent("complaint:status-changed", {
                           detail: {
                             id: liveComplaint.id,
-                            status: liveComplaint.status,
-                            newStatus: liveComplaint.status,
+                            status: hodActionStatus,
+                            newStatus: hodActionStatus,
                             note: hodStatusNote.trim() || undefined,
                           },
                         })
