@@ -221,3 +221,194 @@ export const getMyTargetedAdminFeedback = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch admin feedback" });
   }
 };
+
+// Unified: list feedback for complaints resolved by the logged-in user (any role)
+// Supports optional query param status=reviewed|unreviewed to filter multi-entry targeted docs and embedded feedback
+export const listMyResolvedFeedback = async (req, res) => {
+  try {
+    const role = String(req.user.role || "").toLowerCase();
+    if (!["admin", "dean", "hod", "staff"].includes(role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const userId = req.user._id;
+    const filterStatus = (req.query.status || "").toString().toLowerCase();
+
+    // 1. Embedded legacy feedback path (complaint.feedback)
+    const embeddedComplaints = await Complaint.find({
+      status: "Resolved",
+      assignedTo: userId,
+      "feedback.rating": { $exists: true },
+    })
+      .select(
+        "title complaintCode category department resolvedAt updatedAt createdAt status assignedTo submittedBy feedback"
+      )
+      .populate("submittedBy", "name email")
+      .lean();
+
+    const embeddedEntries = embeddedComplaints
+      .map((c) => {
+        const fb = c.feedback || {};
+        const reviewed = !!fb.reviewed;
+        if (filterStatus === "reviewed" && !reviewed) return null;
+        if (filterStatus === "unreviewed" && reviewed) return null;
+        return {
+          kind: "embedded",
+          complaintId: c._id,
+          feedbackEntryId: null,
+          title: c.title,
+          complaintCode: c.complaintCode,
+          category: c.category,
+          department: c.department,
+          submittedBy: c.submittedBy,
+          rating: fb.rating,
+          comment: fb.comment,
+          createdAt: fb.submittedAt || c.createdAt,
+          resolvedAt: c.resolvedAt || c.updatedAt,
+          reviewed,
+          reviewStatus: reviewed ? "Reviewed" : "Not Reviewed",
+          reviewable: !reviewed,
+        };
+      })
+      .filter(Boolean);
+
+    // 2. Multi-entry targeted feedback (Feedback docs referencing complaints this user resolved)
+    const targetedDocs = await Feedback.find({
+      archived: false,
+      // Not restricting targetAdmin here: any student feedback that was directed to an admin specifically
+      // is already handled separately; for generic resolver-based access we only include those targeted to this user
+      $or: [{ targetAdmin: userId }, { targetAdmin: { $exists: false } }],
+    })
+      .populate({
+        path: "complaintId",
+        select:
+          "title complaintCode category department resolvedAt updatedAt createdAt status assignedTo submittedBy",
+        populate: [
+          { path: "submittedBy", select: "name email" },
+          { path: "assignedTo", select: "_id" },
+        ],
+      })
+      .populate({ path: "user", select: "name email" })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const multiEntries = targetedDocs
+      .filter((f) => {
+        const c = f.complaintId;
+        if (!c) return false;
+        if (c.status !== "Resolved") return false;
+        // Must have been resolved (assigned) by this user
+        if (!c.assignedTo) return false;
+        if (String(c.assignedTo._id || c.assignedTo) !== String(userId))
+          return false;
+        const reviewed = f.reviewStatus === "Reviewed";
+        if (filterStatus === "reviewed" && !reviewed) return false;
+        if (filterStatus === "unreviewed" && reviewed) return false;
+        return true;
+      })
+      .map((f) => {
+        const c = f.complaintId || {};
+        const reviewed = f.reviewStatus === "Reviewed";
+        return {
+          kind: "targeted",
+          complaintId: c._id,
+          feedbackEntryId: f._id,
+          title: c.title,
+          complaintCode: c.complaintCode,
+          category: c.category,
+          department: c.department,
+          submittedBy: c.submittedBy,
+          rating: f.rating,
+          comment: f.comments,
+          createdAt: f.createdAt,
+          resolvedAt: c.resolvedAt || c.updatedAt,
+          reviewed,
+          reviewStatus: reviewed ? "Reviewed" : "Not Reviewed",
+          reviewable:
+            !reviewed &&
+            role === "admin" &&
+            f.targetAdmin &&
+            String(f.targetAdmin) === String(userId),
+        };
+      });
+
+    // Merge & sort by createdAt desc
+    const merged = [...embeddedEntries, ...multiEntries].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return res.status(200).json({ items: merged });
+  } catch (e) {
+    console.error("listMyResolvedFeedback error", e?.message || e);
+    return res.status(500).json({ error: "Failed to list feedback" });
+  }
+};
+
+// Generic mark-as-reviewed route supporting both embedded feedback and targeted Feedback docs
+export const reviewAnyFeedback = async (req, res) => {
+  try {
+    const role = String(req.user.role || "").toLowerCase();
+    if (!["admin", "dean", "hod", "staff"].includes(role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const { complaintId, entryId } = req.body || {};
+    if (!complaintId && !entryId) {
+      return res
+        .status(400)
+        .json({
+          error: "Provide complaintId (embedded) or entryId (targeted)",
+        });
+    }
+    if (entryId) {
+      // Targeted feedback document path
+      const doc = await Feedback.findById(entryId).populate({
+        path: "complaintId",
+        select: "assignedTo status",
+      });
+      if (!doc) return res.status(404).json({ error: "Feedback not found" });
+      if (!doc.complaintId || doc.complaintId.status !== "Resolved") {
+        return res.status(400).json({ error: "Complaint not resolved" });
+      }
+      // Only resolver (assignedTo) or targetAdmin (if admin) can review
+      const assignedTo = doc.complaintId.assignedTo;
+      const isResolver =
+        assignedTo && String(assignedTo) === String(req.user._id);
+      const isTargetAdmin =
+        doc.targetAdmin && String(doc.targetAdmin) === String(req.user._id);
+      if (!isResolver && !isTargetAdmin) {
+        return res.status(403).json({ error: "Not authorized to review" });
+      }
+      if (doc.reviewStatus === "Reviewed") {
+        return res.status(200).json({ message: "Already reviewed" });
+      }
+      doc.reviewStatus = "Reviewed";
+      doc.reviewedAt = new Date();
+      doc.reviewedBy = req.user._id;
+      await doc.save();
+      return res.status(200).json({ message: "Reviewed", entryId });
+    }
+    // Embedded path
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint)
+      return res.status(404).json({ error: "Complaint not found" });
+    if (!complaint.feedback || typeof complaint.feedback.rating !== "number") {
+      return res.status(400).json({ error: "No embedded feedback" });
+    }
+    if (
+      !complaint.assignedTo ||
+      String(complaint.assignedTo) !== String(req.user._id)
+    ) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    if (complaint.feedback.reviewed) {
+      return res.status(200).json({ message: "Already reviewed" });
+    }
+    complaint.feedback.reviewed = true;
+    complaint.feedback.reviewedAt = new Date();
+    complaint.feedback.reviewedBy = req.user._id;
+    await complaint.save();
+    return res.status(200).json({ message: "Reviewed", complaintId });
+  } catch (e) {
+    console.error("reviewAnyFeedback error", e?.message || e);
+    return res.status(500).json({ error: "Failed to mark reviewed" });
+  }
+};

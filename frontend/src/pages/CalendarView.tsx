@@ -370,6 +370,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   useEffect(() => {
     let cancelled = false;
     if (!["admin", "dean", "hod", "staff"].includes(effectiveRole)) return;
+    // For admin-scoped views, require adminId to avoid leaking cross-admin data
+    if (effectiveRole === "admin" && !adminId) return;
     (async () => {
       try {
         const m = selectedDate.getMonth();
@@ -395,15 +397,15 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             : undefined,
           viewType: viewType,
         };
-        const s =
-          effectiveRole === "dean"
-            ? await getDeanCalendarSummaryApi(params)
-            : await getAdminCalendarSummaryApi({
-                ...params,
-                assignedTo: adminId,
-              });
+        const s = (() => {
+          if (effectiveRole === "dean") {
+            return getDeanCalendarSummaryApi(params);
+          }
+          // Always scope admin summary by the currently authenticated adminId
+          return getAdminCalendarSummaryApi({ ...params, assignedTo: adminId });
+        })();
 
-        if (!cancelled) setSummary(s);
+        if (!cancelled) setSummary(await s);
       } catch (_) {
         if (!cancelled)
           setSummary({
@@ -429,7 +431,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     deadlineFrom,
     deadlineTo,
     viewType,
-    adminId,
+    adminId, // ensure refetch when admin changes
   ]);
 
   // Fetch date-specific complaints for Admin/Dean/HOD/Staff when clicking a date
@@ -598,7 +600,8 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   const monthFetchedRef = useRef<string | null>(null);
   useEffect(() => {
     if (effectiveRole !== "admin") return;
-    const key = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${statusFilter}-${priorityFilter}-${categoryFilter}-${viewType}`;
+    if (!adminId) return; // require adminId for isolation
+    const key = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${statusFilter}-${priorityFilter}-${categoryFilter}-${viewType}-${adminId}`;
     if (monthFetchedRef.current === key) return;
     monthFetchedRef.current = key;
     (async () => {
@@ -618,6 +621,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           status: params.status,
           priority: params.priority,
           categories: params.categories,
+          assignedTo: adminId, // enforce scoping (added param in api definition)
         })) as unknown as QueryComplaint[];
         const mapped: Complaint[] = items.map((c) => {
           const status = (c?.status as Complaint["status"]) || "Pending";
@@ -691,7 +695,25 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     user?.fullName,
     user?.name,
     handleSelectDateCb,
+    adminId,
   ]);
+
+  // Clear cached data when adminId changes (prevents seeing previous admin's data if context switches)
+  const lastAdminRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (effectiveRole !== "admin") return;
+    if (adminId && lastAdminRef.current && lastAdminRef.current !== adminId) {
+      setAllComplaints([]);
+      setSummary({
+        totalThisMonth: 0,
+        overdue: 0,
+        dueToday: 0,
+        resolvedThisMonth: 0,
+      });
+      monthFetchedRef.current = null;
+    }
+    if (adminId) lastAdminRef.current = adminId;
+  }, [adminId, effectiveRole]);
 
   // Auto-fetch current day items on mount if none loaded yet (admin/dean)
   const initialDayFetchedRef = useRef(false);

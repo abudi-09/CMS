@@ -1163,6 +1163,7 @@ export async function getAdminCalendarMonthApi(params: {
   status?: string;
   priority?: string;
   categories?: string[];
+  assignedTo?: string; // admin id scoping
 }) {
   const url = `${API_BASE}/stats/complaints/calendar/admin-month${qs({
     month: params.month,
@@ -1173,6 +1174,7 @@ export async function getAdminCalendarMonthApi(params: {
     categories: params.categories?.length
       ? params.categories.join(",")
       : undefined,
+    assignedTo: params.assignedTo,
   })}`;
   const res = await fetch(url, {
     method: "GET",
@@ -2054,7 +2056,8 @@ export async function patchAllNotificationsReadApi() {
 export function openNotificationsEventSource(
   onMessage: (n: NotificationItem) => void
 ) {
-  const es = new EventSource(`${API_BASE}/notifications/stream`);
+  // Use relative path so auth cookies (SameSite) are sent; avoids cross-origin 401
+  const es = new EventSource(`/api/notifications/stream`);
   es.onmessage = (ev) => {
     try {
       const parsed = JSON.parse(ev.data);

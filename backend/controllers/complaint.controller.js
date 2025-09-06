@@ -2185,16 +2185,57 @@ export const getFeedbackByRole = async (req, res) => {
       // Dean: all resolved with feedback (dean sees dean-visible items)
       // no extra filter here (controller-level dean visibility is broad)
     } else if (role === "admin") {
-      // Admin: return per-feedback entries targeted to this admin (multi-entry model)
-      const targeted = await Feedback.find({
-        targetAdmin: req.user._id,
+      // Admin: ONLY feedback for complaints this admin resolved.
+      // Two possible data sources:
+      //  1. Legacy single embedded complaint.feedback
+      //  2. Multi-entry targeted Feedback documents (where targetAdmin = admin)
+      // We restrict to complaints whose resolution was performed by this admin: either
+      // complaint.assignedTo == adminId at the time of resolution OR (future) a resolvedBy field.
+      const adminId = req.user._id;
+
+      // Fetch complaints resolved by this admin that have an embedded feedback
+      const resolvedComplaints = await Complaint.find({
+        status: "Resolved",
+        assignedTo: adminId,
+        "feedback.rating": { $exists: true },
+      })
+        .populate("submittedBy", "name email")
+        .populate("assignedTo", "name email role department")
+        .lean();
+
+      const embeddedEntries = resolvedComplaints.map((c) => ({
+        complaintId: c._id,
+        title: c.title,
+        complaintCode: c.complaintCode,
+        submittedBy: c.submittedBy,
+        assignedTo: c.assignedTo,
+        feedback: c.feedback
+          ? { rating: c.feedback.rating, comment: c.feedback.comment }
+          : null,
+        resolvedAt: c.resolvedAt || c.updatedAt,
+        submittedAt: c.createdAt,
+        avgResolutionMs:
+          c.resolvedAt && c.createdAt
+            ? new Date(c.resolvedAt).getTime() - new Date(c.createdAt).getTime()
+            : undefined,
+        category: c.category,
+        department: c.department,
+        submittedTo: c.submittedTo || null,
+        reviewed: true, // legacy embedded feedback treated as reviewed
+        feedbackEntryId: null,
+        createdAt: c.createdAt,
+      }));
+
+      // Multi-entry targeted feedback docs for this admin; ensure the complaint was resolved and assigned to this admin
+      const targetedDocs = await Feedback.find({
+        targetAdmin: adminId,
         archived: false,
       })
         .populate({ path: "user", select: "name email" })
         .populate({
           path: "complaintId",
           select:
-            "title complaintCode category department resolvedAt updatedAt createdAt status assignedTo submittedBy",
+            "title complaintCode category department resolvedAt updatedAt createdAt status assignedTo submittedBy submittedTo feedback",
           populate: [
             { path: "assignedTo", select: "name email role department" },
             { path: "submittedBy", select: "name email" },
@@ -2203,34 +2244,47 @@ export const getFeedbackByRole = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
 
-      const filtered = targeted.filter(
-        (f) => f.complaintId && f.complaintId.status === "Resolved"
-      );
-      const formatted = filtered.map((f) => {
-        const c = f.complaintId || {};
-        return {
-          complaintId: c._id,
-          title: c.title,
-          complaintCode: c.complaintCode,
-          submittedBy: c.submittedBy,
-          assignedTo: c.assignedTo,
-          feedback: { rating: f.rating, comment: f.comments },
-          resolvedAt: c.resolvedAt || c.updatedAt,
-          submittedAt: c.createdAt,
-          avgResolutionMs:
-            c.resolvedAt && c.createdAt
-              ? new Date(c.resolvedAt).getTime() -
-                new Date(c.createdAt).getTime()
-              : undefined,
-          category: c.category,
-          department: c.department,
-          submittedTo: c.submittedTo || null,
-          reviewed: f.reviewStatus === "Reviewed",
-          feedbackEntryId: f._id,
-          createdAt: f.createdAt,
-        };
+      const targetedEntries = targetedDocs
+        .filter(
+          (f) =>
+            f.complaintId &&
+            f.complaintId.status === "Resolved" &&
+            f.complaintId.assignedTo &&
+            String(f.complaintId.assignedTo._id || f.complaintId.assignedTo) ===
+              String(adminId)
+        )
+        .map((f) => {
+          const c = f.complaintId || {};
+          return {
+            complaintId: c._id,
+            title: c.title,
+            complaintCode: c.complaintCode,
+            submittedBy: c.submittedBy,
+            assignedTo: c.assignedTo,
+            feedback: { rating: f.rating, comment: f.comments },
+            resolvedAt: c.resolvedAt || c.updatedAt,
+            submittedAt: c.createdAt,
+            avgResolutionMs:
+              c.resolvedAt && c.createdAt
+                ? new Date(c.resolvedAt).getTime() -
+                  new Date(c.createdAt).getTime()
+                : undefined,
+            category: c.category,
+            department: c.department,
+            submittedTo: c.submittedTo || null,
+            reviewed: f.reviewStatus === "Reviewed",
+            feedbackEntryId: f._id,
+            createdAt: f.createdAt,
+          };
+        });
+
+      // Merge & sort (newest first by resolvedAt / createdAt fallback)
+      const merged = [...embeddedEntries, ...targetedEntries].sort((a, b) => {
+        const aTime = new Date(a.resolvedAt || a.createdAt).getTime();
+        const bTime = new Date(b.resolvedAt || b.createdAt).getTime();
+        return bTime - aTime;
       });
-      return res.status(200).json(formatted);
+      return res.status(200).json(merged);
     } else {
       return res.status(403).json({ error: "Access denied" });
     }

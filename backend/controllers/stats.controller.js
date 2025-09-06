@@ -598,26 +598,9 @@ export const getAdminCalendarDay = async (req, res) => {
     const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
 
     const adminId = new mongoose.Types.ObjectId(user._id);
-    // NOTE: Previously we used a STRICT scope (only recipientId or assignedTo = this admin).
-    // That caused empty calendar results for office-wide (pool) complaints submitted "to admin"
-    // without a specific recipient admin chosen yet. We now broaden visibility so an admin sees:
-    //  1. Items explicitly routed to them (recipientId = adminId)
-    //  2. Items currently assigned directly to them (assignedTo = adminId)
-    //  3. Office pool items where recipientRole = 'admin' and no specific recipientId
-    //  4. Items whose submittedTo field targets the admin office (string contains 'admin')
-    // If you need to revert to strict behavior, pass query param strict=1.
-    const strict = req.query.strict === "1" || req.query.strict === "true";
-    const visibilityOr = strict
-      ? [{ recipientId: adminId }, { assignedTo: adminId }]
-      : [
-          { recipientId: adminId },
-          { assignedTo: adminId },
-          {
-            recipientRole: "admin",
-            $or: [{ recipientId: { $exists: false } }, { recipientId: null }],
-          },
-          { submittedTo: { $regex: /admin/i } },
-        ];
+    // STRICT per-admin visibility: Only complaints directly submitted to or assigned to this admin.
+    // This enforces zero leakage between admin accounts regardless of pool submissions.
+    const visibilityOr = [{ recipientId: adminId }, { assignedTo: adminId }];
     const base = {
       isDeleted: { $ne: true },
       $or: visibilityOr,
@@ -713,18 +696,8 @@ export const getAdminCalendarMonth = async (req, res) => {
           .filter(Boolean)
       : [];
 
-    const strict = req.query.strict === "1" || req.query.strict === "true";
-    const visibilityOr = strict
-      ? [{ recipientId: adminId }, { assignedTo: adminId }]
-      : [
-          { recipientId: adminId },
-          { assignedTo: adminId },
-          {
-            recipientRole: "admin",
-            $or: [{ recipientId: { $exists: false } }, { recipientId: null }],
-          },
-          { submittedTo: { $regex: /admin/i } },
-        ];
+    // Enforce strict scoping: only complaints where this admin is the direct recipient or assignee.
+    const visibilityOr = [{ recipientId: adminId }, { assignedTo: adminId }];
     const base = {
       isDeleted: { $ne: true },
       $or: visibilityOr,
