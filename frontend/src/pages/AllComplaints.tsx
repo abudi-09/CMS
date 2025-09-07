@@ -77,7 +77,8 @@ export default function AllComplaints() {
   const [overdueFilter, setOverdueFilter] = useState("All");
   // Pagination
   const [page, setPage] = useState(1);
-  const pageSize = 5; // Non-admin pagination size
+  const [pageSize, setPageSize] = useState(20); // show 20 per page for global admin view
+  const isAdminOrDean = (user?.role || "").toLowerCase() === "admin" || (user?.role || "").toLowerCase() === "dean";
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -125,6 +126,7 @@ export default function AllComplaints() {
         if (!user) return; // wait for auth
         if (roleNorm === "admin" || roleNorm === "dean") {
           const res = await listAllComplaintsApi({ page, limit: pageSize });
+          if (typeof res?.total === 'number') setGlobalTotal(res.total);
           const raw = Array.isArray(res?.items) ? res.items : ([] as unknown[]);
           if (cancelled) return;
           let mapped: Complaint[] = (raw || []).map((c: unknown) => {
@@ -397,7 +399,7 @@ export default function AllComplaints() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [user, page]);
+  }, [user, page, pageSize]);
 
   type MinimalUser = {
     fullName?: string;
@@ -711,15 +713,10 @@ export default function AllComplaints() {
 
   // (pagination reset handled in useEffect above)
 
-  const isAdminRole = (user?.role || "").toLowerCase() === "admin";
   const totalItems = filteredComplaints.length;
-  const totalPages = isAdminRole
-    ? 1
-    : Math.max(1, Math.ceil(totalItems / pageSize));
-  const startIndex = isAdminRole ? 0 : (page - 1) * pageSize;
-  const pagedComplaints = isAdminRole
-    ? filteredComplaints
-    : filteredComplaints.slice(startIndex, startIndex + pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const pagedComplaints = filteredComplaints.slice(startIndex, startIndex + pageSize);
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {
     const maxToShow = 5;
@@ -914,7 +911,7 @@ export default function AllComplaints() {
       }
     }
     fetchComplaints();
-  }, [user, page, normalizeAssignmentPath, normalizeRoleToken]);
+  }, [user, page, pageSize, normalizeAssignmentPath, normalizeRoleToken]);
 
   return (
     <div className="space-y-6">
@@ -938,8 +935,8 @@ export default function AllComplaints() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{isAdminRole ? complaints.length : stats.total}</div>
-            <p className="text-xs text-muted-foreground">All submissions</p>
+            <div className="text-2xl font-bold">{globalTotal ?? stats.total}</div>
+            <p className="text-xs text-muted-foreground">All submissions (page {page} of {totalPages})</p>
           </CardContent>
         </Card>
 
@@ -1100,25 +1097,22 @@ export default function AllComplaints() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Complaint ID</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Student Name</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Recipient Role</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Overdue</TableHead>
                 <TableHead>Date Submitted</TableHead>
                 <TableHead>Assigned To</TableHead>
-                {/* No actions (read-only) */}
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pagedComplaints.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={11}
+                    colSpan={8}
                     className="text-center py-8 text-muted-foreground"
                   >
                     {searchTerm ||
@@ -1132,9 +1126,11 @@ export default function AllComplaints() {
               ) : (
                 pagedComplaints.map((complaint) => (
                   <TableRow key={complaint.id} className="hover:bg-muted/50">
-                    <TableCell className="text-xs text-muted-foreground">{complaint.id}</TableCell>
                     <TableCell className="max-w-xs">
-                      <div className="font-medium truncate">{complaint.title}</div>
+                      <div className="font-medium truncate">
+                        {complaint.title}
+                      </div>
+                      {/* Complaint ID hidden per request */}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -1143,15 +1139,6 @@ export default function AllComplaints() {
                           {complaint.submittedBy}
                         </span>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {complaint.department || "-"}
-                    </TableCell>
-                    <TableCell className="text-sm capitalize">
-                      {(
-                        (complaint as unknown as { recipientRole?: string })
-                          .recipientRole || complaint.submittedTo || "-"
-                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="text-xs">
@@ -1202,7 +1189,17 @@ export default function AllComplaints() {
                     <TableCell className="text-sm">
                       {complaint.assignedStaff || "Unassigned"}
                     </TableCell>
-                    {/* Read-only: entire row clickable for modal */}
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewComplaint(complaint)}
+                        className="hover:bg-primary/10"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Details
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -1311,7 +1308,7 @@ export default function AllComplaints() {
       </CardContent>
 
       {/* Pagination Controls */}
-  {!isAdminRole && totalPages > 1 && (
+      {totalPages > 1 && (
         <div className="px-4 md:px-0">
           <Pagination>
             <PaginationContent>
