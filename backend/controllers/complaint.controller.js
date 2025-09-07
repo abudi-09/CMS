@@ -482,6 +482,11 @@ export const getMyComplaints = async (req, res) => {
 export const getAllComplaints = async (req, res) => {
   try {
     const role = String(req.user?.role || "").toLowerCase();
+    // Pagination params (frontend expects paginated shape)
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
     // Base visibility: exclude soft-deleted
     const baseFilter = { isDeleted: { $ne: true } };
     // For deans, hide any complaint that is directed to Admin or involves Admin in routing
@@ -502,7 +507,7 @@ export const getAllComplaints = async (req, res) => {
               { assignedByRole: { $not: /admin/i } },
             ],
           },
-          {
+            {
             $or: [
               { recipientRole: { $exists: false } },
               { recipientRole: null },
@@ -513,12 +518,17 @@ export const getAllComplaints = async (req, res) => {
         ],
       });
     }
+
+    const total = await Complaint.countDocuments(baseFilter);
     const complaints = await Complaint.find(baseFilter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate("submittedBy", "name")
       .populate("assignedTo", "name")
       .lean();
 
-    const formatted = (complaints || [])
+    const items = (complaints || [])
       .map((c, idx) => {
         try {
           const id = c && c._id ? String(c._id) : "";
@@ -559,10 +569,16 @@ export const getAllComplaints = async (req, res) => {
         }
       })
       .filter(Boolean);
-    res.status(200).json(formatted);
+
+    return res.status(200).json({
+      items,
+      total,
+      page,
+      pageSize: limit,
+    });
   } catch (error) {
     console.error("getAllComplaints error:", error?.message, error?.stack);
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to fetch all complaints",
       details: error?.message,
     });
