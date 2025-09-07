@@ -484,7 +484,10 @@ export const getAllComplaints = async (req, res) => {
     const role = String(req.user?.role || "").toLowerCase();
     // Pagination params (frontend expects paginated shape)
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.max(
+      1,
+      Math.min(100, parseInt(req.query.limit, 10) || 20)
+    );
     const skip = (page - 1) * limit;
 
     // Base visibility: exclude soft-deleted
@@ -507,7 +510,7 @@ export const getAllComplaints = async (req, res) => {
               { assignedByRole: { $not: /admin/i } },
             ],
           },
-            {
+          {
             $or: [
               { recipientRole: { $exists: false } },
               { recipientRole: null },
@@ -560,6 +563,7 @@ export const getAllComplaints = async (req, res) => {
               ? c.assignmentPath
               : [],
             submittedTo: c?.submittedTo ?? null,
+            recipientRole: c?.recipientRole ?? null,
             feedback: c?.status === "Resolved" ? c?.feedback || null : null,
             isEscalated: !!c?.isEscalated,
           };

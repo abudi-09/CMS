@@ -1100,22 +1100,25 @@ export default function AllComplaints() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Complaint ID</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Student Name</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Recipient Role</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Overdue</TableHead>
                 <TableHead>Date Submitted</TableHead>
                 <TableHead>Assigned To</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                {/* No actions (read-only) */}
               </TableRow>
             </TableHeader>
             <TableBody>
               {pagedComplaints.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={11}
                     className="text-center py-8 text-muted-foreground"
                   >
                     {searchTerm ||
@@ -1129,11 +1132,9 @@ export default function AllComplaints() {
               ) : (
                 pagedComplaints.map((complaint) => (
                   <TableRow key={complaint.id} className="hover:bg-muted/50">
+                    <TableCell className="text-xs text-muted-foreground">{complaint.id}</TableCell>
                     <TableCell className="max-w-xs">
-                      <div className="font-medium truncate">
-                        {complaint.title}
-                      </div>
-                      {/* Complaint ID hidden per request */}
+                      <div className="font-medium truncate">{complaint.title}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -1142,6 +1143,15 @@ export default function AllComplaints() {
                           {complaint.submittedBy}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.department || "-"}
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">
+                      {(
+                        (complaint as unknown as { recipientRole?: string })
+                          .recipientRole || complaint.submittedTo || "-"
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="text-xs">
@@ -1192,17 +1202,7 @@ export default function AllComplaints() {
                     <TableCell className="text-sm">
                       {complaint.assignedStaff || "Unassigned"}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewComplaint(complaint)}
-                        className="hover:bg-primary/10"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View Details
-                      </Button>
-                    </TableCell>
+                    {/* Read-only: entire row clickable for modal */}
                   </TableRow>
                 ))
               )}
