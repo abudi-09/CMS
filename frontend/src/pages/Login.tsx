@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, GraduationCap } from "lucide-react";
+import { Loader2, GraduationCap, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
@@ -194,6 +194,16 @@ export function Login() {
           </div>
 
           <Card className="shadow-elegant">
+            <div className="px-6 pt-4">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-sm text-foreground bg-transparent border border-border rounded px-3 py-1 hover:bg-primary/5 hover:text-primary transition-colors shadow-sm"
+                aria-label="Back to home"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Home
+              </Link>
+            </div>
             <CardHeader className="text-center">
               <CardTitle className="text-2xl">Welcome Back</CardTitle>
               <CardDescription>

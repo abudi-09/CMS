@@ -1,4 +1,5 @@
 import { GraduationCap } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export function Footer() {
   return (
@@ -49,24 +50,24 @@ export function Footer() {
           <h4 className="font-semibold mb-2">Quick Links</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>
-              <a href="/about" className="hover:underline">
+              <Link to="/about" className="hover:underline">
                 About Us
-              </a>
+              </Link>
             </li>
             <li>
-              <a href="/help" className="hover:underline">
+              <Link to="/help" className="hover:underline">
                 Help &amp; Support
-              </a>
+              </Link>
             </li>
             <li>
-              <a href="/privacy" className="hover:underline">
+              <Link to="/privacy" className="hover:underline">
                 Privacy Policy
-              </a>
+              </Link>
             </li>
             <li>
-              <a href="/terms" className="hover:underline">
+              <Link to="/terms" className="hover:underline">
                 Terms of Service
-              </a>
+              </Link>
             </li>
           </ul>
         </div>

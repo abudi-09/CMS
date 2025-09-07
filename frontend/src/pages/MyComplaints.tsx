@@ -946,9 +946,10 @@ export function MyComplaints() {
                             {canEditOrDelete(complaint) && (
                               <>
                                 <Button
-                                  variant="secondary"
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleOpenEdit(complaint)}
+                                  className="dark:hover:text-blue-400"
                                 >
                                   <Pencil className="h-4 w-4 mr-1" /> Edit
                                 </Button>
@@ -1062,12 +1063,12 @@ export function MyComplaints() {
                         {canEditOrDelete(complaint) && (
                           <>
                             <Button
-                              variant="secondary"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleOpenEdit(complaint)}
-                              className="flex-1 text-xs"
+                              className="flex-1 text-xs dark:hover:text-blue-400"
                             >
-                              <Pencil className="h-3 w-3 mr-1" /> Edit
+                              <Pencil className="h-3 w-3 mr-1 " /> Edit
                             </Button>
                             <Button
                               variant="destructive"

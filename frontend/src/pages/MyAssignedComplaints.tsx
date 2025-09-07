@@ -1121,7 +1121,7 @@ export function MyAssignedComplaints() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleViewComplaint(complaint)}
-                              className="hover:bg-primary/10 dark:hover:bg-hover-blue/10"
+                              className=" dark:hover:text-blue-400"
                             >
                               <Eye className="h-4 w-4 mr-1" />
                               View Details
