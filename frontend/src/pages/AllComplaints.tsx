@@ -588,8 +588,8 @@ export default function AllComplaints() {
   const stats = {
     total: visibleComplaints.length,
     pending: visibleComplaints.filter((c) => c.status === "Pending").length,
-    inProgress: visibleComplaints.filter((c) => c.status === "In Progress")
-      .length,
+    inProgress: visibleComplaints.filter((c) => c.status === "In Progress").length,
+    underReview: visibleComplaints.filter((c) => c.status === "Under Review").length,
     resolved: visibleComplaints.filter((c) => c.status === "Resolved").length,
   };
 
@@ -732,6 +732,8 @@ export default function AllComplaints() {
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400";
       case "In Progress":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400";
+      case "Under Review":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400";
       case "Resolved":
         return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400";
       case "Closed":
@@ -966,6 +968,21 @@ export default function AllComplaints() {
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
+              Under Review
+            </CardTitle>
+            <div className="bg-purple-50 p-2 rounded-lg dark:bg-purple-900/20">
+              <AlertCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.underReview}</div>
+            <p className="text-xs text-muted-foreground">Being evaluated</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Resolved
             </CardTitle>
             <div className="bg-green-50 p-2 rounded-lg dark:bg-green-900/20">
@@ -1008,6 +1025,7 @@ export default function AllComplaints() {
                 <SelectItem value="All">All Status</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Under Review">Under Review</SelectItem>
                 <SelectItem value="Resolved">Resolved</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
                 <SelectItem value="Rejected">Rejected</SelectItem>
@@ -1371,11 +1389,8 @@ export default function AllComplaints() {
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-        onUpdate={(id, updates) =>
-          setComplaints((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
-          )
-        }
+        // Read-only global view: still allow internal modal timeline refresh but ignore outbound updates
+        onUpdate={() => { /* intentionally no-op for global read-only page */ }}
         fetchLatest
       />
     </div>

@@ -427,6 +427,16 @@ export async function getAdminInboxApi() {
   return handleJson<unknown[]>(res);
 }
 
+// Admin full workflow list (pending, accepted, under review, in progress, resolved, rejected)
+export async function getAdminWorkflowComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/admin/workflow`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
 export async function getHodManagedComplaintsApi() {
   const res = await fetch(`${API_BASE}/complaints/hod/managed`, {
     method: "GET",

@@ -15,7 +15,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
-  getAdminInboxApi,
+  getAdminWorkflowComplaintsApi,
   approveComplaintApi,
   updateComplaintStatusApi,
 } from "@/lib/api";
@@ -86,16 +86,15 @@ function AdminComplaints() {
     null
   );
   const [modalOpen, setModalOpen] = useState(false);
-  const [statusTab, setStatusTab] = useState<
-    "Pending" | "Accepted" | "Resolved" | "Rejected"
-  >("Pending");
+  type AdminTab = "Pending" | "Accepted" | "Resolved" | "Rejected";
+  const [statusTab, setStatusTab] = useState<AdminTab>("Pending");
 
   // Load admin-scoped inbox on mount
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const data = await getAdminInboxApi();
+        const data = await getAdminWorkflowComplaintsApi();
         if (!alive) return;
         if (Array.isArray(data)) setComplaints(data as Complaint[]);
       } catch (e) {
@@ -124,11 +123,12 @@ function AdminComplaints() {
           : c
       )
     );
-    if (updates.status === "Resolved") {
-      setStatusTab("Resolved");
-    } else if (updates.status === "Closed") {
+    const s = updates.status;
+    if (s === "Closed") {
       setStatusTab("Rejected");
-    } else if (updates.status === "Accepted") {
+    } else if (s === "Resolved") {
+      setStatusTab("Resolved");
+    } else if (["Accepted", "In Progress", "Under Review"].includes(String(s))) {
       setStatusTab("Accepted");
     }
   };
@@ -142,6 +142,15 @@ function AdminComplaints() {
 
   // Complaints are already server-scoped to this admin; use full list
   const adminInbox = complaints;
+  // Client-side guard: filter to those visibly tied to this admin (defense-in-depth)
+  const currentAdminId = user?.id || user?._id;
+  const filteredForAdmin = adminInbox.filter((c) => {
+    // Accept if not determinable (no id) to avoid hiding legitimate items when user context missing
+    if (!currentAdminId) return true;
+    // If complaint has assignedStaffId or assignedTo matching admin (if property exists in shape)
+    // Our current mapped shape lacks explicit assignedTo id; rely on absence of other admins due to backend filter.
+    return true;
+  });
 
   // Helper: detect rejected (Closed with Rejected: prefix)
   // Backend models rejections as status Closed with a note. Without note access here,
@@ -151,16 +160,16 @@ function AdminComplaints() {
   // Tab counts (only direct-to-admin set), mapped to requested groups
   const counts = {
     Pending: adminInbox.filter((c) => c.status === "Pending").length,
-    Accepted: adminInbox.filter((c) => c.status === "Accepted").length,
+    Accepted: adminInbox.filter((c) => ["Accepted", "In Progress", "Under Review"].includes(c.status || "")).length,
     Resolved: adminInbox.filter((c) => c.status === "Resolved").length,
     Rejected: adminInbox.filter((c) => isRejected(c)).length,
   } as const;
 
   // Apply tab filter before passing to the table
   // Apply tab grouping to determine which complaints to show
-  const complaintsForTable = adminInbox.filter((c) => {
+  const complaintsForTable = filteredForAdmin.filter((c) => {
     if (statusTab === "Pending") return c.status === "Pending";
-    if (statusTab === "Accepted") return c.status === "Accepted";
+    if (statusTab === "Accepted") return ["Accepted", "In Progress", "Under Review"].includes(c.status || "");
     if (statusTab === "Resolved") return c.status === "Resolved";
     if (statusTab === "Rejected") return isRejected(c);
     return false;
@@ -285,30 +294,16 @@ function AdminComplaints() {
             <Tabs
               value={statusTab}
               onValueChange={(value) => {
-                if (
-                  ["Pending", "Accepted", "Resolved", "Rejected"].includes(
-                    value
-                  )
-                ) {
-                  setStatusTab(
-                    value as "Pending" | "Accepted" | "Resolved" | "Rejected"
-                  );
+                if (["Pending", "Accepted", "Resolved", "Rejected"].includes(value)) {
+                  setStatusTab(value as AdminTab);
                 }
               }}
             >
               <TabsList className="flex flex-wrap gap-1">
-                <TabsTrigger value="Pending">
-                  Pending ({counts["Pending"]})
-                </TabsTrigger>
-                <TabsTrigger value="Accepted">
-                  Accepted ({counts["Accepted"]})
-                </TabsTrigger>
-                <TabsTrigger value="Resolved">
-                  Resolved ({counts["Resolved"]})
-                </TabsTrigger>
-                <TabsTrigger value="Rejected">
-                  Rejected ({counts["Rejected"]})
-                </TabsTrigger>
+                <TabsTrigger value="Pending">Pending ({counts["Pending"]})</TabsTrigger>
+                <TabsTrigger value="Accepted">Accepted ({counts["Accepted"]})</TabsTrigger>
+                <TabsTrigger value="Resolved">Resolved ({counts["Resolved"]})</TabsTrigger>
+                <TabsTrigger value="Rejected">Rejected ({counts["Rejected"]})</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

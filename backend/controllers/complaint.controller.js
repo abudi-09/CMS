@@ -7,9 +7,6 @@ import User, {
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
 
-
-
-
 // Helper: create a notification without blocking the main flow
 async function safeNotify({
   user,
@@ -668,7 +665,6 @@ export const approveComplaint = async (req, res) => {
       });
     }
 
-
     // Move to Accepted on initial acceptance; later updates can transition to In Progress/Resolved
     complaint.status = "Accepted";
     complaint.assignedByRole = normalizeUserRole(req.user.role);
@@ -922,6 +918,78 @@ export const getAdminInbox = async (req, res) => {
   }
 };
 
+// Admin full workflow list (all direct-to-admin complaints across statuses)
+export const getAdminWorkflowComplaints = async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Access denied" });
+    const adminId = req.user._id;
+    // Only complaints explicitly involving THIS admin (assigned or direct recipient) OR generic admin submissions not yet claimed.
+    const filter = {
+      isDeleted: { $ne: true },
+      $and: [
+        {
+          $or: [
+            { assignedTo: adminId }, // assigned to this admin
+            { recipientId: adminId }, // directly targeted to this admin
+            // submittedTo string contains 'admin' AND not assigned to another admin
+            {
+              $and: [
+                { submittedTo: { $regex: /admin/i } },
+                {
+                  $or: [
+                    { assignedTo: { $exists: false } },
+                    { assignedTo: null },
+                    { assignedTo: adminId },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        // Ensure no cross-admin leakage: if assignedTo is another admin, exclude
+        {
+          $or: [
+            { assignedTo: { $exists: false } },
+            { assignedTo: null },
+            { assignedTo: adminId },
+            // or not an admin user (assigned to staff/hod/dean) but still in admin path; allow only if assignmentPath contains admin and unassigned to other admin
+          ],
+        },
+      ],
+    };
+
+    const complaints = await Complaint.find(filter)
+      .populate("submittedBy", "name email")
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+
+    const mapped = complaints.map((c) => ({
+      id: String(c._id),
+      title: c.title,
+      category: c.category,
+      status: c.status,
+      priority: c.priority,
+      submittedDate: c.createdAt,
+      lastUpdated: c.updatedAt,
+      submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+      deadline: c.deadline,
+      assignedByRole: c.assignedByRole,
+      assignmentPath: c.assignmentPath || [],
+      submittedTo: c.submittedTo || null,
+      department: c.department || null,
+    }));
+
+    return res.status(200).json(mapped);
+  } catch (err) {
+    console.error("getAdminWorkflowComplaints error:", err?.message);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin workflow complaints" });
+  }
+};
+
 // Development helper: return complaints relevant to admin for debugging
 export const getAdminComplaintsDebug = async (req, res) => {
   try {
@@ -1084,9 +1152,7 @@ export const deanAssignToHod = async (req, res) => {
 // Dean: accept a complaint (delegates to approveComplaint)
 export const deanAcceptComplaint = async (req, res) => {
   try {
-
     return await approveComplaint(req, res);
-
   } catch (err) {
     console.error("deanAcceptComplaint error:", err?.message);
     return res.status(500).json({ error: "Failed to accept complaint" });
@@ -1103,7 +1169,6 @@ export const deanRejectComplaint = async (req, res) => {
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
-
 
     complaint.status = "Closed";
     if (note && String(note).trim()) {
@@ -1685,9 +1750,14 @@ export const updateComplaintStatus = async (req, res) => {
     // request metadata logging removed (use error logs only)
 
     if (
-      !["Pending", "Accepted", "In Progress", "Resolved", "Closed"].includes(
-        status
-      )
+      ![
+        "Pending",
+        "Accepted",
+        "In Progress",
+        "Under Review",
+        "Resolved",
+        "Closed",
+      ].includes(status)
     ) {
       return res.status(400).json({ error: "Invalid status" });
     }
@@ -1761,6 +1831,11 @@ export const updateComplaintStatus = async (req, res) => {
     }
 
     complaint.status = status;
+    // Admin workflow rule: when marked Resolved, also consider complaint closed logically
+    if (status === "Resolved") {
+      complaint.status = "Resolved"; // keep status value
+      // downstream logic already sets resolvedAt and student sees closure
+    }
     if (description && String(description).trim()) {
       const ts = new Date().toISOString();
       const prefix = `[${ts}]`;

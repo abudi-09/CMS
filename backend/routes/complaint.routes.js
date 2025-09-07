@@ -23,6 +23,7 @@ import {
   deanRejectComplaint,
   getDeanInbox,
   getAdminInbox,
+  getAdminWorkflowComplaints,
   getHodInbox,
   hodAssignToStaff,
   hodAcceptAssignment,
@@ -73,6 +74,13 @@ router.put("/dean/reject/:id", protectRoute, deanOnly, deanRejectComplaint);
 // Role-scoped inboxes
 router.get("/inbox/dean", protectRoute, deanOnly, getDeanInbox);
 router.get("/inbox/admin", protectRoute, adminOnly, getAdminInbox);
+// Admin: full workflow list (all statuses for direct/admin path complaints)
+router.get(
+  "/admin/workflow",
+  protectRoute,
+  adminOnly,
+  getAdminWorkflowComplaints
+);
 router.get("/inbox/hod", protectRoute, hodOnly, getHodInbox);
 // Development-only debug route: GET /api/complaints/debug/admin-complaints/:adminId
 if (process.env.NODE_ENV !== "production") {
