@@ -73,7 +73,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Home, label: "Dashboard", href: "/dean-dashboard" },
     {
       icon: UserPlus,
-      label: "Assign Complaints",
+      label: "Direct Complaints",
       href: "/dean/assign-complaints",
     },
     {
@@ -98,7 +98,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Home, label: "Dashboard", href: "/hod-dashboard" },
     {
       icon: UserPlus,
-      label: "Assign Complaints",
+      label: "Direct Complaints",
       href: "/hod/assign-complaints",
     },
     { icon: FileText, label: "All Complaints", href: "/hod/all-complaints" },

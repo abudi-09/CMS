@@ -8,6 +8,12 @@ import User, {
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
 import { broadcastNotification } from "../utils/notificationStream.js";
+import {
+  assertTransition,
+  deriveStatusOnApproval,
+  sanitizeIncomingStatus,
+} from "../utils/complaintStatus.js";
+import { complaintToDTO } from "../utils/complaintFormatter.js";
 
 // Helper: create a notification without blocking the main flow
 async function safeNotify({
@@ -737,9 +743,13 @@ export const approveComplaint = async (req, res) => {
       });
     }
 
-    // Move to In Progress immediately when HoD accepts; otherwise move to Accepted
     const approverRole = normalizeUserRole(req.user.role);
-    complaint.status = approverRole === "hod" ? "In Progress" : "Accepted";
+    try {
+      const target = deriveStatusOnApproval(complaint.status, approverRole);
+      complaint.status = target;
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
     complaint.assignedByRole = approverRole;
     if (!complaint.assignmentPath) complaint.assignmentPath = [];
     if (!complaint.assignmentPath.includes(approverRole)) {
@@ -1126,7 +1136,12 @@ export const deanAcceptComplaint = async (req, res) => {
     if (complaint.status !== "Pending" && complaint.status !== "Accepted") {
       return res.status(400).json({ error: "Cannot accept in current state" });
     }
-    complaint.status = "In Progress"; // or "Accepted" if business prefers
+    try {
+      assertTransition(complaint.status, "In Progress");
+      complaint.status = "In Progress";
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
     complaint.assignedTo = req.user._id; // ensure dean is recorded as handler
     complaint.assignedAt = complaint.assignedAt || new Date();
     if (!Array.isArray(complaint.assignmentPath))
@@ -1189,7 +1204,12 @@ export const deanRejectComplaint = async (req, res) => {
     if (complaint.status !== "Pending" && complaint.status !== "Accepted") {
       return res.status(400).json({ error: "Cannot reject in current state" });
     }
-    complaint.status = "Closed";
+    try {
+      assertTransition(complaint.status, "Closed");
+      complaint.status = "Closed";
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
     complaint.resolutionNote = note || complaint.resolutionNote;
     complaint.resolvedAt = new Date();
     await complaint.save();
