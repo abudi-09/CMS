@@ -77,7 +77,7 @@ export default function AllComplaints() {
   const [overdueFilter, setOverdueFilter] = useState("All");
   // Pagination
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 5; // Non-admin pagination size
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -711,13 +711,15 @@ export default function AllComplaints() {
 
   // (pagination reset handled in useEffect above)
 
+  const isAdminRole = (user?.role || "").toLowerCase() === "admin";
   const totalItems = filteredComplaints.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const startIndex = (page - 1) * pageSize;
-  const pagedComplaints = filteredComplaints.slice(
-    startIndex,
-    startIndex + pageSize
-  );
+  const totalPages = isAdminRole
+    ? 1
+    : Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = isAdminRole ? 0 : (page - 1) * pageSize;
+  const pagedComplaints = isAdminRole
+    ? filteredComplaints
+    : filteredComplaints.slice(startIndex, startIndex + pageSize);
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {
     const maxToShow = 5;
@@ -817,11 +819,11 @@ export default function AllComplaints() {
       }
       try {
         setLoadingList(true);
-  const res = await listAllComplaintsApi({ page, limit: pageSize });
-  // Capture global total for admin (system-wide) if present
-  if (typeof res?.total === "number") setGlobalTotal(res.total);
-  const data = res as { items?: unknown[] } | null | undefined;
-  const arr: unknown[] = Array.isArray(data?.items) ? data!.items! : [];
+        const res = await listAllComplaintsApi({ page, limit: pageSize });
+        // Capture global total for admin (system-wide) if present
+        if (typeof res?.total === "number") setGlobalTotal(res.total);
+        const data = res as { items?: unknown[] } | null | undefined;
+        const arr: unknown[] = Array.isArray(data?.items) ? data!.items! : [];
         const mapped: Complaint[] = arr.map((raw) => {
           const obj = raw as Record<string, unknown>;
           // submittedBy may be an object or string
@@ -936,16 +938,8 @@ export default function AllComplaints() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {globalTotal !== null && (user?.role || '').toLowerCase() === 'admin'
-                ? globalTotal
-                : stats.total}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {(user?.role || '').toLowerCase() === 'admin' && globalTotal !== null && globalTotal !== stats.total
-                ? `All submissions (showing ${stats.total} on this page / total ${globalTotal})`
-                : 'All submissions'}
-            </p>
+            <div className="text-2xl font-bold">{isAdminRole ? complaints.length : stats.total}</div>
+            <p className="text-xs text-muted-foreground">All submissions</p>
           </CardContent>
         </Card>
 
@@ -1317,7 +1311,7 @@ export default function AllComplaints() {
       </CardContent>
 
       {/* Pagination Controls */}
-      {totalPages > 1 && (
+  {!isAdminRole && totalPages > 1 && (
         <div className="px-4 md:px-0">
           <Pagination>
             <PaginationContent>
