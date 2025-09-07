@@ -78,7 +78,9 @@ export default function AllComplaints() {
   // Pagination
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5); // show 5 per page per request
-  const isAdminOrDean = (user?.role || "").toLowerCase() === "admin" || (user?.role || "").toLowerCase() === "dean";
+  const isAdminOrDean =
+    (user?.role || "").toLowerCase() === "admin" ||
+    (user?.role || "").toLowerCase() === "dean";
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -125,26 +127,68 @@ export default function AllComplaints() {
         const roleNorm = (user?.role || "").toLowerCase();
         if (!user) return; // wait for auth
         if (roleNorm === "admin" || roleNorm === "dean") {
-          const res = await listAllComplaintsApi({ page, limit: pageSize });
-          if (typeof res?.total === 'number') setGlobalTotal(res.total);
-          const raw = Array.isArray(res?.items) ? res.items : ([] as unknown[]);
-          if (cancelled) return;
-          let mapped: Complaint[] = (raw || []).map((c: unknown) => {
-            const obj = (c ?? {}) as Record<string, unknown>;
+          // Admin/Dean: fetch ALL complaints (iterate pages) then apply client-side pagination & filtering
+          // This mirrors staff pattern (fetch full dataset then paginate locally) so filters/search cover entire set.
+          const pageLimit = 200; // reasonable chunk size
+          let currentPage = 1;
+          let total = 0;
+          const all: Complaint[] = [];
+          // Helper mapping borrowed & expanded from previous dedicated admin effect
+          const mapRecord = (raw: unknown): Complaint => {
+            const obj = (raw ?? {}) as Record<string, unknown>;
+            // submittedBy may be an object or string
+            let submittedBy = "Unknown";
+            const sb = obj["submittedBy"];
+            if (sb) {
+              if (typeof sb === "string") submittedBy = sb;
+              else if (typeof sb === "object") {
+                const sbo = sb as Record<string, unknown>;
+                submittedBy = String(
+                  sbo["fullName"] ?? sbo["name"] ?? sbo["email"] ?? "User"
+                );
+              }
+            }
+            const assignedStaffRaw = obj["assignedTo"] ?? obj["assignedStaff"];
+            const assignedStaff = obj["submittedTo"]
+              ? String(obj["submittedTo"])
+              : typeof assignedStaffRaw === "string"
+              ? String(assignedStaffRaw)
+              : undefined;
+            const assignedStaffRole = normalizeRoleToken(
+              obj["assignedStaffRole"] ?? ""
+            ) as Complaint["assignedStaffRole"];
+            const assignedByRole = normalizeRoleToken(
+              obj["assignedByRole"] ?? ""
+            ) as Complaint["assignedByRole"];
+            const sourceRole = normalizeRoleToken(
+              obj["sourceRole"] ?? ""
+            ) as Complaint["sourceRole"];
+            const assignmentPath = normalizeAssignmentPath(
+              obj["assignmentPath"]
+            );
             return {
-              id: (obj["id"] as string) || (obj["_id"] as string) || "",
-              title: (obj["title"] as string) || "Complaint",
-              description: "",
-              category: (obj["category"] as string) || "General",
-              status:
-                (obj["status"] as string as Complaint["status"]) || "Pending",
-              priority:
-                (obj["priority"] as string as Complaint["priority"]) ||
-                "Medium",
-              submittedBy: (obj["submittedBy"] as string) || "",
-              assignedStaff: (obj["assignedTo"] as string) || undefined,
+              id: String(obj["id"] ?? obj["_id"] ?? ""),
+              title: String(obj["title"] ?? obj["subject"] ?? "Complaint"),
+              description: String(
+                obj["description"] ?? obj["fullDescription"] ?? ""
+              ),
+              category: String(obj["category"] ?? "General"),
+              status: String(obj["status"] ?? "Pending") as Complaint["status"],
+              priority: String(
+                obj["priority"] ?? "Medium"
+              ) as Complaint["priority"],
+              submittedBy,
+              assignedStaff,
+              assignedStaffRole,
+              assignedByRole,
+              assignmentPath,
+              assignedDate: obj["assignedAt"]
+                ? new Date(String(obj["assignedAt"]))
+                : undefined,
               submittedDate: obj["submittedDate"]
                 ? new Date(String(obj["submittedDate"]))
+                : obj["createdAt"]
+                ? new Date(String(obj["createdAt"]))
                 : new Date(),
               lastUpdated: obj["lastUpdated"]
                 ? new Date(String(obj["lastUpdated"]))
@@ -152,33 +196,52 @@ export default function AllComplaints() {
               deadline: obj["deadline"]
                 ? new Date(String(obj["deadline"]))
                 : undefined,
-              sourceRole:
-                (obj["sourceRole"] as Complaint["sourceRole"]) || undefined,
-              assignedByRole:
-                (obj["assignedByRole"] as Complaint["assignedByRole"]) ||
-                undefined,
-              assignmentPath: Array.isArray(obj["assignmentPath"])
-                ? (obj["assignmentPath"] as string[]).map(
-                    (v) =>
-                      (String(v) === "headOfDepartment" ? "hod" : String(v)) as
-                        | "student"
-                        | "hod"
-                        | "staff"
-                        | "dean"
-                        | "admin"
+              feedback: (obj["feedback"] as Complaint["feedback"]) || undefined,
+              resolutionNote: obj["resolutionNote"]
+                ? String(obj["resolutionNote"])
+                : undefined,
+              evidenceFile:
+                obj["evidenceFile"] ?? obj["attachment"]
+                  ? String(obj["evidenceFile"] ?? obj["attachment"])
+                  : undefined,
+              isEscalated: Boolean(obj["isEscalated"] ?? false),
+              sourceRole,
+              submittedTo: obj["submittedTo"]
+                ? String(obj["submittedTo"])
+                : undefined,
+              department: obj["department"]
+                ? String(obj["department"])
+                : undefined,
+            } as Complaint;
+          };
+          setLoadingList(true);
+          try {
+            while (true) {
+              const res = await listAllComplaintsApi({
+                page: currentPage,
+                limit: pageLimit,
+              });
+              if (cancelled) return;
+              if (typeof res?.total === "number") total = res.total;
+              const batch = Array.isArray(res?.items)
+                ? res.items.map(mapRecord)
+                : [];
+              all.push(...batch);
+              if (all.length >= total || batch.length === 0) break;
+              currentPage += 1;
+            }
+            // Dean: exclude complaints submitted directly to admin by student (retain previous filter logic)
+            const deanFiltered =
+              roleNorm === "dean"
+                ? all.filter(
+                    (c) => String(c.submittedTo || "").toLowerCase() !== "admin"
                   )
-                : [],
-              submittedTo: (obj["submittedTo"] as string) || undefined,
-              department: (obj["department"] as string) || undefined,
-            };
-          });
-          // Dean: show all except those submitted directly to Admin by student
-          if (roleNorm === "dean") {
-            mapped = mapped.filter(
-              (c) => String(c.submittedTo || "").toLowerCase() !== "admin"
-            );
+                : all;
+            setComplaints(deanFiltered);
+            setGlobalTotal(deanFiltered.length);
+          } finally {
+            if (!cancelled) setLoadingList(false);
           }
-          setComplaints(mapped);
         } else if (roleNorm === "hod" || roleNorm === "headofdepartment") {
           const [inbox, managed] = await Promise.all([
             getHodInboxApi(),
@@ -399,7 +462,7 @@ export default function AllComplaints() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [user, page, pageSize]);
+  }, [user, normalizeAssignmentPath, normalizeRoleToken]);
 
   type MinimalUser = {
     fullName?: string;
@@ -716,7 +779,10 @@ export default function AllComplaints() {
   const totalItems = filteredComplaints.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const startIndex = (page - 1) * pageSize;
-  const pagedComplaints = filteredComplaints.slice(startIndex, startIndex + pageSize);
+  const pagedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {
     const maxToShow = 5;
@@ -805,113 +871,7 @@ export default function AllComplaints() {
     };
   }, []);
 
-  useEffect(() => {
-    async function fetchComplaints() {
-      // Only admins and deans should hit the global paginated endpoint
-      const roleNorm = (user?.role || "").toLowerCase();
-      if (roleNorm !== "admin" && roleNorm !== "dean") {
-        // Ensure we don't show a loading state for other roles
-        setLoadingList(false);
-        return;
-      }
-      try {
-        setLoadingList(true);
-        const res = await listAllComplaintsApi({ page, limit: pageSize });
-        // Capture global total for admin (system-wide) if present
-        if (typeof res?.total === "number") setGlobalTotal(res.total);
-        const data = res as { items?: unknown[] } | null | undefined;
-        const arr: unknown[] = Array.isArray(data?.items) ? data!.items! : [];
-        const mapped: Complaint[] = arr.map((raw) => {
-          const obj = raw as Record<string, unknown>;
-          // submittedBy may be an object or string
-          let submittedBy = "Unknown";
-          const sb = obj["submittedBy"];
-          if (sb) {
-            if (typeof sb === "string") submittedBy = sb;
-            else if (typeof sb === "object") {
-              const sbo = sb as Record<string, unknown>;
-              submittedBy = String(
-                sbo["fullName"] ?? sbo["name"] ?? sbo["email"] ?? "User"
-              );
-            }
-          }
-
-          const assignedStaffRaw = obj["assignedTo"] ?? obj["assignedStaff"];
-          const assignedStaff = obj["submittedTo"]
-            ? String(obj["submittedTo"])
-            : typeof assignedStaffRaw === "string"
-            ? String(assignedStaffRaw)
-            : undefined;
-
-          const assignedStaffRole = normalizeRoleToken(
-            obj["assignedStaffRole"] ?? ""
-          ) as Complaint["assignedStaffRole"];
-          const assignedByRole = normalizeRoleToken(
-            obj["assignedByRole"] ?? ""
-          ) as Complaint["assignedByRole"];
-          const sourceRole = normalizeRoleToken(
-            obj["sourceRole"] ?? ""
-          ) as Complaint["sourceRole"];
-
-          const assignmentPath = normalizeAssignmentPath(obj["assignmentPath"]);
-
-          return {
-            id: String(obj["id"] ?? obj["_id"] ?? ""),
-            title: String(obj["title"] ?? obj["subject"] ?? ""),
-            description: String(
-              obj["description"] ?? obj["fullDescription"] ?? ""
-            ),
-            category: String(obj["category"] ?? "General"),
-            status: String(obj["status"] ?? "Pending") as Complaint["status"],
-            priority: String(
-              obj["priority"] ?? "Medium"
-            ) as Complaint["priority"],
-            submittedBy,
-            assignedStaff,
-            assignedStaffRole,
-            assignedByRole,
-            assignmentPath,
-            assignedDate: obj["assignedAt"]
-              ? new Date(String(obj["assignedAt"]))
-              : undefined,
-            submittedDate: obj["submittedDate"]
-              ? new Date(String(obj["submittedDate"]))
-              : obj["createdAt"]
-              ? new Date(String(obj["createdAt"]))
-              : new Date(),
-            lastUpdated: obj["lastUpdated"]
-              ? new Date(String(obj["lastUpdated"]))
-              : new Date(),
-            deadline: obj["deadline"]
-              ? new Date(String(obj["deadline"]))
-              : undefined,
-            feedback: (obj["feedback"] as Complaint["feedback"]) || undefined,
-            resolutionNote: obj["resolutionNote"]
-              ? String(obj["resolutionNote"])
-              : undefined,
-            evidenceFile:
-              obj["evidenceFile"] ?? obj["attachment"]
-                ? String(obj["evidenceFile"] ?? obj["attachment"])
-                : undefined,
-            isEscalated: Boolean(obj["isEscalated"] ?? false),
-            sourceRole,
-            submittedTo: obj["submittedTo"]
-              ? String(obj["submittedTo"])
-              : undefined,
-            department: obj["department"]
-              ? String(obj["department"])
-              : undefined,
-          } as Complaint;
-        });
-        setComplaints(mapped);
-      } catch (err) {
-        setComplaints([]);
-      } finally {
-        setLoadingList(false);
-      }
-    }
-    fetchComplaints();
-  }, [user, page, pageSize, normalizeAssignmentPath, normalizeRoleToken]);
+  // Removed separate admin/dean pagination effect: admin/dean now fetch full dataset once (see loadByRole above)
 
   return (
     <div className="space-y-6">
@@ -937,7 +897,9 @@ export default function AllComplaints() {
           <CardContent>
             <div className="text-2xl font-bold flex items-center gap-3">
               {globalTotal ?? stats.total}
-              <span className="text-xs font-normal text-muted-foreground hidden sm:inline">(page {page} of {totalPages})</span>
+              <span className="text-xs font-normal text-muted-foreground hidden sm:inline">
+                (page {page} of {totalPages})
+              </span>
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-2">
               All submissions
@@ -946,9 +908,16 @@ export default function AllComplaints() {
                 <select
                   className="border rounded px-1 py-0.5 bg-background text-xs"
                   value={pageSize}
-                  onChange={(e)=>{setPage(1); setPageSize(parseInt(e.target.value,10));}}
+                  onChange={(e) => {
+                    setPage(1);
+                    setPageSize(parseInt(e.target.value, 10));
+                  }}
                 >
-                  {[5,10,20,50].map(sz=> <option key={sz} value={sz}>{sz}</option>)}
+                  {[5, 10, 20, 50].map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz}
+                    </option>
+                  ))}
                 </select>
               </span>
             </p>

@@ -128,7 +128,9 @@ function AdminComplaints() {
       setStatusTab("Rejected");
     } else if (s === "Resolved") {
       setStatusTab("Resolved");
-    } else if (["Accepted", "In Progress", "Under Review"].includes(String(s))) {
+    } else if (
+      ["Accepted", "In Progress", "Under Review"].includes(String(s))
+    ) {
       setStatusTab("Accepted");
     }
   };
@@ -160,7 +162,9 @@ function AdminComplaints() {
   // Tab counts (only direct-to-admin set), mapped to requested groups
   const counts = {
     Pending: adminInbox.filter((c) => c.status === "Pending").length,
-    Accepted: adminInbox.filter((c) => ["Accepted", "In Progress", "Under Review"].includes(c.status || "")).length,
+    Accepted: adminInbox.filter((c) =>
+      ["Accepted", "In Progress", "Under Review"].includes(c.status || "")
+    ).length,
     Resolved: adminInbox.filter((c) => c.status === "Resolved").length,
     Rejected: adminInbox.filter((c) => isRejected(c)).length,
   } as const;
@@ -169,7 +173,10 @@ function AdminComplaints() {
   // Apply tab grouping to determine which complaints to show
   const complaintsForTable = filteredForAdmin.filter((c) => {
     if (statusTab === "Pending") return c.status === "Pending";
-    if (statusTab === "Accepted") return ["Accepted", "In Progress", "Under Review"].includes(c.status || "");
+    if (statusTab === "Accepted")
+      return ["Accepted", "In Progress", "Under Review"].includes(
+        c.status || ""
+      );
     if (statusTab === "Resolved") return c.status === "Resolved";
     if (statusTab === "Rejected") return isRejected(c);
     return false;
@@ -294,16 +301,28 @@ function AdminComplaints() {
             <Tabs
               value={statusTab}
               onValueChange={(value) => {
-                if (["Pending", "Accepted", "Resolved", "Rejected"].includes(value)) {
+                if (
+                  ["Pending", "Accepted", "Resolved", "Rejected"].includes(
+                    value
+                  )
+                ) {
                   setStatusTab(value as AdminTab);
                 }
               }}
             >
               <TabsList className="flex flex-wrap gap-1">
-                <TabsTrigger value="Pending">Pending ({counts["Pending"]})</TabsTrigger>
-                <TabsTrigger value="Accepted">Accepted ({counts["Accepted"]})</TabsTrigger>
-                <TabsTrigger value="Resolved">Resolved ({counts["Resolved"]})</TabsTrigger>
-                <TabsTrigger value="Rejected">Rejected ({counts["Rejected"]})</TabsTrigger>
+                <TabsTrigger value="Pending">
+                  Pending ({counts["Pending"]})
+                </TabsTrigger>
+                <TabsTrigger value="Accepted">
+                  Accepted ({counts["Accepted"]})
+                </TabsTrigger>
+                <TabsTrigger value="Resolved">
+                  Resolved ({counts["Resolved"]})
+                </TabsTrigger>
+                <TabsTrigger value="Rejected">
+                  Rejected ({counts["Rejected"]})
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

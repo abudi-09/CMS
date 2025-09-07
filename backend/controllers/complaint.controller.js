@@ -563,7 +563,6 @@ export const getAllComplaints = async (req, res) => {
               ? c.assignmentPath
               : [],
             submittedTo: c?.submittedTo ?? null,
-            recipientRole: c?.recipientRole ?? null,
             feedback: c?.status === "Resolved" ? c?.feedback || null : null,
             isEscalated: !!c?.isEscalated,
           };
