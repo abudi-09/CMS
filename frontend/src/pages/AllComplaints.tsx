@@ -77,7 +77,7 @@ export default function AllComplaints() {
   const [overdueFilter, setOverdueFilter] = useState("All");
   // Pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20); // show 20 per page for global admin view
+  const [pageSize, setPageSize] = useState(5); // show 5 per page per request
   const isAdminOrDean = (user?.role || "").toLowerCase() === "admin" || (user?.role || "").toLowerCase() === "dean";
 
   const handleViewComplaint = (complaint: Complaint) => {
@@ -935,8 +935,23 @@ export default function AllComplaints() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{globalTotal ?? stats.total}</div>
-            <p className="text-xs text-muted-foreground">All submissions (page {page} of {totalPages})</p>
+            <div className="text-2xl font-bold flex items-center gap-3">
+              {globalTotal ?? stats.total}
+              <span className="text-xs font-normal text-muted-foreground hidden sm:inline">(page {page} of {totalPages})</span>
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              All submissions
+              <span className="flex items-center gap-1">
+                <span className="hidden sm:inline">Per page:</span>
+                <select
+                  className="border rounded px-1 py-0.5 bg-background text-xs"
+                  value={pageSize}
+                  onChange={(e)=>{setPage(1); setPageSize(parseInt(e.target.value,10));}}
+                >
+                  {[5,10,20,50].map(sz=> <option key={sz} value={sz}>{sz}</option>)}
+                </select>
+              </span>
+            </p>
           </CardContent>
         </Card>
 
