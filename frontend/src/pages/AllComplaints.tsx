@@ -61,6 +61,8 @@ export default function AllComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  // Global total count (admin only) fetched from backend pagination meta
+  const [globalTotal, setGlobalTotal] = useState<number | null>(null);
   // debugCounts removed - development-only
   const [loadingList, setLoadingList] = useState(false);
 
@@ -588,8 +590,10 @@ export default function AllComplaints() {
   const stats = {
     total: visibleComplaints.length,
     pending: visibleComplaints.filter((c) => c.status === "Pending").length,
-    inProgress: visibleComplaints.filter((c) => c.status === "In Progress").length,
-    underReview: visibleComplaints.filter((c) => c.status === "Under Review").length,
+    inProgress: visibleComplaints.filter((c) => c.status === "In Progress")
+      .length,
+    underReview: visibleComplaints.filter((c) => c.status === "Under Review")
+      .length,
     resolved: visibleComplaints.filter((c) => c.status === "Resolved").length,
   };
 
@@ -813,9 +817,11 @@ export default function AllComplaints() {
       }
       try {
         setLoadingList(true);
-        const res = await listAllComplaintsApi({ page, limit: pageSize });
-        const data = res;
-        const arr = Array.isArray(data.items) ? data.items : [];
+  const res = await listAllComplaintsApi({ page, limit: pageSize });
+  // Capture global total for admin (system-wide) if present
+  if (typeof res?.total === "number") setGlobalTotal(res.total);
+  const data = res as { items?: unknown[] } | null | undefined;
+  const arr: unknown[] = Array.isArray(data?.items) ? data!.items! : [];
         const mapped: Complaint[] = arr.map((raw) => {
           const obj = raw as Record<string, unknown>;
           // submittedBy may be an object or string
@@ -930,8 +936,16 @@ export default function AllComplaints() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">All submissions</p>
+            <div className="text-2xl font-bold">
+              {globalTotal !== null && (user?.role || '').toLowerCase() === 'admin'
+                ? globalTotal
+                : stats.total}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {(user?.role || '').toLowerCase() === 'admin' && globalTotal !== null && globalTotal !== stats.total
+                ? `All submissions (showing ${stats.total} on this page / total ${globalTotal})`
+                : 'All submissions'}
+            </p>
           </CardContent>
         </Card>
 
@@ -1390,7 +1404,9 @@ export default function AllComplaints() {
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
         // Read-only global view: still allow internal modal timeline refresh but ignore outbound updates
-        onUpdate={() => { /* intentionally no-op for global read-only page */ }}
+        onUpdate={() => {
+          /* intentionally no-op for global read-only page */
+        }}
         fetchLatest
       />
     </div>

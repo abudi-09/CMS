@@ -24,6 +24,7 @@ export interface Complaint {
     | "Assigned"
     | "Accepted"
     | "In Progress"
+  | "Under Review"
     | "Resolved"
     | "Closed"
     | "Overdue"
