@@ -626,35 +626,40 @@ export function StaffDashboard() {
                         )}
                       </TableCell>
                       <TableCell className="text-right flex gap-2 justify-end">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => acceptComplaintQuick(complaint.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          aria-label={`Accept complaint ${complaint.title}`}
-                          title="Accept"
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => rejectComplaintQuick(complaint.id)}
-                          aria-label={`Reject complaint ${complaint.title}`}
-                          title="Reject"
-                        >
-                          Reject
-                        </Button>
+                        {/* Hide quick accept/reject for Resolved complaints */}
+                        {complaint.status !== "Resolved" && (
+                          <>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => acceptComplaintQuick(complaint.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              aria-label={`Accept complaint ${complaint.title}`}
+                              title="Accept"
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => rejectComplaintQuick(complaint.id)}
+                              aria-label={`Reject complaint ${complaint.title}`}
+                              title="Reject"
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewAndUpdate(complaint)}
                           className="hover:bg-primary/10"
-                          aria-label={`View and update complaint ${complaint.title}`}
-                          title="View and update complaint"
+                          aria-label={`View complaint ${complaint.title}`}
+                          title="View complaint"
                         >
                           <Settings className="h-4 w-4 mr-1" />
-                          View & Update
+                          View Details
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -749,22 +754,26 @@ export function StaffDashboard() {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => acceptComplaintQuick(complaint.id)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        Accept
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => rejectComplaintQuick(complaint.id)}
-                        className="flex-1"
-                      >
-                        Reject
-                      </Button>
+                      {complaint.status !== "Resolved" && (
+                        <>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => acceptComplaintQuick(complaint.id)}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => rejectComplaintQuick(complaint.id)}
+                            className="flex-1"
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -772,7 +781,7 @@ export function StaffDashboard() {
                         className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                       >
                         <Eye className="h-4 w-4 mr-2" />
-                        View & Update
+                        View Details
                       </Button>
                     </div>
                   </div>

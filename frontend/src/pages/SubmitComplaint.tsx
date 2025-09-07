@@ -60,10 +60,8 @@ export function SubmitComplaint() {
   const [targetCategories, setTargetCategories] = useState<RoleCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const { user } = useAuth();
-  let currentDepartment = user?.department;
-  if (!validDepartments.includes(currentDepartment)) {
-    currentDepartment = "Computer Science";
-  }
+  // Use backend-provided department; do not coerce to a fallback which can hide matches
+  const currentDepartment = user?.department;
   // End of submitted block
 
   const [formData, setFormData] = useState({
@@ -145,28 +143,27 @@ export function SubmitComplaint() {
   // Load staff recipients for direct-to-staff flow with strict filters
   useEffect(() => {
     const loadStaffRecipients = async () => {
-      if (formData.role !== "staff" || !currentDepartment) {
+      if (formData.role !== "staff") {
         setStaffOptions([]);
         return;
       }
       setRecipientsLoading(true);
       try {
+        // Let the backend return only eligible staff for the user's department.
         const users = await listMyDepartmentActiveStaffApi();
-        const filtered = (users || [])
-          .filter((u) => (u.department || "") === currentDepartment)
+        const mapped = (users || [])
           .map((u) => ({
             id: u._id,
-            fullName: u.fullName || u.name || u.username || "",
+            fullName: u.fullName || u.name || u.username || "Unnamed",
           }))
-          // remove empties or duplicates by id
           .filter((o) => o.id && o.fullName)
+          // remove duplicates by id
           .reduce((acc: Array<{ id: string; fullName: string }>, cur) => {
             if (!acc.find((x) => x.id === cur.id)) acc.push(cur);
             return acc;
           }, []);
-        setStaffOptions(filtered);
+        setStaffOptions(mapped);
       } catch (err) {
-        // Fallback to empty; UI will show no recipients
         setStaffOptions([]);
       } finally {
         setRecipientsLoading(false);

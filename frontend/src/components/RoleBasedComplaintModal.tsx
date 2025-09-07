@@ -153,6 +153,11 @@ export function RoleBasedComplaintModal({
     number | null
   >(null);
 
+  // Staff local state for status update
+  const [staffActionStatus, setStaffActionStatus] =
+    useState<Complaint["status"]>("In Progress");
+  const [staffStatusNote, setStaffStatusNote] = useState("");
+
   // Helper for type-safe staff display (string or object)
   function getStaffDisplay(staff: unknown): string {
     if (!staff) return "Unassigned";
@@ -313,8 +318,6 @@ export function RoleBasedComplaintModal({
           getActivityLogsForComplaint(complaint.id),
         ]);
         if (cancelled) return;
-        console.log("Fetched activity logs:", logData);
-        console.log("Number of logs:", logData?.length || 0);
         if (fresh) {
           // Non-destructive merge to preserve any transient local fields
           setLiveComplaint((prev) =>
@@ -334,9 +337,7 @@ export function RoleBasedComplaintModal({
     }
     const onStatusEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as { id?: string } | undefined;
-      console.log("Received status change event:", detail);
       if (detail?.id && detail.id === complaint?.id) {
-        console.log("Refreshing logs for complaint:", complaint.id);
         loadLogsAndLatest();
       }
     };
@@ -606,12 +607,7 @@ export function RoleBasedComplaintModal({
     const outgoingStatus =
       deanStatusUpdate === "Close" ? ("Closed" as const) : deanStatusUpdate;
 
-    console.log("Starting Dean status update:", {
-      complaintId: liveComplaint.id,
-      selected: deanStatusUpdate,
-      outgoingStatus,
-      note: deanStatusNote,
-    });
+    // dean status update initiated - debug logs removed
 
     setIsLoading(true);
     try {
@@ -746,6 +742,33 @@ export function RoleBasedComplaintModal({
         liveComplaint.assignedStaff !== null))
   );
 
+  // Ownership check: determine if the current logged-in user is the assignee/recipient
+  const isOwner = (() => {
+    try {
+      if (!user || !liveComplaint) return false;
+      // Prefer stable id-based recipient match when available
+      if (
+        liveComplaint.recipientId &&
+        String(liveComplaint.recipientId) === String(user.id)
+      )
+        return true;
+      // Fall back to matching by full name / display name
+      const userName = (
+        user.fullName ||
+        user.name ||
+        (user as unknown as { username?: string }).username ||
+        ""
+      ).trim();
+      if (!userName) return false;
+      if (typeof liveComplaint.assignedStaff === "string") {
+        if (liveComplaint.assignedStaff.trim() === userName) return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  })();
+
   // Build timeline with dynamic messages based on routing flow and actions and activity logs
   const submittedByName = liveComplaint.submittedBy || "Student";
   const staffName = getStaffDisplay(liveComplaint.assignedStaff);
@@ -863,12 +886,23 @@ export function RoleBasedComplaintModal({
       return true;
     }
 
-    // Include Dean and Admin status updates
+    // Include Dean, HoD and Admin status updates
+    const statusMatch = action.match(/status updated to\s+(.+)/i);
     if (
-      action.match(/status updated to\s+(.+)/i) &&
+      statusMatch &&
       (role === "dean" || role === "admin" || role === "hod")
     ) {
       return true;
+    }
+
+    // Include Staff updates that students should see (accept/start work, resolve, close)
+    if (statusMatch && role === "staff") {
+      const s = String(statusMatch[1] || "")
+        .trim()
+        .toLowerCase();
+      if (s === "in progress" || s === "resolved" || s === "closed") {
+        return true;
+      }
     }
 
     // Include explicit HoD terminal actions (Resolved/Closed/Rejected/Reopened by HOD)
@@ -920,8 +954,6 @@ export function RoleBasedComplaintModal({
   let hasAcceptedEntry = false;
 
   for (const log of studentVisibleLogs) {
-    console.log("Processing student-visible activity log:", log);
-
     // Handle approval logs (HoD/Dean acceptance)
     if (/^complaint approved$/i.test(log.action || "")) {
       const roleNorm = String(log.role || "").toLowerCase();
@@ -1107,7 +1139,6 @@ export function RoleBasedComplaintModal({
 
     // Skip if already resolved and trying to add conflicting status
     if (isResolved && (status === "In Progress" || status === "Accepted")) {
-      console.log("Skipping conflicting status update after Resolved:", status);
       continue;
     }
 
@@ -1194,7 +1225,11 @@ export function RoleBasedComplaintModal({
       timelineEntries.push({
         key: `synthetic|${liveComplaint.status}|${secondEpoch}`,
         label: liveComplaint.status as TimelineEntry["label"],
-        role: "admin", // Default to admin for synthetic entries
+        // Attribute synthetic entry to the most likely actor
+        role:
+          (liveComplaint.assignedByRole as string) ||
+          (liveComplaint.assignedStaffRole as string) ||
+          "staff",
         icon: statusIcon(liveComplaint.status),
         time: lastUpdatedDate,
         desc: "",
@@ -1202,10 +1237,7 @@ export function RoleBasedComplaintModal({
     }
   }
 
-  console.log("Final timeline entries:", timelineEntries.length);
-  timelineEntries.forEach((entry, i) => {
-    console.log(`Timeline entry ${i}:`, entry);
-  });
+  // development logs removed for timeline
 
   // Ensure one entry per status, chronologically sorted with logical order
   const statusOrder = [
@@ -1236,10 +1268,7 @@ export function RoleBasedComplaintModal({
       return (a.time?.getTime?.() || 0) - (b.time?.getTime?.() || 0);
     });
 
-  console.log("Final timeline steps:", timelineSteps.length);
-  timelineSteps.forEach((step, i) => {
-    console.log(`Timeline step ${i}:`, step);
-  });
+  // development logs removed for timeline steps
 
   // Direct-to-admin detection for scoping Admin Action
   const isDirectToAdmin = (() => {
@@ -1875,11 +1904,7 @@ export function RoleBasedComplaintModal({
                     if (!liveComplaint) return;
                     setIsLoading(true);
                     try {
-                      console.log("[HOD Modal] Update start", {
-                        id: liveComplaint.id,
-                        to: hodActionStatus,
-                        note: hodStatusNote.trim() || undefined,
-                      });
+                      // HOD update started - debug logs removed
                       const result = await updateComplaintStatusApi(
                         liveComplaint.id,
                         hodActionStatus as
@@ -1889,7 +1914,7 @@ export function RoleBasedComplaintModal({
                           | "Closed",
                         hodStatusNote.trim() || undefined
                       );
-                      console.log("[HOD Modal] Update result", result);
+                      // HOD update result received - debug logs removed
                       // Reflect new status locally
                       setLiveComplaint((prev) =>
                         prev
@@ -2026,6 +2051,116 @@ export function RoleBasedComplaintModal({
             </CardContent>
           </Card>
         )}
+
+        {/* Staff Action section: for Staff while working on a complaint (only when owner) */}
+        {user.role === "staff" &&
+          isOwner &&
+          ["Accepted", "In Progress", "Pending"].includes(
+            String(liveComplaint?.status || "")
+          ) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Staff Action</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="mb-2">Status</Label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={staffActionStatus}
+                    onChange={(e) =>
+                      setStaffActionStatus(
+                        e.target.value as Complaint["status"]
+                      )
+                    }
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="mb-2">Note (optional)</Label>
+                  <Textarea
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Add a brief note for the student (optional)…"
+                    value={staffStatusNote}
+                    onChange={(e) =>
+                      setStaffStatusNote(e.target.value.slice(0, 1000))
+                    }
+                    rows={3}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1 text-right">
+                    {staffStatusNote.length}/1000
+                  </div>
+                </div>
+                <Button
+                  className="mt-2 w-full"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    if (!liveComplaint) return;
+                    setIsLoading(true);
+                    try {
+                      const newStatus = staffActionStatus as
+                        | "Pending"
+                        | "In Progress"
+                        | "Resolved"
+                        | "Closed";
+                      await updateComplaintStatusApi(
+                        liveComplaint.id,
+                        newStatus,
+                        staffStatusNote.trim() || undefined
+                      );
+                      setLiveComplaint((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              status: newStatus,
+                              lastUpdated: new Date(),
+                            }
+                          : prev
+                      );
+                      setStaffStatusNote("");
+                      toast({
+                        title: "Status updated",
+                        description: `Updated to ${newStatus}.`,
+                      });
+                      try {
+                        const freshLogs = await getActivityLogsForComplaint(
+                          liveComplaint.id
+                        );
+                        setLogs(freshLogs as ActivityLog[]);
+                      } catch {
+                        // ignore
+                      }
+                      onUpdate?.(liveComplaint.id, {
+                        status: newStatus,
+                        lastUpdated: new Date(),
+                      });
+                      window.dispatchEvent(
+                        new CustomEvent("complaint:status-changed", {
+                          detail: {
+                            id: liveComplaint.id,
+                            status: newStatus,
+                            newStatus: newStatus,
+                            note: staffStatusNote.trim() || undefined,
+                            byRole: "staff",
+                            at: Date.now(),
+                          },
+                        })
+                      );
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
         {/* Only show these sections if assigned */}
         {isAssigned && (

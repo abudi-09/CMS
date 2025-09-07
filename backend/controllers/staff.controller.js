@@ -1,6 +1,12 @@
 import User from "../models/user.model.js";
 
+// Helper: escape a string for use in a RegExp
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // List approved and active staff in the authenticated user's department
+// Uses case-insensitive, trimmed matching to be resilient to minor differences
 export const listActiveStaffForUserDepartment = async (req, res) => {
   try {
     const dept = req.user?.department;
@@ -14,9 +20,11 @@ export const listActiveStaffForUserDepartment = async (req, res) => {
         isRejected: { $ne: true },
       }).select("_id name fullName username email department");
     } else {
+      const deptNorm = String(dept).trim();
+      const re = new RegExp(`^${escapeRegExp(deptNorm)}$`, "i");
       staff = await User.find({
         role: "staff",
-        department: dept,
+        department: { $regex: re },
         isApproved: true,
         isActive: true,
         isRejected: { $ne: true },
@@ -36,7 +44,9 @@ export const listActiveHods = async (req, res) => {
       isApproved: true,
       isActive: true,
       isRejected: { $ne: true },
-    }).select("_id name email department workingPlace isActive isApproved isRejected approvedByDean");
+    }).select(
+      "_id name email department workingPlace isActive isApproved isRejected approvedByDean"
+    );
     res.status(200).json(
       hods.map((h) => ({
         id: h._id,
