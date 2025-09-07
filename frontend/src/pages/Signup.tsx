@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Loader2, UserPlus, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 function validateEmail(email: string) {
@@ -197,6 +197,16 @@ export function Signup() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-4">
       <Card className="w-full max-w-md shadow-lg bg-card text-card-foreground">
+        <div className="px-6 pt-4">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm text-foreground bg-transparent border border-border rounded px-3 py-1 hover:bg-primary/5 hover:text-primary transition-colors shadow-sm"
+            aria-label="Back to home"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </Link>
+        </div>
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="bg-primary/10 p-3 rounded-full">
