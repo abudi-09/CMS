@@ -7,6 +7,9 @@ import User, {
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
 
+
+
+
 // Helper: create a notification without blocking the main flow
 async function safeNotify({
   user,
@@ -665,9 +668,11 @@ export const approveComplaint = async (req, res) => {
       });
     }
 
+
     // Move to Accepted on initial acceptance; later updates can transition to In Progress/Resolved
     complaint.status = "Accepted";
     complaint.assignedByRole = normalizeUserRole(req.user.role);
+
     if (!complaint.assignmentPath) complaint.assignmentPath = [];
     const approverRole = normalizeUserRole(req.user.role);
     if (!complaint.assignmentPath.includes(approverRole)) {
@@ -1079,7 +1084,9 @@ export const deanAssignToHod = async (req, res) => {
 // Dean: accept a complaint (delegates to approveComplaint)
 export const deanAcceptComplaint = async (req, res) => {
   try {
+
     return await approveComplaint(req, res);
+
   } catch (err) {
     console.error("deanAcceptComplaint error:", err?.message);
     return res.status(500).json({ error: "Failed to accept complaint" });
@@ -1097,6 +1104,7 @@ export const deanRejectComplaint = async (req, res) => {
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
 
+
     complaint.status = "Closed";
     if (note && String(note).trim()) {
       const ts = new Date().toISOString();
@@ -1106,6 +1114,7 @@ export const deanRejectComplaint = async (req, res) => {
         : `${prefix} ${note}`;
     }
     complaint.assignedByRole = "dean";
+
     await complaint.save();
 
     await ActivityLog.create({

@@ -217,7 +217,23 @@ export default function DeanAnalytics() {
         setTotalDepartments(
           Array.isArray(overview?.departments) ? overview.departments.length : 0
         );
-        setComplaints(normalizeComplaints(all as unknown as unknown[]));
+        // listAllComplaintsApi returns a paginated object { items:[], total,... }
+        // Defensive: handle if backend later returns plain array.
+        const normalizedArray: unknown[] = (() => {
+          if (!all) return [];
+          if (Array.isArray(all)) return all;
+          if (typeof all === "object") {
+            const maybeItems = (all as Record<string, unknown>).items;
+            if (Array.isArray(maybeItems)) return maybeItems;
+            return Object.values(all as Record<string, unknown>).every(
+              (v) => typeof v !== "object"
+            )
+              ? []
+              : [];
+          }
+          return [];
+        })();
+        setComplaints(normalizeComplaints(normalizedArray));
         setTotalStudents(
           typeof studentsResp?.students === "number"
             ? studentsResp.students
