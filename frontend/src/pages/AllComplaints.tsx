@@ -61,6 +61,7 @@ export default function AllComplaints() {
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  // debugCounts removed - development-only
   const [loadingList, setLoadingList] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -236,10 +237,10 @@ export default function AllComplaints() {
           // Staff: show department-wide complaints (shared) + ensure own assigned appear
           const staffName = user.fullName || user.name || "";
           const dept = user.department || "";
-          // Fetch department-scoped items via query endpoint
-          const url = `${API_BASE}/complaints${
-            dept ? `?department=${encodeURIComponent(dept)}` : ""
-          }`;
+          // Fetch department-scoped items via query endpoint. Use scope=department
+          // so the server enforces sourceRole=staff and the authenticated user's
+          // department to avoid leaking other departments' complaints.
+          const url = `${API_BASE}/complaints?scope=department`;
           const [deptRes, assigned] = await Promise.all([
             fetch(url, {
               method: "GET",
@@ -305,13 +306,18 @@ export default function AllComplaints() {
                 ? (obj.assignmentPath as Complaint["assignmentPath"])
                 : [],
               submittedTo: (obj?.submittedTo as string) || undefined,
-              department: String((obj?.department as string) || dept || ""),
+              department: String((obj?.department as string) || dept || "")
+                .toLowerCase()
+                .trim(),
             };
           };
           const deptMapped: Complaint[] = Array.isArray(deptRes)
-            ? (deptRes as unknown[]).map((o) =>
-                mapAny((o || {}) as Record<string, unknown>)
-              )
+            ? (deptRes as unknown[])
+                .map((o) => mapAny((o || {}) as Record<string, unknown>))
+                // Keep only items that are targeted to staff for department view
+                .filter((c) =>
+                  (c.submittedTo || "").toLowerCase().includes("staff")
+                )
             : [];
           const assignedMapped: Complaint[] = Array.isArray(assigned)
             ? (assigned as unknown[]).map((o: unknown) => {
@@ -320,6 +326,8 @@ export default function AllComplaints() {
                 return { ...c, assignedStaff: staffName || c.assignedStaff };
               })
             : [];
+          // Debugging: log what department-scoped API returned so we can verify it contains other staff's items
+          // development debug removed
           // Merge and de-duplicate by id
           const byId = new Map<string, Complaint>();
           for (const c of [...deptMapped, ...assignedMapped]) {
@@ -415,11 +423,13 @@ export default function AllComplaints() {
     [user]
   );
   const getSubmitterDept = useCallback(
-    (c: Complaint) => c.department || "",
+    (c: Complaint) => (c.department || "").toLowerCase().trim(),
     []
   );
   const role = normalize(((user || {}) as MinimalUser).role);
-  const myDept = ((user || {}) as MinimalUser).department || "";
+  const myDept = (((user || {}) as MinimalUser).department || "")
+    .toLowerCase()
+    .trim();
 
   // For staff: load complaints assigned to them so new direct submissions appear immediately
   useEffect(() => {
@@ -525,9 +535,42 @@ export default function AllComplaints() {
         (c) => matchesUser(c) || getSubmitterDept(c) === myDept
       );
     }
-    // Staff: department-shared view (All Complaints) -> show within my department
+    // Staff: department-shared view (All Complaints)
+    // Show complaints in my department that were submitted by students or staff
+    // Exclude complaints whose source role is HOD/Dean/Admin. Always include
+    // complaints that belong to the logged-in user or are assigned to them.
     if (role === "staff") {
-      return complaints.filter((c) => getSubmitterDept(c) === myDept);
+      return complaints.filter((c) => {
+        // Always include my own complaints
+        if (matchesUser(c)) return true;
+        // Always include items explicitly assigned to me
+        if (matchesAssignedStaff(c)) return true;
+
+        // Restrict to same department (normalized)
+        if (getSubmitterDept(c) !== myDept) return false;
+
+        // Department-level view should include complaints directed to staff in
+        // my department regardless of whether the submitter was a student or staff.
+        // Only exclude complaints whose sourceRole explicitly indicates a leader/admin.
+        const src = String(c.sourceRole || "").toLowerCase();
+        const to = String(c.submittedTo || "").toLowerCase();
+        const hasStaffTo = to.includes("staff");
+        const hasStaffInPath = Array.isArray(c.assignmentPath)
+          ? c.assignmentPath.some(
+              (r) => String(r || "").toLowerCase() === "staff"
+            )
+          : false;
+
+        // If submittedTo targets staff or the assignment path contains 'staff', include it.
+        if (hasStaffTo || hasStaffInPath) return true;
+
+        // Exclude only explicit leaders/admin sources (hod, dean, admin)
+        if (src && (src === "hod" || src === "dean" || src === "admin"))
+          return false;
+
+        // Otherwise include (covers student, staff, legacy/missing sourceRole)
+        return true;
+      });
     }
     // other roles: conservative default
     return complaints.filter(matchesAssignedStaff);
@@ -759,6 +802,13 @@ export default function AllComplaints() {
 
   useEffect(() => {
     async function fetchComplaints() {
+      // Only admins and deans should hit the global paginated endpoint
+      const roleNorm = (user?.role || "").toLowerCase();
+      if (roleNorm !== "admin" && roleNorm !== "dean") {
+        // Ensure we don't show a loading state for other roles
+        setLoadingList(false);
+        return;
+      }
       try {
         setLoadingList(true);
         const res = await listAllComplaintsApi({ page, limit: pageSize });
@@ -854,9 +904,7 @@ export default function AllComplaints() {
       }
     }
     fetchComplaints();
-
-  }, [page]);
-
+  }, [user, page, normalizeAssignmentPath, normalizeRoleToken]);
 
   return (
     <div className="space-y-6">
@@ -865,6 +913,7 @@ export default function AllComplaints() {
         <p className="text-muted-foreground">
           Complete overview of all complaints in the system
         </p>
+        {/* Development debug UI removed */}
       </div>
 
       {/* Summary Cards */}
@@ -1322,6 +1371,11 @@ export default function AllComplaints() {
         complaint={selectedComplaint}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
+        onUpdate={(id, updates) =>
+          setComplaints((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+          )
+        }
         fetchLatest
       />
     </div>

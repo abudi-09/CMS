@@ -81,7 +81,12 @@ export function MyAssignedComplaints() {
   const [page, setPage] = useState(1);
   const pageSize = 5;
   // Category tabs (per requirements)
-  type CategoryTab = "direct" | "assignedByHod" | "accepted" | "rejected";
+  type CategoryTab =
+    | "direct"
+    | "assignedByHod"
+    | "accepted"
+    | "rejected"
+    | "resolved";
   const [categoryTab, setCategoryTab] = useState<CategoryTab>("direct");
   // Track opened complaints to hide NEW badge once viewed
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => {
@@ -140,9 +145,16 @@ export function MyAssignedComplaints() {
             sourceRole: obj.sourceRole as Complaint["sourceRole"],
             assignedByRole: obj.assignedByRole as Complaint["assignedByRole"],
             assignmentPath: Array.isArray(obj.assignmentPath)
-              ? (obj.assignmentPath as Array<
-                  "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-                >)
+              ? ((obj.assignmentPath as string[]).map((v) =>
+                  String(v) === "headOfDepartment"
+                    ? "hod"
+                    : (String(v) as
+                        | "student"
+                        | "staff"
+                        | "hod"
+                        | "dean"
+                        | "admin")
+                ) as Array<"student" | "staff" | "hod" | "dean" | "admin">)
               : [],
             isEscalated: !!obj.isEscalated,
           };
@@ -355,9 +367,16 @@ export function MyAssignedComplaints() {
                 (obj.assignedByRole as Complaint["assignedByRole"]) ||
                 fallback?.assignedByRole,
               assignmentPath: Array.isArray(obj.assignmentPath)
-                ? (obj.assignmentPath as Array<
-                    "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-                  >)
+                ? ((obj.assignmentPath as string[]).map((v) =>
+                    String(v) === "headOfDepartment"
+                      ? "hod"
+                      : (String(v) as
+                          | "student"
+                          | "staff"
+                          | "hod"
+                          | "dean"
+                          | "admin")
+                  ) as Array<"student" | "staff" | "hod" | "dean" | "admin">)
                 : fallback?.assignmentPath || [],
               assignedDate: obj.assignedAt
                 ? new Date(String(obj.assignedAt))
@@ -404,8 +423,15 @@ export function MyAssignedComplaints() {
             : null;
 
           if (serverComplaint) {
-            // Remove from assigned list locally so it disappears from My Assigned
-            setComplaints((prev) => prev.filter((c) => c.id !== complaintId));
+            // Upsert locally with Resolved status so it appears under Resolved tab
+            setComplaints((prev) => {
+              const updated = serverComplaint as Complaint;
+              const idx = prev.findIndex((c) => c.id === complaintId);
+              if (idx === -1) return [...prev, updated];
+              const next = [...prev];
+              next[idx] = updated;
+              return next;
+            });
 
             window.dispatchEvent(
               new CustomEvent("complaint:upsert", {
@@ -626,8 +652,14 @@ export function MyAssignedComplaints() {
       categoryBase = myAssignedComplaints.filter((c) => rejectedIds.has(c.id));
     }
 
-    // Enforce rule: Resolved complaints must not appear on My Assigned
-    categoryBase = categoryBase.filter((c) => c.status !== "Resolved");
+    // Keep resolved complaints only in the Resolved tab
+    if (categoryTab === "resolved") {
+      categoryBase = myAssignedComplaints.filter(
+        (c) => c.status === "Resolved"
+      );
+    } else {
+      categoryBase = categoryBase.filter((c) => c.status !== "Resolved");
+    }
 
     let base = categoryBase.filter((complaint) => {
       const matchesSearch =
@@ -902,6 +934,9 @@ export function MyAssignedComplaints() {
                 <TabsTrigger className="shrink-0" value="rejected">
                   Rejected
                 </TabsTrigger>
+                <TabsTrigger className="shrink-0" value="resolved">
+                  Resolved
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -1089,7 +1124,7 @@ export function MyAssignedComplaints() {
                               className="hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                             >
                               <Eye className="h-4 w-4 mr-1" />
-                              View & Update
+                              View Details
                             </Button>
 
                             {/* Actions depend on active category tab */}
@@ -1113,7 +1148,8 @@ export function MyAssignedComplaints() {
                                 <ThumbsUp className="h-4 w-4 mr-1" />
                                 Re-accept
                               </Button>
-                            ) : (
+                            ) : // When not in accepted/rejected tabs: show accept/reject only when not Resolved
+                            complaint.status === "Resolved" ? null : (
                               <>
                                 <Button
                                   variant="default"
@@ -1265,7 +1301,7 @@ export function MyAssignedComplaints() {
                           className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
                         >
                           <Eye className="h-4 w-4 mr-2" />
-                          View & Update
+                          View Details
                         </Button>
 
                         {categoryTab === "accepted" ? (
@@ -1290,30 +1326,35 @@ export function MyAssignedComplaints() {
                           </Button>
                         ) : (
                           <>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => acceptComplaint(complaint.id)}
-                              disabled={acceptedIds.has(complaint.id)}
-                              className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-70"
-                            >
-                              <ThumbsUp className="h-4 w-4 mr-2" />
-                              {acceptedIds.has(complaint.id)
-                                ? "Accepted"
-                                : "Accept"}
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => rejectComplaint(complaint.id)}
-                              disabled={rejectedIds.has(complaint.id)}
-                              className="flex-1"
-                            >
-                              <ThumbsDown className="h-4 w-4 mr-2" />
-                              {rejectedIds.has(complaint.id)
-                                ? "Rejected"
-                                : "Reject"}
-                            </Button>
+                            {/* Mobile: hide accept/reject for Resolved complaints */}
+                            {complaint.status !== "Resolved" && (
+                              <>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => acceptComplaint(complaint.id)}
+                                  disabled={acceptedIds.has(complaint.id)}
+                                  className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-70"
+                                >
+                                  <ThumbsUp className="h-4 w-4 mr-2" />
+                                  {acceptedIds.has(complaint.id)
+                                    ? "Accepted"
+                                    : "Accept"}
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => rejectComplaint(complaint.id)}
+                                  disabled={rejectedIds.has(complaint.id)}
+                                  className="flex-1"
+                                >
+                                  <ThumbsDown className="h-4 w-4 mr-2" />
+                                  {rejectedIds.has(complaint.id)
+                                    ? "Rejected"
+                                    : "Reject"}
+                                </Button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>

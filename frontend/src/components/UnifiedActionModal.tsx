@@ -200,7 +200,7 @@ export function UnifiedActionModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            View & Update Complaint
+            View Details
           </DialogTitle>
         </DialogHeader>
 

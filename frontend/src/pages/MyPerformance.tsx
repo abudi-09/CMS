@@ -172,8 +172,11 @@ export default function MyPerformance() {
   const trendData = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of assigned) {
-      if (!c.resolvedAt) continue;
-      const d = new Date(c.resolvedAt as string);
+      // Count as resolved when explicit resolvedAt exists OR status is Resolved (fallback to lastUpdated)
+      const resolvedDateStr = (c.resolvedAt ??
+        (c.status === "Resolved" ? c.lastUpdated : null)) as string | null;
+      if (!resolvedDateStr) continue;
+      const d = new Date(resolvedDateStr);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
         2,
         "0"
@@ -236,10 +239,12 @@ export default function MyPerformance() {
       // Fallback in case status is Resolved but resolvedAt wasn't populated
       dateResolved = new Date(c.lastUpdated).toLocaleDateString();
     }
-    const rating =
-      typeof c.feedback?.rating === "number"
-        ? c.feedback.rating
-        : feedbackMap[c.id] ?? null;
+    const rating = (() => {
+      const maybe = c.feedback as { rating?: number } | null | undefined;
+      if (maybe && typeof maybe.rating === "number") return maybe.rating;
+      const m = feedbackMap[c.id];
+      return typeof m === "number" ? m : null;
+    })();
     return {
       id: c.id,
       title: c.title,
