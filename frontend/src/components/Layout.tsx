@@ -35,7 +35,9 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
 
   // Build absolute avatar URL if backend returned a relative path
-  const assetBase = (import.meta.env.VITE_API_BASE || "http://localhost:5000/api").replace(/\/api$/, "");
+  const assetBase = (
+    import.meta.env.VITE_API_BASE || "http://localhost:5000/api"
+  ).replace(/\/api$/, "");
   const avatarSrc = user?.avatarUrl
     ? user.avatarUrl.startsWith("http")
       ? user.avatarUrl
@@ -47,15 +49,18 @@ export function Layout({ children }: LayoutProps) {
     const raw = (user.fullName || user.name || "").trim();
     if (!raw) return "U";
     const parts = raw.split(/\s+/).filter(Boolean);
-    return parts.slice(0, 2).map(p => p[0]?.toUpperCase()).join("");
+    return parts
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase())
+      .join("");
   }, [user]);
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="w-full px-0 flex h-16 items-center justify-between">
+          <div className="flex items-center gap-3 ml-2">
             {/* Mobile menu */}
             <Sheet>
               <SheetTrigger asChild>
@@ -71,15 +76,17 @@ export function Layout({ children }: LayoutProps) {
             <div className="flex items-center gap-2">
               <GraduationCap className="h-8 w-8 text-primary" />
               <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold">Gondar University</h1>
-                <p className="text-xs text-muted-foreground">
-                  Complaint Management
-                </p>
+                <Link to="/dashboard" className="block hover:underline">
+                  <h1 className="text-lg font-semibold">Gondar University</h1>
+                  <p className="text-xs text-muted-foreground">
+                    Complaint Management
+                  </p>
+                </Link>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4 mr-2">
             {/* <LanguageSwitcher /> removed */}
             <NotificationDropdown />
             <ThemeToggle />
@@ -95,15 +102,24 @@ export function Layout({ children }: LayoutProps) {
                     aria-label="User menu"
                   >
                     {/* Key forces remount so Radix Avatar recalculates fallback visibility after avatar removed */}
-                    <Avatar key={user?.avatarUrl || "no-avatar"} className="h-8 w-8 bg-muted overflow-hidden relative">
+                    <Avatar
+                      key={user?.avatarUrl || "no-avatar"}
+                      className="h-8 w-8 bg-muted overflow-hidden relative"
+                    >
                       {avatarSrc && (
                         <AvatarImage
                           src={avatarSrc}
-                          alt={(user?.fullName || user?.name || "User avatar") as string}
+                          alt={
+                            (user?.fullName ||
+                              user?.name ||
+                              "User avatar") as string
+                          }
                           className="object-cover"
                           onError={(e) => {
                             // Hide broken image so fallback shows immediately
-                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                            (
+                              e.currentTarget as HTMLImageElement
+                            ).style.display = "none";
                           }}
                         />
                       )}
@@ -219,12 +235,14 @@ export function Layout({ children }: LayoutProps) {
               <div className="space-y-4">
                 <h3 className="font-semibold text-foreground">Quick Links</h3>
                 <div className="space-y-2">
-                  <Link
-                    to="/"
-                    className="block text-xs hover:text-primary transition-colors"
-                  >
-                    Home
-                  </Link>
+                  {user ? null : (
+                    <Link
+                      to="/"
+                      className="block text-xs hover:text-primary transition-colors"
+                    >
+                      Home
+                    </Link>
+                  )}
                   <Link
                     to="/about"
                     className="block text-xs hover:text-primary transition-colors"

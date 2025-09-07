@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HomePageHeader } from "@/components/HomePageHeader";
+import { useAuth } from "@/components/auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   GraduationCap,
   Users,
@@ -96,9 +98,30 @@ export default function AboutPage() {
     },
   ];
 
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-background">
-      <HomePageHeader />
+      {!isAuthenticated ? (
+        <HomePageHeader />
+      ) : (
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="w-full px-0">
+            <div className="flex h-16 items-center gap-4 px-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center gap-2 text-sm text-foreground border border-border rounded px-3 py-1 hover:bg-primary/5 transition"
+              >
+                ← Back
+              </button>
+              <div className="text-lg font-semibold">
+                About University of Gondar
+              </div>
+            </div>
+          </div>
+        </header>
+      )}
       {/* Hero Section */}
       <section className="bg-gradient-to-b from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-16 md:py-24">
         <div className="container mx-auto px-4 text-center">

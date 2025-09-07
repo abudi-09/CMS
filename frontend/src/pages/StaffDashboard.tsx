@@ -654,7 +654,7 @@ export function StaffDashboard() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewAndUpdate(complaint)}
-                          className="hover:bg-primary/10"
+                          className=" dark:hover:text-blue-400"
                           aria-label={`View complaint ${complaint.title}`}
                           title="View complaint"
                         >

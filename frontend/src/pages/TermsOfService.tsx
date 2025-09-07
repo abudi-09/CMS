@@ -14,10 +14,33 @@ import {
   Mail,
 } from "lucide-react";
 import { Footer } from "@/components/Footer";
+import { HomePageHeader } from "@/components/HomePageHeader";
+import { useAuth } from "@/components/auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function TermsOfService() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      {!isAuthenticated ? (
+        <HomePageHeader />
+      ) : (
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="w-full px-0">
+            <div className="flex h-16 items-center gap-4 px-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center gap-2 text-sm text-foreground border border-border rounded px-3 py-1 hover:bg-primary/5 transition"
+              >
+                ← Back
+              </button>
+              <div className="text-lg font-semibold">Terms of Service</div>
+            </div>
+          </div>
+        </header>
+      )}
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-16">
         <div className="container mx-auto px-4 text-center">
