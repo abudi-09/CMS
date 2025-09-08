@@ -38,7 +38,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: FileText, label: "All Complaints", href: "/all-complaints" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
     { icon: GraduationCap, label: "My Performance", href: "/my-performance" },
-    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
+
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
@@ -64,7 +64,6 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/dean-role-management",
     },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
-    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
 
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
@@ -90,7 +89,7 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/dean-department-performance",
     },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
-    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
+
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
@@ -111,7 +110,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Users, label: "Staff Management", href: "/hod/staff-management" },
     { icon: TrendingUp, label: "HOD Analytics", href: "/hod-analytics" },
     { icon: Calendar, label: "Calendar View", href: "/calendar-view" },
-    { icon: MessageSquare, label: "Student Feedback", href: "/staff-feedback" },
+
     { icon: Settings, label: "Profile", href: "/profile" },
   ];
 
