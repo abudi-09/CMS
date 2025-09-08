@@ -106,27 +106,8 @@ export default function DeanAnalytics() {
     resolved: number;
     unassigned: number;
   } | null>(null);
-  const [complaints, setComplaints] = useState<
-    Array<{
-      id: string;
-      title: string;
-      status: string;
-      department?: string | null;
-      category?: string | null;
-      priority?: "Low" | "Medium" | "High" | "Critical" | string;
-      submittedDate?: string | Date | null;
-      resolvedAt?: string | Date | null;
-    }>
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [monthlyTrendDataDyn, setMonthlyTrendDataDyn] = useState<
-    Array<{ month: string; submitted: number; resolved: number }>
-  >([]);
-  const [totalDepartments, setTotalDepartments] = useState<number>(0);
-  const [deptRows, setDeptRows] = useState<DeptPerfRow[]>([]);
-  const [deptLoading, setDeptLoading] = useState<boolean>(false);
-
-  // Normalize unknown complaints to a lightweight shape used by charts
+  // Lightweight complaint shape used across charts and summaries. Placed
+  // before the state so TypeScript can reference it in the hook types.
   type LiteComplaint = {
     id: string;
     title: string;
@@ -136,7 +117,23 @@ export default function DeanAnalytics() {
     priority?: string | null;
     submittedDate?: string | Date | null;
     resolvedAt?: string | Date | null;
+    // routing/assignment metadata (optional)
+    recipientRole?: string | null;
+    submittedTo?: string | null;
+    assignedTo?: string | null;
+    assignedBy?: string | null;
   };
+
+  const [complaints, setComplaints] = useState<LiteComplaint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [monthlyTrendDataDyn, setMonthlyTrendDataDyn] = useState<
+    Array<{ month: string; submitted: number; resolved: number }>
+  >([]);
+  const [totalDepartments, setTotalDepartments] = useState<number>(0);
+  const [deptRows, setDeptRows] = useState<DeptPerfRow[]>([]);
+  const [deptLoading, setDeptLoading] = useState<boolean>(false);
+
+  // Normalize unknown complaints to the lightweight shape used by charts
   const normalizeComplaints = useCallback((raw: unknown[]): LiteComplaint[] => {
     return raw
       .map((o) => {
@@ -157,6 +154,18 @@ export default function DeanAnalytics() {
           (r.createdAt as string | undefined) ??
           null;
         const resolvedAt = (r.resolvedAt as string | undefined) ?? null;
+        const recipientRole =
+          typeof r.recipientRole === "string"
+            ? (r.recipientRole as string)
+            : null;
+        const submittedTo =
+          typeof r.submittedTo === "string" ? (r.submittedTo as string) : null;
+        const assignedTo =
+          typeof r.assignedTo === "string" ? (r.assignedTo as string) : null;
+        const assignedBy =
+          (r.assignedBy as string | undefined) ??
+          (r.assignedBy?._id as string | undefined) ??
+          null;
         return {
           id,
           title,
@@ -166,6 +175,10 @@ export default function DeanAnalytics() {
           priority,
           submittedDate,
           resolvedAt,
+          recipientRole,
+          submittedTo,
+          assignedTo,
+          assignedBy,
         };
       })
       .filter((c) => c.id && c.title && c.status);
@@ -288,8 +301,16 @@ export default function DeanAnalytics() {
   // totalDepartments now comes from backend department overview
 
   const categoryDataDyn = useMemo(() => {
+    // Use complaints excluding any admin-targeted items
+    const filtered = complaints.filter((c) => {
+      const isAdminRecipient =
+        (c.recipientRole &&
+          String(c.recipientRole).toLowerCase() === "admin") ||
+        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
+      return !isAdminRecipient;
+    });
     const map = new Map<string, number>();
-    complaints.forEach((c) => {
+    filtered.forEach((c) => {
       const key = c.category || "Unknown";
       map.set(key, (map.get(key) || 0) + 1);
     });
@@ -306,8 +327,16 @@ export default function DeanAnalytics() {
       Medium: "#eab308",
       Low: "#22c55e",
     };
+    // filter out admin-targeted complaints
+    const filtered = complaints.filter((c) => {
+      const isAdminRecipient =
+        (c.recipientRole &&
+          String(c.recipientRole).toLowerCase() === "admin") ||
+        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
+      return !isAdminRecipient;
+    });
     const map = new Map<string, number>();
-    complaints.forEach((c) => {
+    filtered.forEach((c) => {
       const p = (c.priority as string) || "Medium";
       map.set(p, (map.get(p) || 0) + 1);
     });
@@ -322,10 +351,58 @@ export default function DeanAnalytics() {
     const statuses = ["Pending", "In Progress", "Resolved", "Closed"] as const;
     const counts: Record<string, number> = {};
     statuses.forEach((s) => (counts[s] = 0));
-    complaints.forEach((c) => (counts[c.status] = (counts[c.status] || 0) + 1));
+    const filtered = complaints.filter((c) => {
+      const isAdminRecipient =
+        (c.recipientRole &&
+          String(c.recipientRole).toLowerCase() === "admin") ||
+        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
+      return !isAdminRecipient;
+    });
+    filtered.forEach((c) => (counts[c.status] = (counts[c.status] || 0) + 1));
     return statuses
       .filter((s) => counts[s] > 0)
       .map((s) => ({ status: s, count: counts[s] }));
+  }, [complaints]);
+
+  // Compute monthly trend data from complaints (excluding admin-targeted)
+  const monthlyTrendFromComplaints = useMemo(() => {
+    const filtered = complaints.filter((c) => {
+      const isAdminRecipient =
+        (c.recipientRole &&
+          String(c.recipientRole).toLowerCase() === "admin") ||
+        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
+      return !isAdminRecipient;
+    });
+    // aggregate by month (last 6 months)
+    const now = new Date();
+    const months = [] as {
+      month: string;
+      submitted: number;
+      resolved: number;
+    }[];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString(undefined, { month: "short" });
+      months.push({ month: key, submitted: 0, resolved: 0 });
+    }
+    const monthIndex = (dateStr?: string | Date | null) => {
+      if (!dateStr) return -1;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return -1;
+      const diffMonths =
+        (d.getFullYear() - now.getFullYear()) * 12 +
+        (d.getMonth() - now.getMonth());
+      // map months relative to now: -5..0
+      const idx = 5 + diffMonths;
+      return idx >= 0 && idx < 6 ? idx : -1;
+    };
+    filtered.forEach((c) => {
+      const sIdx = monthIndex(c.submittedDate);
+      if (sIdx >= 0) months[sIdx].submitted++;
+      const rIdx = monthIndex(c.resolvedAt);
+      if (rIdx >= 0) months[rIdx].resolved++;
+    });
+    return months;
   }, [complaints]);
 
   // monthlyTrendDataDyn now comes from backend

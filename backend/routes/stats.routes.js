@@ -13,6 +13,7 @@ import {
   getAdminCalendarSummary,
   getAdminCalendarDay,
   getAdminCalendarMonth,
+  getDeanCalendarMonth,
   // HoD analytics
   getDepartmentPriorityDistribution,
   getDepartmentStatusDistribution,
@@ -64,6 +65,12 @@ router.get(
   protectRoute,
   deanOnly,
   getDeanCalendarDay
+);
+router.get(
+  "/complaints/calendar/dean-month",
+  protectRoute,
+  deanOnly,
+  getDeanCalendarMonth
 );
 
 // HOD calendar summary/day
@@ -221,13 +228,11 @@ router.get(
   getAdminCalendarDay
 );
 
-
 router.get(
   "/complaints/calendar/admin-month",
   protectRoute,
   adminOnly,
   getAdminCalendarMonth
-
 );
 
 // ========================= New Analytics Routes =========================

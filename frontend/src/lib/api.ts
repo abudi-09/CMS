@@ -502,6 +502,16 @@ export async function getDeanInboxApi() {
   return handleJson<InboxComplaint[]>(res);
 }
 
+// Dean scoped (all statuses)
+export async function getDeanScopedComplaintsApi() {
+  const res = await fetch(`${API_BASE}/complaints/dean/scoped`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<{ items: unknown[]; total: number }>(res);
+}
+
 // ========================= Feedback (role-aware) =========================
 export async function getFeedbackByRoleApi() {
   const res = await fetch(`${API_BASE}/complaints/feedback/by-role`, {
@@ -1258,6 +1268,32 @@ export async function getDeanCalendarDayApi(params: {
       ? params.categories.join(",")
       : undefined,
     assignedTo: params?.assignedTo,
+  })}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<unknown[]>(res);
+}
+
+export async function getDeanCalendarMonthApi(params: {
+  month?: number;
+  year?: number;
+  viewType?: "submission" | "deadline";
+  status?: string;
+  priority?: string;
+  categories?: string[];
+}) {
+  const url = `${API_BASE}/stats/complaints/calendar/dean-month${qs({
+    month: typeof params?.month === "number" ? params.month : undefined,
+    year: typeof params?.year === "number" ? params.year : undefined,
+    viewType: params?.viewType,
+    status: params?.status,
+    priority: params?.priority,
+    categories: params?.categories?.length
+      ? params.categories.join(",")
+      : undefined,
   })}`;
   const res = await fetch(url, {
     method: "GET",

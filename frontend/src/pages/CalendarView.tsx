@@ -26,6 +26,7 @@ import {
   getAdminCalendarMonthApi,
   getDeanCalendarSummaryApi,
   getDeanCalendarDayApi,
+  getDeanCalendarMonthApi,
   getHodCalendarSummaryApi,
   getHodCalendarDayApi,
   getHodManagedComplaintsApi,
@@ -106,7 +107,7 @@ const priorityColors: Record<string, string> = {
 };
 
 interface CalendarViewProps {
-  role?: "admin" | "staff";
+  role?: "admin" | "staff" | "dean" | "hod";
   staffName?: string; // for demo filtering, unused now
 }
 
@@ -115,14 +116,20 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
 
   // Compute effective role explicitly to avoid accidentally treating non-admins as admins
   const effectiveRole: "admin" | "staff" | "dean" | "hod" = (() => {
-    const r = (user?.role || "").toString();
+    const forced = role?.toLowerCase();
+    if (forced === "dean") return "dean";
+    const r = (user?.role || "").toString().toLowerCase();
     if (r === "staff") return "staff";
     if (r === "dean") return "dean";
     if (r === "hod") return "hod";
     if (r === "admin") return "admin";
-    // default to 'staff' for safety (prevents accidental admin API calls by other roles)
     return "staff";
   })();
+
+  // Post-hook guard for dean explicit usage to avoid conditional hook ordering issues
+  const deanForced = role === "dean"; // role prop includes 'dean' in its union
+  const deanAccessDenied =
+    deanForced && user && String(user.role).toLowerCase() !== "dean";
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewType, setViewType] = useState<"submission" | "deadline">(
@@ -596,12 +603,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     viewType,
   ]);
 
-  // Prefetch month complaints for Admin to populate calendar dots & immediate day display
+  // Prefetch month complaints for Admin/Dean to populate calendar dots & immediate day display
   const monthFetchedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (effectiveRole !== "admin") return;
-    if (!adminId) return; // require adminId for isolation
-    const key = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${statusFilter}-${priorityFilter}-${categoryFilter}-${viewType}-${adminId}`;
+    const roleKey = effectiveRole;
+    if (!["admin", "dean"].includes(roleKey)) return;
+    if (roleKey === "admin" && !adminId) return; // admin requires id
+    const cacheIdPart = roleKey === "admin" ? adminId || "no-admin" : "dean";
+    const key = `${roleKey}-${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${statusFilter}-${priorityFilter}-${categoryFilter}-${viewType}-${cacheIdPart}`;
     if (monthFetchedRef.current === key) return;
     monthFetchedRef.current = key;
     (async () => {
@@ -614,15 +623,26 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           priority: priorityFilter !== "all" ? priorityFilter : undefined,
           categories: categoryFilter !== "all" ? [categoryFilter] : undefined,
         };
-        const items = (await getAdminCalendarMonthApi({
-          month: params.month,
-          year: params.year,
-          viewType: params.viewType,
-          status: params.status,
-          priority: params.priority,
-          categories: params.categories,
-          assignedTo: adminId, // enforce scoping (added param in api definition)
-        })) as unknown as QueryComplaint[];
+        const raw =
+          roleKey === "admin"
+            ? await getAdminCalendarMonthApi({
+                month: params.month,
+                year: params.year,
+                viewType: params.viewType,
+                status: params.status,
+                priority: params.priority,
+                categories: params.categories,
+                assignedTo: adminId,
+              })
+            : await getDeanCalendarMonthApi({
+                month: params.month,
+                year: params.year,
+                viewType: params.viewType,
+                status: params.status,
+                priority: params.priority,
+                categories: params.categories,
+              });
+        const items = raw as unknown as QueryComplaint[];
         const mapped: Complaint[] = items.map((c) => {
           const status = (c?.status as Complaint["status"]) || "Pending";
           const priority: Complaint["priority"] =
@@ -644,6 +664,33 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             }
             return "Unknown";
           })();
+          // Consistent assignedStaff labeling for dean (mirror day fetch logic)
+          const assignedStaffLabel = (() => {
+            interface AssignedUser {
+              name?: string;
+              role?: string;
+            }
+            const candidate: unknown = c;
+            if (
+              roleKey === "dean" &&
+              candidate &&
+              typeof candidate === "object" &&
+              (candidate as { assignedTo?: AssignedUser | string }).assignedTo
+            ) {
+              const at = (candidate as { assignedTo?: AssignedUser | string })
+                .assignedTo;
+              if (typeof at === "object" && at) {
+                const name = at.name as string | undefined;
+                const r = (at.role as string | undefined)?.toLowerCase();
+                if (r === "hod") {
+                  return name ? `Assigned to HOD: ${name}` : "Assigned to HOD";
+                }
+                return name ? `Assigned: ${name}` : "Assigned";
+              }
+              return "Assigned";
+            }
+            return user?.fullName || user?.name || "You";
+          })();
           return {
             id: String(c?._id || c?.id || ""),
             title: c?.title || "Untitled Complaint",
@@ -651,7 +698,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             category: c?.category || "",
             status,
             submittedBy: submittedByStr,
-            assignedStaff: user?.fullName || user?.name || "You",
+            assignedStaff: assignedStaffLabel,
             submittedDate: submittedAt ? new Date(submittedAt) : undefined,
             deadline: c?.deadline ? new Date(c.deadline) : undefined,
             lastUpdated: updatedAt ? new Date(updatedAt) : new Date(),
@@ -673,8 +720,16 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           } as Complaint;
         });
         setAllComplaints(mapped);
-        // If today is in this month and we have no day items loaded yet for selectedDate, synthesize them
-        if (
+        if (mapped.length === 0 && roleKey === "dean") {
+          try {
+            console.debug(
+              "Dean month prefetch empty, triggering day fetch fallback"
+            );
+          } catch {
+            /* ignore */
+          }
+          handleSelectDateCb(selectedDate);
+        } else if (
           !mapped.some((m) =>
             isSameDay(m.submittedDate || m.deadline || new Date(), selectedDate)
           )
@@ -720,8 +775,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   useEffect(() => {
     if (initialDayFetchedRef.current) return;
     if (effectiveRole !== "admin" && effectiveRole !== "dean") return;
-    // Use normalized adminId which supports both `id` and `_id` on the user
-    if (!adminId) return;
+    if (effectiveRole === "admin" && !adminId) return; // dean does not need adminId
     initialDayFetchedRef.current = true;
     handleSelectDateCb(selectedDate);
   }, [effectiveRole, adminId, selectedDate, handleSelectDateCb]);
@@ -805,6 +859,17 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
         return null;
     }
   };
+
+  if (deanAccessDenied) {
+    return (
+      <div className="p-6">
+        <h1 className="text-xl font-semibold mb-2">Access Denied</h1>
+        <p className="text-muted-foreground text-sm">
+          This calendar is restricted to Dean accounts.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -59,6 +59,13 @@ const complaintSchema = new mongoose.Schema(
       enum: ["student", "hod", "dean", "admin"],
       default: null,
     },
+    // Direct user id who performed the last assignment / acceptance action
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     assignmentPath: [
       {
         type: String,

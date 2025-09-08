@@ -49,7 +49,6 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
-  listAllComplaintsApi,
   listMyDepartmentActiveStaffApi,
   assignComplaintApi,
   getDeanInboxApi,
@@ -57,6 +56,7 @@ import {
   deanAssignToHodApi,
   approveComplaintApi,
   openNotificationsEventSource,
+  getDeanScopedComplaintsApi,
   type InboxComplaint as BaseInboxComplaint,
 } from "@/lib/api";
 import { updateComplaintStatusApi } from "@/lib/api";
@@ -83,8 +83,7 @@ export function DeanAssignComplaints() {
   const role = user?.role;
   // Pagination state
   const [page, setPage] = useState(1);
-  const pageSize = 10;
-  const [showAll, setShowAll] = useState(false);
+  const pageSize = 5; // Spec: 5 per page
   const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
   const [loading, setLoading] = useState(true);
   const [staffOptions, setStaffOptions] = useState<
@@ -138,101 +137,69 @@ export function DeanAssignComplaints() {
       try {
         setLoading(true);
         const inboxP = getDeanInboxApi().catch(() => []);
-        const allP = listAllComplaintsApi().catch(() => []);
+        const scopedP = getDeanScopedComplaintsApi().catch(() => ({
+          items: [],
+        }));
         const staffP = (
           user?.department
             ? listMyDepartmentActiveStaffApi()
             : Promise.resolve([])
         ).catch(() => []);
-        const [inboxRaw, allRaw, staffRaw] = await Promise.all([
+        const [inboxRaw, scopedRaw, staffRaw] = await Promise.all([
           inboxP,
-          allP,
+          scopedP,
           staffP,
         ]);
         if (!mounted) return;
         const inbox = inboxRaw as InboxComplaint[];
-        const normalizeAll = (raw: unknown): RawComplaint[] => {
-          if (!raw) return [];
-          // If backend returned an object with items key
-          if (typeof raw === "object" && !Array.isArray(raw)) {
-            const r = raw as { items?: unknown };
-            if (Array.isArray(r.items)) return r.items as RawComplaint[];
-          }
-          if (Array.isArray(raw)) return raw as RawComplaint[];
+        interface ScopedResult {
+          items?: unknown[];
+        }
+        const normalizeScoped = (raw: unknown): RawComplaint[] => {
+          if (!raw || typeof raw !== "object") return [];
+          const r = raw as ScopedResult;
+          if (Array.isArray(r.items)) return r.items as RawComplaint[];
           return [];
         };
-        const all = normalizeAll(allRaw);
+        const all = normalizeScoped(scopedRaw);
         const staff = staffRaw as unknown as DeptStaff[];
         const isValidRaw = (c: unknown): c is RawComplaint =>
           !!c &&
           typeof (c as RawComplaint).id === "string" &&
           !!(c as RawComplaint).status;
-        const mappedFromAll = all.filter(isValidRaw).map((c) => ({
-          id: c.id,
-          title: c.title || c.complaintCode || "Complaint",
-          description: c.description || "",
-          category: c.category || c.department || "General",
-          status: c.status,
-          submittedBy: c.submittedBy || "",
-          sourceRole: c.sourceRole,
-          complaintCode: c.complaintCode,
-          friendlyCode: c.complaintCode,
-          assignedStaff:
+        const mappedFromAll = all.filter(isValidRaw).map((c) => {
+          const deanPendingFallback = !c.assignedTo && c.status === "Pending";
+          const deanNameFallback = deanPendingFallback
+            ? (user?.fullName as string) ||
+              (user?.name as string) ||
+              (user?.email as string) ||
+              "You (Dean)"
+            : undefined;
+          const baseAssigned =
             typeof c.assignedTo === "string"
               ? c.assignedTo
-              : (c.assignedTo as { name?: string } | null)?.name || undefined,
-          assignedStaffRole: c.assignmentPath?.includes("staff")
+              : (c.assignedTo as { name?: string } | null)?.name || undefined;
+          const assignedStaff = baseAssigned || deanNameFallback;
+          const assignedStaffRole = c.assignmentPath?.includes("staff")
             ? "staff"
             : c.assignmentPath?.includes("hod")
             ? "hod"
-            : c.assignedByRole === "dean"
+            : c.assignedByRole === "dean" || deanPendingFallback
             ? "dean"
-            : undefined,
-          assignedByRole: c.assignedByRole || undefined,
-          assignmentPath: Array.isArray(c.assignmentPath)
-            ? (c.assignmentPath as string[])
-            : [],
-          submittedDate: c.submittedDate
-            ? new Date(c.submittedDate)
-            : new Date(),
-          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-          deadline: c.deadline ? new Date(c.deadline) : undefined,
-          priority: c.priority || "Medium",
-          feedback: c.feedback || undefined,
-          isEscalated: !!c.isEscalated,
-          submittedTo: c.submittedTo || undefined,
-          department: c.department || undefined,
-        })) as ComplaintType[];
-        const mappedInbox = ((inbox as InboxComplaint[] | undefined) || []).map(
-          (c: InboxComplaint) => ({
-            id: String(c.id || ""),
-            title: String(c.title || "Complaint"),
-            description: "",
-            category: String(c.category || "General"),
-            status: (c.status as ComplaintType["status"]) || "Pending",
-            submittedBy:
-              typeof c.submittedBy === "string"
-                ? c.submittedBy
-                : c.submittedBy?.name || "",
-            sourceRole:
-              (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+            : undefined;
+          return {
+            id: c.id,
+            title: c.title || c.complaintCode || "Complaint",
+            description: c.description || "",
+            category: c.category || c.department || "General",
+            status: c.status,
+            submittedBy: c.submittedBy || "",
+            sourceRole: c.sourceRole,
             complaintCode: c.complaintCode,
             friendlyCode: c.complaintCode,
-            assignedStaff:
-              typeof c.assignedTo === "string"
-                ? c.assignedTo
-                : (c.assignedTo as { name?: string } | null)?.name || undefined,
-            assignedStaffRole: c.assignmentPath?.includes("staff")
-              ? "staff"
-              : c.assignmentPath?.includes("hod")
-              ? "hod"
-              : c.assignedByRole === "dean"
-              ? "dean"
-              : undefined,
-            assignedByRole:
-              typeof c.assignedByRole === "string"
-                ? c.assignedByRole
-                : undefined,
+            assignedStaff,
+            assignedStaffRole,
+            assignedByRole: c.assignedByRole || undefined,
             assignmentPath: Array.isArray(c.assignmentPath)
               ? (c.assignmentPath as string[])
               : [],
@@ -241,12 +208,69 @@ export function DeanAssignComplaints() {
               : new Date(),
             lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
             deadline: c.deadline ? new Date(c.deadline) : undefined,
-            priority: (c.priority as ComplaintType["priority"]) || "Medium",
-            feedback: undefined,
-            isEscalated: false,
+            priority: c.priority || "Medium",
+            feedback: c.feedback || undefined,
+            isEscalated: !!c.isEscalated,
             submittedTo: c.submittedTo || undefined,
-            department: undefined,
-          })
+            department: c.department || undefined,
+          } as ComplaintType;
+        }) as ComplaintType[];
+        const mappedInbox = ((inbox as InboxComplaint[] | undefined) || []).map(
+          (c: InboxComplaint) => {
+            const deanPendingFallback = !c.assignedTo && c.status === "Pending";
+            const deanNameFallback = deanPendingFallback
+              ? (user?.fullName as string) ||
+                (user?.name as string) ||
+                (user?.email as string) ||
+                "You (Dean)"
+              : undefined;
+            const baseAssigned =
+              typeof c.assignedTo === "string"
+                ? c.assignedTo
+                : (c.assignedTo as { name?: string } | null)?.name || undefined;
+            const assignedStaff = baseAssigned || deanNameFallback;
+            const assignedStaffRole = c.assignmentPath?.includes("staff")
+              ? "staff"
+              : c.assignmentPath?.includes("hod")
+              ? "hod"
+              : c.assignedByRole === "dean" || deanPendingFallback
+              ? "dean"
+              : undefined;
+            return {
+              id: String(c.id || ""),
+              title: String(c.title || "Complaint"),
+              description: "",
+              category: String(c.category || "General"),
+              status: (c.status as ComplaintType["status"]) || "Pending",
+              submittedBy:
+                typeof c.submittedBy === "string"
+                  ? c.submittedBy
+                  : c.submittedBy?.name || "",
+              sourceRole:
+                (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+              complaintCode: c.complaintCode,
+              friendlyCode: c.complaintCode,
+              assignedStaff,
+              assignedStaffRole,
+              assignedByRole:
+                typeof c.assignedByRole === "string"
+                  ? c.assignedByRole
+                  : undefined,
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? (c.assignmentPath as string[])
+                : [],
+              submittedDate: c.submittedDate
+                ? new Date(c.submittedDate)
+                : new Date(),
+              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+              deadline: c.deadline ? new Date(c.deadline) : undefined,
+              priority: (c.priority as ComplaintType["priority"]) || "Medium",
+              feedback: undefined,
+              isEscalated: false,
+              submittedTo: c.submittedTo || undefined,
+              department: undefined,
+            } as ComplaintType;
+          }
         ) as ComplaintType[];
         const nonPending = mappedFromAll.filter((c) => {
           if (c.status === "Pending" || c.status === "Unassigned") return false;
@@ -287,7 +311,7 @@ export function DeanAssignComplaints() {
       // @ts-expect-error cleanup debug handle
       delete window.__reloadDeanComplaints;
     };
-  }, [user?.department, setComplaints]);
+  }, [user, user?.department, setComplaints]);
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [overdueFilter, setOverdueFilter] = useState<string>("all");
@@ -297,8 +321,8 @@ export function DeanAssignComplaints() {
   const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "All" | "Pending" | "Accepted" | "Assigned" | "Rejected" | "Resolved"
-  >("All");
+    "Pending" | "Accepted" | "Assigned" | "Rejected" | "Resolved"
+  >("Pending");
   // Reset page when filters/tab change
   useEffect(() => {
     setPage(1);
@@ -313,114 +337,140 @@ export function DeanAssignComplaints() {
       const loadComplaints = async () => {
         try {
           const inboxP = getDeanInboxApi().catch(() => []);
-          const allP = listAllComplaintsApi().catch(() => []);
+          const scopedP = getDeanScopedComplaintsApi().catch(() => ({
+            items: [],
+          }));
           const staffP = (
             user?.department
               ? listMyDepartmentActiveStaffApi()
               : Promise.resolve([])
           ).catch(() => []);
-          const [inboxRaw, allRaw, staffRaw] = await Promise.all([
+          const [inboxRaw, scopedRaw, staffRaw] = await Promise.all([
             inboxP,
-            allP,
+            scopedP,
             staffP,
           ]);
           const inbox = inboxRaw as InboxComplaint[];
-          const normalizeAll = (raw: unknown): RawComplaint[] => {
-            if (!raw) return [];
-            if (typeof raw === "object" && !Array.isArray(raw)) {
-              const r = raw as { items?: unknown };
-              if (Array.isArray(r.items)) return r.items as RawComplaint[];
-            }
-            if (Array.isArray(raw)) return raw as RawComplaint[];
+          interface ScopedResult2 {
+            items?: unknown[];
+          }
+          const normalizeScoped2 = (raw: unknown): RawComplaint[] => {
+            if (!raw || typeof raw !== "object") return [];
+            const r = raw as ScopedResult2;
+            if (Array.isArray(r.items)) return r.items as RawComplaint[];
             return [];
           };
-          const all = normalizeAll(allRaw);
+          const all = normalizeScoped2(scopedRaw);
           const staff = staffRaw as unknown as DeptStaff[];
           const isValidRaw2 = (c: unknown): c is RawComplaint =>
             !!c &&
             typeof (c as RawComplaint).id === "string" &&
             !!(c as RawComplaint).status;
-          const mappedFromAll = all.filter(isValidRaw2).map((c) => ({
-            id: c.id,
-            title: c.title || c.complaintCode || "Complaint",
-            description: c.description || "",
-            category: c.category || c.department || "General",
-            status: c.status,
-            submittedBy: c.submittedBy || "",
-            sourceRole: c.sourceRole,
-            complaintCode: c.complaintCode,
-            friendlyCode: c.complaintCode,
-            assignedStaff:
+          const mappedFromAll = all.filter(isValidRaw2).map((c) => {
+            const deanPendingFallback = !c.assignedTo && c.status === "Pending";
+            const deanNameFallback = deanPendingFallback
+              ? (user?.fullName as string) ||
+                (user?.name as string) ||
+                (user?.email as string) ||
+                "You (Dean)"
+              : undefined;
+            const baseAssigned =
               typeof c.assignedTo === "string"
                 ? c.assignedTo
-                : (c.assignedTo as { name?: string } | null)?.name || undefined,
-            assignedStaffRole: c.assignmentPath?.includes("staff")
+                : (c.assignedTo as { name?: string } | null)?.name || undefined;
+            const assignedStaff = baseAssigned || deanNameFallback;
+            const assignedStaffRole = c.assignmentPath?.includes("staff")
               ? "staff"
               : c.assignmentPath?.includes("hod")
               ? "hod"
-              : c.assignedByRole === "dean"
+              : c.assignedByRole === "dean" || deanPendingFallback
               ? "dean"
-              : undefined,
-            assignedByRole: c.assignedByRole || undefined,
-            assignmentPath: Array.isArray(c.assignmentPath)
-              ? (c.assignmentPath as string[])
-              : [],
-            submittedDate: c.submittedDate
-              ? new Date(c.submittedDate)
-              : new Date(),
-            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-            deadline: c.deadline ? new Date(c.deadline) : undefined,
-            priority: c.priority || "Medium",
-            feedback: c.feedback || undefined,
-            isEscalated: !!c.isEscalated,
-            submittedTo: c.submittedTo || undefined,
-            department: c.department || undefined,
-          })) as ComplaintType[];
+              : undefined;
+            return {
+              id: c.id,
+              title: c.title || c.complaintCode || "Complaint",
+              description: c.description || "",
+              category: c.category || c.department || "General",
+              status: c.status,
+              submittedBy: c.submittedBy || "",
+              sourceRole: c.sourceRole,
+              complaintCode: c.complaintCode,
+              friendlyCode: c.complaintCode,
+              assignedStaff,
+              assignedStaffRole,
+              assignedByRole: c.assignedByRole || undefined,
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? (c.assignmentPath as string[])
+                : [],
+              submittedDate: c.submittedDate
+                ? new Date(c.submittedDate)
+                : new Date(),
+              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+              deadline: c.deadline ? new Date(c.deadline) : undefined,
+              priority: c.priority || "Medium",
+              feedback: c.feedback || undefined,
+              isEscalated: !!c.isEscalated,
+              submittedTo: c.submittedTo || undefined,
+              department: c.department || undefined,
+            } as ComplaintType;
+          }) as ComplaintType[];
           const mappedInbox = (
             (inbox as InboxComplaint[] | undefined) || []
-          ).map((c: InboxComplaint) => ({
-            id: String(c.id || ""),
-            title: String(c.title || "Complaint"),
-            description: "",
-            category: String(c.category || "General"),
-            status: (c.status as ComplaintType["status"]) || "Pending",
-            submittedBy:
-              typeof c.submittedBy === "string"
-                ? c.submittedBy
-                : c.submittedBy?.name || "",
-            sourceRole:
-              (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
-            complaintCode: c.complaintCode,
-            friendlyCode: c.complaintCode,
-            assignedStaff:
+          ).map((c: InboxComplaint) => {
+            const deanPendingFallback = !c.assignedTo && c.status === "Pending";
+            const deanNameFallback = deanPendingFallback
+              ? (user?.fullName as string) ||
+                (user?.name as string) ||
+                (user?.email as string) ||
+                "You (Dean)"
+              : undefined;
+            const baseAssigned =
               typeof c.assignedTo === "string"
                 ? c.assignedTo
-                : (c.assignedTo as { name?: string } | null)?.name || undefined,
-            assignedStaffRole: c.assignmentPath?.includes("staff")
+                : (c.assignedTo as { name?: string } | null)?.name || undefined;
+            const assignedStaff = baseAssigned || deanNameFallback;
+            const assignedStaffRole = c.assignmentPath?.includes("staff")
               ? "staff"
               : c.assignmentPath?.includes("hod")
               ? "hod"
-              : c.assignedByRole === "dean"
+              : c.assignedByRole === "dean" || deanPendingFallback
               ? "dean"
-              : undefined,
-            assignedByRole:
-              typeof c.assignedByRole === "string"
-                ? c.assignedByRole
-                : undefined,
-            assignmentPath: Array.isArray(c.assignmentPath)
-              ? (c.assignmentPath as string[])
-              : [],
-            submittedDate: c.submittedDate
-              ? new Date(c.submittedDate)
-              : new Date(),
-            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-            deadline: c.deadline ? new Date(c.deadline) : undefined,
-            priority: (c.priority as ComplaintType["priority"]) || "Medium",
-            feedback: undefined,
-            isEscalated: false,
-            submittedTo: c.submittedTo || undefined,
-            department: undefined,
-          })) as ComplaintType[];
+              : undefined;
+            return {
+              id: String(c.id || ""),
+              title: String(c.title || "Complaint"),
+              description: "",
+              category: String(c.category || "General"),
+              status: (c.status as ComplaintType["status"]) || "Pending",
+              submittedBy:
+                typeof c.submittedBy === "string"
+                  ? c.submittedBy
+                  : c.submittedBy?.name || "",
+              sourceRole:
+                (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+              complaintCode: c.complaintCode,
+              friendlyCode: c.complaintCode,
+              assignedStaff,
+              assignedStaffRole,
+              assignedByRole:
+                typeof c.assignedByRole === "string"
+                  ? c.assignedByRole
+                  : undefined,
+              assignmentPath: Array.isArray(c.assignmentPath)
+                ? (c.assignmentPath as string[])
+                : [],
+              submittedDate: c.submittedDate
+                ? new Date(c.submittedDate)
+                : new Date(),
+              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+              deadline: c.deadline ? new Date(c.deadline) : undefined,
+              priority: (c.priority as ComplaintType["priority"]) || "Medium",
+              feedback: undefined,
+              isEscalated: false,
+              submittedTo: c.submittedTo || undefined,
+              department: undefined,
+            } as ComplaintType;
+          }) as ComplaintType[];
           const nonPending = mappedFromAll.filter((c) => {
             if (c.status === "Pending" || c.status === "Unassigned")
               return false;
@@ -506,7 +556,7 @@ export function DeanAssignComplaints() {
         /* noop */
       }
     };
-  }, [user?.department, setComplaints, setStaffOptions, setActiveTab]);
+  }, [user, user?.department, setComplaints, setStaffOptions, setActiveTab]);
 
   // Accept flow state
   const [acceptTarget, setAcceptTarget] = useState<ComplaintType | null>(null);
@@ -626,12 +676,18 @@ export function DeanAssignComplaints() {
     try {
       await updateComplaintStatusApi(complaintId, "Closed", "Rejected by Dean");
       // Refresh datasets after rejection
-      const [inboxRaw, allRaw] = await Promise.all([
+      const [inboxRaw, scopedRaw] = await Promise.all([
         getDeanInboxApi().catch(() => []),
-        listAllComplaintsApi().catch(() => []),
+        getDeanScopedComplaintsApi().catch(() => ({ items: [] })),
       ]);
       const inbox = (inboxRaw || []) as InboxComplaint[];
-      const all = (allRaw || []) as unknown as RawComplaint[];
+      const scopedItems: unknown[] =
+        scopedRaw &&
+        typeof scopedRaw === "object" &&
+        "items" in (scopedRaw as { items?: unknown[] })
+          ? (scopedRaw as { items?: unknown[] }).items || []
+          : [];
+      const all = scopedItems as RawComplaint[];
       const mappedFromAll = (all || [])
         .filter((c) => c && c.id && c.status)
         .map((c) => ({
@@ -864,28 +920,12 @@ export function DeanAssignComplaints() {
   };
 
   const matchesTab = (c: ComplaintType) => {
-    if (activeTab === "All") return true;
     if (activeTab === "Pending")
-      return (
-        (c.status === "Pending" || c.status === "Unassigned") &&
-        !c.assignedStaffRole
-      );
-    if (activeTab === "Accepted") {
-      const deanTouched =
-        (c.assignedByRole && c.assignedByRole.toLowerCase() === "dean") ||
-        (Array.isArray(c.assignmentPath) &&
-          c.assignmentPath.includes("dean")) ||
-        c.assignedStaffRole === "dean";
-      return (
-        deanTouched && (c.status === "Accepted" || c.status === "In Progress")
-      );
-    }
-    if (activeTab === "Assigned")
-      return (
-        c.assignedByRole === "dean" &&
-        c.assignedStaffRole === "hod" &&
-        ["Assigned", "In Progress", "Resolved", "Closed"].includes(c.status)
-      );
+      return c.status === "Pending" || c.status === "Unassigned";
+    // Accepted tab represents working items: legacy 'Accepted' plus new 'In Progress'
+    if (activeTab === "Accepted")
+      return c.status === "In Progress" || c.status === "Accepted";
+    if (activeTab === "Assigned") return c.status === "Assigned";
     if (activeTab === "Resolved") return c.status === "Resolved";
     if (activeTab === "Rejected") return c.status === "Closed";
     return false;
@@ -910,29 +950,24 @@ export function DeanAssignComplaints() {
     });
 
   // Pagination calculations
-  const effectivePageSize = showAll ? filteredComplaints.length : pageSize;
   const totalItems = filteredComplaints.length;
-  const totalPages = showAll
-    ? 1
-    : Math.max(1, Math.ceil(totalItems / pageSize));
-  const startIndex = showAll ? 0 : (page - 1) * pageSize;
-  const endIndex = showAll ? filteredComplaints.length : startIndex + pageSize;
-  const paginatedComplaints = filteredComplaints.slice(startIndex, endIndex);
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const paginatedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
 
   // Clamp page if filtered size shrinks
   useEffect(() => {
-    if (showAll) return;
     const newTotal = Math.max(
       1,
       Math.ceil(filteredComplaints.length / pageSize)
     );
     if (page > newTotal) setPage(newTotal);
-  }, [filteredComplaints.length, page, showAll]);
+  }, [filteredComplaints.length, page]);
 
-  const goToPage = (p: number) => {
-    if (showAll) return;
-    setPage(Math.min(Math.max(1, p), totalPages));
-  };
+  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), totalPages));
   const getVisiblePages = () => {
     const maxToShow = 5;
     if (totalPages <= maxToShow)
@@ -968,43 +1003,52 @@ export function DeanAssignComplaints() {
         </p>
       </div>
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Filtered Complaints
-            </CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {filteredComplaints.length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Unassigned (Filtered)
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
             <div className="h-4 w-4 rounded-full bg-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {unassignedCount}
+            <div className="text-2xl font-bold">
+              {
+                complaints.filter(
+                  (c) => c.status === "Pending" || c.status === "Unassigned"
+                ).length
+              }
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Assigned (Filtered)
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
             <div className="h-4 w-4 rounded-full bg-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {assignedCount}
+            <div className="text-2xl font-bold">
+              {complaints.filter((c) => c.status === "In Progress").length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {complaints.filter((c) => c.status === "Closed").length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Resolved</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {complaints.filter((c) => c.status === "Resolved").length}
             </div>
           </CardContent>
         </Card>
@@ -1059,22 +1103,11 @@ export function DeanAssignComplaints() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle>Complaints</CardTitle>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowAll(!showAll);
-                  if (!showAll) setPage(1);
-                }}
-              >
-                {showAll ? "Show Paginated" : "Show All"}
-              </Button>
               <Tabs
                 value={activeTab}
                 onValueChange={(v) => setActiveTab(v as typeof activeTab)}
               >
                 <TabsList>
-                  <TabsTrigger value="All">All</TabsTrigger>
                   <TabsTrigger value="Pending">Pending</TabsTrigger>
                   <TabsTrigger value="Accepted">Accepted</TabsTrigger>
                   <TabsTrigger value="Assigned">Assigned</TabsTrigger>
@@ -1215,8 +1248,7 @@ export function DeanAssignComplaints() {
                           View Detail
                         </Button>
                         {/* Dean can accept to solve and assign to HoD (hide on Resolved tab) */}
-                        {activeTab !== "Resolved" &&
-                          !complaint.assignedStaff &&
+                        {activeTab === "Pending" &&
                           (complaint.status === "Pending" ||
                             complaint.status === "Unassigned") && (
                             <Button
@@ -1231,7 +1263,7 @@ export function DeanAssignComplaints() {
                               Accept
                             </Button>
                           )}
-                        {activeTab !== "Resolved" &&
+                        {activeTab === "Pending" &&
                           (!complaint.assignedStaff ||
                             complaint.assignedStaffRole !== "hod") &&
                           (complaint.status === "Pending" ||
@@ -1255,7 +1287,7 @@ export function DeanAssignComplaints() {
                             Re-approve
                           </Button>
                         ) : (
-                          activeTab !== "Resolved" && (
+                          activeTab === "Pending" && (
                             <Button
                               size="sm"
                               variant="destructive"
@@ -1440,8 +1472,7 @@ export function DeanAssignComplaints() {
                       View Detail
                     </Button>
                     {/* Dean actions on mobile (hide on Resolved tab) */}
-                    {activeTab !== "Resolved" &&
-                      !complaint.assignedStaff &&
+                    {activeTab === "Pending" &&
                       (complaint.status === "Pending" ||
                         complaint.status === "Unassigned") && (
                         <Button
@@ -1456,7 +1487,7 @@ export function DeanAssignComplaints() {
                           Accept
                         </Button>
                       )}
-                    {activeTab !== "Resolved" &&
+                    {activeTab === "Pending" &&
                       (!complaint.assignedStaff ||
                         complaint.assignedStaffRole !== "hod") &&
                       (complaint.status === "Pending" ||
@@ -1480,7 +1511,7 @@ export function DeanAssignComplaints() {
                         Re-approve
                       </Button>
                     ) : (
-                      activeTab !== "Resolved" && (
+                      activeTab === "Pending" && (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -1552,7 +1583,7 @@ export function DeanAssignComplaints() {
         </CardContent>
       </Card>
       {/* Pagination Controls - aligned with AllComplaints */}
-      {totalPages > 1 && !showAll && (
+      {totalPages > 1 && (
         <div className="px-4 md:px-0">
           <Pagination>
             <PaginationContent>
@@ -1701,9 +1732,7 @@ export function DeanAssignComplaints() {
                         c.id === acceptTarget.id
                           ? {
                               ...c,
-                              status:
-                                (updated?.status as ComplaintType["status"]) ||
-                                "Accepted",
+                              status: "In Progress",
                               assignedStaff:
                                 updated?.assignedTo?.name || assignee,
                               assignedStaffRole: "dean",
@@ -1718,20 +1747,20 @@ export function DeanAssignComplaints() {
                       new CustomEvent("complaint:status-changed", {
                         detail: {
                           id: acceptTarget.id,
-                          status: "Accepted",
-                          newStatus: "Accepted",
+                          status: "In Progress",
+                          newStatus: "In Progress",
                           note: acceptNote || undefined,
                           byRole: "dean",
                           at: new Date().toISOString(),
                         },
                       })
                     );
-                    // Switch tab to Accepted
+                    // Switch tab to Accepted (In Progress bucket)
                     setActiveTab("Accepted");
                     toast({
                       title: "Accepted",
                       description:
-                        "Complaint assigned to you and set Accepted.",
+                        "Complaint assigned to you and set In Progress.",
                     });
                   } catch (e: unknown) {
                     const msg =
@@ -1770,12 +1799,14 @@ export function DeanAssignComplaints() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Accept all visible pending complaints</DialogTitle>
+            <DialogTitle>
+              Accept (set In Progress) all visible pending complaints
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              All currently visible Pending/Unassigned complaints will be set to
-              "Accepted" and assigned to you.
+              All currently visible Pending/Unassigned complaints will be
+              assigned to you and moved to "In Progress".
             </p>
             <Textarea
               placeholder="Optional note applied to all..."
@@ -1839,7 +1870,7 @@ export function DeanAssignComplaints() {
                           successIds.includes(c.id)
                             ? {
                                 ...c,
-                                status: "Accepted",
+                                status: "In Progress",
                                 assignedStaff: assignee,
                                 assignedStaffRole: "dean",
                                 resolutionNote: bulkNote || c.resolutionNote,
@@ -1854,8 +1885,8 @@ export function DeanAssignComplaints() {
                           new CustomEvent("complaint:status-changed", {
                             detail: {
                               id,
-                              status: "Accepted",
-                              newStatus: "Accepted",
+                              status: "In Progress",
+                              newStatus: "In Progress",
                               note: (bulkNote || undefined) as
                                 | string
                                 | undefined,
@@ -1865,18 +1896,18 @@ export function DeanAssignComplaints() {
                           })
                         )
                       );
-                      setActiveTab("Accepted");
+                      setActiveTab("Accepted"); // Accepted tab now represents In Progress
                     }
                     toast({
-                      title: "Bulk accept complete",
-                      description: `${successIds.length} accepted${
+                      title: "Bulk acceptance complete",
+                      description: `${successIds.length} moved to In Progress${
                         failCount ? `, ${failCount} failed` : ""
                       }`,
                     });
                   } catch (e) {
                     const msg = e instanceof Error ? e.message : String(e);
                     toast({
-                      title: "Bulk accept failed",
+                      title: "Bulk acceptance failed",
                       description: msg,
                       variant: "destructive",
                     });

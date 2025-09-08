@@ -766,6 +766,111 @@ export const getAdminCalendarMonth = async (req, res) => {
   }
 };
 
+// Dean calendar month list (all dean-visible complaints in selected month)
+export const getDeanCalendarMonth = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10);
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const deanId = new mongoose.Types.ObjectId(user._id);
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    // Match direct-to-this-dean or complaints this dean has assigned previously (activity logs)
+    const deanAssignedLogs = await ActivityLog.aggregate([
+      { $match: { role: "dean", user: deanId, action: { $regex: /assign/i } } },
+      { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
+    ]);
+    const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
+    // Base dean visibility:
+    //  - Direct to this dean (recipientRole/dean + recipientId)
+    //  - Any complaint this dean has an assignment ActivityLog for
+    //  - Any complaint the dean directly assigned onward (assignedBy = deanId)
+    // (The last clause protects visibility even if ActivityLog aggregation misses an entry.)
+    const base = {
+      isDeleted: { $ne: true },
+      $or: [
+        { recipientRole: "dean", recipientId: deanId },
+        { _id: { $in: deanAssignedIds } },
+        { assignedBy: deanId },
+      ],
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const monthFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: monthStart, $lte: monthEnd } },
+              { submittedDate: { $gte: monthStart, $lte: monthEnd } },
+            ],
+          }
+        : { deadline: { $gte: monthStart, $lte: monthEnd } };
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("getDeanCalendarMonth: deanId=", String(deanId));
+      console.log(
+        "getDeanCalendarMonth: monthStart=",
+        monthStart.toISOString(),
+        "monthEnd=",
+        monthEnd.toISOString()
+      );
+      console.log("getDeanCalendarMonth: base=", JSON.stringify(base));
+      console.log(
+        "getDeanCalendarMonth: monthFilter=",
+        JSON.stringify(monthFilter)
+      );
+    }
+
+    const items = await Complaint.find({ $and: [base, monthFilter] })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo recipientRole recipientId"
+      )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!items || items.length === 0) {
+      // Lightweight debug to help diagnose empty dean calendar (non-production only)
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          "getDeanCalendarMonth: NO ITEMS FOUND for dean",
+          String(deanId)
+        );
+      }
+    }
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getDeanCalendarMonth error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean calendar month complaints" });
+  }
+};
+
 // Dean calendar summary: counts for the logged-in dean, direct-to-dean-by-student complaints only
 export const getDeanCalendarSummary = async (req, res) => {
   try {
@@ -841,6 +946,7 @@ export const getDeanCalendarSummary = async (req, res) => {
           $or: [
             { recipientRole: "dean", recipientId: user._id },
             { _id: { $in: deanAssignedIds } },
+            { assignedBy: user._id },
           ],
         },
       ],
@@ -1064,6 +1170,7 @@ export const getDeanCalendarDay = async (req, res) => {
           $or: [
             { recipientRole: "dean", recipientId: user._id },
             { _id: { $in: deanAssignedIds } },
+            { assignedBy: user._id },
           ],
         },
       ],

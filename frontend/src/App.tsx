@@ -196,6 +196,14 @@ function AppContent() {
                   }
                 />
                 <Route path="/calendar-view" element={<CalendarView />} />
+                <Route
+                  path="/dean/calendar"
+                  element={
+                    <RequireRole allowed={["dean"]}>
+                      <CalendarView role="dean" />
+                    </RequireRole>
+                  }
+                />
                 <Route path="/admin-analytics" element={<AdminAnalytics />} />
                 <Route path="/all-complaints" element={<AllComplaints />} />
                 <Route path="/profile" element={<Profile />} />

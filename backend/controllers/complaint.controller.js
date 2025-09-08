@@ -684,9 +684,11 @@ export const approveComplaint = async (req, res) => {
       });
     }
 
-    // Move to Accepted on initial acceptance; later updates can transition to In Progress/Resolved
-    complaint.status = "Accepted";
-    complaint.assignedByRole = normalizeUserRole(req.user.role);
+    // Move to In Progress immediately for dean accept workflow, keep Accepted for other roles if needed
+    const normRole = normalizeUserRole(req.user.role);
+    complaint.status = normRole === "dean" ? "In Progress" : "Accepted";
+    complaint.assignedByRole = normRole;
+    complaint.assignedBy = req.user._id;
 
     if (!complaint.assignmentPath) complaint.assignmentPath = [];
     const approverRole = normalizeUserRole(req.user.role);
@@ -845,7 +847,7 @@ export const getDeanInbox = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     // Student -> Dean submissions or items in dean path that are still pending (not escalated/admin)
     const filter = {
-      status: { $in: ["Pending", "Assigned"] },
+      status: { $in: ["Pending", "Accepted", "Assigned", "Resolved"] },
       isEscalated: { $ne: true },
       $and: [
         {
@@ -891,6 +893,65 @@ export const getDeanInbox = async (req, res) => {
     );
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch dean inbox" });
+  }
+};
+
+// Strict dean-scoped complaints (all statuses) – only direct-to-this-dean or dean-acted
+export const getDeanScopedComplaints = async (req, res) => {
+  try {
+    if (req.user.role !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const deanId = req.user._id;
+    // Strict ownership rules:
+    //  Show only complaints where:
+    //   - recipientRole='dean' AND recipientId=this dean, OR
+    //   - assignedBy=this dean (complaints the dean forwarded/assigned)
+    //  Exclude ALL complaints whose recipientRole='dean' but recipientId is another dean.
+    const filter = {
+      isDeleted: { $ne: true },
+      $or: [
+        { recipientRole: "dean", recipientId: deanId },
+        { assignedBy: deanId },
+      ],
+    };
+    const complaints = await Complaint.find(filter)
+      .populate("submittedBy", "name email")
+      .sort({ updatedAt: -1 })
+      .limit(500)
+      .lean();
+    // Double safety: remove any stray cross-dean items (defense-in-depth)
+    const sanitized = complaints.filter(
+      (c) =>
+        !c.recipientRole ||
+        c.recipientRole !== "dean" ||
+        (c.recipientRole === "dean" && String(c.recipientId) === String(deanId))
+    );
+    return res.status(200).json({
+      items: sanitized.map((c) => ({
+        id: c._id,
+        title: c.title,
+        complaintCode: c.complaintCode,
+        category: c.category,
+        status: c.status,
+        priority: c.priority,
+        submittedDate: c.createdAt,
+        lastUpdated: c.updatedAt,
+        assignedTo: c.assignedTo,
+        assignedBy: c.assignedBy,
+        assignedByRole: c.assignedByRole,
+        assignmentPath: c.assignmentPath,
+        deadline: c.deadline,
+        recipientRole: c.recipientRole,
+        recipientId: c.recipientId,
+        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        department: c.department,
+      })),
+      total: sanitized.length,
+    });
+  } catch (err) {
+    console.error("getDeanScopedComplaints error:", err?.message);
+    return res.status(500).json({ error: "Failed to fetch dean complaints" });
   }
 };
 
@@ -1108,6 +1169,7 @@ export const deanAssignToHod = async (req, res) => {
     complaint.status = "Assigned"; // Intermediate state until HoD accepts/rejects
     if (deadline) complaint.deadline = new Date(deadline);
     complaint.assignedByRole = "dean";
+    complaint.assignedBy = req.user._id;
     if (!Array.isArray(complaint.assignmentPath)) complaint.assignmentPath = [];
     // Ensure path shows dean -> hod
     if (!complaint.assignmentPath.includes("dean"))
