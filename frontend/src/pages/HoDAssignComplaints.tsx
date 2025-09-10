@@ -105,32 +105,53 @@ export default function HoDAssignComplaints() {
     null
   );
   // Helper to compare if a complaint is assigned to current HoD
-  const isAssignedToSelf = (c: ComplaintType) => {
-    const assignee = (c.assignedStaff || "").toLowerCase();
-    const myName = (
-      (user?.fullName as string) ||
-      (user?.name as string) ||
-      ""
-    ).toLowerCase();
-    const myEmail = (user?.email as string)?.toLowerCase?.() || "";
-    if (!assignee) return false;
-    return (
-      assignee === myName ||
-      assignee === myEmail ||
-      assignee.includes(myName) ||
-      assignee.includes(myEmail)
-    );
-  };
+  const isAssignedToSelf = useCallback(
+    (c: ComplaintType) => {
+      // If backend returned an assignedToId (ObjectId string), compare to current user id
+      const assignedToId = (c as unknown as Record<string, unknown>)
+        ?.assignedToId as string | undefined;
+      const hodId = String(
+        (user as unknown as { _id?: string; id?: string })?._id ||
+          (user as unknown as { _id?: string; id?: string })?.id ||
+          ""
+      );
+      if (assignedToId && hodId && String(assignedToId) === hodId) return true;
+
+      // Fallback: compare assignedStaff label to name/email
+      const assignee = (c.assignedStaff || "").toLowerCase();
+      const myName = (
+        (user?.fullName as string) ||
+        (user?.name as string) ||
+        ""
+      ).toLowerCase();
+      const myEmail = (user?.email as string)?.toLowerCase?.() || "";
+      const myUsername = String(
+        (user as unknown as { username?: string })?.username || ""
+      ).toLowerCase();
+      if (!assignee) return false;
+      return (
+        assignee === myName ||
+        assignee === myEmail ||
+        assignee === myUsername ||
+        assignee.includes(myName) ||
+        assignee.includes(myEmail) ||
+        (myUsername && assignee.includes(myUsername))
+      );
+    },
+    [user]
+  );
   // Type guards and mappers
   const mapApiToComplaint = useCallback((raw: unknown): ComplaintType => {
     const c = (raw ?? {}) as Record<string, unknown>;
     const assignedTo = c["assignedTo"] as unknown;
     const submittedBy = c["submittedBy"] as unknown;
     let assignedStaff: string | undefined;
+    let assignedToId: string | undefined;
     if (typeof assignedTo === "string") {
-      // If backend sent a raw ObjectId string (e.g., pending assignments to HoD),
-      // treat as unassigned for HoD Pending tab visibility and clearer labels.
+      // If backend sent a raw ObjectId string (e.g., an assignment id), capture it.
       const looksLikeObjectId = /^[a-fA-F0-9]{24}$/.test(assignedTo);
+      assignedToId = looksLikeObjectId ? assignedTo : undefined;
+      // If it's not an ObjectId string, it's likely a display label
       assignedStaff = looksLikeObjectId ? undefined : assignedTo;
     } else if (assignedTo && typeof assignedTo === "object") {
       // Prefer fullName/name/email fields from populated user
@@ -139,6 +160,11 @@ export default function HoDAssignComplaints() {
         ((assignedTo as Record<string, unknown>)["name"] as string) ||
         ((assignedTo as Record<string, unknown>)["email"] as string) ||
         undefined;
+      // capture id when populated
+      assignedToId =
+        ((assignedTo as Record<string, unknown>)["_id"] as string) ||
+        ((assignedTo as Record<string, unknown>)["id"] as string) ||
+        assignedToId;
     } else {
       assignedStaff = undefined;
     }
@@ -161,6 +187,17 @@ export default function HoDAssignComplaints() {
             allowedPathRoles.has(r as ComplaintType["assignmentPath"][number])
           )
       : undefined;
+    // Narrow recipientRole to allowed union early to satisfy TS
+    const rawRecipientRole = c["recipientRole"];
+    const recipientRoleVal: ComplaintType["recipientRole"] | undefined = (():
+      | ComplaintType["recipientRole"]
+      | undefined => {
+      const rr = String(rawRecipientRole || "").toLowerCase();
+      if (rr === "hod" || rr === "dean" || rr === "admin" || rr === "staff")
+        return rr as ComplaintType["recipientRole"];
+      return undefined;
+    })();
+    const recipientIdVal = (c["recipientId"] as string) || undefined;
     return {
       id: String(c["id"] ?? c["_id"] ?? ""),
       title: String(c["title"] ?? "Untitled Complaint"),
@@ -191,9 +228,113 @@ export default function HoDAssignComplaints() {
         (c["assignedByRole"] as ComplaintType["assignedByRole"]) || undefined,
       assignmentPath,
       submittedTo: (c["submittedTo"] as string) || undefined,
+      // carry explicit recipient info when present so frontend can honor single-recipient targeting
+      recipientRole: recipientRoleVal,
+      recipientId: recipientIdVal,
       department: (c["department"] as string) || undefined,
+      // internal id to allow robust HOD-scoped filtering
+      assignedToId,
     };
   }, []);
+
+  // Helper: determine whether a complaint belongs to the currently logged-in HoD
+  const isForCurrentHod = useCallback(
+    (c: ComplaintType) => {
+      if (!user) return false;
+      const hodId = String(
+        (user as unknown as { _id?: string; id?: string })?._id ||
+          (user as unknown as { _id?: string; id?: string })?.id ||
+          ""
+      );
+      if (!hodId) return false;
+
+      // 1) If explicitly assigned to this HoD (id), include
+      const assignedToId = (c as unknown as Record<string, unknown>)
+        ?.assignedToId as string | undefined;
+      if (assignedToId && String(assignedToId) === hodId) return true;
+
+      // 1b) If assignedStaff label (string) matches this user's username/name/email, include
+      const assignedStaffLabel = String(
+        (c as unknown as Record<string, unknown>)["assignedStaff"] || ""
+      ).toLowerCase();
+      const myUsername = String(
+        (user as unknown as { username?: string })?.username || ""
+      ).toLowerCase();
+      const myEmail = String(user?.email || "").toLowerCase();
+      const myName = (
+        (user?.fullName as string) ||
+        (user?.name as string) ||
+        ""
+      ).toLowerCase();
+      if (assignedStaffLabel) {
+        if (
+          assignedStaffLabel === myUsername ||
+          assignedStaffLabel === myEmail ||
+          assignedStaffLabel === myName ||
+          assignedStaffLabel.includes(myName) ||
+          assignedStaffLabel.includes(myEmail)
+        )
+          return true;
+      }
+
+      // (duplicate block removed)
+
+      // 2) If backend provided explicit recipientRole/recipientId, include only when recipientId matches this HoD
+      const recRole = (c as unknown as Record<string, unknown>)[
+        "recipientRole"
+      ] as string | undefined;
+      const recId = (c as unknown as Record<string, unknown>)["recipientId"] as
+        | string
+        | undefined;
+      if (recRole && String(recRole).toLowerCase() === "hod" && recId) {
+        return String(recId) === hodId;
+      }
+
+      // 3) If submittedTo appears to explicitly target a specific user (id/email/name), match only that user
+      const submittedToRaw = (c as unknown as Record<string, unknown>)[
+        "submittedTo"
+      ];
+      const submittedToStr = submittedToRaw
+        ? String(submittedToRaw).trim()
+        : "";
+      const looksLikeObjectId = /^[a-fA-F0-9]{24}$/.test(submittedToStr);
+      const looksLikeEmail = /@/.test(submittedToStr);
+      // reuse myEmail and myName computed above when available
+      // (they are defined earlier when matching assignedStaffLabel)
+      const genericHodRoleMatch =
+        /^(hod|headofdepartment|head-of-department)$/i;
+
+      if (submittedToStr && !genericHodRoleMatch.test(submittedToStr)) {
+        if (looksLikeObjectId) return submittedToStr === hodId;
+        if (looksLikeEmail) return submittedToStr.toLowerCase() === myEmail;
+        const lower = submittedToStr.toLowerCase();
+        if (myName && lower.includes(myName)) return true;
+        if (myEmail && lower.includes(myEmail)) return true;
+        if (myUsername && lower.includes(myUsername)) return true;
+        return false;
+      }
+
+      // 4) Generic 'HoD (Department)' style submissions: include when complaint.department === user.department
+      if (submittedToStr && genericHodRoleMatch.test(submittedToStr)) {
+        const complaintDept = (c as unknown as Record<string, unknown>)[
+          "department"
+        ] as string | undefined;
+        const myDept = (user as unknown as { department?: string })?.department;
+        if (
+          complaintDept &&
+          myDept &&
+          String(complaintDept).toLowerCase() === String(myDept).toLowerCase()
+        ) {
+          return true;
+        }
+        // Also allow if assignedStaff label matched above or recipientId matched above; otherwise deny
+        return false;
+      }
+
+      return false;
+    },
+    [user]
+  );
 
   // Load data
   useEffect(() => {
@@ -206,8 +347,10 @@ export default function HoDAssignComplaints() {
           listMyDepartmentActiveStaffApi(),
         ]);
         if (!mounted) return;
-        setInbox(inboxRaw.map(mapApiToComplaint));
-        setComplaints(managedRaw.map(mapApiToComplaint));
+        const inboxMapped = (inboxRaw as unknown[]).map(mapApiToComplaint);
+        const managedMapped = (managedRaw as unknown[]).map(mapApiToComplaint);
+        setInbox(inboxMapped.filter(isForCurrentHod));
+        setComplaints(managedMapped.filter(isForCurrentHod));
         setDeptStaff(staffRaw);
       } catch (err) {
         toast({
@@ -238,8 +381,14 @@ export default function HoDAssignComplaints() {
           getHodInboxApi(),
           getHodManagedComplaintsApi(),
         ]);
-        setInbox(inboxRaw.map(mapApiToComplaint));
-        setComplaints(managedRaw.map(mapApiToComplaint));
+        setInbox(
+          (inboxRaw as unknown[]).map(mapApiToComplaint).filter(isForCurrentHod)
+        );
+        setComplaints(
+          (managedRaw as unknown[])
+            .map(mapApiToComplaint)
+            .filter(isForCurrentHod)
+        );
         const ns = detail?.newStatus || detail?.status;
         if (ns === "Resolved") setActiveTab("Resolved");
         else if (ns === "Closed") setActiveTab("Rejected");
@@ -257,7 +406,7 @@ export default function HoDAssignComplaints() {
         onStatusChanged as EventListener
       );
     };
-  }, [mapApiToComplaint]);
+  }, [mapApiToComplaint, isForCurrentHod]);
   const handleAssignClick = (complaint: ComplaintType) => {
     // Open modal instead of inline controls
     setSelectedComplaint(complaint);
@@ -282,7 +431,9 @@ export default function HoDAssignComplaints() {
         deadline: deadline || assigningDeadline || undefined,
       });
       const managedRaw = await getHodManagedComplaintsApi();
-      setComplaints(managedRaw.map(mapApiToComplaint));
+      setComplaints(
+        (managedRaw as unknown[]).map(mapApiToComplaint).filter(isForCurrentHod)
+      );
       const staff = deptStaff.find((s) => s._id === staffId);
       toast({
         title: "Assigned",
@@ -361,26 +512,8 @@ export default function HoDAssignComplaints() {
     );
   };
 
-  // Calculate summary stats aligned with active tab data source
-  const summaryBaseList =
-    activeTab === "Pending"
-      ? inbox
-      : activeTab === "All"
-      ? (() => {
-          const seen = new Set<string>();
-          const out: ComplaintType[] = [];
-          for (const c of [...inbox, ...complaints]) {
-            if (!c.id || seen.has(c.id)) continue;
-            seen.add(c.id);
-            out.push(c);
-          }
-          return out;
-        })()
-      : complaints;
-  const unassignedCount = summaryBaseList.filter(
-    (c) => !c.assignedStaff
-  ).length;
-  const assignedCount = summaryBaseList.filter((c) => !!c.assignedStaff).length;
+  // Summary counts are computed from the same set used by the table below
+  // (we compute them after filteredComplaints so they reflect active tab + filters)
   const priorityColors = {
     Low: "bg-gray-200 text-gray-700 border-gray-300",
     Medium: "bg-blue-100 text-blue-800 border-blue-200",
@@ -402,8 +535,12 @@ export default function HoDAssignComplaints() {
       return isDirectToHodPending || isDeanAssignedAwaitingAccept;
     }
     if (activeTab === "Accepted") {
-      // Accepted: handled by HoD (assigned to self) and now in progress
-      return c.status === "In Progress" && isAssignedToSelf(c);
+      // Accepted: handled by HoD (assigned to self). Some backends use "Accepted"
+      // while others use "In Progress" — accept both for compatibility.
+      return (
+        (c.status === "In Progress" || c.status === "Accepted") &&
+        isAssignedToSelf(c)
+      );
     }
     if (activeTab === "Assigned") {
       // Assigned: delegated to staff (has assignee and not self)
@@ -431,13 +568,19 @@ export default function HoDAssignComplaints() {
     return out;
   };
 
-  // Use inbox for Pending; All shows union of inbox+managed; otherwise managed
+  // Use inbox for Pending; All shows union of inbox+managed and should include
+  // all complaints that belong to the current HoD (department-scoped). Previously
+  // we filtered the All list to only items assigned to the HoD which removed
+  // complaints after they were delegated to staff. Use `isForCurrentHod` so
+  // All remains department/HOD-scoped rather than limited to assignments to self.
   const baseList =
     activeTab === "Pending"
       ? inbox
       : activeTab === "All"
-      ? uniqById([...(inbox || []), ...(complaints || [])])
-      : complaints;
+      ? uniqById([...(inbox || []), ...(complaints || [])]).filter(
+          isForCurrentHod
+        )
+      : (complaints || []).filter(isForCurrentHod);
   const filteredComplaints = baseList
     .filter(matchesTab)
     .filter((c) =>
@@ -459,6 +602,14 @@ export default function HoDAssignComplaints() {
         ? isOverdue(c)
         : !isOverdue(c)
     );
+
+  // Summary counts derived from the same filtered list so the cards reflect
+  // the active tab + filters shown in the table.
+  const summaryBaseList = filteredComplaints;
+  const unassignedCount = summaryBaseList.filter(
+    (c) => !c.assignedStaff
+  ).length;
+  const assignedCount = summaryBaseList.filter((c) => !!c.assignedStaff).length;
 
   // Pagination calculations
   const totalItems = filteredComplaints.length;
@@ -724,11 +875,17 @@ export default function HoDAssignComplaints() {
                                         getHodInboxApi(),
                                         getHodManagedComplaintsApi(),
                                       ]);
-                                    setInbox(inboxRaw.map(mapApiToComplaint));
+                                    setInbox(
+                                      (inboxRaw as unknown[])
+                                        .map(mapApiToComplaint)
+                                        .filter(isForCurrentHod)
+                                    );
                                     const managedMapped: ComplaintType[] = (
                                       managedRaw as unknown[]
                                     ).map(mapApiToComplaint);
-                                    setComplaints(managedMapped);
+                                    setComplaints(
+                                      managedMapped.filter(isForCurrentHod)
+                                    );
                                     try {
                                       const updated = managedMapped.find(
                                         (c) => c.id === complaint.id
@@ -1125,8 +1282,16 @@ export default function HoDAssignComplaints() {
               getHodInboxApi(),
               getHodManagedComplaintsApi(),
             ]);
-            setInbox(inboxRaw.map(mapApiToComplaint));
-            setComplaints(managedRaw.map(mapApiToComplaint));
+            setInbox(
+              (inboxRaw as unknown[])
+                .map(mapApiToComplaint)
+                .filter(isForCurrentHod)
+            );
+            setComplaints(
+              (managedRaw as unknown[])
+                .map(mapApiToComplaint)
+                .filter(isForCurrentHod)
+            );
             toast({
               title: "Accepted",
               description: "Complaint is now In Progress.",
@@ -1157,8 +1322,16 @@ export default function HoDAssignComplaints() {
               getHodInboxApi(),
               getHodManagedComplaintsApi(),
             ]);
-            setInbox(inboxRaw.map(mapApiToComplaint));
-            setComplaints(managedRaw.map(mapApiToComplaint));
+            setInbox(
+              (inboxRaw as unknown[])
+                .map(mapApiToComplaint)
+                .filter(isForCurrentHod)
+            );
+            setComplaints(
+              (managedRaw as unknown[])
+                .map(mapApiToComplaint)
+                .filter(isForCurrentHod)
+            );
             toast({
               title: "Rejected",
               description: "Complaint rejected and closed.",
@@ -1201,8 +1374,16 @@ export default function HoDAssignComplaints() {
               getHodInboxApi(),
               getHodManagedComplaintsApi(),
             ]);
-            setInbox(inboxRaw.map(mapApiToComplaint));
-            setComplaints(managedRaw.map(mapApiToComplaint));
+            setInbox(
+              (inboxRaw as unknown[])
+                .map(mapApiToComplaint)
+                .filter(isForCurrentHod)
+            );
+            setComplaints(
+              (managedRaw as unknown[])
+                .map(mapApiToComplaint)
+                .filter(isForCurrentHod)
+            );
             toast({
               title: "Reopened",
               description: acceptImmediately

@@ -1699,21 +1699,49 @@ export const getHodAll = async (req, res) => {
     if (req.user.role !== "hod")
       return res.status(403).json({ error: "Access denied" });
 
-    const dept = req.user.department;
-    // Find staff in same department
-    const staffInDept = await User.find({ role: "staff", department: dept })
-      .select("_id name email")
-      .lean();
+    // Normalize department string (trim) to avoid mismatches due to spacing
+    const dept = String(req.user.department || "").trim();
+    // escape regex helper for safe case-insensitive match
+    const escapeRegex = (s) =>
+      String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const deptRegex = dept ? new RegExp(`^${escapeRegex(dept)}$`, "i") : null;
+    // Find staff in same department (use regex to be case-insensitive)
+    const staffInDept = dept
+      ? await User.find({ role: "staff", department: deptRegex })
+          .select("_id name email")
+          .lean()
+      : [];
     const staffIds = staffInDept.map((s) => s._id);
+    // Also find HoDs in same department so HoD-direct complaints are shared
+    const hodInDept = dept
+      ? await User.find({ role: "hod", department: deptRegex })
+          .select("_id name email")
+          .lean()
+      : [];
+    const hodIds = hodInDept.map((h) => h._id);
+    console.log(
+      "[getHodAll] user=",
+      String(req.user._id),
+      "dept=",
+      dept,
+      "staffCount=",
+      staffIds.length
+    );
 
     // Pending (Inbox for HoD)
+    // Inbox: only include complaints that are explicitly for this HoD
+    // (either assignedTo this HoD or explicitly addressed to this HoD via recipientId).
+    // Do NOT include generic "submittedTo: hod" items here — those are department-level
+    // and belong on the shared All Complaints view, not an individual HoD's inbox/dashboard.
     const inboxFilter = {
       status: "Pending",
       isEscalated: { $ne: true },
+      ...(deptRegex ? { department: deptRegex } : {}),
       $or: [
-        { submittedTo: { $regex: /hod/i } },
+        // explicitly assigned to this HoD
         { assignedTo: req.user._id },
-        { assignmentPath: { $in: ["hod", "headOfDepartment"] } },
+        // explicitly routed to this HoD as recipient
+        { $and: [{ recipientRole: "hod" }, { recipientId: req.user._id }] },
       ],
     };
     const inbox = await Complaint.find(inboxFilter)
@@ -1725,7 +1753,16 @@ export const getHodAll = async (req, res) => {
 
     // Managed (self or staff in dept)
     const managedFilter = {
-      $or: [{ assignedTo: req.user._id }, { assignedTo: { $in: staffIds } }],
+      // restrict to items in this department (so other-department HoDs don't see them)
+      ...(deptRegex ? { department: deptRegex } : {}),
+      $or: [
+        { assignedTo: req.user._id },
+        { assignedTo: { $in: staffIds } },
+        // include complaints assigned to any HoD in this department
+        { assignedTo: { $in: hodIds } },
+        // include complaints explicitly routed to a HoD (recipientRole/recipientId)
+        { $and: [{ recipientRole: "hod" }, { recipientId: { $in: hodIds } }] },
+      ],
     };
     const managed = await Complaint.find(managedFilter)
       .populate("submittedBy", "name email")
@@ -1764,40 +1801,54 @@ export const getHodAll = async (req, res) => {
       typeof c.assignedTo === "object" &&
       String(c.assignedTo._id || c.assignedTo) === String(req.user._id);
 
+    const isAssignedToAnyHod = (c) =>
+      c.assignedTo &&
+      hodIds.some(
+        (id) => String(id) === String(c.assignedTo?._id || c.assignedTo)
+      );
+
+    const isRecipientHoD = (c) =>
+      c.recipientRole === "hod" &&
+      c.recipientId &&
+      hodIds.some((id) => String(id) === String(c.recipientId));
+
     const pending = inbox.map(mapItem).filter((c) => !c.assignedTo);
 
     const accepted = managed
       .filter((c) =>
         ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
       )
-      .filter(
-        (c) =>
-          String(c.assignedTo?._id || c.assignedTo) === String(req.user._id)
-      )
+      // include complaints assigned to any HoD in the department or explicitly routed to a HoD in the dept
+      .filter((c) => isAssignedToAnyHod(c) || isRecipientHoD(c))
       .map(mapItem);
 
-    const assigned = managed
-      .filter((c) =>
-        ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
-      )
-      .filter(
-        (c) =>
-          c.assignedTo &&
-          staffIds.some(
-            (id) => String(id) === String(c.assignedTo?._id || c.assignedTo)
-          )
-      )
-      .map(mapItem);
+    // assigned: only include complaints assigned to staff in the department
+    // (HoD-assigned items are intentionally excluded from this list)
 
     // Resolved in department scope (self or staff)
     const resolved = managed
       .filter((c) => String(c.status) === "Resolved")
       .map(mapItem);
 
+    // Final assigned computation (staff-only)
+    const assigned = managed
+      .filter((c) =>
+        ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
+      )
+      // Only include complaints assigned to staff in the department (exclude HoDs)
+      .filter((c) => {
+        if (!c.assignedTo) return false;
+        const assignedId = String(c.assignedTo?._id || c.assignedTo);
+        const isStaff = staffIds.some((id) => String(id) === assignedId);
+        const isHodAssigned = hodIds.some((id) => String(id) === assignedId);
+        return isStaff && !isHodAssigned;
+      })
+      .map(mapItem);
+
+    // Rejected/Closed in department scope
     const rejected = managed
       .filter((c) => String(c.status) === "Closed")
-      .map(mapItem)
-      .map((c) => ({ ...c, assignedTo: "Rejected" }));
+      .map(mapItem);
 
     const result = {
       pending,
@@ -1805,13 +1856,6 @@ export const getHodAll = async (req, res) => {
       assigned,
       resolved,
       rejected,
-      counts: {
-        pending: pending.length,
-        accepted: accepted.length,
-        assigned: assigned.length,
-        resolved: resolved.length,
-        rejected: rejected.length,
-      },
       lastUpdated: new Date().toISOString(),
     };
 

@@ -59,6 +59,9 @@ export interface Complaint {
   complaintCode?: string;
   recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
   recipientId?: string | null;
+  // Internal metadata
+  assignedBy?: string | null;
+  assignedToId?: string | null;
 }
 
 interface ComplaintCardProps {

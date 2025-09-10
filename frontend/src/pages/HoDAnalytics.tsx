@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthContext";
 import {
   listMyDepartmentActiveStaffApi,
+  hodGetUsersApi,
   getHodComplaintStatsApi,
   getHodPriorityDistributionApi,
   getHodStatusDistributionApi,
@@ -102,6 +103,7 @@ export default function HoDAnalytics() {
     total: 0,
     resolved: 0,
   });
+  const [totalStudents, setTotalStudents] = useState<number>(0);
   const [categoryData, setCategoryData] = useState<CategoryDatum[]>([]);
   const [priorityData, setPriorityData] = useState<PriorityDatum[]>([]);
   const [statusData, setStatusData] = useState<StatusDatum[]>([]);
@@ -114,6 +116,7 @@ export default function HoDAnalytics() {
       try {
         const [
           staffRes,
+          usersRes,
           statsRes,
           priorityRes,
           statusRes,
@@ -122,6 +125,7 @@ export default function HoDAnalytics() {
           staffPerfRes,
         ] = await Promise.all([
           listMyDepartmentActiveStaffApi().catch(() => []),
+          hodGetUsersApi().catch(() => []),
           getHodComplaintStatsApi().catch(() => null),
           getHodPriorityDistributionApi().catch(() => null),
           getHodStatusDistributionApi().catch(() => null),
@@ -134,6 +138,16 @@ export default function HoDAnalytics() {
 
         // Staff list baseline for fallback ordering
         const staffArr = Array.isArray(staffRes) ? staffRes : [];
+        // Department users (students + staff) – used to compute student count
+        type DeptUser = { role?: string } & Record<string, unknown>;
+        const usersArr: DeptUser[] = Array.isArray(usersRes) ? usersRes : [];
+        // Count students (no role or explicit 'student')
+        const studentsCount = usersArr.filter((u) => {
+          if (!u) return false;
+          const r = String((u.role as string) || "").toLowerCase();
+          return !r || r === "student";
+        }).length;
+        setTotalStudents(studentsCount);
 
         // Staff performance aggregated results
         if (staffPerfRes && typeof staffPerfRes === "object") {
@@ -261,7 +275,7 @@ export default function HoDAnalytics() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">{complaintStats.total}</span>
+            <span className="text-2xl font-bold">{totalStudents}</span>
             <span className="text-muted-foreground">Total Students</span>
           </CardContent>
         </Card>

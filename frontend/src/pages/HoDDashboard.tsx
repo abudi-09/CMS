@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 import {
   Card,
@@ -37,6 +37,7 @@ import { useComplaints } from "@/context/ComplaintContext";
 import {
   getHodComplaintStatsApi,
   getHodInboxApi,
+  getHodManagedComplaintsApi,
   approveComplaintApi,
   updateComplaintStatusApi,
   hodAssignToStaffApi,
@@ -84,7 +85,25 @@ export function HoDDashboard() {
         });
       }
     } catch (e) {
-      // swallow
+      // Surface errors so HODs know the stats failed to load
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? String((e as { message?: unknown }).message)
+          : "Failed to fetch department stats";
+      console.warn("HoD stats load failed:", e);
+      toast({
+        title: "Failed to fetch department stats",
+        description: msg,
+        variant: "destructive",
+      });
+      // Defensive fallback to avoid showing stale or partial numbers
+      setDeptStats({
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0,
+        unassigned: 0,
+      });
     } finally {
       setLoadingStats(false);
     }
@@ -120,34 +139,280 @@ export function HoDDashboard() {
   // Compute department-scoped stats from fetched complaints
   // Initial stats load + refresh on status change events
   useEffect(() => {
+    // Only load HoD-scoped stats when a HoD user is present. This prevents
+    // accidentally showing department stats to non-HoD or unauthenticated users.
+    if (!user || !(user.role === "hod" || user.role === "headOfDepartment")) {
+      setDeptStats({
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0,
+        unassigned: 0,
+      });
+      return;
+    }
+
     refreshStats();
     const handler = () => refreshStats();
     window.addEventListener("complaint:status-changed", handler);
     return () =>
       window.removeEventListener("complaint:status-changed", handler);
-  }, []); // intentionally single-run for initial stats + event listener
+  }, [user]); // re-run when the authenticated user changes
+
+  // Keep HOD-scoped list and counts in sync using the same filter logic used elsewhere
+  useEffect(() => {
+    if (!user || !(user.role === "hod" || user.role === "headOfDepartment"))
+      return;
+    let cancelled = false;
+    (async () => {
+      await computeHodCountsAndList();
+      if (cancelled) return;
+    })();
+    const onChange = () => computeHodCountsAndList();
+    window.addEventListener("complaint:status-changed", onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("complaint:status-changed", onChange);
+    };
+  }, [user]);
 
   // HoD inbox for live pending list (latest 100, we show top 3)
   const [hodInbox, setHodInbox] = useState<InboxComplaint[]>([]);
+  const [hodManaged, setHodManaged] = useState<unknown[]>([]);
+  const [hodAll, setHodAll] = useState<Array<Record<string, unknown>>>([]);
   useEffect(() => {
     let cancelled = false;
+
+    function isInboxForCurrentHod(
+      item: InboxComplaint | Record<string, unknown>
+    ) {
+      if (!user) return false;
+      const it = item as Record<string, unknown>;
+      // Only include items explicitly intended for this HoD:
+      // - assignedTo equals this HoD, OR
+      // - recipientRole === 'hod' AND recipientId equals this HoD
+      const assigned = it.assignedTo;
+      if (typeof assigned === "string" && user.id && assigned === user.id)
+        return true;
+      if (assigned && typeof assigned === "object") {
+        const maybeId =
+          (assigned as Record<string, unknown>)?._id ??
+          (assigned as Record<string, unknown>)?.id;
+        if (typeof maybeId === "string" && user.id && maybeId === user.id)
+          return true;
+      }
+      // explicit recipient
+      if (
+        String(it.recipientRole || "").toLowerCase() === "hod" &&
+        (String(it.recipientId || "") === String(user.id) ||
+          String(it.recipientId || "") ===
+            String((user as unknown as { id?: string; _id?: string })?._id))
+      )
+        return true;
+
+      return false;
+    }
+
     async function loadInbox() {
       try {
         const res = await getHodInboxApi();
-        if (!cancelled) setHodInbox(res || []);
+        if (cancelled) return;
+        // If we have a logged-in hod, filter results to items relevant to them
+        if (user && (user.role === "hod" || user.role === "headOfDepartment")) {
+          const arr = Array.isArray(res) ? (res as InboxComplaint[]) : [];
+          const filtered = arr.filter((it) => isInboxForCurrentHod(it));
+          setHodInbox(filtered);
+        } else {
+          setHodInbox([]);
+        }
       } catch (e) {
         if (typeof console !== "undefined") {
           console.warn("Failed to load HoD inbox", e);
         }
       }
     }
+
+    // load once and poll only when a user is available
     loadInbox();
     const id = window.setInterval(loadInbox, 30000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [user]);
+
+  // Helpers copied from HoDAssignComplaints to ensure identical HoD scoping
+  function looksLikeObjectId(v: unknown) {
+    return typeof v === "string" && /^[a-fA-F0-9]{24}$/.test(v);
+  }
+
+  const isAssignedToSelfRaw = useCallback(
+    (item: Record<string, unknown>) => {
+      const assignedTo = item["assignedTo"];
+      const assignedStaff = (item["assignedStaff"] as string) || "";
+      // id-based assigned
+      if (typeof assignedTo === "string" && looksLikeObjectId(assignedTo)) {
+        if (user?.id && String(assignedTo) === String(user.id)) return true;
+      }
+      if (assignedTo && typeof assignedTo === "object") {
+        const maybeId =
+          (assignedTo as Record<string, unknown>)["_id"] ||
+          (assignedTo as Record<string, unknown>)["id"];
+        if (
+          typeof maybeId === "string" &&
+          user?.id &&
+          String(maybeId) === String(user.id)
+        )
+          return true;
+      }
+      // fallback by label
+      const assignee = (assignedStaff || "").toLowerCase();
+      const myName = (
+        (user?.fullName as string) ||
+        (user?.name as string) ||
+        ""
+      ).toLowerCase();
+      const myEmail = (user?.email as string)?.toLowerCase?.() || "";
+      if (!assignee) return false;
+      return (
+        assignee === myName ||
+        assignee === myEmail ||
+        assignee.includes(myName) ||
+        assignee.includes(myEmail)
+      );
+    },
+    [user]
+  );
+
+  const isForCurrentHodRaw = useCallback(
+    (item: Record<string, unknown>) => {
+      if (!user) return false;
+      const hodId = String(
+        (user as unknown as { id?: string; _id?: string })?.id ||
+          (user as unknown as { id?: string; _id?: string })?._id ||
+          ""
+      );
+      const myName = String(
+        (user as unknown as { name?: string })?.name || ""
+      ).toLowerCase();
+      const myEmail = String(
+        (user as unknown as { email?: string })?.email || ""
+      ).toLowerCase();
+      const myDept = String(
+        (user as unknown as { department?: string })?.department || ""
+      ).toLowerCase();
+
+      // if we have no identifier at all, bail
+      if (!hodId && !myName && !myEmail && !myDept) return false;
+
+      const dept = (item["department"] as string | undefined) || "";
+      const submittedTo = (item["submittedTo"] as string | undefined) || "";
+      const assignmentPath = Array.isArray(item["assignmentPath"])
+        ? (item["assignmentPath"] as string[])
+        : [];
+
+      // Only include if explicitly assigned to this HoD or explicitly addressed to this HoD
+      const assignedTo = item["assignedTo"];
+      // case 1: assignedTo is an id-like string
+      if (typeof assignedTo === "string") {
+        if (hodId && String(assignedTo) === hodId) return true;
+        // allow label matches such as 'ithod' matching user's name/email
+        const a = String(assignedTo).toLowerCase();
+        if (myName && a === myName) return true;
+        if (myEmail && a === myEmail) return true;
+      }
+      // case 2: assignedTo is an object with id/_id
+      if (assignedTo && typeof assignedTo === "object") {
+        const maybeId =
+          (assignedTo as Record<string, unknown>)["_id"] ||
+          (assignedTo as Record<string, unknown>)["id"];
+        if (typeof maybeId === "string" && hodId && String(maybeId) === hodId)
+          return true;
+      }
+
+      // explicit recipient check (recipientRole === 'hod')
+      const recRole = String(item["recipientRole"] || "").toLowerCase();
+      const recId = String(item["recipientId"] || "");
+      if (recRole === "hod") {
+        const maybeUserId = String(
+          (user as unknown as { _id?: string })?._id || ""
+        );
+        if (recId && (recId === hodId || recId === maybeUserId)) return true;
+      }
+
+      // Fallback: if submittedTo mentions this user's department (e.g. "HoD (Information Technology)")
+      if (myDept && String(submittedTo).toLowerCase().includes(myDept))
+        return true;
+
+      return false;
+    },
+    [user]
+  );
+
+  const computeHodCountsAndList = useCallback(
+    async function computeHodCountsAndList() {
+      try {
+        const [inboxRes, managedRes] = await Promise.all([
+          getHodInboxApi(),
+          getHodManagedComplaintsApi(),
+        ]);
+        const inboxArr = Array.isArray(inboxRes) ? (inboxRes as unknown[]) : [];
+        const managedArr = Array.isArray(managedRes)
+          ? (managedRes as unknown[])
+          : [];
+        // normalize to records and filter using HOD predicate
+        // merge inbox + managed but deduplicate by complaint id so items present in
+        // both lists (common case) are counted once
+        const rawAll = [
+          ...inboxArr.map((x) => x as Record<string, unknown>),
+          ...managedArr.map((x) => x as Record<string, unknown>),
+        ];
+        const filteredRaw = rawAll.filter((r) => isForCurrentHodRaw(r));
+        // Deduplicate by id/_id to avoid double-counting complaints that appear
+        // in both inbox and managed results
+        const byId = new Map<string, Record<string, unknown>>();
+        for (const item of filteredRaw) {
+          const id = String(item?.id ?? item?._id ?? "").trim();
+          if (!id) continue;
+          if (!byId.has(id)) byId.set(id, item);
+        }
+        const unique = Array.from(byId.values());
+        setHodAll(unique);
+        setHodManaged(managedArr);
+
+        // compute counts from the deduplicated list
+        const total = unique.length;
+        const pending = unique.filter(
+          (f) => String(f.status || "").toLowerCase() === "pending"
+        ).length;
+        const inProgress = unique.filter((f) => {
+          const s = String(f.status || "").toLowerCase();
+          return s === "in progress" || s === "accepted" || s === "assigned";
+        }).length;
+        const resolved = unique.filter(
+          (f) => String(f.status || "").toLowerCase() === "resolved"
+        ).length;
+        setDeptStats({ total, pending, inProgress, resolved, unassigned: 0 });
+      } catch (e) {
+        // fallback to previous stats endpoint
+        try {
+          const s = await getHodComplaintStatsApi();
+          if (s && typeof s === "object") {
+            setDeptStats({
+              total: s.total ?? 0,
+              pending: s.pending ?? 0,
+              inProgress: s.inProgress ?? 0,
+              resolved: s.resolved ?? 0,
+              unassigned: s.unassigned ?? 0,
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    },
+    [isForCurrentHodRaw]
+  );
 
   // Load department staff (approved & active) for assignment modal
   useEffect(() => {
@@ -174,8 +439,37 @@ export function HoDDashboard() {
   const openReopen = (id: string) => setReopenId(id);
 
   const afterMutation = async () => {
-    const res = await getHodInboxApi();
-    setHodInbox(res || []);
+    try {
+      const res = await getHodInboxApi();
+      if (user && (user.role === "hod" || user.role === "headOfDepartment")) {
+        const arr = Array.isArray(res) ? (res as InboxComplaint[]) : [];
+        const filtered = arr.filter((it) => {
+          if (!user) return false;
+          if (
+            typeof it.department === "string" &&
+            typeof user.department === "string" &&
+            it.department === user.department
+          )
+            return true;
+          const assigned = (it as Record<string, unknown>).assignedTo;
+          if (typeof assigned === "string" && user.id && assigned === user.id)
+            return true;
+          if (assigned && typeof assigned === "object") {
+            const maybeId =
+              (assigned as Record<string, unknown>)?._id ??
+              (assigned as Record<string, unknown>)?.id;
+            if (typeof maybeId === "string" && user.id && maybeId === user.id)
+              return true;
+          }
+          return false;
+        });
+        setHodInbox(filtered);
+      } else {
+        setHodInbox([]);
+      }
+    } catch (e) {
+      // ignore errors here but proceed to trigger listeners
+    }
     window.dispatchEvent(new CustomEvent("complaint:status-changed"));
     refreshStats();
   };
@@ -195,12 +489,12 @@ export function HoDDashboard() {
       const path = Array.isArray(inboxItem?.assignmentPath)
         ? (inboxItem!.assignmentPath as string[])
         : [];
-      const deanAssigned =
-        (inboxItem &&
-          ((inboxItem as any).status === "Assigned" ||
-            (inboxItem as any).assignedByRole === "dean" ||
-            path.includes("dean"))) ||
-        false;
+      const deanAssigned = !!(
+        inboxItem &&
+        (inboxItem.status === "Assigned" ||
+          inboxItem.assignedByRole === "dean" ||
+          path.includes("dean"))
+      );
 
       if (deanAssigned) {
         // Accept assignment from Dean -> backend sets In Progress and assigns to HoD
@@ -440,6 +734,39 @@ export function HoDDashboard() {
         new Date(a.submittedDate).getTime()
     )
     .slice(0, 3);
+
+  // Prefer HOD-scoped pending derived from hodAll if available (ensures direct-to-HoD items remain visible)
+  const hodPendingFromAll = hodAll
+    .filter((r) => String(r.status || "").toLowerCase() === "pending")
+    .map((c) => ({
+      id: String(c.id || c._id || ""),
+      title: String(c.title || "Complaint"),
+      description: "",
+      category: String(c.category || "General"),
+      priority: (c.priority as Complaint["priority"]) || "Medium",
+      status: (c.status as Complaint["status"]) || "Pending",
+      submittedBy:
+        c.submittedBy && typeof c.submittedBy === "string"
+          ? String(c.submittedBy)
+          : c.submittedBy && typeof c.submittedBy === "object"
+          ? String((c.submittedBy as { name?: string }).name || "")
+          : "",
+      submittedDate: c.submittedDate
+        ? new Date(String(c.submittedDate))
+        : new Date(),
+      lastUpdated: c.lastUpdated ? new Date(String(c.lastUpdated)) : new Date(),
+      assignedStaff: undefined,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.submittedDate).getTime() -
+        new Date(a.submittedDate).getTime()
+    )
+    .slice(0, 3);
+
+  const finalRecentPending = hodPendingFromAll.length
+    ? hodPendingFromAll
+    : visibleRecentPending;
 
   // no-op placeholder removed (was causing lint error)
 
