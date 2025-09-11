@@ -93,7 +93,20 @@ export const getCategoryCounts = async (req, res) => {
 // Department-scoped complaint stats (for HoD)
 export const getDepartmentComplaintStats = async (req, res) => {
   try {
-    // Query parameters
+    // Ensure only HoD may access this endpoint and derive department from session
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Prefer the department on the authenticated user's profile, fall back to query param
+    const deptFromUser = user.department && String(user.department).trim();
+    const deptFromQuery =
+      typeof req.query.department === "string" && req.query.department.trim()
+        ? req.query.department.trim()
+        : null;
+    const dept = deptFromUser || deptFromQuery || null;
+
     if (!dept) {
       return res
         .status(400)
@@ -102,19 +115,43 @@ export const getDepartmentComplaintStats = async (req, res) => {
 
     const [total, pending, inProgress, resolved, unassigned] =
       await Promise.all([
-        Complaint.countDocuments({ department: dept }),
-        Complaint.countDocuments({ department: dept, status: "Pending" }),
+        Complaint.countDocuments({
+          department: dept,
+          isDeleted: { $ne: true },
+        }),
+        Complaint.countDocuments({
+          department: dept,
+          status: "Pending",
+          isDeleted: { $ne: true },
+        }),
         Complaint.countDocuments({
           department: dept,
           status: "In Progress",
+          isDeleted: { $ne: true },
         }),
-        Complaint.countDocuments({ department: dept, status: "Resolved" }),
-        Complaint.countDocuments({ department: dept, assignedTo: null }),
+        Complaint.countDocuments({
+          department: dept,
+          status: "Resolved",
+          isDeleted: { $ne: true },
+        }),
+        Complaint.countDocuments({
+          department: dept,
+          assignedTo: null,
+          isDeleted: { $ne: true },
+        }),
       ]);
 
-    res.status(200).json({ total, pending, inProgress, resolved, unassigned });
+    return res
+      .status(200)
+      .json({ total, pending, inProgress, resolved, unassigned });
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch department stats" });
+    console.error("getDepartmentComplaintStats error:", err?.message || err);
+    return res
+      .status(500)
+      .json({
+        error: "Failed to fetch department stats",
+        details: err?.message,
+      });
   }
 };
 

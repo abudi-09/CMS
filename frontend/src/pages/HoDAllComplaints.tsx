@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/auth/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ function labelFromSubmitter(sb: unknown): string | undefined {
 }
 
 export default function HoDAllComplaints() {
+  const { user } = useAuth();
   const [items, setItems] = useState<ComplaintType[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -154,7 +156,18 @@ export default function HoDAllComplaints() {
         ];
         const byId = new Map<string, ComplaintType>();
         for (const c of merged) byId.set(c.id, c);
-        setItems(Array.from(byId.values()));
+        const mergedItems = Array.from(byId.values());
+        // Enforce department scoping: only show complaints for this HoD's department
+        const normalize = (v?: string) =>
+          (v || "").toString().trim().toLowerCase();
+        if (user && user.department) {
+          const myDept = normalize(user.department);
+          setItems(
+            mergedItems.filter((m) => normalize(m.department) === myDept)
+          );
+        } else {
+          setItems([]);
+        }
       } catch {
         try {
           const [inbox, managed] = await Promise.all([
@@ -263,7 +276,17 @@ export default function HoDAllComplaints() {
           ];
           const byId = new Map<string, ComplaintType>();
           for (const c of merged) byId.set(c.id, c);
-          setItems(Array.from(byId.values()));
+          const mergedItems = Array.from(byId.values());
+          const normalize = (v?: string) =>
+            (v || "").toString().trim().toLowerCase();
+          if (user && user.department) {
+            const myDept = normalize(user.department);
+            setItems(
+              mergedItems.filter((m) => normalize(m.department) === myDept)
+            );
+          } else {
+            setItems([]);
+          }
         } catch {
           setItems([]);
         }
@@ -273,7 +296,7 @@ export default function HoDAllComplaints() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [user]);
 
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
