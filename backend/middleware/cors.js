@@ -1,4 +1,4 @@
-// CORS middleware for Express
+ // CORS middleware for Express
 import cors from "cors";
 
 const allowedOrigins = [
