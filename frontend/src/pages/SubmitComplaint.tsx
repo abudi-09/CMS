@@ -310,6 +310,19 @@ export function SubmitComplaint() {
       }
     }
 
+    // Extra validation for direct-to-dean submissions
+    if (formData.role === "dean") {
+      const inList = deanOptions.some((d) => d.id === formData.recipient);
+      if (!inList) {
+        toast({
+          title: "Invalid recipient",
+          description: "Please select an active Dean.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       let evidenceFileUrl = uploadedEvidenceUrl;
@@ -385,9 +398,17 @@ export function SubmitComplaint() {
         // NEW: send Hod id when role is hod
         recipientHodId:
           formData.role === "hod" ? formData.recipient : undefined,
-        // NEW: when sending to a specific admin, include canonical recipientId
-        recipientId: formData.role === "admin" ? formData.recipient : undefined,
-        recipientRole: formData.role === "admin" ? "admin" : undefined,
+        // When sending to a specific admin/dean, include canonical recipient
+        recipientId:
+          formData.role === "admin" || formData.role === "dean"
+            ? formData.recipient
+            : undefined,
+        recipientRole:
+          formData.role === "admin"
+            ? "admin"
+            : formData.role === "dean"
+            ? "dean"
+            : undefined,
       });
       setComplaintId(savedComplaint?.id || "");
       setSubmitted(true);

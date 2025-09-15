@@ -186,11 +186,34 @@ export default function DeanAnalytics() {
 
   useEffect(() => {
     let cancelled = false;
+    const fetchAllComplaints = async (): Promise<unknown[]> => {
+      // Fetch all pages for charts (exclude only admin-targeted client-side)
+      const pageSize = 200;
+      let page = 1;
+      let total = Infinity;
+      const all: unknown[] = [];
+      // safety cap to avoid runaway loops
+      const maxPages = 200;
+      while (all.length < total && page <= maxPages) {
+        const resp = await listAllComplaintsApi({
+          page,
+          limit: pageSize,
+        }).catch(() => ({ items: [], total: 0 }));
+        const items = Array.isArray(resp?.items) ? resp.items : [];
+        total = typeof resp?.total === "number" ? resp.total : items.length;
+        all.push(...items);
+        if (!items.length) break;
+        if (all.length >= total) break;
+        page++;
+      }
+      return all;
+    };
+
     const load = async () => {
       setLoading(true);
       try {
-        const [stats, monthly, overview, all, studentsResp] = await Promise.all(
-          [
+        const [stats, monthly, overview, allItems, studentsResp] =
+          await Promise.all([
             getDeanVisibleComplaintStatsApi().catch((e) => {
               throw new Error(
                 e instanceof Error ? e.message : "Failed to fetch dean stats"
@@ -210,14 +233,9 @@ export default function DeanAnalytics() {
                   : "Failed to fetch dean department overview"
               );
             }),
-            listAllComplaintsApi().catch((e) => {
-              throw new Error(
-                e instanceof Error ? e.message : "Failed to fetch complaints"
-              );
-            }),
+            fetchAllComplaints(),
             getStudentCountApi().catch(() => ({ students: null })),
-          ]
-        );
+          ]);
         if (cancelled) return;
         setSummary(stats);
         setMonthlyTrendDataDyn(
@@ -230,23 +248,9 @@ export default function DeanAnalytics() {
         setTotalDepartments(
           Array.isArray(overview?.departments) ? overview.departments.length : 0
         );
-        // listAllComplaintsApi returns a paginated object { items:[], total,... }
-        // Defensive: handle if backend later returns plain array.
-        const normalizedArray: unknown[] = (() => {
-          if (!all) return [];
-          if (Array.isArray(all)) return all;
-          if (typeof all === "object") {
-            const maybeItems = (all as Record<string, unknown>).items;
-            if (Array.isArray(maybeItems)) return maybeItems;
-            return Object.values(all as Record<string, unknown>).every(
-              (v) => typeof v !== "object"
-            )
-              ? []
-              : [];
-          }
-          return [];
-        })();
-        setComplaints(normalizeComplaints(normalizedArray));
+        setComplaints(
+          normalizeComplaints(Array.isArray(allItems) ? allItems : [])
+        );
         setTotalStudents(
           typeof studentsResp?.students === "number"
             ? studentsResp.students
@@ -364,6 +368,21 @@ export default function DeanAnalytics() {
       .map((s) => ({ status: s, count: counts[s] }));
   }, [complaints]);
 
+  // Resolved (excluding admin-targeted) for the summary card override
+  const resolvedNonAdmin = useMemo(() => {
+    const filtered = complaints.filter((c) => {
+      const isAdminRecipient =
+        (c.recipientRole &&
+          String(c.recipientRole).toLowerCase() === "admin") ||
+        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
+      return !isAdminRecipient;
+    });
+    return filtered.reduce(
+      (acc, c) => (c.status === "Resolved" ? acc + 1 : acc),
+      0
+    );
+  }, [complaints]);
+
   // Compute monthly trend data from complaints (excluding admin-targeted)
   const monthlyTrendFromComplaints = useMemo(() => {
     const filtered = complaints.filter((c) => {
@@ -445,7 +464,9 @@ export default function DeanAnalytics() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-6">
             <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
-            <span className="text-2xl font-bold">{summary?.resolved ?? 0}</span>
+            <span className="text-2xl font-bold">
+              {complaints.length ? resolvedNonAdmin : summary?.resolved ?? 0}
+            </span>
             <span className="text-muted-foreground">Resolved Complaints</span>
           </CardContent>
         </Card>
@@ -531,7 +552,7 @@ export default function DeanAnalytics() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={monthlyTrendDataDyn}>
+              <LineChart data={monthlyTrendFromComplaints}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />

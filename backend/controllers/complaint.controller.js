@@ -65,10 +65,45 @@ export const createComplaint = async (req, res) => {
         ? assignmentPath
         : ["student"],
       submittedBy: user ? user._id : undefined,
-      // recipient routing
-      recipientRole: req.body?.recipientRole || null,
-      recipientId: req.body?.recipientId || null,
+      // recipient routing (will be enforced below for dean submissions)
+      recipientRole: null,
+      recipientId: null,
     };
+
+    // Strict dean targeting: if submittedTo is dean, require a specific dean recipient
+    if (submittedTo && String(submittedTo).toLowerCase().includes("dean")) {
+      const candidateId = req.body?.recipientId;
+      if (!candidateId || !mongoose.Types.ObjectId.isValid(String(candidateId))) {
+        return res.status(400).json({
+          error: "A valid dean (recipientId) is required when submitting to the dean.",
+        });
+      }
+      // Verify the user exists and is a dean
+      const targetDean = await User.findOne({
+        _id: candidateId,
+        role: "dean",
+        isActive: true,
+      })
+        .select("_id role isActive")
+        .lean();
+      if (!targetDean) {
+        return res.status(400).json({
+          error: "Selected recipient is not a valid active dean.",
+        });
+      }
+      complaintData.recipientRole = "dean";
+      complaintData.recipientId = candidateId;
+    } else {
+      // For non-dean submissions, allow optional explicit recipient but do not auto-set to dean
+      if (req.body?.recipientRole && req.body?.recipientId) {
+        const rRole = String(req.body.recipientRole).toLowerCase();
+        const rId = req.body.recipientId;
+        if (mongoose.Types.ObjectId.isValid(String(rId))) {
+          complaintData.recipientRole = rRole;
+          complaintData.recipientId = rId;
+        }
+      }
+    }
 
     if (deadline) {
       try {
@@ -210,25 +245,21 @@ export const createComplaint = async (req, res) => {
           )
         );
       } else if (to.includes("dean")) {
-        const deans = await User.find({ role: "dean", isActive: true })
-          .select("_id")
-          .lean();
-        await Promise.all(
-          deans.map((d) =>
-            safeNotify({
-              user: d._id,
-              complaint,
-              type: "submission",
-              title: `New Complaint (${complaint.complaintCode})`,
-              message: `A new complaint was submitted: "${complaint.title}".`,
-              meta: {
-                audience: "dean",
-                redirectPath: "/dean/assign-complaints",
-                complaintId: String(complaint._id),
-              },
-            })
-          )
-        );
+        // Notify only the selected dean recipient
+        if (complaint.recipientId) {
+          await safeNotify({
+            user: complaint.recipientId,
+            complaint,
+            type: "submission",
+            title: `New Complaint (${complaint.complaintCode})`,
+            message: `A new complaint was submitted: "${complaint.title}".`,
+            meta: {
+              audience: "dean",
+              redirectPath: "/dean/assign-complaints",
+              complaintId: String(complaint._id),
+            },
+          });
+        }
       } else if (to.includes("hod")) {
         // Notify active HoD in same department if known
         if (complaint.department) {
@@ -845,25 +876,16 @@ export const getDeanInbox = async (req, res) => {
   try {
     if (req.user.role !== "dean")
       return res.status(403).json({ error: "Access denied" });
-    // Student -> Dean submissions or items in dean path that are still pending (not escalated/admin)
+    // Strict dean scope: only targeted to this dean or assigned by this dean
+    const deanId = req.user._id;
     const filter = {
-      status: { $in: ["Pending", "Accepted", "Assigned", "Resolved"] },
+      isDeleted: { $ne: true },
       isEscalated: { $ne: true },
-      $and: [
-        {
-          $or: [
-            { submittedTo: { $regex: /dean/i } },
-            { assignmentPath: { $in: ["dean"] } },
-          ],
-        },
-        {
-          $or: [
-            { submittedTo: { $exists: false } },
-            { submittedTo: null },
-            { submittedTo: { $not: /admin/i } },
-          ],
-        },
+      $or: [
+        { recipientRole: "dean", recipientId: deanId },
+        { assignedBy: deanId },
       ],
+      status: { $in: ["Pending", "Accepted", "Assigned", "Resolved"] },
     };
     const complaints = await Complaint.find({
       ...filter,

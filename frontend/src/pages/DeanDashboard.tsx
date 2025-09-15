@@ -28,7 +28,6 @@ import {
   approveComplaintApi,
   type InboxComplaint,
 } from "@/lib/api";
-import { deanAssignToHodApi, getDeanActiveHodApi } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 // Utilities
@@ -247,51 +246,7 @@ export function DeanDashboard() {
     // Dean closing directly from dashboard is out of scope; handled elsewhere
   };
 
-  const [assigning, setAssigning] = useState<string | null>(null);
-  const [hodList, setHodList] = useState<
-    Array<{ _id: string; name?: string; fullName?: string; email: string }>
-  >([]);
-
-  useEffect(() => {
-    // Preload active HoDs for quick assign
-    getDeanActiveHodApi()
-      .then((arr) => setHodList(arr || []))
-      .catch(() => setHodList([]));
-  }, []);
-
-  const assignToHod = async (complaintId: string, hodId: string) => {
-    try {
-      await deanAssignToHodApi(complaintId, { hodId });
-      const inbox = await getDeanInboxApi();
-      const mapped: Complaint[] = (inbox as InboxComplaint[]).map((c) => ({
-        id: String(c.id || ""),
-        title: String(c.title || "Complaint"),
-        status: (c.status as Complaint["status"]) || "Pending",
-        priority: (c.priority as Complaint["priority"]) || "Medium",
-        deadline: c.deadline ? new Date(c.deadline) : undefined,
-        submittedBy:
-          typeof c.submittedBy === "string"
-            ? c.submittedBy
-            : c?.submittedBy?.name || "",
-        assignedStaff:
-          typeof c.assignedTo === "string"
-            ? c.assignedTo
-            : c?.assignedTo?.name || undefined,
-        category: String(c.category || "General"),
-        description: "",
-        submittedDate: toDate(c.submittedDate || undefined),
-        assignedDate: undefined,
-        lastUpdated: toDate(c.lastUpdated || undefined),
-        feedback: undefined,
-        isEscalated: false,
-        department: undefined,
-      }));
-      setComplaints(mapped);
-      setAssigning(null);
-    } catch (_) {
-      // ignore
-    }
-  };
+  // Removed quick assign-to-HoD flow from dashboard
 
   // Summary cards now reflect live complaint stats
 
@@ -666,42 +621,7 @@ export function DeanDashboard() {
                               Accept
                             </Button>
                           )}
-                          {(complaint.status === "Pending" ||
-                            complaint.status === "Unassigned") && (
-                            <div className="flex items-center gap-2">
-                              <select
-                                className="border rounded px-2 py-1 text-xs"
-                                value={
-                                  assigning === complaint.id ? assigning : ""
-                                }
-                                onChange={(e) => setAssigning(complaint.id)}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <option value="">Assign to HoD</option>
-                                {hodList.map((h) => (
-                                  <option key={h._id} value={h._id}>
-                                    {h.fullName || h.name || h.email}
-                                  </option>
-                                ))}
-                              </select>
-                              {assigning === complaint.id && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs"
-                                  onClick={() => {
-                                    const sel =
-                                      (document.activeElement as HTMLSelectElement) ||
-                                      null;
-                                    const hodId = (sel && sel.value) || "";
-                                    if (hodId) assignToHod(complaint.id, hodId);
-                                  }}
-                                >
-                                  Send
-                                </Button>
-                              )}
-                            </div>
-                          )}
+                          {/* Assign to HoD action removed from dashboard */}
                           <Button
                             size="sm"
                             variant="destructive"

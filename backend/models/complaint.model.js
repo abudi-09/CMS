@@ -153,5 +153,21 @@ const complaintSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Schema guard: If submitting to dean, must have recipientRole='dean' and recipientId present
+complaintSchema.pre("validate", function (next) {
+  try {
+    const to = (this.submittedTo || "").toString().toLowerCase();
+    if (to.includes("dean")) {
+      if (this.recipientRole !== "dean" || !this.recipientId) {
+        this.invalidate(
+          "recipientId",
+          "Dean submissions require a specific dean recipientId"
+        );
+      }
+    }
+  } catch (_) {}
+  next();
+});
+
 const Complaint = mongoose.model("Complaint", complaintSchema);
 export default Complaint;

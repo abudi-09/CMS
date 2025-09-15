@@ -146,12 +146,10 @@ export const getDepartmentComplaintStats = async (req, res) => {
       .json({ total, pending, inProgress, resolved, unassigned });
   } catch (err) {
     console.error("getDepartmentComplaintStats error:", err?.message || err);
-    return res
-      .status(500)
-      .json({
-        error: "Failed to fetch department stats",
-        details: err?.message,
-      });
+    return res.status(500).json({
+      error: "Failed to fetch department stats",
+      details: err?.message,
+    });
   }
 };
 
@@ -312,88 +310,41 @@ export const getStudentCount = async (req, res) => {
 // Dean-visible complaint stats: exclude complaints that were sent to Admin or escalated
 export const getDeanVisibleComplaintStats = async (req, res) => {
   try {
-    console.log("🔍 Dean stats request received");
-    console.log("👤 User role:", req.user?.role);
-    console.log("👤 User ID:", req.user?._id);
-
-    // First, let's get the total count without any filter to see if there are complaints
-    const totalAll = await Complaint.countDocuments({
-      isDeleted: { $ne: true },
-    });
-    console.log("📊 Total complaints in DB:", totalAll);
-
-    if (totalAll === 0) {
-      console.log("⚠️ No complaints found in database");
-      return res.status(200).json({
-        total: 0,
-        pending: 0,
-        inProgress: 0,
-        resolved: 0,
-        unassigned: 0,
-      });
+    if (!req.user || String(req.user.role).toLowerCase() !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
     }
-
-    // Check how many complaints are sent to admin
-    const adminComplaints = await Complaint.countDocuments({
-      submittedTo: { $regex: /admin/i },
+    const deanId = req.user._id;
+    // Strict dean scope
+    const base = {
       isDeleted: { $ne: true },
-    });
-    console.log("👑 Complaints sent to admin:", adminComplaints);
-
-    // Check how many complaints are escalated
-    const escalatedComplaints = await Complaint.countDocuments({
-      isEscalated: true,
-      isDeleted: { $ne: true },
-    });
-    console.log("🚨 Escalated complaints:", escalatedComplaints);
-
-    // Filter: exclude complaints sent to Admin OR escalated complaints
-    const deanFilter = {
-      $and: [
-        // Exclude admin complaints
-        {
-          $or: [
-            { submittedTo: { $exists: false } },
-            { submittedTo: null },
-            { submittedTo: { $not: /admin/i } },
-          ],
-        },
-        // Exclude escalated complaints
-        { isEscalated: { $ne: true } },
-        // Exclude deleted complaints
-        { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
+      isEscalated: { $ne: true },
+      $or: [
+        { recipientRole: "dean", recipientId: deanId },
+        { assignedBy: deanId },
       ],
     };
-
-    console.log(
-      "🎯 Dean stats filter (excluding admin and escalated):",
-      JSON.stringify(deanFilter, null, 2)
-    );
-
-    const [total, pending, inProgress, resolved, unassigned] =
+    const [total, pending, inProgressAcceptedAssigned, resolved, unassigned] =
       await Promise.all([
-        Complaint.countDocuments(deanFilter),
-        Complaint.countDocuments({ ...deanFilter, status: "Pending" }),
-        Complaint.countDocuments({ ...deanFilter, status: "In Progress" }),
-        Complaint.countDocuments({ ...deanFilter, status: "Resolved" }),
-        Complaint.countDocuments({ ...deanFilter, assignedTo: null }),
+        Complaint.countDocuments(base),
+        Complaint.countDocuments({ ...base, status: "Pending" }),
+        Complaint.countDocuments({
+          ...base,
+          status: { $in: ["Accepted", "Assigned", "In Progress"] },
+        }),
+        Complaint.countDocuments({ ...base, status: "Resolved" }),
+        Complaint.countDocuments({ ...base, assignedTo: null }),
       ]);
-
-    console.log("✅ Dean stats counts:", {
+    return res.status(200).json({
       total,
       pending,
-      inProgress,
+      inProgress: inProgressAcceptedAssigned,
       resolved,
       unassigned,
     });
-
-    res.status(200).json({ total, pending, inProgress, resolved, unassigned });
   } catch (err) {
-    console.error("❌ Dean stats error:", err?.message, err?.stack);
-    res.status(500).json({
-      error: "Failed to fetch dean-visible stats",
-      details: err?.message,
-    });
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean-visible stats" });
   }
 };
 

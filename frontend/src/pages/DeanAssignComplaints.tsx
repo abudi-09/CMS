@@ -24,21 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, UserPlus } from "lucide-react";
-import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
-import { useAuth } from "@/components/auth/AuthContext";
-import { toast } from "@/hooks/use-toast";
-import { useState as useReactState } from "react";
-import { Complaint as ComplaintType } from "@/components/ComplaintCard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Pagination,
   PaginationContent,
@@ -49,514 +35,212 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
-  listMyDepartmentActiveStaffApi,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Search } from "lucide-react";
+import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
+import { useAuth } from "@/components/auth/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import type { Complaint as ComplaintType } from "@/components/ComplaintCard";
+import {
   assignComplaintApi,
-  getDeanInboxApi,
-  getDeanActiveHodApi,
   deanAssignToHodApi,
-  approveComplaintApi,
-  openNotificationsEventSource,
+  getDeanActiveHodApi,
+  getDeanInboxApi,
   getDeanScopedComplaintsApi,
-  type InboxComplaint as BaseInboxComplaint,
+  listMyDepartmentActiveStaffApi,
+  openNotificationsEventSource,
+  updateComplaintStatusApi,
+  approveComplaintApi,
+  type InboxComplaint,
 } from "@/lib/api";
-import { updateComplaintStatusApi } from "@/lib/api";
-
-// Extend base inbox complaint with optional complaintCode for display/uniform modal mapping
-type InboxComplaint = BaseInboxComplaint & { complaintCode?: string };
 import { getComplaintApi } from "@/lib/getComplaintApi";
-// Use ComplaintType for all references to Complaint
 
 const statusColors = {
   Pending: "bg-yellow-100 text-yellow-800",
+  Accepted: "bg-blue-100 text-blue-800",
   "In Progress": "bg-blue-100 text-blue-800",
-  Assigned: "bg-purple-100 text-purple-800",
-  Accepted: "bg-indigo-100 text-indigo-800",
   Resolved: "bg-green-100 text-green-800",
   Closed: "bg-gray-100 text-gray-800",
-  Delayed: "bg-red-100 text-red-800",
+  Rejected: "bg-red-100 text-red-800",
+  Overdue: "bg-red-100 text-red-800",
+} as const;
+
+type RawComplaint = {
+  id: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  department?: string;
+  status?: string;
+  submittedBy?: string | { name?: string } | null;
+  sourceRole?: string | null;
+  assignedTo?: string | { name?: string } | null;
+  assignedByRole?: string | null;
+  assignmentPath?: string[] | null;
+  submittedDate?: string | null;
+  lastUpdated?: string | null;
+  deadline?: string | null;
+  priority?: "Low" | "Medium" | "High" | "Critical" | null;
+  feedback?: unknown;
+  isEscalated?: boolean | null;
+  submittedTo?: string | null;
 };
 
 export function DeanAssignComplaints() {
-  // State for deadline during assignment
+  const { user } = useAuth();
+  const pageSize = 10;
+
+  // Core UI state
   const [assigningDeadline, setAssigningDeadline] = useState<string>("");
-  const { getAllStaff, user } = useAuth();
-  const role = user?.role;
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const pageSize = 5; // Spec: 5 per page
-  const [complaints, setComplaints] = useReactState<ComplaintType[]>([]);
-  const [loading, setLoading] = useState(true);
   const [staffOptions, setStaffOptions] = useState<
     Array<{ id: string; name: string }>
   >([]);
-  type RawComplaint = {
-    id: string;
-    complaintCode?: string;
-    title?: string;
-    description?: string;
-    category?: string;
-    department?: string;
-    status:
-      | "Pending"
-      | "Assigned"
-      | "Accepted"
-      | "In Progress"
-      | "Resolved"
-      | "Closed";
-    submittedBy?: string;
-    submittedDate?: string | Date;
-    lastUpdated?: string | Date;
-    assignedTo?: string | { name?: string } | null;
-    assignedByRole?: string | null;
-    assignmentPath?: string[];
-    deadline?: string | Date | null;
-    priority?: "Low" | "Medium" | "High" | "Critical";
-    feedback?: unknown;
-    isEscalated?: boolean;
-    submittedTo?: string | null;
-    sourceRole?:
-      | "student"
-      | "staff"
-      | "dean"
-      | "headOfDepartment"
-      | "hod"
-      | "admin";
-  };
-  type DeptStaff = {
-    _id: string;
-    fullName?: string;
-    name?: string;
-    username?: string;
-    email: string;
-  };
-
-  // Unified loader (reused by timers, status events, SSE notifications)
-  useEffect(() => {
-    let mounted = true;
-    const loadDeanComplaints = async () => {
-      try {
-        setLoading(true);
-        const inboxP = getDeanInboxApi().catch(() => []);
-        const scopedP = getDeanScopedComplaintsApi().catch(() => ({
-          items: [],
-        }));
-        const staffP = (
-          user?.department
-            ? listMyDepartmentActiveStaffApi()
-            : Promise.resolve([])
-        ).catch(() => []);
-        const [inboxRaw, scopedRaw, staffRaw] = await Promise.all([
-          inboxP,
-          scopedP,
-          staffP,
-        ]);
-        if (!mounted) return;
-        const inbox = inboxRaw as InboxComplaint[];
-        interface ScopedResult {
-          items?: unknown[];
-        }
-        const normalizeScoped = (raw: unknown): RawComplaint[] => {
-          if (!raw || typeof raw !== "object") return [];
-          const r = raw as ScopedResult;
-          if (Array.isArray(r.items)) return r.items as RawComplaint[];
-          return [];
-        };
-        const all = normalizeScoped(scopedRaw);
-        const staff = staffRaw as unknown as DeptStaff[];
-        const isValidRaw = (c: unknown): c is RawComplaint =>
-          !!c &&
-          typeof (c as RawComplaint).id === "string" &&
-          !!(c as RawComplaint).status;
-        const mappedFromAll = all.filter(isValidRaw).map((c) => {
-          const deanPendingFallback = !c.assignedTo && c.status === "Pending";
-          const deanNameFallback = deanPendingFallback
-            ? (user?.fullName as string) ||
-              (user?.name as string) ||
-              (user?.email as string) ||
-              "You (Dean)"
-            : undefined;
-          const baseAssigned =
-            typeof c.assignedTo === "string"
-              ? c.assignedTo
-              : (c.assignedTo as { name?: string } | null)?.name || undefined;
-          const assignedStaff = baseAssigned || deanNameFallback;
-          const assignedStaffRole = c.assignmentPath?.includes("staff")
-            ? "staff"
-            : c.assignmentPath?.includes("hod")
-            ? "hod"
-            : c.assignedByRole === "dean" || deanPendingFallback
-            ? "dean"
-            : undefined;
-          return {
-            id: c.id,
-            title: c.title || c.complaintCode || "Complaint",
-            description: c.description || "",
-            category: c.category || c.department || "General",
-            status: c.status,
-            submittedBy: c.submittedBy || "",
-            sourceRole: c.sourceRole,
-            complaintCode: c.complaintCode,
-            friendlyCode: c.complaintCode,
-            assignedStaff,
-            assignedStaffRole,
-            assignedByRole: c.assignedByRole || undefined,
-            assignmentPath: Array.isArray(c.assignmentPath)
-              ? (c.assignmentPath as string[])
-              : [],
-            submittedDate: c.submittedDate
-              ? new Date(c.submittedDate)
-              : new Date(),
-            lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-            deadline: c.deadline ? new Date(c.deadline) : undefined,
-            priority: c.priority || "Medium",
-            feedback: c.feedback || undefined,
-            isEscalated: !!c.isEscalated,
-            submittedTo: c.submittedTo || undefined,
-            department: c.department || undefined,
-          } as ComplaintType;
-        }) as ComplaintType[];
-        const mappedInbox = ((inbox as InboxComplaint[] | undefined) || []).map(
-          (c: InboxComplaint) => {
-            const deanPendingFallback = !c.assignedTo && c.status === "Pending";
-            const deanNameFallback = deanPendingFallback
-              ? (user?.fullName as string) ||
-                (user?.name as string) ||
-                (user?.email as string) ||
-                "You (Dean)"
-              : undefined;
-            const baseAssigned =
-              typeof c.assignedTo === "string"
-                ? c.assignedTo
-                : (c.assignedTo as { name?: string } | null)?.name || undefined;
-            const assignedStaff = baseAssigned || deanNameFallback;
-            const assignedStaffRole = c.assignmentPath?.includes("staff")
-              ? "staff"
-              : c.assignmentPath?.includes("hod")
-              ? "hod"
-              : c.assignedByRole === "dean" || deanPendingFallback
-              ? "dean"
-              : undefined;
-            return {
-              id: String(c.id || ""),
-              title: String(c.title || "Complaint"),
-              description: "",
-              category: String(c.category || "General"),
-              status: (c.status as ComplaintType["status"]) || "Pending",
-              submittedBy:
-                typeof c.submittedBy === "string"
-                  ? c.submittedBy
-                  : c.submittedBy?.name || "",
-              sourceRole:
-                (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
-              complaintCode: c.complaintCode,
-              friendlyCode: c.complaintCode,
-              assignedStaff,
-              assignedStaffRole,
-              assignedByRole:
-                typeof c.assignedByRole === "string"
-                  ? c.assignedByRole
-                  : undefined,
-              assignmentPath: Array.isArray(c.assignmentPath)
-                ? (c.assignmentPath as string[])
-                : [],
-              submittedDate: c.submittedDate
-                ? new Date(c.submittedDate)
-                : new Date(),
-              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-              deadline: c.deadline ? new Date(c.deadline) : undefined,
-              priority: (c.priority as ComplaintType["priority"]) || "Medium",
-              feedback: undefined,
-              isEscalated: false,
-              submittedTo: c.submittedTo || undefined,
-              department: undefined,
-            } as ComplaintType;
-          }
-        ) as ComplaintType[];
-        const nonPending = mappedFromAll.filter((c) => {
-          if (c.status === "Pending" || c.status === "Unassigned") return false;
-          const path = Array.isArray(c.assignmentPath) ? c.assignmentPath : [];
-          const submittedTo = (c.submittedTo || "").toLowerCase();
-          const byRole = (c.assignedByRole || "").toLowerCase();
-          return (
-            path.includes("dean") ||
-            byRole === "dean" ||
-            /dean/.test(submittedTo)
-          );
-        });
-        const inboxIds = new Set((mappedInbox || []).map((c) => c.id));
-        const deduplicatedNonPending = nonPending.filter(
-          (c) => !inboxIds.has(c.id)
-        );
-        setComplaints([...(mappedInbox || []), ...deduplicatedNonPending]);
-        setStaffOptions(
-          (staff || []).map((s) => ({
-            id: s._id,
-            name: s.fullName || s.name || s.username || s.email,
-          }))
-        );
-      } catch (e) {
-        console.error("Failed to load dean data:", e);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    loadDeanComplaints();
-    const interval = setInterval(loadDeanComplaints, 30000);
-    // Attach to window for manual debugging or external triggers
-    // @ts-expect-error attach for debugging
-    window.__reloadDeanComplaints = loadDeanComplaints;
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-      // @ts-expect-error cleanup debug handle
-      delete window.__reloadDeanComplaints;
-    };
-  }, [user, user?.department, setComplaints]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [overdueFilter, setOverdueFilter] = useState<string>("all");
+  const [complaints, setComplaints] = useState<ComplaintType[]>([]);
   const [selectedComplaint, setSelectedComplaint] =
     useState<ComplaintType | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [reassigningRow, setReassigningRow] = useState<string | null>(null);
+  const [assigningStaffId, setAssigningStaffId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<
-    "Pending" | "Accepted" | "Assigned" | "Rejected" | "Resolved"
+    "Pending" | "Accepted" | "Assigned" | "Resolved" | "Rejected"
   >("Pending");
-  // Reset page when filters/tab change
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, priorityFilter, overdueFilter, activeTab]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<
+    "all" | "Low" | "Medium" | "High" | "Critical"
+  >("all");
+  const [overdueFilter, setOverdueFilter] = useState<
+    "all" | "overdue" | "notOverdue"
+  >("all");
+  const [page, setPage] = useState(1);
 
-  // Handle real-time complaint status changes
-  useEffect(() => {
-    const handleStatusChange = (event: CustomEvent) => {
-      const { newStatus, status } = event.detail || {};
+  // Initial load + refresh helper using strict dean-scoped endpoints only
+  const loadComplaints = async (opts?: {
+    status?: string;
+    newStatus?: string;
+  }) => {
+    try {
+      const [inboxRaw, scopedRaw, staff] = await Promise.all([
+        getDeanInboxApi().catch(() => []),
+        getDeanScopedComplaintsApi().catch(() => ({ items: [] })),
+        listMyDepartmentActiveStaffApi().catch(() => []),
+      ]);
 
-      // Reload complaints when status changes
-      const loadComplaints = async () => {
-        try {
-          const inboxP = getDeanInboxApi().catch(() => []);
-          const scopedP = getDeanScopedComplaintsApi().catch(() => ({
-            items: [],
-          }));
-          const staffP = (
-            user?.department
-              ? listMyDepartmentActiveStaffApi()
-              : Promise.resolve([])
-          ).catch(() => []);
-          const [inboxRaw, scopedRaw, staffRaw] = await Promise.all([
-            inboxP,
-            scopedP,
-            staffP,
-          ]);
-          const inbox = inboxRaw as InboxComplaint[];
-          interface ScopedResult2 {
-            items?: unknown[];
-          }
-          const normalizeScoped2 = (raw: unknown): RawComplaint[] => {
-            if (!raw || typeof raw !== "object") return [];
-            const r = raw as ScopedResult2;
-            if (Array.isArray(r.items)) return r.items as RawComplaint[];
-            return [];
-          };
-          const all = normalizeScoped2(scopedRaw);
-          const staff = staffRaw as unknown as DeptStaff[];
-          const isValidRaw2 = (c: unknown): c is RawComplaint =>
-            !!c &&
-            typeof (c as RawComplaint).id === "string" &&
-            !!(c as RawComplaint).status;
-          const mappedFromAll = all.filter(isValidRaw2).map((c) => {
-            const deanPendingFallback = !c.assignedTo && c.status === "Pending";
-            const deanNameFallback = deanPendingFallback
-              ? (user?.fullName as string) ||
-                (user?.name as string) ||
-                (user?.email as string) ||
-                "You (Dean)"
-              : undefined;
-            const baseAssigned =
-              typeof c.assignedTo === "string"
-                ? c.assignedTo
-                : (c.assignedTo as { name?: string } | null)?.name || undefined;
-            const assignedStaff = baseAssigned || deanNameFallback;
-            const assignedStaffRole = c.assignmentPath?.includes("staff")
-              ? "staff"
-              : c.assignmentPath?.includes("hod")
-              ? "hod"
-              : c.assignedByRole === "dean" || deanPendingFallback
+      const inbox = (inboxRaw || []) as InboxComplaint[];
+      const scopedItems: unknown[] =
+        scopedRaw &&
+        typeof scopedRaw === "object" &&
+        "items" in (scopedRaw as { items?: unknown[] })
+          ? (scopedRaw as { items?: unknown[] }).items || []
+          : [];
+      const all = scopedItems as RawComplaint[];
+
+      const mappedInbox = (inbox || []).map((c) => ({
+        id: String(c.id || ""),
+        title: String(c.title || "Complaint"),
+        description: "",
+        category: String(c.category || "General"),
+        status: (c.status as ComplaintType["status"]) || "Pending",
+        submittedBy:
+          typeof c.submittedBy === "string"
+            ? c.submittedBy
+            : c.submittedBy?.name || "",
+        sourceRole: (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+        assignedStaff:
+          typeof c.assignedTo === "string"
+            ? c.assignedTo
+            : (c.assignedTo as { name?: string } | null)?.name || undefined,
+        assignedStaffRole: undefined,
+        assignedByRole:
+          typeof c.assignedByRole === "string" ? c.assignedByRole : undefined,
+        assignmentPath: Array.isArray(c.assignmentPath)
+          ? (c.assignmentPath as string[])
+          : [],
+        submittedDate: c.submittedDate ? new Date(c.submittedDate) : new Date(),
+        lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+        deadline: c.deadline ? new Date(c.deadline) : undefined,
+        priority: (c.priority as ComplaintType["priority"]) || "Medium",
+        feedback: undefined,
+        isEscalated: false,
+        submittedTo: c.submittedTo || undefined,
+        department: undefined,
+      })) as ComplaintType[];
+
+      const mappedFromAll = (all || [])
+        .filter((c) => c && c.id && c.status)
+        .map((c) => ({
+          id: c.id,
+          title: c.title || "Complaint",
+          description: c.description || "",
+          category: c.category || c.department || "General",
+          status: (c.status as ComplaintType["status"]) || "Pending",
+          submittedBy:
+            typeof c.submittedBy === "string"
+              ? c.submittedBy
+              : (c.submittedBy as { name?: string } | null)?.name || "",
+          sourceRole:
+            (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
+          assignedStaff:
+            typeof c.assignedTo === "string"
+              ? c.assignedTo
+              : (c.assignedTo as { name?: string } | null)?.name || undefined,
+          assignedStaffRole:
+            c.assignedByRole === "dean"
               ? "dean"
-              : undefined;
-            return {
-              id: c.id,
-              title: c.title || c.complaintCode || "Complaint",
-              description: c.description || "",
-              category: c.category || c.department || "General",
-              status: c.status,
-              submittedBy: c.submittedBy || "",
-              sourceRole: c.sourceRole,
-              complaintCode: c.complaintCode,
-              friendlyCode: c.complaintCode,
-              assignedStaff,
-              assignedStaffRole,
-              assignedByRole: c.assignedByRole || undefined,
-              assignmentPath: Array.isArray(c.assignmentPath)
-                ? (c.assignmentPath as string[])
-                : [],
-              submittedDate: c.submittedDate
-                ? new Date(c.submittedDate)
-                : new Date(),
-              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-              deadline: c.deadline ? new Date(c.deadline) : undefined,
-              priority: c.priority || "Medium",
-              feedback: c.feedback || undefined,
-              isEscalated: !!c.isEscalated,
-              submittedTo: c.submittedTo || undefined,
-              department: c.department || undefined,
-            } as ComplaintType;
-          }) as ComplaintType[];
-          const mappedInbox = (
-            (inbox as InboxComplaint[] | undefined) || []
-          ).map((c: InboxComplaint) => {
-            const deanPendingFallback = !c.assignedTo && c.status === "Pending";
-            const deanNameFallback = deanPendingFallback
-              ? (user?.fullName as string) ||
-                (user?.name as string) ||
-                (user?.email as string) ||
-                "You (Dean)"
-              : undefined;
-            const baseAssigned =
-              typeof c.assignedTo === "string"
-                ? c.assignedTo
-                : (c.assignedTo as { name?: string } | null)?.name || undefined;
-            const assignedStaff = baseAssigned || deanNameFallback;
-            const assignedStaffRole = c.assignmentPath?.includes("staff")
-              ? "staff"
-              : c.assignmentPath?.includes("hod")
+              : c.assignedByRole === "hod"
               ? "hod"
-              : c.assignedByRole === "dean" || deanPendingFallback
-              ? "dean"
-              : undefined;
-            return {
-              id: String(c.id || ""),
-              title: String(c.title || "Complaint"),
-              description: "",
-              category: String(c.category || "General"),
-              status: (c.status as ComplaintType["status"]) || "Pending",
-              submittedBy:
-                typeof c.submittedBy === "string"
-                  ? c.submittedBy
-                  : c.submittedBy?.name || "",
-              sourceRole:
-                (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
-              complaintCode: c.complaintCode,
-              friendlyCode: c.complaintCode,
-              assignedStaff,
-              assignedStaffRole,
-              assignedByRole:
-                typeof c.assignedByRole === "string"
-                  ? c.assignedByRole
-                  : undefined,
-              assignmentPath: Array.isArray(c.assignmentPath)
-                ? (c.assignmentPath as string[])
-                : [],
-              submittedDate: c.submittedDate
-                ? new Date(c.submittedDate)
-                : new Date(),
-              lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-              deadline: c.deadline ? new Date(c.deadline) : undefined,
-              priority: (c.priority as ComplaintType["priority"]) || "Medium",
-              feedback: undefined,
-              isEscalated: false,
-              submittedTo: c.submittedTo || undefined,
-              department: undefined,
-            } as ComplaintType;
-          }) as ComplaintType[];
-          const nonPending = mappedFromAll.filter((c) => {
-            if (c.status === "Pending" || c.status === "Unassigned")
-              return false;
-            const path = Array.isArray(c.assignmentPath)
-              ? c.assignmentPath
-              : [];
-            const submittedTo = (c.submittedTo || "").toLowerCase();
-            const byRole = (c.assignedByRole || "").toLowerCase();
-            return (
-              path.includes("dean") ||
-              byRole === "dean" ||
-              /dean/.test(submittedTo)
-            );
-          });
-          const inboxIds = new Set((mappedInbox || []).map((c) => c.id));
-          const deduplicatedNonPending = nonPending.filter(
-            (c) => !inboxIds.has(c.id)
-          );
-          setComplaints([...(mappedInbox || []), ...deduplicatedNonPending]);
-          setStaffOptions(
-            (staff || []).map((s) => ({
-              id: s._id,
-              name: s.fullName || s.name || s.username || s.email,
-            }))
-          );
+              : undefined,
+          assignedByRole: (c.assignedByRole ||
+            undefined) as ComplaintType["assignedByRole"],
+          assignmentPath: Array.isArray(c.assignmentPath)
+            ? (c.assignmentPath as ComplaintType["assignmentPath"])
+            : [],
+          submittedDate: c.submittedDate
+            ? new Date(c.submittedDate)
+            : new Date(),
+          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
+          deadline: c.deadline ? new Date(c.deadline) : undefined,
+          priority: (c.priority as ComplaintType["priority"]) || "Medium",
+          feedback: undefined,
+          isEscalated: !!c.isEscalated,
+          submittedTo: c.submittedTo || undefined,
+          department: c.department || undefined,
+        })) as ComplaintType[];
 
-          // Auto-switch tabs based on status change
-          const s = newStatus || status;
-          if (s === "Resolved") setActiveTab("Resolved");
-          if (s === "Accepted") setActiveTab("Accepted");
-          if (s === "Closed") setActiveTab("Rejected");
-        } catch (e) {
-          console.error("Failed to reload complaints after status change:", e);
-        }
-      };
-      loadComplaints();
-    };
+      // Strict dean scope: include only non-pending (work items) from scoped list
+      const nonPending = mappedFromAll.filter(
+        (c) => c.status !== "Pending" && c.status !== "Unassigned"
+      );
 
-    // Listen for complaint status change events (legacy custom name + unified)
-    window.addEventListener(
-      "complaint:status-changed",
-      handleStatusChange as unknown as EventListener
-    );
-    window.addEventListener(
-      "complaint-status-changed",
-      handleStatusChange as unknown as EventListener
-    );
+      // Merge inbox + non-pending and dedupe by id
+      const byId = new Map<string, ComplaintType>();
+      for (const item of [...mappedInbox, ...nonPending])
+        byId.set(item.id, item);
+      setComplaints(Array.from(byId.values()));
 
-    // Real-time new submissions to dean via SSE notifications
-    interface DeanNotification {
-      type?: string;
-      meta?: { audience?: string; redirectPath?: string };
+      setStaffOptions(
+        (staff as any[])
+          .map((s) => ({
+            id: s._id,
+            name: s.fullName || s.name || s.username || s.email,
+          }))
+          .filter((s) => s.id)
+      );
+
+      // Optional tab auto-switch based on external status update
+      const s = opts?.newStatus || opts?.status;
+      if (s === "Resolved") setActiveTab("Resolved");
+      if (s === "Accepted" || s === "In Progress") setActiveTab("Accepted");
+      if (s === "Closed") setActiveTab("Rejected");
+    } catch (e) {
+      console.error("Failed to load dean complaints", e);
     }
-    const es = openNotificationsEventSource((n: DeanNotification) => {
-      try {
-        if (
-          n?.type === "submission" &&
-          (n?.meta?.audience === "dean" ||
-            n?.meta?.redirectPath === "/dean/assign-complaints")
-        ) {
-          const evt = new CustomEvent("complaint-status-changed", {
-            detail: { newStatus: "Pending" },
-          });
-          window.dispatchEvent(evt);
-        }
-      } catch (e) {
-        console.warn("Dean SSE notification handler error", e);
-      }
-    });
-
-    return () => {
-      window.removeEventListener(
-        "complaint:status-changed",
-        handleStatusChange as unknown as EventListener
-      );
-      window.removeEventListener(
-        "complaint-status-changed",
-        handleStatusChange as unknown as EventListener
-      );
-      try {
-        es.close();
-      } catch (e) {
-        /* noop */
-      }
-    };
-  }, [user, user?.department, setComplaints, setStaffOptions, setActiveTab]);
+  };
 
   // Accept flow state
   const [acceptTarget, setAcceptTarget] = useState<ComplaintType | null>(null);
@@ -575,33 +259,20 @@ export function DeanAssignComplaints() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNote, setBulkNote] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
-  const handleAssignClick = (complaint: ComplaintType) => {
-    setReassigningRow(complaint.id);
-    setAssigningStaffId("");
-  };
 
+  // Helpers and actions
   const handleViewDetail = (complaint: ComplaintType) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
     setAssigningStaffId("");
     setReassigningRow(null);
   };
+
   const handleStaffAssignment = async (
     complaintId: string,
     staffId: string
   ) => {
     try {
-      const body: {
-        staffId: string;
-        assignedByRole: "dean";
-        assignmentPath: string[];
-        deadline?: string;
-      } = {
-        staffId,
-        assignedByRole: "dean",
-        assignmentPath: ["dean", "staff"],
-      };
-      if (assigningDeadline) body.deadline = assigningDeadline;
       await assignComplaintApi(complaintId, staffId, assigningDeadline, {
         assignedByRole: "dean",
         assignmentPath: ["dean", "staff"],
@@ -668,101 +339,10 @@ export function DeanAssignComplaints() {
     }
   };
 
-  const handleResolve = (complaintId: string) => {
-    // Deprecated on this page: resolved items should not be managed here
-  };
-
   const handleReject = async (complaintId: string) => {
     try {
       await updateComplaintStatusApi(complaintId, "Closed", "Rejected by Dean");
-      // Refresh datasets after rejection
-      const [inboxRaw, scopedRaw] = await Promise.all([
-        getDeanInboxApi().catch(() => []),
-        getDeanScopedComplaintsApi().catch(() => ({ items: [] })),
-      ]);
-      const inbox = (inboxRaw || []) as InboxComplaint[];
-      const scopedItems: unknown[] =
-        scopedRaw &&
-        typeof scopedRaw === "object" &&
-        "items" in (scopedRaw as { items?: unknown[] })
-          ? (scopedRaw as { items?: unknown[] }).items || []
-          : [];
-      const all = scopedItems as RawComplaint[];
-      const mappedFromAll = (all || [])
-        .filter((c) => c && c.id && c.status)
-        .map((c) => ({
-          id: c.id,
-          title: c.title || c.complaintCode || "Complaint",
-          description: c.description || "",
-          category: c.category || c.department || "General",
-          status: c.status,
-          submittedBy: c.submittedBy || "",
-          sourceRole: c.sourceRole,
-          assignedStaff:
-            typeof c.assignedTo === "string"
-              ? c.assignedTo
-              : (c.assignedTo as { name?: string } | null)?.name || undefined,
-          assignedStaffRole:
-            c.assignedByRole === "dean"
-              ? "dean"
-              : c.assignedByRole === "hod"
-              ? "hod"
-              : undefined,
-          assignedByRole: c.assignedByRole || undefined,
-          assignmentPath: Array.isArray(c.assignmentPath)
-            ? (c.assignmentPath as string[])
-            : [],
-          submittedDate: c.submittedDate
-            ? new Date(c.submittedDate)
-            : new Date(),
-          lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-          deadline: c.deadline ? new Date(c.deadline) : undefined,
-          priority: c.priority || "Medium",
-          feedback: c.feedback || undefined,
-          isEscalated: !!c.isEscalated,
-          submittedTo: c.submittedTo || undefined,
-          department: c.department || undefined,
-        })) as ComplaintType[];
-      const mappedInbox = (inbox || []).map((c: InboxComplaint) => ({
-        id: String(c.id || ""),
-        title: String(c.title || "Complaint"),
-        description: "",
-        category: String(c.category || "General"),
-        status: (c.status as ComplaintType["status"]) || "Pending",
-        submittedBy:
-          typeof c.submittedBy === "string"
-            ? c.submittedBy
-            : c.submittedBy?.name || "",
-        sourceRole: (c.sourceRole as ComplaintType["sourceRole"]) || undefined,
-        assignedStaff:
-          typeof c.assignedTo === "string"
-            ? c.assignedTo
-            : (c.assignedTo as { name?: string } | null)?.name || undefined,
-        assignedStaffRole: undefined,
-        assignedByRole:
-          typeof c.assignedByRole === "string" ? c.assignedByRole : undefined,
-        assignmentPath: Array.isArray(c.assignmentPath)
-          ? (c.assignmentPath as string[])
-          : [],
-        submittedDate: c.submittedDate ? new Date(c.submittedDate) : new Date(),
-        lastUpdated: c.lastUpdated ? new Date(c.lastUpdated) : new Date(),
-        deadline: c.deadline ? new Date(c.deadline) : undefined,
-        priority: (c.priority as ComplaintType["priority"]) || "Medium",
-        feedback: undefined,
-        isEscalated: false,
-        submittedTo: c.submittedTo || undefined,
-        department: undefined,
-      })) as ComplaintType[];
-      const nonPending = mappedFromAll.filter((c) => {
-        if (c.status === "Pending" || c.status === "Unassigned") return false;
-        const path = Array.isArray(c.assignmentPath) ? c.assignmentPath : [];
-        const submittedTo = (c.submittedTo || "").toLowerCase();
-        const byRole = (c.assignedByRole || "").toLowerCase();
-        return (
-          path.includes("dean") || byRole === "dean" || /dean/.test(submittedTo)
-        );
-      });
-      setComplaints([...(mappedInbox || []), ...nonPending]);
+      await loadComplaints({ newStatus: "Closed" });
       toast({
         title: "Rejected",
         description: "Complaint rejected and closed.",
@@ -776,6 +356,65 @@ export function DeanAssignComplaints() {
       });
     }
   };
+
+  // Initial load and SSE refresh wiring
+  useEffect(() => {
+    loadComplaints();
+
+    const handleStatusChange = (ev: Event) => {
+      try {
+        const detail = (ev as CustomEvent).detail as {
+          status?: string;
+          newStatus?: string;
+        };
+        loadComplaints(detail || undefined);
+      } catch (e) {
+        loadComplaints();
+      }
+    };
+    window.addEventListener(
+      "complaint:status-changed",
+      handleStatusChange as EventListener
+    );
+    window.addEventListener(
+      "complaint-status-changed",
+      handleStatusChange as EventListener
+    );
+
+    const es = openNotificationsEventSource((n: any) => {
+      try {
+        if (
+          n?.type === "submission" &&
+          (n?.meta?.audience === "dean" ||
+            n?.meta?.redirectPath === "/dean/assign-complaints")
+        ) {
+          window.dispatchEvent(
+            new CustomEvent("complaint-status-changed", {
+              detail: { newStatus: "Pending" },
+            })
+          );
+        }
+      } catch {
+        /* noop */
+      }
+    });
+    return () => {
+      window.removeEventListener(
+        "complaint:status-changed",
+        handleStatusChange as EventListener
+      );
+      window.removeEventListener(
+        "complaint-status-changed",
+        handleStatusChange as EventListener
+      );
+      try {
+        es.close();
+      } catch {
+        /* noop */
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleReapprove = async (complaintId: string) => {
     try {
