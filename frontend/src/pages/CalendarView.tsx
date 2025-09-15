@@ -112,7 +112,7 @@ interface CalendarViewProps {
 }
 
 export default function CalendarView({ role = "admin" }: CalendarViewProps) {
-  const { user } = useAuth();
+  const { user, isCheckingAuth } = useAuth();
 
   // Compute effective role explicitly to avoid accidentally treating non-admins as admins
   const effectiveRole: "admin" | "staff" | "dean" | "hod" = (() => {
@@ -175,6 +175,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
 
   useEffect(() => {
     let cancelled = false;
+    if (isCheckingAuth) return;
     if (effectiveRole !== "staff") return;
     (async () => {
       try {
@@ -238,11 +239,12 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [effectiveRole]);
+  }, [effectiveRole, isCheckingAuth]);
 
   // HoD: initial load from inbox + managed to populate calendar markers
   useEffect(() => {
     let cancelled = false;
+    if (isCheckingAuth) return;
     if (effectiveRole !== "hod") return;
     (async () => {
       try {
@@ -344,7 +346,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [effectiveRole]);
+  }, [effectiveRole, isCheckingAuth]);
 
   // Admin: load active categories (no broad complaint prefetch to preserve strict isolation)
   useEffect(() => {
@@ -376,6 +378,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
   // Load summary from backend for Admin/Dean/HOD/Staff
   useEffect(() => {
     let cancelled = false;
+    if (isCheckingAuth) return;
     if (!["admin", "dean", "hod", "staff"].includes(effectiveRole)) return;
     // For admin-scoped views, require adminId to avoid leaking cross-admin data
     if (effectiveRole === "admin" && !adminId) return;
@@ -404,13 +407,18 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
             : undefined,
           viewType: viewType,
         };
-        const s = (() => {
-          if (effectiveRole === "dean") {
-            return getDeanCalendarSummaryApi(params);
-          }
-          // Always scope admin summary by the currently authenticated adminId
-          return getAdminCalendarSummaryApi({ ...params, assignedTo: adminId });
-        })();
+        // Choose the correct summary endpoint for the current role
+        console.debug("CalendarView: fetching summary", {
+          role: effectiveRole,
+          adminId,
+          params,
+        });
+        let s;
+        if (effectiveRole === "dean") s = getDeanCalendarSummaryApi(params);
+        else if (effectiveRole === "hod") s = getHodCalendarSummaryApi(params);
+        else if (effectiveRole === "staff")
+          s = getStaffCalendarSummaryApi(params);
+        else s = getAdminCalendarSummaryApi({ ...params, assignedTo: adminId });
 
         if (!cancelled) setSummary(await s);
       } catch (_) {
@@ -428,6 +436,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [
     effectiveRole,
+    isCheckingAuth,
     selectedDate,
     statusFilter,
     priorityFilter,
@@ -446,6 +455,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     if (!date) return;
     setSelectedDate(date);
 
+    if (isCheckingAuth) return;
     // Require a logged-in user id (normalized to adminId) and the correct role
     if (
       !adminId ||
@@ -601,12 +611,14 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     priorityFilter,
     categoryFilter,
     viewType,
+    isCheckingAuth,
   ]);
 
   // Prefetch month complaints for Admin/Dean to populate calendar dots & immediate day display
   const monthFetchedRef = useRef<string | null>(null);
   useEffect(() => {
     const roleKey = effectiveRole;
+    if (isCheckingAuth) return;
     if (!["admin", "dean"].includes(roleKey)) return;
     if (roleKey === "admin" && !adminId) return; // admin requires id
     const cacheIdPart = roleKey === "admin" ? adminId || "no-admin" : "dean";
@@ -623,25 +635,47 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           priority: priorityFilter !== "all" ? priorityFilter : undefined,
           categories: categoryFilter !== "all" ? [categoryFilter] : undefined,
         };
-        const raw =
-          roleKey === "admin"
-            ? await getAdminCalendarMonthApi({
-                month: params.month,
-                year: params.year,
-                viewType: params.viewType,
-                status: params.status,
-                priority: params.priority,
-                categories: params.categories,
-                assignedTo: adminId,
-              })
-            : await getDeanCalendarMonthApi({
-                month: params.month,
-                year: params.year,
-                viewType: params.viewType,
-                status: params.status,
-                priority: params.priority,
-                categories: params.categories,
-              });
+        let raw;
+        if (roleKey === "admin") {
+          raw = await getAdminCalendarMonthApi({
+            month: params.month,
+            year: params.year,
+            viewType: params.viewType,
+            status: params.status,
+            priority: params.priority,
+            categories: params.categories,
+            assignedTo: adminId,
+          });
+        } else if (roleKey === "dean") {
+          raw = await getDeanCalendarMonthApi({
+            month: params.month,
+            year: params.year,
+            viewType: params.viewType,
+            status: params.status,
+            priority: params.priority,
+            categories: params.categories,
+          });
+        } else if (roleKey === "hod") {
+          raw = await getHodCalendarDayApi({
+            // For month-level prefetch we reuse the day endpoint per selectedDate
+            month: params.month,
+            year: params.year,
+            viewType: params.viewType,
+            status: params.status,
+            priority: params.priority,
+            categories: params.categories,
+          });
+        } else {
+          // staff
+          raw = await getStaffCalendarDayApi({
+            month: params.month,
+            year: params.year,
+            viewType: params.viewType,
+            status: params.status,
+            priority: params.priority,
+            categories: params.categories,
+          });
+        }
         const items = raw as unknown as QueryComplaint[];
         const mapped: Complaint[] = items.map((c) => {
           const status = (c?.status as Complaint["status"]) || "Pending";
@@ -742,6 +776,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     })();
   }, [
     effectiveRole,
+    isCheckingAuth,
     selectedDate,
     statusFilter,
     priorityFilter,

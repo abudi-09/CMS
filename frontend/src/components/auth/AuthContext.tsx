@@ -111,7 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (rawRole === "student" || rawRole === "user") normRole = "user";
         else if (rawRole === "staff") normRole = "staff";
         else if (rawRole === "hod" || rawRole === "headofdepartment")
-          normRole = "headOfDepartment";
+          // normalize legacy/alternate values to canonical 'hod'
+          normRole = "hod";
         else if (rawRole === "dean") normRole = "dean";
         else if (rawRole === "admin") normRole = "admin";
         setUser({
@@ -209,7 +210,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (rawRole === "student" || rawRole === "user") role = "user";
       else if (rawRole === "staff") role = "staff";
       else if (rawRole === "hod" || rawRole === "headofdepartment")
-        role = "headOfDepartment";
+        // normalize to canonical 'hod'
+        role = "hod";
       else if (rawRole === "dean") role = "dean";
       else if (rawRole === "admin") role = "admin";
       const successWithAvatar = success as LoginSuccess & {
@@ -246,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const approveStaff = async (staffId: string) => {
-    if (user?.role === "headOfDepartment") {
+    if (user?.role === "hod") {
       await hodApproveStaffApi(staffId);
       const pending = await getHodPendingStaffApi();
       const mapped = pending.map((p) => ({
@@ -271,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const rejectStaff = async (staffId: string) => {
-    if (user?.role === "headOfDepartment") {
+    if (user?.role === "hod") {
       await hodRejectStaffApi(staffId);
       const pending = await getHodPendingStaffApi();
       const mapped = pending.map((p) => ({
@@ -297,11 +299,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // HoD: convenience helpers for deactivation/reactivation of approved staff
   async function hodDeactivateStaff(staffId: string) {
-    if (user?.role !== "headOfDepartment") return;
+    if (user?.role !== "hod") return;
     await hodDeactivateStaffApi(staffId);
   }
   async function hodReactivateStaff(staffId: string) {
-    if (user?.role !== "headOfDepartment") return;
+    if (user?.role !== "hod") return;
     await hodReactivateStaffApi(staffId);
   }
 

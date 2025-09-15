@@ -113,32 +113,25 @@ export const getDepartmentComplaintStats = async (req, res) => {
         .json({ error: "Department is required for HoD stats" });
     }
 
+    // Only count complaints assigned to the current HOD
+    const assignedToHodFilter = {
+      assignedTo: user._id,
+      isDeleted: { $ne: true },
+    };
+
     const [total, pending, inProgress, resolved, unassigned] =
       await Promise.all([
+        Complaint.countDocuments({ ...assignedToHodFilter }),
+        Complaint.countDocuments({ ...assignedToHodFilter, status: "Pending" }),
         Complaint.countDocuments({
-          department: dept,
-          isDeleted: { $ne: true },
-        }),
-        Complaint.countDocuments({
-          department: dept,
-          status: "Pending",
-          isDeleted: { $ne: true },
-        }),
-        Complaint.countDocuments({
-          department: dept,
+          ...assignedToHodFilter,
           status: "In Progress",
-          isDeleted: { $ne: true },
         }),
         Complaint.countDocuments({
-          department: dept,
+          ...assignedToHodFilter,
           status: "Resolved",
-          isDeleted: { $ne: true },
         }),
-        Complaint.countDocuments({
-          department: dept,
-          assignedTo: null,
-          isDeleted: { $ne: true },
-        }),
+        Complaint.countDocuments({ ...assignedToHodFilter, assignedTo: null }), // This will always be 0, but kept for structure
       ]);
 
     return res
@@ -1220,7 +1213,7 @@ export const getHodCalendarSummary = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const hodId = mongoose.Types.ObjectId(String(user._id));
+  const hodId = new mongoose.Types.ObjectId(String(user._id));
     const department = user.department || null;
 
     const status = req.query.status || null; // exact match
@@ -1461,7 +1454,7 @@ export const getStaffCalendarSummary = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const staffId = mongoose.Types.ObjectId(String(user._id));
+  const staffId = new mongoose.Types.ObjectId(String(user._id));
 
     const status = req.query.status || null; // exact match
     const priority = req.query.priority || null; // exact match
@@ -1670,7 +1663,7 @@ export const getStaffCalendarDay = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const staffId = mongoose.Types.ObjectId(String(user._id));
+  const staffId = new mongoose.Types.ObjectId(String(user._id));
     const status = req.query.status || null; // optional exact match
     const priority = req.query.priority || null; // optional exact match
     const categoriesParam = req.query.categories; // csv or array
@@ -1751,7 +1744,7 @@ export const getHodCalendarDay = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const hodId = mongoose.Types.ObjectId(String(user._id));
+  const hodId = new mongoose.Types.ObjectId(String(user._id));
     const department = user.department || null;
 
     const status = req.query.status || null; // optional exact match
