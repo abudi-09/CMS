@@ -9,6 +9,7 @@ import {
   listMyAssignedComplaintsApi,
   getStaffFeedbackApi,
   getRoleCountsApi,
+  getHodComplaintStatsApi,
 } from "@/lib/api";
 import type { StaffStats, AssignedComplaintLite } from "@/lib/api";
 import { getProfileStatsApi } from "@/lib/api.profile.stats";
@@ -136,6 +137,27 @@ export function Profile() {
     let ignore = false;
     async function load() {
       try {
+        // If the logged-in user is a HoD, use the HoD-scoped stats endpoint
+        if (user && (user.role === "hod" || user.role === "headOfDepartment")) {
+          const d = await getHodComplaintStatsApi();
+          if (!ignore && d && typeof d === "object") {
+            const total = d.total ?? 0;
+            const resolved = d.resolved ?? 0;
+            const inProg = d.inProgress ?? 0;
+            const pending = d.pending ?? 0;
+            const success = total ? Math.round((resolved / total) * 100) : 0;
+            setStats({
+              totalComplaints: total,
+              resolvedComplaints: resolved,
+              inProgressComplaints: inProg,
+              pendingComplaints: pending,
+              successRate: success,
+            });
+          }
+          return;
+        }
+
+        // Fallback: user-scoped/profile stats for non-HoD roles
         const data = await getProfileStatsApi();
         if (!ignore) {
           // Some endpoints may return alternative field names; normalize them.
@@ -167,7 +189,7 @@ export function Profile() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [user]);
   useEffect(() => {
     if (user?.role !== "admin") return;
     let ignore = false;
