@@ -149,6 +149,12 @@ const complaintSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Anonymity flag: when true, mask submitter identity for all viewers except original submitter
+    isAnonymous: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   { timestamps: true }
 );

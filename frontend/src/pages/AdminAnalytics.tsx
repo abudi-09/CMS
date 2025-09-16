@@ -365,7 +365,7 @@ export default function AdminAnalytics() {
               totalAssigned: Number(d.totalComplaints ?? 0),
               resolved: Number(d.resolvedComplaints ?? 0),
               pending: Number(d.pendingComplaints ?? 0),
-              inProgress: 0,
+              inProgress: Number(d.inProgress ?? 0),
               successRate: Number(d.successRate ?? 0),
               staffCount: Number(d.staffCount ?? 0),
             })) as DeptPerf[]

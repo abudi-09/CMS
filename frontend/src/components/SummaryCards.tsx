@@ -18,10 +18,19 @@ export function SummaryCards({
   complaints,
   userRole = "user",
 }: SummaryCardsProps) {
+  // Active work statuses should mirror profile page logic
+  const ACTIVE_STATUSES = [
+    "Assigned",
+    "Accepted",
+    "In Progress",
+    "Under Review",
+  ];
   const stats = {
     total: complaints.length,
     pending: complaints.filter((c) => c.status === "Pending").length,
-    inProgress: complaints.filter((c) => c.status === "In Progress").length,
+    // In progress = any active handling state
+    inProgress: complaints.filter((c) => ACTIVE_STATUSES.includes(c.status))
+      .length,
     resolved: complaints.filter((c) => c.status === "Resolved").length,
     closed: complaints.filter((c) => c.status === "Closed").length,
     // Replace unassigned with total students (assuming complaints from students)

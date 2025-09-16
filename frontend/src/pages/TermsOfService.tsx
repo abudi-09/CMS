@@ -13,7 +13,7 @@ import {
   Phone,
   Mail,
 } from "lucide-react";
-import { Footer } from "@/components/Footer";
+import { Footer } from "@/components/footer";
 import { HomePageHeader } from "@/components/HomePageHeader";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useNavigate } from "react-router-dom";

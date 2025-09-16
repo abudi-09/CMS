@@ -117,7 +117,7 @@ export default function HoDAllComplaints() {
             description: String(r["description"] || ""),
             category: String(r["category"] || "General"),
             status: (r["status"] as ComplaintType["status"]) || "Pending",
-            submittedBy: submittedBy || "Anonymous",
+            submittedBy: submittedBy || "Unknown",
             assignedStaff,
             assignedStaffRole: undefined,
             submittedDate: r["submittedDate"]
@@ -208,7 +208,7 @@ export default function HoDAllComplaints() {
               description: "",
               category: String(raw.category || "General"),
               status: (raw.status as ComplaintType["status"]) || "Pending",
-              submittedBy: submittedBy || "Anonymous",
+              submittedBy: submittedBy || "Unknown",
               assignedStaff,
               assignedStaffRole: undefined,
               submittedDate: raw.submittedDate
@@ -247,7 +247,7 @@ export default function HoDAllComplaints() {
               description: "",
               category: String(raw.category || "General"),
               status: (raw.status as ComplaintType["status"]) || "Pending",
-              submittedBy: submittedBy || "Anonymous",
+              submittedBy: submittedBy || "Unknown",
               assignedStaff,
               assignedStaffRole: undefined,
               submittedDate: raw.submittedDate
@@ -446,7 +446,7 @@ export default function HoDAllComplaints() {
                     <TableCell className="whitespace-nowrap">
                       {c.category || "-"}
                     </TableCell>
-                    <TableCell>{c.submittedBy || "Anonymous"}</TableCell>
+                    <TableCell>{c.submittedBy || "Unknown"}</TableCell>
                     <TableCell>
                       {c.status === "Closed"
                         ? "Rejected"

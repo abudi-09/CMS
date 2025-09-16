@@ -56,7 +56,7 @@ router.delete("/my/:id", protectRoute, softDeleteMyComplaint);
 router.put("/my/:id/recipient", protectRoute, updateMyComplaintRecipient);
 router.post("/feedback/:id", protectRoute, giveFeedback);
 
-// ADMIN or DEAN
+// All complaints (role-aware: Admin or Dean)
 router.get("/all", protectRoute, adminOrDean, getAllComplaints);
 router.put("/assign/:id", protectRoute, adminOrDean, assignComplaint);
 // Admin/HOD/Dean can reassign recipient role (post-acceptance)

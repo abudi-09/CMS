@@ -300,6 +300,149 @@ export const getStudentCount = async (req, res) => {
   }
 };
 
+// Public, non-sensitive homepage stats for landing page
+// Returns aggregate numbers only — no PII and no auth required.
+export const getPublicHomepageStats = async (req, res) => {
+  try {
+    // 1) Resolved complaints count
+    const resolvedCountPromise = Complaint.countDocuments({
+      status: "Resolved",
+      isDeleted: { $ne: true },
+    });
+
+    // 2) Average response time (hours) from createdAt -> resolvedAt for resolved complaints
+    const avgResponseAggPromise = Complaint.aggregate([
+      {
+        $match: {
+          status: "Resolved",
+          isDeleted: { $ne: true },
+          createdAt: { $ne: null },
+          resolvedAt: { $ne: null },
+        },
+      },
+      {
+        $project: {
+          diffHours: {
+            $divide: [
+              { $subtract: ["$resolvedAt", "$createdAt"] },
+              1000 * 60 * 60,
+            ],
+          },
+        },
+      },
+      { $group: { _id: null, avgHours: { $avg: "$diffHours" } } },
+    ]);
+
+    // 3) Average satisfaction rating (0-5) from embedded feedback.rating
+    const avgRatingAggPromise = Complaint.aggregate([
+      {
+        $match: {
+          isDeleted: { $ne: true },
+          "feedback.rating": { $gte: 0 },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          avg: { $avg: "$feedback.rating" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // 4) Active users: all roles that can access the system
+    const activeStudentsPromise = User.countDocuments({
+      role: "student",
+      isActive: true,
+    });
+    const activeStaffPromise = User.countDocuments({
+      role: "staff",
+      isApproved: true,
+      isActive: true,
+      isRejected: { $ne: true },
+    });
+    const activeDeansPromise = User.countDocuments({
+      role: "dean",
+      isActive: true,
+    });
+    const activeHodsPromise = User.countDocuments({
+      role: "hod",
+      isActive: true,
+    });
+    const activeAdminsPromise = User.countDocuments({
+      role: "admin",
+      isActive: true,
+    });
+
+    const [
+      resolvedCount,
+      avgResponseAgg,
+      avgRatingAgg,
+      activeStudents,
+      activeStaff,
+      activeDeans,
+      activeHods,
+      activeAdmins,
+    ] = await Promise.all([
+      resolvedCountPromise,
+      avgResponseAggPromise,
+      avgRatingAggPromise,
+      activeStudentsPromise,
+      activeStaffPromise,
+      activeDeansPromise,
+      activeHodsPromise,
+      activeAdminsPromise,
+    ]);
+
+    const averageResponseHoursRaw =
+      Array.isArray(avgResponseAgg) && avgResponseAgg.length
+        ? avgResponseAgg[0].avgHours
+        : null;
+    const averageRatingRaw =
+      Array.isArray(avgRatingAgg) && avgRatingAgg.length
+        ? avgRatingAgg[0].avg
+        : null;
+
+    const activeUsersTotal =
+      (activeStudents || 0) +
+      (activeStaff || 0) +
+      (activeDeans || 0) +
+      (activeHods || 0) +
+      (activeAdmins || 0);
+
+    const payload = {
+      totalResolved: resolvedCount || 0,
+      averageResponseHours:
+        typeof averageResponseHoursRaw === "number" &&
+        isFinite(averageResponseHoursRaw)
+          ? Number(averageResponseHoursRaw)
+          : null,
+      averageRating:
+        typeof averageRatingRaw === "number" && isFinite(averageRatingRaw)
+          ? Number(averageRatingRaw)
+          : null,
+      // Legacy field for compatibility with existing clients
+      activeStudentsAndStaff: (activeStudents || 0) + (activeStaff || 0),
+      // New field: all users that can access the system
+      activeUsers: activeUsersTotal,
+    };
+
+    return res.status(200).json(payload);
+  } catch (err) {
+    console.error("getPublicHomepageStats error:", err?.message || err);
+    // Fail-open for homepage UX: return zeros with degraded flag so frontend can still render
+    return res.status(200).json({
+      totalResolved: 0,
+      averageResponseHours: null,
+      averageRating: null,
+      activeStudentsAndStaff: 0,
+      activeUsers: 0,
+      degraded: true,
+      error: "stats-degraded",
+    });
+  }
+};
+
 // Dean-visible complaint stats: exclude complaints that were sent to Admin or escalated
 export const getDeanVisibleComplaintStats = async (req, res) => {
   try {
@@ -747,6 +890,88 @@ export const getAdminCalendarMonth = async (req, res) => {
   }
 };
 
+// Dean calendar day list (per-dean scoped, by selected day)
+export const getDeanCalendarDay = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const dateStr = String(req.query.date || "");
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+      return res.status(400).json({ error: "Invalid or missing date" });
+    }
+    const [yStr, mStr, dStr] = dateStr.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10) - 1;
+    const d = parseInt(dStr, 10);
+    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+    const deanId = new mongoose.Types.ObjectId(user._id);
+
+    // Identify complaints this dean has assigned (via ActivityLog), and include those in visibility
+    const deanAssignedLogs = await ActivityLog.aggregate([
+      { $match: { role: "dean", user: deanId, action: { $regex: /assign/i } } },
+      { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
+    ]);
+    const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
+
+    // Strict per-dean visibility
+    const base = {
+      isDeleted: { $ne: true },
+      $or: [
+        { recipientRole: "dean", recipientId: deanId },
+        { _id: { $in: deanAssignedIds } },
+        { assignedBy: deanId },
+      ],
+    };
+    if (status && status !== "all") base.status = status;
+    if (priority && priority !== "all") base.priority = priority;
+    if (categories && categories.length) base.category = { $in: categories };
+
+    const dateFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: dayStart, $lte: dayEnd } },
+              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+            ],
+          }
+        : { deadline: { $gte: dayStart, $lte: dayEnd } };
+
+    const items = await Complaint.find({ $and: [base, dateFilter] })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo recipientRole recipientId"
+      )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getDeanCalendarDay error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean calendar day complaints" });
+  }
+};
+
 // Dean calendar month list (all dean-visible complaints in selected month)
 export const getDeanCalendarMonth = async (req, res) => {
   try {
@@ -1035,10 +1260,9 @@ export const getDeanCalendarSummary = async (req, res) => {
         }),
       ]);
 
-    const breakdownMatch = monthFilter;
     const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
       Complaint.aggregate([
-        { $match: breakdownMatch },
+        { $match: monthFilter },
         {
           $group: {
             _id: { $ifNull: ["$status", "Unknown"] },
@@ -1047,7 +1271,7 @@ export const getDeanCalendarSummary = async (req, res) => {
         },
       ]),
       Complaint.aggregate([
-        { $match: breakdownMatch },
+        { $match: monthFilter },
         {
           $group: {
             _id: { $ifNull: ["$priority", "Unknown"] },
@@ -1056,7 +1280,7 @@ export const getDeanCalendarSummary = async (req, res) => {
         },
       ]),
       Complaint.aggregate([
-        { $match: breakdownMatch },
+        { $match: monthFilter },
         {
           $group: {
             _id: { $ifNull: ["$category", "Unknown"] },
@@ -1093,847 +1317,308 @@ export const getDeanCalendarSummary = async (req, res) => {
   }
 };
 
-// Dean calendar day list: complaints sent to dean by students (include those assigned to HOD)
-export const getDeanCalendarDay = async (req, res) => {
+// Admin Analytics Summary (global across system)
+export const getAdminAnalyticsSummary = async (req, res) => {
   try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "dean") {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const now = new Date();
+    const base = {
+      $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+    };
 
-    // Optional: when provided, restrict to a specific assignee; otherwise include all
-    const assignedTo =
-      req.query.assignedTo &&
-      typeof req.query.assignedTo === "string" &&
-      req.query.assignedTo.match(/^[0-9a-fA-F]{24}$/)
-        ? new mongoose.Types.ObjectId(req.query.assignedTo)
+    // Core counts
+    const [
+      totalComplaints,
+      resolvedComplaints,
+      pendingComplaints,
+      inProgressComplaints,
+      overdueComplaints,
+      unassignedComplaints,
+    ] = await Promise.all([
+      Complaint.countDocuments(base),
+      Complaint.countDocuments({ ...base, status: "Resolved" }),
+      Complaint.countDocuments({ ...base, status: "Pending" }),
+      Complaint.countDocuments({
+        ...base,
+        status: {
+          $in: ["Accepted", "Assigned", "In Progress", "Under Review"],
+        },
+      }),
+      Complaint.countDocuments({
+        ...base,
+        deadline: { $lt: now },
+        status: { $nin: ["Resolved", "Closed"] },
+      }),
+      Complaint.countDocuments({ ...base, assignedTo: null }),
+    ]);
+
+    // Resolution rate
+    const resolutionRate =
+      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
+
+    // Average resolution time (days) for resolved complaints
+    const avgAgg = await Complaint.aggregate([
+      { $match: { ...base, status: "Resolved" } },
+      {
+        $project: {
+          createdAt: 1,
+          resolvedAt: { $ifNull: ["$resolvedAt", "$updatedAt"] },
+        },
+      },
+      {
+        $project: {
+          diffDays: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ["$createdAt", null] },
+                  { $ne: ["$resolvedAt", null] },
+                ],
+              },
+              {
+                $divide: [
+                  { $subtract: ["$resolvedAt", "$createdAt"] },
+                  1000 * 60 * 60 * 24,
+                ],
+              },
+              null,
+            ],
+          },
+        },
+      },
+      { $match: { diffDays: { $ne: null } } },
+      {
+        $group: {
+          _id: null,
+          avgDays: { $avg: "$diffDays" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const avgResolutionTime =
+      Array.isArray(avgAgg) && avgAgg.length
+        ? Number(avgAgg[0].avgDays.toFixed(2))
         : null;
 
-    const status = req.query.status || null; // optional exact match
-    const priority = req.query.priority || null; // optional exact match
-    const categoriesParam = req.query.categories; // csv or array
-    const categories = Array.isArray(categoriesParam)
-      ? categoriesParam
-      : typeof categoriesParam === "string" && categoriesParam.length
-      ? categoriesParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-
-    const viewType =
-      req.query.viewType === "deadline" ? "deadline" : "submission";
-    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
-    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
-      return res.status(400).json({ error: "Invalid or missing date" });
-    }
-
-    const [yStr, mStr, dStr] = dateStr.split("-");
-    const y = parseInt(yStr, 10);
-    const m = parseInt(mStr, 10) - 1;
-    const d = parseInt(dStr, 10);
-
-    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
-
-    // Per-dean private scope for the day list (same as summary): direct-to-this-dean or assigned by this dean
-    const deanAssignedLogs = await ActivityLog.aggregate([
-      {
-        $match: { role: "dean", user: user._id, action: { $regex: /assign/i } },
-      },
-      { $group: { _id: "$complaint", latest: { $max: "$timestamp" } } },
-    ]);
-    const deanAssignedIds = deanAssignedLogs.map((r) => r._id);
-    const base = {
-      isDeleted: { $ne: true },
-      $and: [
-        {
-          $or: [
-            { recipientRole: "dean", recipientId: user._id },
-            { _id: { $in: deanAssignedIds } },
-            { assignedBy: user._id },
-          ],
-        },
-      ],
-      ...(assignedTo ? { assignedTo } : {}),
-    };
-    if (process.env.NODE_ENV !== "production") {
-      console.log(
-        "[DeanCalendarDay] user=",
-        String(user._id),
-        "date=",
-        dateStr
-      );
-      console.log(
-        "[DeanCalendarDay] assignedIds=",
-        deanAssignedIds.map(String)
-      );
-      console.log("[DeanCalendarDay] baseFilter=", JSON.stringify(base));
-    }
-    if (status && status !== "all") base.status = status;
-    if (priority && priority !== "all") base.priority = priority;
-    if (categories && categories.length) base.category = { $in: categories };
-
-    const dateFilter =
-      viewType === "submission"
-        ? {
-            $or: [
-              { createdAt: { $gte: dayStart, $lte: dayEnd } },
-              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
-            ],
-          }
-        : { deadline: { $gte: dayStart, $lte: dayEnd } };
-
-    const items = await Complaint.find({ ...base, ...dateFilter })
-      .select(
-        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo"
-      )
-      .populate("submittedBy", "name email")
-      .populate("assignedTo", "name role")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.status(200).json(items || []);
-  } catch (err) {
-    console.error("getDeanCalendarDay error:", err?.message || err);
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch dean calendar day complaints" });
-  }
-};
-
-// HoD calendar summary: per-HoD isolation including
-// - Direct to this department HoD (submittedTo contains 'hod' and same department)
-// - Items assigned to this HoD (assignedTo = hodId)
-// - Items assigned to staff by this HoD (latest HOD assignment log user = this hod)
-export const getHodCalendarSummary = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "hod") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-  const hodId = new mongoose.Types.ObjectId(String(user._id));
-    const department = user.department || null;
-
-    const status = req.query.status || null; // exact match
-    const priority = req.query.priority || null; // exact match
-    const categoriesParam = req.query.categories; // array or csv
-    const categories = Array.isArray(categoriesParam)
-      ? categoriesParam
-      : typeof categoriesParam === "string" && categoriesParam.length
-      ? categoriesParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-    const viewType =
-      req.query.viewType === "deadline" ? "deadline" : "submission";
-    const month = parseInt(req.query.month, 10); // 0-11
-    const year = parseInt(req.query.year, 10);
-    const now = new Date();
-    const baseMonth = isNaN(month) ? now.getMonth() : month;
-    const baseYear = isNaN(year) ? now.getFullYear() : year;
-    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
-
-    const submissionFrom = req.query.submissionFrom
-      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
-      : null;
-    const submissionTo = req.query.submissionTo
-      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
-      : null;
-    const deadlineFrom = req.query.deadlineFrom
-      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
-      : null;
-    const deadlineTo = req.query.deadlineTo
-      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
-      : null;
-
-    // Discover complaints managed by this HOD via latest HOD assignment logs
-    const latestHodAssignments = await ActivityLog.aggregate([
-      {
-        $match: {
-          role: { $regex: /^hod$/i },
-          action: { $in: ["Assigned by HOD", "Reassigned by HOD"] },
-        },
-      },
-      { $sort: { complaint: 1, timestamp: -1 } },
+    // Satisfaction: average rating and count of reviews (if present)
+    const ratingAgg = await Complaint.aggregate([
+      { $match: { ...base, "feedback.rating": { $gte: 0 } } },
       {
         $group: {
-          _id: "$complaint",
-          latestUser: { $first: "$user" },
-          latestTs: { $first: "$timestamp" },
+          _id: null,
+          avg: { $avg: "$feedback.rating" },
+          reviews: { $sum: 1 },
         },
       },
-      { $match: { latestUser: hodId } },
-      { $project: { _id: 0, complaint: "$_id" } },
     ]);
-    const managedByThisHodIds = new Set(
-      (latestHodAssignments || []).map((r) => String(r.complaint))
-    );
-
-    // Build base OR filter for HOD scope
-    const baseOr = [
-      { assignedTo: hodId },
-      {
-        _id: {
-          $in: Array.from(managedByThisHodIds).map((id) =>
-            mongoose.Types.ObjectId(id)
-          ),
-        },
-      },
-    ];
-
-    const base = {
-      isDeleted: { $ne: true },
-      $or: baseOr,
-    };
-    if (department) base.department = department;
-    if (status && status !== "all") base.status = status;
-    if (priority && priority !== "all") base.priority = priority;
-    if (categories && categories.length) base.category = { $in: categories };
-
-    const submissionRange = {};
-    if (submissionFrom) submissionRange.$gte = submissionFrom;
-    if (submissionTo) submissionRange.$lte = submissionTo;
-    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
-
-    const deadlineRange = {};
-    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
-    if (deadlineTo) deadlineRange.$lte = deadlineTo;
-    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
-
-    const monthFilter = {
-      ...base,
-      ...(viewType === "submission"
-        ? {
-            $or: [
-              {
-                createdAt: {
-                  ...(base.createdAt || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              },
-              {
-                submittedDate: {
-                  ...(base.submittedDate || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              },
-            ],
-          }
-        : {
-            deadline: {
-              ...(base.deadline || {}),
-              $gte: monthStart,
-              $lte: monthEnd,
-            },
-          }),
-    };
-
-    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
-      await Promise.all([
-        Complaint.countDocuments(monthFilter),
-        Complaint.countDocuments({
-          ...base,
-          deadline: { ...(base.deadline || {}), $lt: new Date() },
-          status: { $nin: ["Resolved", "Closed"] },
-        }),
-        (() => {
-          const start = new Date();
-          start.setHours(0, 0, 0, 0);
-          const end = new Date();
-          end.setHours(23, 59, 59, 999);
-          return Complaint.countDocuments({
-            ...base,
-            deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
-          });
-        })(),
-        Complaint.countDocuments({
-          ...base,
-          status: "Resolved",
-          ...(viewType === "submission"
-            ? {
-                $or: [
-                  {
-                    createdAt: {
-                      ...(base.createdAt || {}),
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
-                  {
-                    submittedDate: {
-                      ...(base.submittedDate || {}),
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
-                ],
-              }
-            : {
-                createdAt: {
-                  ...(base.createdAt || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              }),
-        }),
-      ]);
-
-    // Optional breakdowns for the selected month scope
-    const breakdownMatch = monthFilter;
-    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
-      Complaint.aggregate([
-        { $match: breakdownMatch },
-        {
-          $group: {
-            _id: { $ifNull: ["$status", "Unknown"] },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-      Complaint.aggregate([
-        { $match: breakdownMatch },
-        {
-          $group: {
-            _id: { $ifNull: ["$priority", "Unknown"] },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-      Complaint.aggregate([
-        { $match: breakdownMatch },
-        {
-          $group: {
-            _id: { $ifNull: ["$category", "Unknown"] },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-    ]);
-
-    const countsByStatus = Object.fromEntries(
-      (byStatusAgg || []).map((r) => [r._id, r.count])
-    );
-    const countsByPriority = Object.fromEntries(
-      (byPriorityAgg || []).map((r) => [r._id, r.count])
-    );
-    const countsByCategory = Object.fromEntries(
-      (byCategoryAgg || []).map((r) => [r._id, r.count])
-    );
+    const userSatisfaction =
+      Array.isArray(ratingAgg) && ratingAgg.length
+        ? Number(ratingAgg[0].avg.toFixed(1))
+        : null;
+    const totalReviews =
+      Array.isArray(ratingAgg) && ratingAgg.length ? ratingAgg[0].reviews : 0;
 
     return res.status(200).json({
-      totalThisMonth,
-      overdue,
-      dueToday,
-      resolvedThisMonth,
-      countsByStatus,
-      countsByPriority,
-      countsByCategory,
+      totalComplaints,
+      pendingComplaints,
+      inProgressComplaints,
+      resolvedComplaints,
+      overdueComplaints,
+      unassignedComplaints,
+      resolutionRate: Number(resolutionRate.toFixed(1)),
+      avgResolutionTime, // days
+      userSatisfaction,
+      totalReviews,
     });
   } catch (err) {
-    console.error("getHodCalendarSummary error:", err?.message || err);
+    console.error("getAdminAnalyticsSummary error:", err?.message || err);
     return res
       .status(500)
-      .json({ error: "Failed to fetch HOD calendar summary" });
+      .json({ error: "Failed to fetch admin analytics summary" });
   }
 };
 
-// Staff calendar summary: counts for the logged-in staff
-// Includes:
-// - Items assigned to this staff (assignedTo = staffId)
-// - Items sent directly from a student to this staff (recipientRole = 'staff' AND recipientId = staffId)
-export const getStaffCalendarSummary = async (req, res) => {
+// Dean Analytics Summary (cards): global excluding admin-targeted complaints
+export const getDeanAnalyticsSummary = async (_req, res) => {
   try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "staff") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-  const staffId = new mongoose.Types.ObjectId(String(user._id));
-
-    const status = req.query.status || null; // exact match
-    const priority = req.query.priority || null; // exact match
-    const categoriesParam = req.query.categories; // array or csv
-    const categories = Array.isArray(categoriesParam)
-      ? categoriesParam
-      : typeof categoriesParam === "string" && categoriesParam.length
-      ? categoriesParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-    const viewType =
-      req.query.viewType === "deadline" ? "deadline" : "submission";
-    const month = parseInt(req.query.month, 10); // 0-11
-    const year = parseInt(req.query.year, 10);
-    const now = new Date();
-    const baseMonth = isNaN(month) ? now.getMonth() : month;
-    const baseYear = isNaN(year) ? now.getFullYear() : year;
-    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
-
-    const submissionFrom = req.query.submissionFrom
-      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
-      : null;
-    const submissionTo = req.query.submissionTo
-      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
-      : null;
-    const deadlineFrom = req.query.deadlineFrom
-      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
-      : null;
-    const deadlineTo = req.query.deadlineTo
-      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
-      : null;
-
-    const baseOr = [
-      { assignedTo: staffId },
-      {
-        recipientRole: { $regex: /^staff$/i },
-        recipientId: staffId,
-        sourceRole: { $regex: /^student$/i },
-      },
-    ];
-
-    const base = {
-      isDeleted: { $ne: true },
-      $or: baseOr,
-    };
-    if (status && status !== "all") base.status = status;
-    if (priority && priority !== "all") base.priority = priority;
-    if (categories && categories.length) base.category = { $in: categories };
-
-    const submissionRange = {};
-    if (submissionFrom) submissionRange.$gte = submissionFrom;
-    if (submissionTo) submissionRange.$lte = submissionTo;
-    if (Object.keys(submissionRange).length) base.createdAt = submissionRange;
-
-    const deadlineRange = {};
-    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
-    if (deadlineTo) deadlineRange.$lte = deadlineTo;
-    if (Object.keys(deadlineRange).length) base.deadline = deadlineRange;
-
-    const monthFilter = {
-      ...base,
-      ...(viewType === "submission"
-        ? {
-            $or: [
-              {
-                createdAt: {
-                  ...(base.createdAt || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              },
-              {
-                submittedDate: {
-                  ...(base.submittedDate || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              },
-            ],
-          }
-        : {
-            deadline: {
-              ...(base.deadline || {}),
-              $gte: monthStart,
-              $lte: monthEnd,
-            },
-          }),
-    };
-
-    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
+    const match = buildGlobalMinusAdminMatch();
+    const [total, pending, inProgress, resolved, unassigned] =
       await Promise.all([
-        Complaint.countDocuments(monthFilter),
+        Complaint.countDocuments(match),
+        Complaint.countDocuments({ ...match, status: "Pending" }),
         Complaint.countDocuments({
-          ...base,
-          deadline: { ...(base.deadline || {}), $lt: new Date() },
-          status: { $nin: ["Resolved", "Closed"] },
+          ...match,
+          status: { $in: ["Accepted", "Assigned", "In Progress"] },
         }),
-        (() => {
-          const start = new Date();
-          start.setHours(0, 0, 0, 0);
-          const end = new Date();
-          end.setHours(23, 59, 59, 999);
-          return Complaint.countDocuments({
-            ...base,
-            deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
-          });
-        })(),
-        Complaint.countDocuments({
-          ...base,
-          status: "Resolved",
-          ...(viewType === "submission"
-            ? {
-                $or: [
-                  {
-                    createdAt: {
-                      ...(base.createdAt || {}),
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
-                  {
-                    submittedDate: {
-                      ...(base.submittedDate || {}),
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
-                ],
-              }
-            : {
-                createdAt: {
-                  ...(base.createdAt || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              }),
-        }),
+        Complaint.countDocuments({ ...match, status: "Resolved" }),
+        Complaint.countDocuments({ ...match, assignedTo: null }),
       ]);
-
-    const breakdownMatch = monthFilter;
-    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
-      Complaint.aggregate([
-        { $match: breakdownMatch },
-        {
-          $group: {
-            _id: { $ifNull: ["$status", "Unknown"] },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-      Complaint.aggregate([
-        { $match: breakdownMatch },
-        {
-          $group: {
-            _id: { $ifNull: ["$priority", "Unknown"] },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-      Complaint.aggregate([
-        { $match: breakdownMatch },
-        {
-          $group: {
-            _id: { $ifNull: ["$category", "Unknown"] },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-    ]);
-
-    const countsByStatus = Object.fromEntries(
-      (byStatusAgg || []).map((r) => [r._id, r.count])
-    );
-    const countsByPriority = Object.fromEntries(
-      (byPriorityAgg || []).map((r) => [r._id, r.count])
-    );
-    const countsByCategory = Object.fromEntries(
-      (byCategoryAgg || []).map((r) => [r._id, r.count])
-    );
-
-    return res.status(200).json({
-      totalThisMonth,
-      overdue,
-      dueToday,
-      resolvedThisMonth,
-      countsByStatus,
-      countsByPriority,
-      countsByCategory,
-    });
+    return res
+      .status(200)
+      .json({ total, pending, inProgress, resolved, unassigned });
   } catch (err) {
-    console.error("getStaffCalendarSummary error:", err?.message || err);
     return res
       .status(500)
-      .json({ error: "Failed to fetch staff calendar summary" });
+      .json({ error: "Failed to fetch dean analytics summary" });
   }
 };
 
-// Staff calendar day list: complaints relevant to this staff on a specific date
-export const getStaffCalendarDay = async (req, res) => {
+// University Statistics for About Page
+export const getUniversityStatistics = async (req, res) => {
   try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "staff") {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const foundingYear = 1954;
+    const currentYear = new Date().getFullYear();
+    const yearsOfExcellence = currentYear - foundingYear;
 
-  const staffId = new mongoose.Types.ObjectId(String(user._id));
-    const status = req.query.status || null; // optional exact match
-    const priority = req.query.priority || null; // optional exact match
-    const categoriesParam = req.query.categories; // csv or array
-    const categories = Array.isArray(categoriesParam)
-      ? categoriesParam
-      : typeof categoriesParam === "string" && categoriesParam.length
-      ? categoriesParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
+    const [studentCount, deanCount, hodCount, staffCount] = await Promise.all([
+      User.countDocuments({ role: "student", isActive: true }),
+      User.countDocuments({ role: "dean", isActive: true }),
+      User.countDocuments({ role: "hod", isActive: true }),
+      User.countDocuments({
+        role: "staff",
+        isApproved: true,
+        isActive: true,
+        isRejected: { $ne: true },
+      }),
+    ]);
 
-    const viewType =
-      req.query.viewType === "deadline" ? "deadline" : "submission";
-    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
-    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
-      return res.status(400).json({ error: "Invalid or missing date" });
-    }
-
-    const [yStr, mStr, dStr] = dateStr.split("-");
-    const y = parseInt(yStr, 10);
-    const m = parseInt(mStr, 10) - 1;
-    const d = parseInt(dStr, 10);
-
-    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
-
-    const baseOr = [
-      { assignedTo: staffId },
+    const statistics = [
       {
-        recipientRole: { $regex: /^staff$/i },
-        recipientId: staffId,
-        sourceRole: { $regex: /^student$/i },
+        icon: "Users",
+        value: `${studentCount.toLocaleString()}+`,
+        label: "Students",
+      },
+      {
+        icon: "GraduationCap",
+        value: `${deanCount.toLocaleString()}+`,
+        label: "Deans",
+      },
+      {
+        icon: "Target",
+        value: `${hodCount.toLocaleString()}+`,
+        label: "HODs",
+      },
+      {
+        icon: "BookOpen",
+        value: `${staffCount.toLocaleString()}+`,
+        label: "Staff",
+      },
+      {
+        icon: "Award",
+        value: `${yearsOfExcellence}+`,
+        label: "Years of Excellence",
       },
     ];
 
-    const base = {
-      isDeleted: { $ne: true },
-      $or: baseOr,
-    };
-    if (status && status !== "all") base.status = status;
-    if (priority && priority !== "all") base.priority = priority;
-    if (categories && categories.length) base.category = { $in: categories };
-
-    const dateFilter =
-      viewType === "submission"
-        ? {
-            $or: [
-              { createdAt: { $gte: dayStart, $lte: dayEnd } },
-              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
-            ],
-          }
-        : { deadline: { $gte: dayStart, $lte: dayEnd } };
-
-    const items = await Complaint.find({ ...base, ...dateFilter })
-      .select(
-        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo recipientRole recipientId"
-      )
-      .populate("submittedBy", "name email")
-      .populate("assignedTo", "name role")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.status(200).json(items || []);
+    res.status(200).json({ statistics });
   } catch (err) {
-    console.error("getStaffCalendarDay error:", err?.message || err);
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch staff calendar day complaints" });
+    console.error("getUniversityStatistics error:", err?.message || err);
+    res.status(500).json({ error: "Failed to fetch university statistics" });
   }
 };
 
-// HoD calendar day list: complaints in scope for this HOD for a specific date
-export const getHodCalendarDay = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "hod") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-  const hodId = new mongoose.Types.ObjectId(String(user._id));
-    const department = user.department || null;
-
-    const status = req.query.status || null; // optional exact match
-    const priority = req.query.priority || null; // optional exact match
-    const categoriesParam = req.query.categories; // csv or array
-    const categories = Array.isArray(categoriesParam)
-      ? categoriesParam
-      : typeof categoriesParam === "string" && categoriesParam.length
-      ? categoriesParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-
-    const viewType =
-      req.query.viewType === "deadline" ? "deadline" : "submission";
-    const dateStr = String(req.query.date || ""); // yyyy-mm-dd
-    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
-      return res.status(400).json({ error: "Invalid or missing date" });
-    }
-
-    const [yStr, mStr, dStr] = dateStr.split("-");
-    const y = parseInt(yStr, 10);
-    const m = parseInt(mStr, 10) - 1;
-    const d = parseInt(dStr, 10);
-
-    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
-
-    // Latest HOD assignment ownership
-    const latestHodAssignments = await ActivityLog.aggregate([
-      {
-        $match: {
-          role: { $regex: /^hod$/i },
-          action: { $in: ["Assigned by HOD", "Reassigned by HOD"] },
-        },
-      },
-      { $sort: { complaint: 1, timestamp: -1 } },
-      {
-        $group: {
-          _id: "$complaint",
-          latestUser: { $first: "$user" },
-          latestTs: { $first: "$timestamp" },
-        },
-      },
-      { $match: { latestUser: hodId } },
-      { $project: { _id: 0, complaint: "$_id" } },
-    ]);
-    const managedByThisHodIds = new Set(
-      (latestHodAssignments || []).map((r) => String(r.complaint))
-    );
-
-    const baseOr = [
-      { assignedTo: hodId },
-      {
-        _id: {
-          $in: Array.from(managedByThisHodIds).map((id) =>
-            mongoose.Types.ObjectId(id)
-          ),
-        },
-      },
-    ];
-
-    const base = {
-      isDeleted: { $ne: true },
-      $or: baseOr,
-    };
-    if (department) base.department = department;
-    if (status && status !== "all") base.status = status;
-    if (priority && priority !== "all") base.priority = priority;
-    if (categories && categories.length) base.category = { $in: categories };
-
-    const dateFilter =
-      viewType === "submission"
-        ? {
-            $or: [
-              { createdAt: { $gte: dayStart, $lte: dayEnd } },
-              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
-            ],
-          }
-        : { deadline: { $gte: dayStart, $lte: dayEnd } };
-
-    const items = await Complaint.find({ ...base, ...dateFilter })
-      .select(
-        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo"
-      )
-      .populate("submittedBy", "name email")
-      .populate("assignedTo", "name role")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.status(200).json(items || []);
-  } catch (err) {
-    console.error("getHodCalendarDay error:", err?.message || err);
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch HOD calendar day complaints" });
-  }
-};
-
-// ===================== NEW: Comprehensive Analytics APIs =====================
-
-// Admin Analytics Summary
-export const getAdminAnalyticsSummary = async (req, res) => {
+// Admin Monthly Trends (submitted, resolved, pending, avgResolutionTime over recent months)
+export const getAdminMonthlyTrends = async (req, res) => {
   try {
     const user = req.user;
     if (!user || String(user.role).toLowerCase() !== "admin") {
       return res.status(403).json({ error: "Access denied" });
     }
+    const monthsParam = parseInt(req.query.months, 10);
+    const months = isNaN(monthsParam) || monthsParam <= 0 ? 6 : monthsParam; // default 6 months
+    const now = new Date();
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth() - (months - 1),
+      1,
+      0,
+      0,
+      0,
+      0
+    );
 
-    // Get basic stats
-    const [
-      totalComplaints,
-      resolvedComplaints,
-      pendingComplaints,
-      overdueComplaints,
-    ] = await Promise.all([
-      Complaint.countDocuments({ isDeleted: { $ne: true } }),
-      Complaint.countDocuments({
-        status: "Resolved",
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({ status: "Pending", isDeleted: { $ne: true } }),
-      Complaint.countDocuments({
-        status: { $nin: ["Resolved", "Closed"] },
-        deadline: { $lt: new Date() },
-        isDeleted: { $ne: true },
-      }),
+    // Aggregate submitted/resolved/pending and resolution time
+    const agg = await Complaint.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: start },
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+      },
+      {
+        $project: {
+          createdAt: 1,
+          status: 1,
+          updatedAt: 1,
+          month: { $month: "$createdAt" },
+          year: { $year: "$createdAt" },
+          resolutionDays: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$status", "Resolved"] },
+                  { $ne: ["$createdAt", null] },
+                  { $ne: ["$updatedAt", null] },
+                ],
+              },
+              {
+                $divide: [
+                  { $subtract: ["$updatedAt", "$createdAt"] },
+                  1000 * 60 * 60 * 24,
+                ],
+              },
+              0,
+            ],
+          },
+          pendingCount: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          resolvedCount: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+        },
+      },
+      {
+        $group: {
+          _id: { year: "$year", month: "$month" },
+          submitted: { $sum: 1 },
+          resolved: { $sum: "$resolvedCount" },
+          pending: { $sum: "$pendingCount" },
+          totalResolutionDays: { $sum: "$resolutionDays" },
+          resolvedCount: { $sum: "$resolvedCount" },
+        },
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
 
-    // Calculate resolution rate
-    const resolutionRate =
-      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
-
-    // Get average resolution time (in days)
-    const resolvedComplaintsWithTimes = await Complaint.find({
-      status: "Resolved",
-      createdAt: { $exists: true },
-      updatedAt: { $exists: true },
-      isDeleted: { $ne: true },
-    }).select("createdAt updatedAt");
-
-    let totalResolutionTime = 0;
-    let resolvedCount = 0;
-
-    resolvedComplaintsWithTimes.forEach((complaint) => {
-      if (complaint.createdAt && complaint.updatedAt) {
-        const resolutionTime = complaint.updatedAt - complaint.createdAt;
-        totalResolutionTime += resolutionTime;
-        resolvedCount++;
-      }
+    const data = agg.map((r) => {
+      const monthNames = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      const avgResolutionTime =
+        r.resolvedCount > 0 ? r.totalResolutionDays / r.resolvedCount : 0;
+      return {
+        month: monthNames[r._id.month - 1],
+        year: r._id.year,
+        submitted: r.submitted,
+        resolved: r.resolved,
+        pending: r.pending,
+        avgResolutionTime: Number(avgResolutionTime.toFixed(2)),
+      };
     });
 
-    const avgResolutionTime =
-      resolvedCount > 0
-        ? totalResolutionTime / resolvedCount / (1000 * 60 * 60 * 24)
-        : 0;
-
-    // Get user satisfaction data
-    const complaintsWithFeedback = await Complaint.find({
-      "feedback.rating": { $exists: true },
-      isDeleted: { $ne: true },
-    }).select("feedback.rating");
-
-    let totalRating = 0;
-    let totalReviews = 0;
-
-    complaintsWithFeedback.forEach((complaint) => {
-      if (complaint.feedback && typeof complaint.feedback.rating === "number") {
-        totalRating += complaint.feedback.rating;
-        totalReviews++;
-      }
-    });
-
-    const userSatisfaction = totalReviews > 0 ? totalRating / totalReviews : 0;
-
-    res.status(200).json({
-      totalComplaints,
-      resolvedComplaints,
-      pendingComplaints,
-      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10, // Round to 1 decimal
-      resolutionRate: Math.round(resolutionRate * 10) / 10,
-      userSatisfaction: Math.round(userSatisfaction * 10) / 10,
-      totalReviews,
-      overdueComplaints,
-    });
+    return res.status(200).json({ months: data.length, data });
   } catch (err) {
-    console.error("getAdminAnalyticsSummary error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch admin analytics summary" });
+    console.error("getAdminMonthlyTrends error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin monthly trends" });
   }
 };
 
@@ -1944,8 +1629,7 @@ export const getAdminPriorityDistribution = async (req, res) => {
     if (!user || String(user.role).toLowerCase() !== "admin") {
       return res.status(403).json({ error: "Access denied" });
     }
-
-    const priorityResults = await Complaint.aggregate([
+    const priorityAgg = await Complaint.aggregate([
       {
         $match: {
           $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
@@ -1953,29 +1637,24 @@ export const getAdminPriorityDistribution = async (req, res) => {
       },
       {
         $group: {
-          _id: {
-            $cond: [{ $ifNull: ["$priority", false] }, "$priority", "Unknown"],
-          },
+          _id: { $ifNull: ["$priority", "Unknown"] },
           count: { $sum: 1 },
         },
       },
       { $sort: { count: -1 } },
     ]);
-
-    const total = priorityResults.reduce((acc, r) => acc + (r.count || 0), 0);
-
-    const priorities = priorityResults.map((result) => ({
-      priority: result._id,
-      count: result.count,
-      percentage:
-        total > 0 ? Math.round((result.count / total) * 100 * 10) / 10 : 0,
-      color: getPriorityColor(result._id),
+    const total = priorityAgg.reduce((a, r) => a + (r.count || 0), 0);
+    const priorities = priorityAgg.map((r) => ({
+      priority: r._id,
+      count: r.count,
+      percentage: total ? Number(((r.count / total) * 100).toFixed(1)) : 0,
     }));
-
-    res.status(200).json({ priorities });
+    return res.status(200).json({ total, priorities });
   } catch (err) {
     console.error("getAdminPriorityDistribution error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch priority distribution" });
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin priority distribution" });
   }
 };
 
@@ -1986,8 +1665,7 @@ export const getAdminStatusDistribution = async (req, res) => {
     if (!user || String(user.role).toLowerCase() !== "admin") {
       return res.status(403).json({ error: "Access denied" });
     }
-
-    const statusResults = await Complaint.aggregate([
+    const statusAgg = await Complaint.aggregate([
       {
         $match: {
           $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
@@ -1995,150 +1673,226 @@ export const getAdminStatusDistribution = async (req, res) => {
       },
       {
         $group: {
-          _id: {
-            $cond: [{ $ifNull: ["$status", false] }, "$status", "Unknown"],
-          },
+          _id: { $ifNull: ["$status", "Unknown"] },
           count: { $sum: 1 },
         },
       },
       { $sort: { count: -1 } },
     ]);
-
-    const total = statusResults.reduce((acc, r) => acc + (r.count || 0), 0);
-
-    const statuses = statusResults.map((result) => ({
-      status: result._id,
-      count: result.count,
-      percentage:
-        total > 0 ? Math.round((result.count / total) * 100 * 10) / 10 : 0,
-      color: getStatusColor(result._id),
+    const total = statusAgg.reduce((a, r) => a + (r.count || 0), 0);
+    const statuses = statusAgg.map((r) => ({
+      status: r._id,
+      count: r.count,
+      percentage: total ? Number(((r.count / total) * 100).toFixed(1)) : 0,
     }));
-
-    res.status(200).json({ statuses });
+    return res.status(200).json({ total, statuses });
   } catch (err) {
     console.error("getAdminStatusDistribution error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch status distribution" });
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin status distribution" });
   }
 };
 
-// Admin Monthly Trends
-export const getAdminMonthlyTrends = async (req, res) => {
+// Dean Analytics Monthly Trends (submitted, resolved, pending + avgResolutionTime)
+export const getDeanAnalyticsMonthlyTrends = async (req, res) => {
   try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const months = parseInt(req.query.months) || 6;
-    const year = parseInt(req.query.year) || new Date().getFullYear();
-
-    const startDate = new Date(year, new Date().getMonth() - months + 1, 1);
-    const endDate = new Date(
-      year,
-      new Date().getMonth() + 1,
+    const monthsParam = parseInt(req.query.months, 10);
+    const months = isNaN(monthsParam) || monthsParam <= 0 ? 6 : monthsParam;
+    const now = new Date();
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth() - (months - 1),
+      1,
       0,
-      23,
-      59,
-      59,
-      999
+      0,
+      0,
+      0
     );
 
-    const monthlyData = await Complaint.aggregate([
+    // Charts dataset: global complaints excluding admin-targeted items
+    const chartsMatch = buildGlobalMinusAdminMatch({
+      createdAt: { $gte: start },
+    });
+
+    const agg = await Complaint.aggregate([
+      { $match: chartsMatch },
       {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        $project: {
+          createdAt: 1,
+          status: 1,
+          updatedAt: 1,
+          month: { $month: "$createdAt" },
+          year: { $year: "$createdAt" },
+          resolutionDays: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$status", "Resolved"] },
+                  { $ne: ["$createdAt", null] },
+                  { $ne: ["$updatedAt", null] },
+                ],
+              },
+              {
+                $divide: [
+                  { $subtract: ["$updatedAt", "$createdAt"] },
+                  1000 * 60 * 60 * 24,
+                ],
+              },
+              0,
+            ],
+          },
+          pendingCount: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          resolvedCount: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
         },
       },
       {
         $group: {
-          _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-          },
+          _id: { year: "$year", month: "$month" },
           submitted: { $sum: 1 },
-          resolved: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
-            },
-          },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
-            },
-          },
-          totalResolutionTime: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ne: ["$createdAt", null] },
-                    { $ne: ["$updatedAt", null] },
-                  ],
-                },
-                {
-                  $divide: [
-                    { $subtract: ["$updatedAt", "$createdAt"] },
-                    1000 * 60 * 60 * 24, // Convert to days
-                  ],
-                },
-                0,
-              ],
-            },
-          },
-          resolvedCount: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
-            },
-          },
+          resolved: { $sum: "$resolvedCount" },
+          pending: { $sum: "$pendingCount" },
+          totalResolutionDays: { $sum: "$resolutionDays" },
+          resolvedCount: { $sum: "$resolvedCount" },
         },
       },
-      {
-        $project: {
-          month: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$_id.month", 1] }, then: "Jan" },
-                { case: { $eq: ["$_id.month", 2] }, then: "Feb" },
-                { case: { $eq: ["$_id.month", 3] }, then: "Mar" },
-                { case: { $eq: ["$_id.month", 4] }, then: "Apr" },
-                { case: { $eq: ["$_id.month", 5] }, then: "May" },
-                { case: { $eq: ["$_id.month", 6] }, then: "Jun" },
-                { case: { $eq: ["$_id.month", 7] }, then: "Jul" },
-                { case: { $eq: ["$_id.month", 8] }, then: "Aug" },
-                { case: { $eq: ["$_id.month", 9] }, then: "Sep" },
-                { case: { $eq: ["$_id.month", 10] }, then: "Oct" },
-                { case: { $eq: ["$_id.month", 11] }, then: "Nov" },
-                { case: { $eq: ["$_id.month", 12] }, then: "Dec" },
-              ],
-              default: "Unknown",
-            },
-          },
-          year: "$_id.year",
-          submitted: 1,
-          resolved: 1,
-          pending: 1,
-          avgResolutionTime: {
-            $cond: [
-              { $gt: ["$resolvedCount", 0] },
-              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
-              0,
-            ],
-          },
-        },
-      },
-      { $sort: { year: 1, "_id.month": 1 } },
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
 
-    res.status(200).json({ data: monthlyData });
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const data = agg.map((r) => {
+      const avgResolutionTime =
+        r.resolvedCount > 0 ? r.totalResolutionDays / r.resolvedCount : 0;
+      return {
+        month: monthNames[r._id.month - 1],
+        year: r._id.year,
+        submitted: r.submitted,
+        resolved: r.resolved,
+        pending: r.pending,
+        avgResolutionTime: Number(avgResolutionTime.toFixed(2)),
+      };
+    });
+
+    return res.status(200).json({ months: data.length, data });
   } catch (err) {
-    console.error("getAdminMonthlyTrends error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch monthly trends" });
+    console.error("getDeanAnalyticsMonthlyTrends error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean monthly trends" });
   }
 };
 
-// Admin Department Performance
+// Charts: Global dataset excluding only admin-targeted items
+function buildGlobalMinusAdminMatch(extra = {}) {
+  return {
+    ...extra,
+    $and: [
+      { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
+      {
+        $nor: [
+          { recipientRole: "admin" },
+          { submittedTo: { $regex: /admin/i } },
+        ],
+      },
+    ],
+  };
+}
+
+export const getDeanChartCategoryDistribution = async (_req, res) => {
+  try {
+    const match = buildGlobalMinusAdminMatch();
+    const agg = await Complaint.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $ifNull: ["$category", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+    const total = agg.reduce((a, r) => a + (r.count || 0), 0);
+    const categories = agg.map((r) => ({
+      category: r._id,
+      count: r.count,
+      percentage: total ? Number(((r.count / total) * 100).toFixed(1)) : 0,
+    }));
+    return res.status(200).json({ total, categories });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean chart categories" });
+  }
+};
+
+export const getDeanChartPriorityDistribution = async (_req, res) => {
+  try {
+    const match = buildGlobalMinusAdminMatch();
+    const agg = await Complaint.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $ifNull: ["$priority", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+    const total = agg.reduce((a, r) => a + (r.count || 0), 0);
+    const priorities = agg.map((r) => ({
+      priority: r._id,
+      count: r.count,
+      percentage: total ? Number(((r.count / total) * 100).toFixed(1)) : 0,
+    }));
+    return res.status(200).json({ total, priorities });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean chart priorities" });
+  }
+};
+
+export const getDeanChartStatusDistribution = async (_req, res) => {
+  try {
+    const match = buildGlobalMinusAdminMatch();
+    const agg = await Complaint.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $ifNull: ["$status", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+    const total = agg.reduce((a, r) => a + (r.count || 0), 0);
+    const statuses = agg.map((r) => ({
+      status: r._id,
+      count: r.count,
+      percentage: total ? Number(((r.count / total) * 100).toFixed(1)) : 0,
+    }));
+    return res.status(200).json({ total, statuses });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean chart statuses" });
+  }
+};
+
+// Admin Department Performance: global department-level aggregation (admin-only)
 export const getAdminDepartmentPerformance = async (req, res) => {
   try {
     const user = req.user;
@@ -2146,21 +1900,99 @@ export const getAdminDepartmentPerformance = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const departmentData = await Complaint.aggregate([
+    // Time window: month/year OR from/to, default last 90 days
+    const month =
+      req.query.month !== undefined ? parseInt(req.query.month, 10) : undefined; // 0-11
+    const year =
+      req.query.year !== undefined ? parseInt(req.query.year, 10) : undefined;
+    const fromStr = req.query.from && String(req.query.from);
+    const toStr = req.query.to && String(req.query.to);
+    const now = new Date();
+    let start, end;
+    if (!isNaN(month) && !isNaN(year)) {
+      start = new Date(year, month, 1, 0, 0, 0, 0);
+      end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    } else if (fromStr || toStr) {
+      start = fromStr
+        ? new Date(fromStr + "T00:00:00.000Z")
+        : new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - 90,
+            0,
+            0,
+            0,
+            0
+          );
+      end = toStr ? new Date(toStr + "T23:59:59.999Z") : now;
+    } else {
+      start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 90,
+        0,
+        0,
+        0,
+        0
+      );
+      end = now;
+    }
+
+    // Optional filters
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    // Apply the SAME exclusion logic as Dean (exclude student->admin complaints) for parity
+    const baseExtra = {
+      createdAt: { $gte: start, $lte: end },
+      ...(status && status !== "all" ? { status } : {}),
+      ...(priority && priority !== "all" ? { priority } : {}),
+      ...(categories.length ? { category: { $in: categories } } : {}),
+    };
+    const match = buildGlobalMinusAdminMatch(baseExtra);
+
+    const nowIso = new Date().toISOString();
+    const agg = await Complaint.aggregate([
+      { $match: match },
       {
-        $match: {
-          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        $project: {
+          department: { $ifNull: ["$department", "Unknown"] },
+          status: { $ifNull: ["$status", "Pending"] },
+          deadline: 1,
+          createdAt: 1,
+          resolvedAt: { $ifNull: ["$resolvedAt", "$updatedAt"] },
+          resolutionDays: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$status", "Resolved"] },
+                  { $ne: ["$createdAt", null] },
+                  { $ne: ["$resolvedAt", null] },
+                ],
+              },
+              {
+                $divide: [
+                  { $subtract: ["$resolvedAt", "$createdAt"] },
+                  1000 * 60 * 60 * 24,
+                ],
+              },
+              null,
+            ],
+          },
         },
       },
       {
         $group: {
-          _id: {
-            $cond: [
-              { $ifNull: ["$department", false] },
-              "$department",
-              "Unknown",
-            ],
-          },
+          _id: "$department",
           totalComplaints: { $sum: 1 },
           resolvedComplaints: {
             $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
@@ -2168,661 +2000,27 @@ export const getAdminDepartmentPerformance = async (req, res) => {
           pendingComplaints: {
             $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
           },
-          totalResolutionTime: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ne: ["$createdAt", null] },
-                    { $ne: ["$updatedAt", null] },
-                  ],
-                },
-                {
-                  $divide: [
-                    { $subtract: ["$updatedAt", "$createdAt"] },
-                    1000 * 60 * 60 * 24,
-                  ],
-                },
-                0,
-              ],
-            },
-          },
-          resolvedCount: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-        },
-      },
-      {
-        $project: {
-          department: "$_id",
-          totalComplaints: 1,
-          resolvedComplaints: 1,
-          pendingComplaints: 1,
-          avgResolutionTime: {
-            $cond: [
-              { $gt: ["$resolvedCount", 0] },
-              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
-              0,
-            ],
-          },
-          successRate: {
-            $cond: [
-              { $gt: ["$totalComplaints", 0] },
-              {
-                $multiply: [
-                  { $divide: ["$resolvedComplaints", "$totalComplaints"] },
-                  100,
-                ],
-              },
-              0,
-            ],
-          },
-        },
-      },
-      { $sort: { totalComplaints: -1 } },
-    ]);
-
-    // Get staff count per department
-    const staffCounts = await User.aggregate([
-      {
-        $match: {
-          role: "staff",
-          isActive: true,
-        },
-      },
-      {
-        $group: {
-          _id: "$department",
-          staffCount: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const staffCountMap = {};
-    staffCounts.forEach((item) => {
-      staffCountMap[item._id] = item.staffCount;
-    });
-
-    const departments = departmentData.map((dept) => ({
-      ...dept,
-      staffCount: staffCountMap[dept.department] || 0,
-      avgResolutionTime: Math.round(dept.avgResolutionTime * 10) / 10,
-      successRate: Math.round(dept.successRate * 10) / 10,
-    }));
-
-    res.status(200).json({ departments });
-  } catch (err) {
-    console.error("getAdminDepartmentPerformance error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch department performance" });
-  }
-};
-
-// Admin Staff Performance
-export const getAdminStaffPerformance = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    // Fetch all staff across all departments
-    const staff = await User.find({ role: "staff", isActive: true })
-      .select("_id name email department")
-      .lean();
-
-    if (!staff.length) return res.status(200).json({ staff: [] });
-
-    const staffIds = staff.map((s) => s._id);
-
-    const agg = await Complaint.aggregate([
-      {
-        $match: {
-          assignedTo: { $in: staffIds },
-          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
-        },
-      },
-      {
-        $group: {
-          _id: "$assignedTo",
-          totalAssigned: { $sum: 1 },
-          pending: {
-            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-          },
           inProgress: {
-            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
-          },
-          resolved: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-          sumResolutionMs: {
             $sum: {
               $cond: [
                 {
-                  $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ne: ["$updatedAt", null] },
-                    { $ne: ["$createdAt", null] },
+                  $in: [
+                    "$status",
+                    ["Accepted", "Assigned", "In Progress", "Under Review"],
                   ],
                 },
-                { $subtract: ["$updatedAt", "$createdAt"] },
+                1,
                 0,
               ],
             },
           },
-          resolvedCount: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-          ratingSum: {
-            $sum: {
-              $cond: [
-                { $ifNull: ["$feedback.rating", false] },
-                "$feedback.rating",
-                0,
-              ],
-            },
-          },
-          ratingCount: {
-            $sum: {
-              $cond: [{ $ifNull: ["$feedback.rating", false] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
-
-    const perfMap = new Map();
-    agg.forEach((r) => perfMap.set(String(r._id), r));
-
-    const results = staff.map((s) => {
-      const stats = perfMap.get(String(s._id)) || {};
-      const totalAssigned = stats.totalAssigned || 0;
-      const resolved = stats.resolved || 0;
-      const successRate = totalAssigned
-        ? Number(((resolved / totalAssigned) * 100).toFixed(2))
-        : 0;
-      const avgResolutionHours = stats.resolvedCount
-        ? Number(
-            (stats.sumResolutionMs / stats.resolvedCount / 3600000).toFixed(2)
-          )
-        : 0;
-      const avgRating = stats.ratingCount
-        ? Number((stats.ratingSum / stats.ratingCount).toFixed(2))
-        : 0;
-      return {
-        staffId: s._id,
-        name: s.name || s.email,
-        email: s.email,
-        department: s.department,
-        totalAssigned,
-        pending: stats.pending || 0,
-        inProgress: stats.inProgress || 0,
-        resolved,
-        successRate,
-        avgResolutionHours,
-        avgRating,
-      };
-    });
-
-    res.status(200).json({ staff: results });
-  } catch (err) {
-    console.error("getAdminStaffPerformance error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch staff performance" });
-  }
-};
-
-// Dean Analytics Summary
-export const getDeanAnalyticsSummary = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    // Get complaints not submitted directly to admin (dean-visible)
-    const [
-      totalComplaints,
-      resolvedComplaints,
-      pendingComplaints,
-      overdueComplaints,
-    ] = await Promise.all([
-      Complaint.countDocuments({
-        submittedTo: { $ne: "admin" },
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({
-        status: "Resolved",
-        submittedTo: { $ne: "admin" },
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({
-        status: "Pending",
-        submittedTo: { $ne: "admin" },
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({
-        status: { $nin: ["Resolved", "Closed"] },
-        deadline: { $lt: new Date() },
-        submittedTo: { $ne: "admin" },
-        isDeleted: { $ne: true },
-      }),
-    ]);
-
-    const resolutionRate =
-      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
-
-    // Get average resolution time
-    const resolvedComplaintsWithTimes = await Complaint.find({
-      status: "Resolved",
-      submittedTo: { $ne: "admin" },
-      createdAt: { $exists: true },
-      updatedAt: { $exists: true },
-      isDeleted: { $ne: true },
-    }).select("createdAt updatedAt");
-
-    let totalResolutionTime = 0;
-    let resolvedCount = 0;
-
-    resolvedComplaintsWithTimes.forEach((complaint) => {
-      if (complaint.createdAt && complaint.updatedAt) {
-        const resolutionTime = complaint.updatedAt - complaint.createdAt;
-        totalResolutionTime += resolutionTime;
-        resolvedCount++;
-      }
-    });
-
-    const avgResolutionTime =
-      resolvedCount > 0
-        ? totalResolutionTime / resolvedCount / (1000 * 60 * 60 * 24)
-        : 0;
-
-    // Get user satisfaction
-    const complaintsWithFeedback = await Complaint.find({
-      "feedback.rating": { $exists: true },
-      submittedTo: { $ne: "admin" },
-      isDeleted: { $ne: true },
-    }).select("feedback.rating");
-
-    let totalRating = 0;
-    let totalReviews = 0;
-
-    complaintsWithFeedback.forEach((complaint) => {
-      if (complaint.feedback && typeof complaint.feedback.rating === "number") {
-        totalRating += complaint.feedback.rating;
-        totalReviews++;
-      }
-    });
-
-    const userSatisfaction = totalReviews > 0 ? totalRating / totalReviews : 0;
-
-    // Get departments managed (HoDs under this dean)
-    const departmentsManaged = await User.countDocuments({
-      role: "hod",
-      isActive: true,
-    });
-
-    res.status(200).json({
-      totalComplaints,
-      resolvedComplaints,
-      pendingComplaints,
-      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10,
-      resolutionRate: Math.round(resolutionRate * 10) / 10,
-      userSatisfaction: Math.round(userSatisfaction * 10) / 10,
-      totalReviews,
-      overdueComplaints,
-      departmentsManaged,
-    });
-  } catch (err) {
-    console.error("getDeanAnalyticsSummary error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch dean analytics summary" });
-  }
-};
-
-// Dean Department Overview
-export const getDeanDepartmentOverview = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    // Get HoDs and their departments
-    const hods = await User.find({
-      role: "hod",
-      isActive: true,
-    }).select("name department");
-
-    const departments = [];
-
-    for (const hod of hods) {
-      const deptStats = await Complaint.aggregate([
-        {
-          $match: {
-            department: hod.department,
-            submittedTo: { $ne: "admin" },
-            $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalComplaints: { $sum: 1 },
-            resolvedComplaints: {
-              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-            },
-            pendingComplaints: {
-              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-            },
-            totalResolutionTime: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ["$status", "Resolved"] },
-                      { $ne: ["$createdAt", null] },
-                      { $ne: ["$updatedAt", null] },
-                    ],
-                  },
-                  {
-                    $divide: [
-                      { $subtract: ["$updatedAt", "$createdAt"] },
-                      1000 * 60 * 60 * 24,
-                    ],
-                  },
-                  0,
-                ],
-              },
-            },
-            resolvedCount: {
-              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-            },
-          },
-        },
-      ]);
-
-      const staffCount = await User.countDocuments({
-        role: "staff",
-        department: hod.department,
-        isActive: true,
-      });
-
-      const stats = deptStats[0] || {
-        totalComplaints: 0,
-        resolvedComplaints: 0,
-        pendingComplaints: 0,
-        totalResolutionTime: 0,
-        resolvedCount: 0,
-      };
-
-      departments.push({
-        department: hod.department,
-        hodName: hod.name || "Unknown",
-        totalComplaints: stats.totalComplaints,
-        resolvedComplaints: stats.resolvedComplaints,
-        pendingComplaints: stats.pendingComplaints,
-        staffCount,
-        avgResolutionTime:
-          stats.resolvedCount > 0
-            ? Math.round(
-                (stats.totalResolutionTime / stats.resolvedCount) * 10
-              ) / 10
-            : 0,
-      });
-    }
-
-    res.status(200).json({ departments });
-  } catch (err) {
-    console.error("getDeanDepartmentOverview error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch department overview" });
-  }
-};
-
-// Dean Monthly Trends
-export const getDeanAnalyticsMonthlyTrends = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const months = parseInt(req.query.months) || 6;
-    const year = parseInt(req.query.year) || new Date().getFullYear();
-
-    const startDate = new Date(year, new Date().getMonth() - months + 1, 1);
-    const endDate = new Date(
-      year,
-      new Date().getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999
-    );
-
-    const monthlyData = await Complaint.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-          submittedTo: { $ne: "admin" },
-          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
-        },
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-          },
-          submitted: { $sum: 1 },
-          resolved: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
-            },
-          },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
-            },
-          },
-          totalResolutionTime: {
+          overdue: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ne: ["$createdAt", null] },
-                    { $ne: ["$updatedAt", null] },
-                  ],
-                },
-                {
-                  $divide: [
-                    { $subtract: ["$updatedAt", "$createdAt"] },
-                    1000 * 60 * 60 * 24,
-                  ],
-                },
-                0,
-              ],
-            },
-          },
-          resolvedCount: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          month: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$_id.month", 1] }, then: "Jan" },
-                { case: { $eq: ["$_id.month", 2] }, then: "Feb" },
-                { case: { $eq: ["$_id.month", 3] }, then: "Mar" },
-                { case: { $eq: ["$_id.month", 4] }, then: "Apr" },
-                { case: { $eq: ["$_id.month", 5] }, then: "May" },
-                { case: { $eq: ["$_id.month", 6] }, then: "Jun" },
-                { case: { $eq: ["$_id.month", 7] }, then: "Jul" },
-                { case: { $eq: ["$_id.month", 8] }, then: "Aug" },
-                { case: { $eq: ["$_id.month", 9] }, then: "Sep" },
-                { case: { $eq: ["$_id.month", 10] }, then: "Oct" },
-                { case: { $eq: ["$_id.month", 11] }, then: "Nov" },
-                { case: { $eq: ["$_id.month", 12] }, then: "Dec" },
-              ],
-              default: "Unknown",
-            },
-          },
-          year: "$_id.year",
-          submitted: 1,
-          resolved: 1,
-          pending: 1,
-          avgResolutionTime: {
-            $cond: [
-              { $gt: ["$resolvedCount", 0] },
-              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
-              0,
-            ],
-          },
-        },
-      },
-      { $sort: { year: 1, "_id.month": 1 } },
-    ]);
-
-    res.status(200).json({ data: monthlyData });
-  } catch (err) {
-    console.error("getDeanAnalyticsMonthlyTrends error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch dean monthly trends" });
-  }
-};
-
-// Dean Department Performance (per-department aggregates, dean-visible only)
-export const getDeanDepartmentPerformance = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    // Optional date filters (createdAt range)
-    const from = req.query.from
-      ? new Date(String(req.query.from) + "T00:00:00.000Z")
-      : null;
-    const to = req.query.to
-      ? new Date(String(req.query.to) + "T23:59:59.999Z")
-      : null;
-    const createdRange = {};
-    if (from) createdRange.$gte = from;
-    if (to) createdRange.$lte = to;
-
-    // Base dean-visible filter: exclude anything associated with Admin (directed to, assigned by, recipient role, or in assignment path), and exclude soft-deleted
-    const deanBase = {
-      $and: [
-        {
-          $or: [
-            { submittedTo: { $exists: false } },
-            { submittedTo: null },
-            { submittedTo: { $not: /admin/i } },
-          ],
-        },
-        {
-          $or: [
-            { assignedByRole: { $exists: false } },
-            { assignedByRole: null },
-            { assignedByRole: { $not: /admin/i } },
-          ],
-        },
-        {
-          $or: [
-            { recipientRole: { $exists: false } },
-            { recipientRole: null },
-            { recipientRole: { $not: /admin/i } },
-          ],
-        },
-        { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
-        { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
-      ],
-      ...(Object.keys(createdRange).length ? { createdAt: createdRange } : {}),
-    };
-
-    // Canonical department list (enforced)
-    const CANONICAL_DEPTS = [
-      "Information Technology",
-      "Information Science",
-      "Computer Science",
-      "Information System",
-    ];
-
-    // Aggregate per department core counts (normalized department)
-    const departmentAgg = await Complaint.aggregate([
-      { $match: deanBase },
-      {
-        $addFields: {
-          deptNorm: {
-            $switch: {
-              branches: [
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /information\s*technology/i,
-                    },
-                  },
-                  then: "Information Technology",
-                },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /information\s*science/i,
-                    },
-                  },
-                  then: "Information Science",
-                },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /computer\s*science/i,
-                    },
-                  },
-                  then: "Computer Science",
-                },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /information\s*system/i,
-                    },
-                  },
-                  then: "Information System",
-                },
-              ],
-              default: "Unknown",
-            },
-          },
-        },
-      },
-      {
-        $group: {
-          _id: "$deptNorm",
-          totalComplaints: { $sum: 1 },
-          resolvedComplaints: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-          pendingCount: {
-            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-          },
-          inProgressCount: {
-            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
-          },
-          // Overdue: deadline passed and not Resolved/Closed
-          overdueCount: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $ifNull: ["$deadline", false] },
-                    { $lt: ["$deadline", new Date()] },
+                    { $ne: ["$deadline", null] },
+                    { $lt: ["$deadline", { $toDate: nowIso }] },
                     { $not: [{ $in: ["$status", ["Resolved", "Closed"]] }] },
                   ],
                 },
@@ -2831,976 +2029,474 @@ export const getDeanDepartmentPerformance = async (req, res) => {
               ],
             },
           },
-          sumResolutionDays: {
+          totalResolutionDays: {
+            $sum: {
+              $cond: [{ $ne: ["$resolutionDays", null] }, "$resolutionDays", 0],
+            },
+          },
+          resolvedCount: {
+            $sum: { $cond: [{ $ne: ["$resolutionDays", null] }, 1, 0] },
+          },
+        },
+      },
+      { $sort: { totalComplaints: -1 } },
+    ]);
+
+    // Staff count per department (active, approved staff)
+    const staffAgg = await User.aggregate([
+      {
+        $match: {
+          role: "staff",
+          isActive: true,
+          isApproved: true,
+          $or: [
+            { isRejected: { $exists: false } },
+            { isRejected: { $ne: true } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { $ifNull: ["$department", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const staffCountByDept = new Map(
+      (staffAgg || []).map((r) => [String(r._id), Number(r.count || 0)])
+    );
+
+    const departments = (agg || []).map((r) => {
+      const total = r.totalComplaints || 0;
+      const resolved = r.resolvedComplaints || 0;
+      const successRate = total
+        ? Number(((resolved / total) * 100).toFixed(2))
+        : 0;
+      const avgResolutionTime =
+        r.resolvedCount > 0
+          ? Number((r.totalResolutionDays / r.resolvedCount).toFixed(2))
+          : 0;
+      const deptName = String(r._id);
+      return {
+        department: deptName,
+        totalComplaints: total,
+        resolvedComplaints: resolved,
+        pendingComplaints: r.pendingComplaints || 0,
+        inProgress: r.inProgress || 0,
+        overdue: r.overdue || 0,
+        staffCount: Number(staffCountByDept.get(deptName) || 0),
+        avgResolutionTime,
+        successRate,
+      };
+    });
+
+    const summary = departments.reduce(
+      (acc, d) => {
+        acc.total += d.totalComplaints;
+        acc.resolved += d.resolvedComplaints;
+        acc.pending += d.pendingComplaints;
+        acc.inProgress += d.inProgress || 0;
+        acc.overdue += d.overdue || 0;
+        return acc;
+      },
+      { total: 0, resolved: 0, pending: 0, inProgress: 0, overdue: 0 }
+    );
+
+    return res.status(200).json({
+      range: { start, end },
+      count: departments.length,
+      summary,
+      departments,
+      rows: departments, // backward-compat
+    });
+  } catch (err) {
+    console.error("getAdminDepartmentPerformance error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch admin department performance" });
+  }
+};
+
+// Dean Department Complaints: paginated list filtered by department/time/status/priority/categories
+export const getDeanDepartmentComplaints = async (req, res) => {
+  try {
+    // Time window selection (month/year or from/to, default last 90 days)
+    const month =
+      req.query.month !== undefined ? parseInt(req.query.month, 10) : undefined; // 0-11
+    const year =
+      req.query.year !== undefined ? parseInt(req.query.year, 10) : undefined;
+    const fromStr = req.query.from && String(req.query.from);
+    const toStr = req.query.to && String(req.query.to);
+    const now = new Date();
+    let start, end;
+    if (!isNaN(month) && !isNaN(year)) {
+      start = new Date(year, month, 1, 0, 0, 0, 0);
+      end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    } else if (fromStr || toStr) {
+      start = fromStr
+        ? new Date(fromStr + "T00:00:00.000Z")
+        : new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - 90,
+            0,
+            0,
+            0,
+            0
+          );
+      end = toStr ? new Date(toStr + "T23:59:59.999Z") : now;
+    } else {
+      start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 90,
+        0,
+        0,
+        0,
+        0
+      );
+      end = now;
+    }
+
+    // Filters
+    const status =
+      typeof req.query.status === "string" ? req.query.status : undefined;
+    const priority =
+      typeof req.query.priority === "string" ? req.query.priority : undefined;
+    const department =
+      typeof req.query.department === "string"
+        ? req.query.department
+        : undefined;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    // Pagination
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.max(
+      1,
+      Math.min(100, parseInt(String(req.query.limit || "20"), 10) || 20)
+    );
+    const skip = (page - 1) * limit;
+
+    // Build match with unified admin-targeted exclusion
+    const extra = { createdAt: { $gte: start, $lte: end } };
+    if (status && status !== "all") extra["status"] = status;
+    if (priority && priority !== "all") extra["priority"] = priority;
+    if (department && department !== "all") extra["department"] = department;
+    if (categories.length) extra["category"] = { $in: categories };
+    const match = buildGlobalMinusAdminMatch(extra);
+
+    const [total, docs] = await Promise.all([
+      Complaint.countDocuments(match),
+      Complaint.find(match)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select({
+          title: 1,
+          status: 1,
+          priority: 1,
+          department: 1,
+          category: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          deadline: 1,
+          complaintCode: 1,
+          submittedTo: 1,
+          sourceRole: 1,
+          recipientRole: 1,
+        })
+        .lean(),
+    ]);
+
+    const items = (docs || []).map((c) => ({
+      id: String(c._id),
+      complaintCode: c.complaintCode || null,
+      title: c.title || "Untitled Complaint",
+      status: c.status || "Pending",
+      priority: c.priority || "Medium",
+      department: c.department || "Unknown",
+      category: c.category || "General",
+      submittedDate: c.createdAt || null,
+      lastUpdated: c.updatedAt || null,
+      deadline: c.deadline || null,
+      submittedTo: c.submittedTo || null,
+      sourceRole: c.sourceRole || null,
+      recipientRole: c.recipientRole || null,
+    }));
+
+    return res.status(200).json({ items, total, page, pageSize: limit });
+  } catch (err) {
+    console.error("getDeanDepartmentComplaints error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean department complaints" });
+  }
+};
+
+// Dean Department Performance: global department-level aggregation
+export const getDeanDepartmentPerformance = async (req, res) => {
+  try {
+    // Time window: prefer month/year, otherwise optional from/to (YYYY-MM-DD), default last 90 days
+    const month =
+      req.query.month !== undefined ? parseInt(req.query.month, 10) : undefined; // 0-11
+    const year =
+      req.query.year !== undefined ? parseInt(req.query.year, 10) : undefined;
+    const fromStr = req.query.from && String(req.query.from);
+    const toStr = req.query.to && String(req.query.to);
+    const now = new Date();
+    let start, end;
+    if (!isNaN(month) && !isNaN(year)) {
+      start = new Date(year, month, 1, 0, 0, 0, 0);
+      end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    } else if (fromStr || toStr) {
+      start = fromStr
+        ? new Date(fromStr + "T00:00:00.000Z")
+        : new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - 90,
+            0,
+            0,
+            0,
+            0
+          );
+      end = toStr ? new Date(toStr + "T23:59:59.999Z") : now;
+    } else {
+      start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 90,
+        0,
+        0,
+        0,
+        0
+      );
+      end = now;
+    }
+
+    // Optional filters
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+    // Global dataset (same for all deans), aggregated by department
+    // Exclude only complaints sent to admin by a student
+    const baseExtra = {
+      createdAt: { $gte: start, $lte: end },
+    };
+    if (status && status !== "all") baseExtra.status = status;
+    if (priority && priority !== "all") baseExtra.priority = priority;
+    if (categories && categories.length)
+      baseExtra.category = { $in: categories };
+    const match = buildGlobalMinusAdminMatch(baseExtra);
+
+    const nowIso = new Date().toISOString();
+    const agg = await Complaint.aggregate([
+      { $match: match },
+      {
+        $project: {
+          department: { $ifNull: ["$department", "Unknown"] },
+          status: { $ifNull: ["$status", "Pending"] },
+          deadline: 1,
+        },
+      },
+      {
+        $group: {
+          _id: "$department",
+          totalComplaints: { $sum: 1 },
+          resolvedComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          pendingComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          inProgress: {
             $sum: {
               $cond: [
                 {
-                  $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ne: ["$createdAt", null] },
-                    { $ne: ["$updatedAt", null] },
+                  $in: [
+                    "$status",
+                    ["Accepted", "Assigned", "In Progress", "Under Review"],
                   ],
                 },
-                {
-                  $divide: [
-                    { $subtract: ["$updatedAt", "$createdAt"] },
-                    1000 * 60 * 60 * 24,
-                  ],
-                },
+                1,
                 0,
               ],
             },
           },
-          resolvedCountForAvg: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-        },
-      },
-    ]);
-
-    // Staff count per department (normalized)
-    const staffCounts = await User.aggregate([
-      { $match: { role: "staff", isActive: true } },
-      {
-        $addFields: {
-          deptNorm: {
-            $switch: {
-              branches: [
+          overdue: {
+            $sum: {
+              $cond: [
                 {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /information\s*technology/i,
-                    },
-                  },
-                  then: "Information Technology",
+                  $and: [
+                    { $ne: ["$deadline", null] },
+                    { $lt: ["$deadline", { $toDate: nowIso }] },
+                    { $not: [{ $in: ["$status", ["Resolved", "Closed"]] }] },
+                  ],
                 },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /information\s*science/i,
-                    },
-                  },
-                  then: "Information Science",
-                },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /computer\s*science/i,
-                    },
-                  },
-                  then: "Computer Science",
-                },
-                {
-                  case: {
-                    $regexMatch: {
-                      input: { $ifNull: ["$department", ""] },
-                      regex: /information\s*system/i,
-                    },
-                  },
-                  then: "Information System",
-                },
+                1,
+                0,
               ],
-              default: "Unknown",
             },
           },
         },
       },
-      { $group: { _id: "$deptNorm", staffCount: { $sum: 1 } } },
+      { $sort: { totalComplaints: -1 } },
     ]);
-    const staffCountMap = new Map();
-    staffCounts.forEach((s) => staffCountMap.set(String(s._id), s.staffCount));
 
-    // Resolve-by role using ActivityLog for resolved complaints (latest resolved log per complaint)
-    // First, get resolved complaints ids per department for deanBase
-    const resolvedComplaints = await Complaint.find({
-      ...deanBase,
-      status: "Resolved",
-    })
-      .select("_id department")
-      .lean();
-    const resolvedIds = resolvedComplaints.map((c) => c._id);
-    let resolvedRoleAgg = [];
-    if (resolvedIds.length) {
-      resolvedRoleAgg = await (
-        await mongoose.connection.db
-      )
-        .collection("activitylogs")
-        .aggregate([
-          {
-            $match: {
-              complaint: { $in: resolvedIds },
-              action: "Status Updated to Resolved",
-            },
-          },
-          { $sort: { timestamp: -1 } },
-          { $group: { _id: "$complaint", role: { $first: "$role" } } },
-        ])
-        .toArray();
-    }
-    const roleByComplaint = new Map();
-    resolvedRoleAgg.forEach((r) => roleByComplaint.set(String(r._id), r.role));
-    const deptResolvedBy = new Map(); // dept -> {hod, staff}
-    resolvedComplaints.forEach((c) => {
-      const name = c.department || "";
-      const dept = /information\s*technology/i.test(name)
-        ? "Information Technology"
-        : /information\s*science/i.test(name)
-        ? "Information Science"
-        : /computer\s*science/i.test(name)
-        ? "Computer Science"
-        : /information\s*system/i.test(name)
-        ? "Information System"
-        : "Unknown";
-      const role = roleByComplaint.get(String(c._id));
-      const cur = deptResolvedBy.get(dept) || { hod: 0, staff: 0 };
-      if (role === "hod") cur.hod += 1;
-      else if (role === "staff") cur.staff += 1;
-      else {
-        // count others (dean/admin) towards hod bucket for presentation if needed
-        // but we'll keep only hod/staff in our response
-      }
-      deptResolvedBy.set(dept, cur);
+    const departments = (agg || []).map((r) => {
+      const total = r.totalComplaints || 0;
+      const resolved = r.resolvedComplaints || 0;
+      const successRate = total
+        ? Number(((resolved / total) * 100).toFixed(2))
+        : 0;
+      return {
+        department: r._id,
+        totalComplaints: total,
+        resolvedComplaints: resolved,
+        pendingComplaints: r.pendingComplaints || 0,
+        inProgress: r.inProgress || 0,
+        overdue: r.overdue || 0,
+        resolvedHoD: 0,
+        resolvedStaff: 0,
+        staffCount: 0,
+        avgResolutionTime: 0,
+        successRate,
+      };
     });
 
-    // Restrict to canonical depts only and map rows
-    const departments = departmentAgg
-      .filter((row) => CANONICAL_DEPTS.includes(String(row._id)))
-      .map((row) => {
-        const department = String(row._id);
-        const totalComplaints = row.totalComplaints || 0;
-        const resolvedComplaints = row.resolvedComplaints || 0;
-        const pending = row.pendingCount || 0;
-        const inProgress = (row.inProgressCount || 0) + 0; // kept separate
-        const overdue = row.overdueCount || 0;
-        const staffCount = Number(staffCountMap.get(department) || 0);
-        const avgResolutionTime = row.resolvedCountForAvg
-          ? Math.round((row.sumResolutionDays / row.resolvedCountForAvg) * 10) /
-            10
-          : 0;
-        const successRate = totalComplaints
-          ? Math.round((resolvedComplaints / totalComplaints) * 100 * 10) / 10
-          : 0;
-        const rb = deptResolvedBy.get(department) || { hod: 0, staff: 0 };
-        return {
-          department,
-          totalComplaints,
-          resolvedComplaints,
-          pendingComplaints: pending,
-          inProgress,
-          overdue,
-          resolvedHoD: rb.hod || 0,
-          resolvedStaff: rb.staff || 0,
-          staffCount,
-          avgResolutionTime,
-          successRate,
-        };
-      });
-
-    // Ensure fixed order and include missing canonical depts with zeros
-    const mapByDept = new Map(departments.map((d) => [d.department, d]));
-    const ordered = CANONICAL_DEPTS.map(
-      (name) =>
-        mapByDept.get(name) || {
-          department: name,
-          totalComplaints: 0,
-          resolvedComplaints: 0,
-          pendingComplaints: 0,
-          inProgress: 0,
-          overdue: 0,
-          resolvedHoD: 0,
-          resolvedStaff: 0,
-          staffCount: Number(staffCountMap.get(name) || 0),
-          avgResolutionTime: 0,
-          successRate: 0,
-        }
+    const summary = departments.reduce(
+      (acc, d) => {
+        acc.total += d.totalComplaints;
+        acc.resolved += d.resolvedComplaints;
+        acc.pending += d.pendingComplaints;
+        acc.inProgress += d.inProgress;
+        acc.overdue += d.overdue;
+        return acc;
+      },
+      { total: 0, resolved: 0, pending: 0, inProgress: 0, overdue: 0 }
     );
 
-    res.status(200).json({ departments: ordered });
+    return res.status(200).json({
+      range: { start, end },
+      count: departments.length,
+      summary,
+      departments,
+      rows: departments, // backward-compat
+    });
   } catch (err) {
     console.error("getDeanDepartmentPerformance error:", err?.message || err);
-    res
+    return res
       .status(500)
       .json({ error: "Failed to fetch dean department performance" });
   }
 };
 
-// Dean Department Complaints (detail list for a department)
-export const getDeanDepartmentComplaints = async (req, res) => {
+// Dean Department Overview: counts by department with status/priority breakdown
+export const getDeanDepartmentOverview = async (req, res) => {
   try {
-    const user = req.user;
-    if (!user || !["admin", "dean"].includes(String(user.role).toLowerCase())) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const rawDept = String(req.query.department || "").trim();
-    if (!rawDept)
-      return res.status(400).json({ error: "department is required" });
-    // Normalize to canonical name
-    const canonical = /information\s*technology/i.test(rawDept)
-      ? "Information Technology"
-      : /information\s*science/i.test(rawDept)
-      ? "Information Science"
-      : /computer\s*science/i.test(rawDept)
-      ? "Computer Science"
-      : /information\s*system/i.test(rawDept)
-      ? "Information System"
-      : null;
-    if (!canonical)
-      return res.status(400).json({ error: "Unsupported department" });
-
-    const from = req.query.from
-      ? new Date(String(req.query.from) + "T00:00:00.000Z")
-      : null;
-    const to = req.query.to
-      ? new Date(String(req.query.to) + "T23:59:59.999Z")
-      : null;
-    const createdRange = {};
-    if (from) createdRange.$gte = from;
-    if (to) createdRange.$lte = to;
-
-    const deanBase = {
-      $and: [
-        {
-          $or: [
-            { submittedTo: { $exists: false } },
-            { submittedTo: null },
-            { submittedTo: { $not: /admin/i } },
-          ],
-        },
-        {
-          $or: [
-            { assignedByRole: { $exists: false } },
-            { assignedByRole: null },
-            { assignedByRole: { $not: /admin/i } },
-          ],
-        },
-        {
-          $or: [
-            { recipientRole: { $exists: false } },
-            { recipientRole: null },
-            { recipientRole: { $not: /admin/i } },
-          ],
-        },
-        { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
-        { $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] },
-        // Match any variant of the canonical department via regex
-        { department: new RegExp(canonical.replace(/\s+/g, "\\s*"), "i") },
-      ],
-      ...(Object.keys(createdRange).length ? { createdAt: createdRange } : {}),
-    };
-
-    const items = await Complaint.find(deanBase)
-      .select(
-        "complaintCode title status assignedTo deadline createdAt updatedAt resolvedAt"
-      )
-      .populate({ path: "assignedTo", select: "name role" })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // Lookup latest resolved-by role per complaint
-    const ids = items.map((c) => c._id);
-    let roleByComplaint = new Map();
-    if (ids.length) {
-      const logs = await (
-        await mongoose.connection.db
-      )
-        .collection("activitylogs")
-        .aggregate([
-          {
-            $match: {
-              complaint: { $in: ids },
-              action: "Status Updated to Resolved",
-            },
-          },
-          { $sort: { timestamp: -1 } },
-          {
-            $group: {
-              _id: "$complaint",
-              role: { $first: "$role" },
-              ts: { $first: "$timestamp" },
-            },
-          },
-        ])
-        .toArray();
-      roleByComplaint = new Map(
-        logs.map((l) => [String(l._id), { role: l.role, ts: l.ts }])
-      );
-    }
-
-    const complaints = items.map((c) => ({
-      id: String(c._id),
-      code: c.complaintCode,
-      title: c.title,
-      status: c.status,
-      assignedTo: c.assignedTo
-        ? { name: c.assignedTo.name, role: c.assignedTo.role }
-        : null,
-      createdAt: c.createdAt,
-      deadline: c.deadline || null,
-      resolvedAt: c.resolvedAt || null,
-      resolvedBy: (() => {
-        const entry = roleByComplaint.get(String(c._id));
-        return entry ? entry.role : null;
-      })(),
-    }));
-
-    res.status(200).json({ complaints });
-  } catch (err) {
-    console.error("getDeanDepartmentComplaints error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch department complaints" });
-  }
-};
-// HoD Analytics Summary
-export const getHodAnalyticsSummary = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "hod") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const dept = user.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for HoD analytics" });
-    }
-
-    const [
-      totalComplaints,
-      resolvedComplaints,
-      pendingComplaints,
-      overdueComplaints,
-    ] = await Promise.all([
-      Complaint.countDocuments({
-        department: dept,
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({
-        department: dept,
-        status: "Resolved",
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({
-        department: dept,
-        status: "Pending",
-        isDeleted: { $ne: true },
-      }),
-      Complaint.countDocuments({
-        department: dept,
-        status: { $nin: ["Resolved", "Closed"] },
-        deadline: { $lt: new Date() },
-        isDeleted: { $ne: true },
-      }),
-    ]);
-
-    const resolutionRate =
-      totalComplaints > 0 ? (resolvedComplaints / totalComplaints) * 100 : 0;
-
-    // Get average resolution time
-    const resolvedComplaintsWithTimes = await Complaint.find({
-      department: dept,
-      status: "Resolved",
-      createdAt: { $exists: true },
-      updatedAt: { $exists: true },
-      isDeleted: { $ne: true },
-    }).select("createdAt updatedAt");
-
-    let totalResolutionTime = 0;
-    let resolvedCount = 0;
-
-    resolvedComplaintsWithTimes.forEach((complaint) => {
-      if (complaint.createdAt && complaint.updatedAt) {
-        const resolutionTime = complaint.updatedAt - complaint.createdAt;
-        totalResolutionTime += resolutionTime;
-        resolvedCount++;
-      }
-    });
-
-    const avgResolutionTime =
-      resolvedCount > 0
-        ? totalResolutionTime / resolvedCount / (1000 * 60 * 60 * 24)
-        : 0;
-
-    // Get user satisfaction
-    const complaintsWithFeedback = await Complaint.find({
-      department: dept,
-      "feedback.rating": { $exists: true },
-      isDeleted: { $ne: true },
-    }).select("feedback.rating");
-
-    let totalRating = 0;
-    let totalReviews = 0;
-
-    complaintsWithFeedback.forEach((complaint) => {
-      if (complaint.feedback && typeof complaint.feedback.rating === "number") {
-        totalRating += complaint.feedback.rating;
-        totalReviews++;
-      }
-    });
-
-    const userSatisfaction = totalReviews > 0 ? totalRating / totalReviews : 0;
-
-    // Get staff managed
-    const staffManaged = await User.countDocuments({
-      role: "staff",
-      department: dept,
-      isActive: true,
-    });
-
-    res.status(200).json({
-      totalComplaints,
-      resolvedComplaints,
-      pendingComplaints,
-      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10,
-      resolutionRate: Math.round(resolutionRate * 10) / 10,
-      userSatisfaction: Math.round(userSatisfaction * 10) / 10,
-      totalReviews,
-      overdueComplaints,
-      staffManaged,
-    });
-  } catch (err) {
-    console.error("getHodAnalyticsSummary error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch HoD analytics summary" });
-  }
-};
-
-// HoD Staff Overview
-export const getHodStaffOverview = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "hod") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const dept = user.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for HoD staff overview" });
-    }
-
-    // Get staff in the same department
-    const staffMembers = await User.find({
-      role: "staff",
-      department: dept,
-      isActive: true,
-    }).select("_id name email");
-
-    const staff = [];
-
-    for (const staffMember of staffMembers) {
-      const staffStats = await Complaint.aggregate([
-        {
-          $match: {
-            assignedTo: staffMember._id,
-            department: dept,
-            $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalAssigned: { $sum: 1 },
-            resolved: {
-              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-            },
-            pending: {
-              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-            },
-            inProgress: {
-              $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
-            },
-            totalResolutionTime: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ["$status", "Resolved"] },
-                      { $ne: ["$createdAt", null] },
-                      { $ne: ["$updatedAt", null] },
-                    ],
-                  },
-                  {
-                    $divide: [
-                      { $subtract: ["$updatedAt", "$createdAt"] },
-                      1000 * 60 * 60 * 24,
-                    ],
-                  },
-                  0,
-                ],
-              },
-            },
-            resolvedCount: {
-              $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-            },
-            totalRating: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ["$status", "Resolved"] },
-                      { $ne: ["$feedback.rating", null] },
-                    ],
-                  },
-                  "$feedback.rating",
-                  0,
-                ],
-              },
-            },
-            ratingCount: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ["$status", "Resolved"] },
-                      { $ne: ["$feedback.rating", null] },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      ]);
-
-      const stats = staffStats[0] || {
-        totalAssigned: 0,
-        resolved: 0,
-        pending: 0,
-        inProgress: 0,
-        totalResolutionTime: 0,
-        resolvedCount: 0,
-        totalRating: 0,
-        ratingCount: 0,
-      };
-
-      staff.push({
-        staffId: staffMember._id,
-        name: staffMember.name || "Unknown",
-        email: staffMember.email,
-        totalAssigned: stats.totalAssigned,
-        resolved: stats.resolved,
-        pending: stats.pending,
-        inProgress: stats.inProgress,
-        successRate:
-          stats.totalAssigned > 0
-            ? Math.round((stats.resolved / stats.totalAssigned) * 100 * 10) / 10
-            : 0,
-        avgResolutionTime:
-          stats.resolvedCount > 0
-            ? Math.round(
-                (stats.totalResolutionTime / stats.resolvedCount) * 10
-              ) / 10
-            : 0,
-        avgRating:
-          stats.ratingCount > 0
-            ? Math.round((stats.totalRating / stats.ratingCount) * 10) / 10
-            : 0,
-      });
-    }
-
-    res.status(200).json({ staff });
-  } catch (err) {
-    console.error("getHodStaffOverview error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch HoD staff overview" });
-  }
-};
-
-// HoD Monthly Trends
-export const getHodAnalyticsMonthlyTrends = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || String(user.role).toLowerCase() !== "hod") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const dept = user.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for HoD monthly trends" });
-    }
-
-    const months = parseInt(req.query.months) || 6;
-    const year = parseInt(req.query.year) || new Date().getFullYear();
-
-    const startDate = new Date(year, new Date().getMonth() - months + 1, 1);
-    const endDate = new Date(
-      year,
-      new Date().getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999
-    );
-
-    const monthlyData = await Complaint.aggregate([
-      {
-        $match: {
-          department: dept,
-          createdAt: { $gte: startDate, $lte: endDate },
-          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
-        },
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-          },
-          submitted: { $sum: 1 },
-          resolved: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
-            },
-          },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
-            },
-          },
-          totalResolutionTime: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ne: ["$createdAt", null] },
-                    { $ne: ["$updatedAt", null] },
-                  ],
-                },
-                {
-                  $divide: [
-                    { $subtract: ["$updatedAt", "$createdAt"] },
-                    1000 * 60 * 60 * 24,
-                  ],
-                },
-                0,
-              ],
-            },
-          },
-          resolvedCount: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0],
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          month: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$_id.month", 1] }, then: "Jan" },
-                { case: { $eq: ["$_id.month", 2] }, then: "Feb" },
-                { case: { $eq: ["$_id.month", 3] }, then: "Mar" },
-                { case: { $eq: ["$_id.month", 4] }, then: "Apr" },
-                { case: { $eq: ["$_id.month", 5] }, then: "May" },
-                { case: { $eq: ["$_id.month", 6] }, then: "Jun" },
-                { case: { $eq: ["$_id.month", 7] }, then: "Jul" },
-                { case: { $eq: ["$_id.month", 8] }, then: "Aug" },
-                { case: { $eq: ["$_id.month", 9] }, then: "Sep" },
-                { case: { $eq: ["$_id.month", 10] }, then: "Oct" },
-                { case: { $eq: ["$_id.month", 11] }, then: "Nov" },
-                { case: { $eq: ["$_id.month", 12] }, then: "Dec" },
-              ],
-              default: "Unknown",
-            },
-          },
-          year: "$_id.year",
-          submitted: 1,
-          resolved: 1,
-          pending: 1,
-          avgResolutionTime: {
-            $cond: [
-              { $gt: ["$resolvedCount", 0] },
-              { $divide: ["$totalResolutionTime", "$resolvedCount"] },
-              0,
-            ],
-          },
-        },
-      },
-      { $sort: { year: 1, "_id.month": 1 } },
-    ]);
-
-    res.status(200).json({ data: monthlyData });
-  } catch (err) {
-    console.error("getHodAnalyticsMonthlyTrends error:", err?.message || err);
-    res.status(500).json({ error: "Failed to fetch HoD monthly trends" });
-  }
-}; //
-
-// Department priority distribution
-export const getDepartmentPriorityDistribution = async (req, res) => {
-  try {
-    const dept = req.user?.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for priority distribution" });
-    }
-    const pipeline = [
-      { $match: { department: dept } },
-      {
-        $group: {
-          _id: { $ifNull: ["$priority", "Unknown"] },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ];
-    const results = await Complaint.aggregate(pipeline);
-    const total = results.reduce((a, r) => a + (r.count || 0), 0);
-    res.status(200).json({
-      total,
-      priorities: results.map((r) => ({ priority: r._id, count: r.count })),
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch priority distribution" });
-  }
-};
-
-// Department status distribution
-export const getDepartmentStatusDistribution = async (req, res) => {
-  try {
-    const dept = req.user?.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for status distribution" });
-    }
-    const pipeline = [
-      { $match: { department: dept } },
-      {
-        $group: {
-          _id: { $ifNull: ["$status", "Unknown"] },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ];
-    const results = await Complaint.aggregate(pipeline);
-    const total = results.reduce((a, r) => a + (r.count || 0), 0);
-    res.status(200).json({
-      total,
-      statuses: results.map((r) => ({ status: r._id, count: r.count })),
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch status distribution" });
-  }
-};
-
-// Department category distribution (distinct from global category counts)
-export const getDepartmentCategoryCounts = async (req, res) => {
-  try {
-    const dept = req.user?.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for category distribution" });
-    }
-    const pipeline = [
-      { $match: { department: dept } },
-      {
-        $group: {
-          _id: { $ifNull: ["$category", "Unknown"] },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ];
-    const results = await Complaint.aggregate(pipeline);
-    const total = results.reduce((a, r) => a + (r.count || 0), 0);
-    res.status(200).json({
-      total,
-      categories: results.map((r) => ({ category: r._id, count: r.count })),
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch department categories" });
-  }
-};
-
-// Monthly trend (submitted vs resolved) for department
-export const getDepartmentMonthlyTrends = async (req, res) => {
-  try {
-    const dept = req.user?.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for monthly trends" });
-    }
-    const monthsParam = parseInt(req.query.months, 10);
-    const months = isNaN(monthsParam) || monthsParam <= 0 ? 6 : monthsParam; // default last 6 months
+    // Time window selection
+    const month =
+      req.query.month !== undefined ? parseInt(req.query.month, 10) : undefined; // 0-11
+    const year =
+      req.query.year !== undefined ? parseInt(req.query.year, 10) : undefined;
+    const fromStr = req.query.from && String(req.query.from);
+    const toStr = req.query.to && String(req.query.to);
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-
-    // Build a map for submitted counts
-    const submitted = await Complaint.aggregate([
-      { $match: { department: dept, createdAt: { $gte: start } } },
-      {
-        $group: {
-          _id: {
-            y: { $year: "$createdAt" },
-            m: { $month: "$createdAt" },
-          },
-          submitted: { $sum: 1 },
-        },
-      },
-    ]);
-    // Build a map for resolved counts
-    const resolved = await Complaint.aggregate([
-      {
-        $match: {
-          department: dept,
-          resolvedAt: { $ne: null, $gte: start },
-          status: "Resolved",
-        },
-      },
-      {
-        $group: {
-          _id: { y: { $year: "$resolvedAt" }, m: { $month: "$resolvedAt" } },
-          resolved: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const submittedMap = new Map();
-    submitted.forEach((r) => {
-      const key = `${r._id.y}-${r._id.m}`;
-      submittedMap.set(key, r.submitted);
-    });
-    const resolvedMap = new Map();
-    resolved.forEach((r) => {
-      const key = `${r._id.y}-${r._id.m}`;
-      resolvedMap.set(key, r.resolved);
-    });
-
-    // Build ordered month labels
-    const data = [];
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      const monthLabel = d.toLocaleString("default", { month: "short" });
-      data.push({
-        month: monthLabel,
-        year: d.getFullYear(),
-        submitted: submittedMap.get(key) || 0,
-        resolved: resolvedMap.get(key) || 0,
-      });
+    let start, end;
+    if (!isNaN(month) && !isNaN(year)) {
+      start = new Date(year, month, 1, 0, 0, 0, 0);
+      end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    } else if (fromStr || toStr) {
+      start = fromStr
+        ? new Date(fromStr + "T00:00:00.000Z")
+        : new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - 90,
+            0,
+            0,
+            0,
+            0
+          );
+      end = toStr ? new Date(toStr + "T23:59:59.999Z") : now;
+    } else {
+      start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 90,
+        0,
+        0,
+        0,
+        0
+      );
+      end = now;
     }
-    res.status(200).json({ months: data.length, data });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch monthly trends" });
-  }
-};
 
-// Staff performance aggregation for department
-export const getDepartmentStaffPerformance = async (req, res) => {
-  try {
-    const dept = req.user?.department;
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for staff performance" });
-    }
-    // Fetch staff in department first
-    const staff = await User.find({ role: "staff", department: dept })
-      .select("_id name email department")
-      .lean();
-    if (!staff.length) return res.status(200).json({ staff: [] });
-    const staffIds = staff.map((s) => s._id);
+    // Use the same exclusion rule (exclude student -> admin) and time window
+    const match = buildGlobalMinusAdminMatch({
+      createdAt: { $gte: start, $lte: end },
+    });
 
     const agg = await Complaint.aggregate([
-      { $match: { department: dept, assignedTo: { $in: staffIds } } },
+      { $match: match },
       {
         $group: {
-          _id: "$assignedTo",
-          totalAssigned: { $sum: 1 },
-          pending: {
-            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-          },
-          inProgress: {
-            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
-          },
-          resolved: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-          sumResolutionMs: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$status", "Resolved"] },
-                    { $ifNull: ["$resolvedAt", false] },
-                  ],
-                },
-                { $subtract: ["$resolvedAt", "$createdAt"] },
-                0,
-              ],
-            },
-          },
-          resolvedCount: {
-            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
-          },
-          ratingSum: {
-            $sum: {
-              $cond: [
-                { $ifNull: ["$feedback.rating", false] },
-                "$feedback.rating",
-                0,
-              ],
-            },
-          },
-          ratingCount: {
-            $sum: {
-              $cond: [{ $ifNull: ["$feedback.rating", false] }, 1, 0],
-            },
-          },
+          _id: { $ifNull: ["$department", "Unknown"] },
+          total: { $sum: 1 },
+          status: { $push: { $ifNull: ["$status", "Unknown"] } },
+          priority: { $push: { $ifNull: ["$priority", "Unknown"] } },
         },
       },
+      { $sort: { total: -1 } },
     ]);
 
-    const perfMap = new Map();
-    agg.forEach((r) => perfMap.set(String(r._id), r));
-    const results = staff.map((s) => {
-      const stats = perfMap.get(String(s._id)) || {};
-      const totalAssigned = stats.totalAssigned || 0;
-      const resolved = stats.resolved || 0;
-      const successRate = totalAssigned
-        ? Number(((resolved / totalAssigned) * 100).toFixed(2))
-        : 0;
-      const avgResolutionHours = stats.resolvedCount
-        ? Number(
-            (stats.sumResolutionMs / stats.resolvedCount / 3600000).toFixed(2)
-          )
-        : 0;
-      const avgRating = stats.ratingCount
-        ? Number((stats.ratingSum / stats.ratingCount).toFixed(2))
-        : 0;
+    const rows = (agg || []).map((r) => {
+      const byStatus = new Map();
+      const byPriority = new Map();
+      for (const s of r.status || [])
+        byStatus.set(s, (byStatus.get(s) || 0) + 1);
+      for (const p of r.priority || [])
+        byPriority.set(p, (byPriority.get(p) || 0) + 1);
       return {
-        staffId: s._id,
-        name: s.name || s.email,
-        email: s.email,
-        department: s.department,
-        totalAssigned,
-        pending: stats.pending || 0,
-        inProgress: stats.inProgress || 0,
-        resolved,
-        successRate,
-        avgResolutionHours,
-        avgRating,
+        department: r._id,
+        total: r.total || 0,
+        byStatus: Object.fromEntries(byStatus.entries()),
+        byPriority: Object.fromEntries(byPriority.entries()),
       };
     });
-    res.status(200).json({ staff: results });
+
+    const summary = rows.reduce(
+      (acc, it) => {
+        acc.total += it.total;
+        return acc;
+      },
+      { total: 0 }
+    );
+
+    return res
+      .status(200)
+      .json({ range: { start, end }, count: rows.length, summary, rows });
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch staff performance" });
+    console.error("getDeanDepartmentOverview error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean department overview" });
   }
 };
-// NOTE: end of getDepartmentStaffPerformance. Any stray code below was removed.
-//

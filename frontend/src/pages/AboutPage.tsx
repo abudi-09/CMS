@@ -12,31 +12,39 @@ import {
   Heart,
   Lightbulb,
 } from "lucide-react";
-import { Footer } from "@/components/Footer";
+import { Footer } from "@/components/footer";
+import { useState, useEffect } from "react";
 
 export default function AboutPage() {
-  const statistics = [
+  const [statistics, setStatistics] = useState([
     {
       icon: Users,
-      value: "25,000+",
+      value: "Loading...",
       label: "Students",
     },
     {
-      icon: BookOpen,
-      value: "350+",
-      label: "Faculty",
+      icon: GraduationCap,
+      value: "Loading...",
+      label: "Deans",
     },
     {
       icon: Target,
-      value: "45+",
-      label: "Programs",
+      value: "Loading...",
+      label: "HODs",
+    },
+    {
+      icon: BookOpen,
+      value: "Loading...",
+      label: "Staff",
     },
     {
       icon: Award,
-      value: "70+",
+      value: "Loading...",
       label: "Years of Excellence",
     },
-  ];
+  ]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const values = [
     {
@@ -100,6 +108,74 @@ export default function AboutPage() {
 
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("/api/stats/university-statistics");
+        if (!response.ok) {
+          throw new Error("Failed to fetch statistics");
+        }
+        const data = await response.json();
+
+        // Map the API response to include the correct icon components
+        const mappedStatistics = data.statistics.map((stat) => ({
+          ...stat,
+          icon:
+            stat.label === "Students"
+              ? Users
+              : stat.label === "Deans"
+              ? GraduationCap
+              : stat.label === "HODs"
+              ? Target
+              : stat.label === "Staff"
+              ? BookOpen
+              : stat.label === "Years of Excellence"
+              ? Award
+              : Users,
+        }));
+
+        setStatistics(mappedStatistics);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching statistics:", err);
+        setError("Failed to load statistics");
+        // Fallback to default values if API fails
+        setStatistics([
+          {
+            icon: Users,
+            value: "25,000+",
+            label: "Students",
+          },
+          {
+            icon: GraduationCap,
+            value: "350+",
+            label: "Deans",
+          },
+          {
+            icon: Target,
+            value: "45+",
+            label: "HODs",
+          },
+          {
+            icon: BookOpen,
+            value: "1,200+",
+            label: "Staff",
+          },
+          {
+            icon: Award,
+            value: `${new Date().getFullYear() - 1954}+`,
+            label: "Years of Excellence",
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatistics();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

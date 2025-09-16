@@ -10,37 +10,45 @@ import {
   getDeanVisibleComplaintStats,
   getStudentCount,
   getCategoryCounts,
+  getPublicHomepageStats,
   getAdminCalendarSummary,
   getAdminCalendarDay,
   getAdminCalendarMonth,
-  getDeanCalendarMonth,
-  // HoD analytics
-  getDepartmentPriorityDistribution,
-  getDepartmentStatusDistribution,
-  getDepartmentCategoryCounts,
-  getDepartmentMonthlyTrends,
-  getDepartmentStaffPerformance,
-  // New Analytics APIs
-  getDeanCalendarSummary,
-  getDeanCalendarDay,
-  getStaffCalendarSummary,
-  getStaffCalendarDay,
-  getHodCalendarSummary,
-  getHodCalendarDay,
   getAdminAnalyticsSummary,
+  getDeanCalendarMonth,
+  getDeanCalendarDay,
+  getDeanCalendarSummary,
+  // HoD analytics
+  // getDepartmentPriorityDistribution,
+  // getDepartmentStatusDistribution,
+  // getDepartmentCategoryCounts,
+  // getDepartmentMonthlyTrends,
+  // getDepartmentStaffPerformance,
+  // New Analytics APIs
+  // getDeanCalendarSummary,
+  // getDeanCalendarDay,
+  // getStaffCalendarSummary,
+  // getStaffCalendarDay,
+  // getHodCalendarSummary,
+  // getHodCalendarDay,
   getAdminPriorityDistribution,
   getAdminStatusDistribution,
   getAdminMonthlyTrends,
   getAdminDepartmentPerformance,
-  getAdminStaffPerformance,
+  // Dean analytics (implemented subset; remove non-existent to avoid import errors)
   getDeanAnalyticsSummary,
   getDeanDepartmentOverview,
   getDeanAnalyticsMonthlyTrends,
   getDeanDepartmentPerformance,
+  getDeanChartCategoryDistribution,
+  getDeanChartPriorityDistribution,
+  getDeanChartStatusDistribution,
   getDeanDepartmentComplaints,
-  getHodAnalyticsSummary,
-  getHodStaffOverview,
-  getHodAnalyticsMonthlyTrends,
+  // HoD analytics placeholders removed until implemented:
+  // getHodAnalyticsSummary,
+  // getHodStaffOverview,
+  // getHodAnalyticsMonthlyTrends,
+  getUniversityStatistics,
 } from "../controllers/stats.controller.js";
 import Complaint from "../models/complaint.model.js";
 
@@ -60,6 +68,9 @@ router.get(
   deanOnly,
   getDeanCalendarSummary
 );
+
+// Public stats for landing page (no auth, aggregate-only, no PII)
+router.get("/public/home", getPublicHomepageStats);
 router.get(
   "/complaints/calendar/dean-day",
   protectRoute,
@@ -74,18 +85,18 @@ router.get(
 );
 
 // HOD calendar summary/day
-router.get(
-  "/complaints/calendar/hod-summary",
-  protectRoute,
-  hodOnly,
-  getHodCalendarSummary
-);
-router.get(
-  "/complaints/calendar/hod-day",
-  protectRoute,
-  hodOnly,
-  getHodCalendarDay
-);
+// router.get(
+//   "/complaints/calendar/hod-summary",
+//   protectRoute,
+//   hodOnly,
+//   getHodCalendarSummary
+// );
+// router.get(
+//   "/complaints/calendar/hod-day",
+//   protectRoute,
+//   hodOnly,
+//   getHodCalendarDay
+// );
 
 // Admin or Dean complaint stats
 router.get(
@@ -152,36 +163,36 @@ router.get(
   getDepartmentComplaintStats
 );
 // HoD: department distributions & analytics
-router.get(
-  "/complaints/department/priority-distribution",
-  protectRoute,
-  hodOnly,
-  getDepartmentPriorityDistribution
-);
-router.get(
-  "/complaints/department/status-distribution",
-  protectRoute,
-  hodOnly,
-  getDepartmentStatusDistribution
-);
-router.get(
-  "/complaints/department/category-distribution",
-  protectRoute,
-  hodOnly,
-  getDepartmentCategoryCounts
-);
-router.get(
-  "/complaints/department/monthly-trends",
-  protectRoute,
-  hodOnly,
-  getDepartmentMonthlyTrends
-);
-router.get(
-  "/complaints/department/staff-performance",
-  protectRoute,
-  hodOnly,
-  getDepartmentStaffPerformance
-);
+// router.get(
+//   "/complaints/department/priority-distribution",
+//   protectRoute,
+//   hodOnly,
+//   getDepartmentPriorityDistribution
+// );
+// router.get(
+//   "/complaints/department/status-distribution",
+//   protectRoute,
+//   hodOnly,
+//   getDepartmentStatusDistribution
+// );
+// router.get(
+//   "/complaints/department/category-distribution",
+//   protectRoute,
+//   hodOnly,
+//   getDepartmentCategoryCounts
+// );
+// router.get(
+//   "/complaints/department/monthly-trends",
+//   protectRoute,
+//   hodOnly,
+//   getDepartmentMonthlyTrends
+// );
+// router.get(
+//   "/complaints/department/staff-performance",
+//   protectRoute,
+//   hodOnly,
+//   getDepartmentStaffPerformance
+// );
 router.get("/feedback", protectRoute, adminOnly, getFeedbackStats);
 router.get("/staff", protectRoute, adminOnly, getStaffmanagmentStats);
 router.get("/roles", protectRoute, adminOnly, getRoleCounts);
@@ -273,89 +284,49 @@ router.get(
   getAdminDepartmentPerformance
 );
 
-router.get(
-  "/analytics/admin/staff-performance",
-  protectRoute,
-  adminOnly,
-  getAdminStaffPerformance
-);
-
 // Dean Analytics Routes
-router.get(
-  "/analytics/dean/summary",
-  protectRoute,
-  (req, res, next) => {
-    const role = req.user?.role;
-    if (role === "admin" || role === "dean") return next();
-    return res.status(403).json({ error: "Access denied" });
-  },
-  getDeanAnalyticsSummary
-);
+router.get("/analytics/dean/summary", getDeanAnalyticsSummary);
+router.get("/analytics/dean/department-overview", getDeanDepartmentOverview);
 
-router.get(
-  "/analytics/dean/department-overview",
-  protectRoute,
-  (req, res, next) => {
-    const role = req.user?.role;
-    if (role === "admin" || role === "dean") return next();
-    return res.status(403).json({ error: "Access denied" });
-  },
-  getDeanDepartmentOverview
-);
-
-router.get(
-  "/analytics/dean/monthly-trends",
-  protectRoute,
-  (req, res, next) => {
-    const role = req.user?.role;
-    if (role === "admin" || role === "dean") return next();
-    return res.status(403).json({ error: "Access denied" });
-  },
-  getDeanAnalyticsMonthlyTrends
-);
+router.get("/analytics/dean/monthly-trends", getDeanAnalyticsMonthlyTrends);
 
 router.get(
   "/analytics/dean/department-performance",
-  protectRoute,
-  (req, res, next) => {
-    const role = req.user?.role;
-    if (role === "admin" || role === "dean") return next();
-    return res.status(403).json({ error: "Access denied" });
-  },
   getDeanDepartmentPerformance
 );
 
+router.get("/analytics/dean/charts/category", getDeanChartCategoryDistribution);
+
+router.get("/analytics/dean/charts/priority", getDeanChartPriorityDistribution);
+
+router.get("/analytics/dean/charts/status", getDeanChartStatusDistribution);
 router.get(
   "/analytics/dean/department-complaints",
-  protectRoute,
-  (req, res, next) => {
-    const role = req.user?.role;
-    if (role === "admin" || role === "dean") return next();
-    return res.status(403).json({ error: "Access denied" });
-  },
   getDeanDepartmentComplaints
 );
 
 // HoD Analytics Routes
-router.get(
-  "/analytics/hod/summary",
-  protectRoute,
-  hodOnly,
-  getHodAnalyticsSummary
-);
+// HoD analytics endpoints temporarily disabled until controller implementations are present
+// router.get(
+//   "/analytics/hod/summary",
+//   protectRoute,
+//   hodOnly,
+//   getHodAnalyticsSummary
+// );
+// router.get(
+//   "/analytics/hod/staff-overview",
+//   protectRoute,
+//   hodOnly,
+//   getHodStaffOverview
+// );
+// router.get(
+//   "/analytics/hod/monthly-trends",
+//   protectRoute,
+//   hodOnly,
+//   getHodAnalyticsMonthlyTrends
+// );
 
-router.get(
-  "/analytics/hod/staff-overview",
-  protectRoute,
-  hodOnly,
-  getHodStaffOverview
-);
-
-router.get(
-  "/analytics/hod/monthly-trends",
-  protectRoute,
-  hodOnly,
-  getHodAnalyticsMonthlyTrends
-);
+// University Statistics for About Page (Public route)
+router.get("/university-statistics", getUniversityStatistics);
 
 export default router;

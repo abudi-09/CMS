@@ -9,14 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { PlusCircle, FileText, MessageSquare, BarChart3 } from "lucide-react";
+import { PlusCircle, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SummaryCards } from "@/components/SummaryCards";
 import { ComplaintTable } from "@/components/ComplaintTable";
@@ -72,45 +65,30 @@ export function UserDashboard() {
         submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
         assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
         assignedStaffRole:
-          c.assignedTo?.role === "dean" ||
-          c.assignedTo?.role === "headOfDepartment" ||
-          c.assignedTo?.role === "staff" ||
-          c.assignedTo?.role === "admin"
-            ? (c.assignedTo?.role as
-                | "dean"
-                | "headOfDepartment"
-                | "staff"
-                | "admin")
+          c.assignedTo?.role &&
+          ["dean", "headOfDepartment", "staff", "admin"].includes(
+            c.assignedTo.role
+          )
+            ? ((c.assignedTo.role === "headOfDepartment"
+                ? "hod"
+                : c.assignedTo.role) as "dean" | "hod" | "staff" | "admin")
             : undefined,
         assignedByRole:
-          c.assignedByRole === "student" ||
-          c.assignedByRole === "headOfDepartment" ||
-          c.assignedByRole === "dean" ||
-          c.assignedByRole === "admin"
-            ? (c.assignedByRole as
-                | "student"
-                | "headOfDepartment"
-                | "dean"
-                | "admin")
+          c.assignedByRole &&
+          ["student", "headOfDepartment", "dean", "admin"].includes(
+            c.assignedByRole
+          )
+            ? ((c.assignedByRole === "headOfDepartment"
+                ? "hod"
+                : c.assignedByRole) as "student" | "hod" | "dean" | "admin")
             : undefined,
         assignmentPath: Array.isArray(c.assignmentPath)
-          ? (c.assignmentPath.filter(
-              (
-                r
-              ): r is
-                | "student"
-                | "headOfDepartment"
-                | "dean"
-                | "admin"
-                | "staff" =>
-                r === "student" ||
-                r === "headOfDepartment" ||
-                r === "dean" ||
-                r === "admin" ||
-                r === "staff"
-            ) as Array<
-              "student" | "headOfDepartment" | "dean" | "admin" | "staff"
-            >)
+          ? (c.assignmentPath
+              .map((r) => (r === "headOfDepartment" ? "hod" : r))
+              .filter(
+                (r): r is "student" | "hod" | "dean" | "admin" | "staff" =>
+                  ["student", "hod", "dean", "admin", "staff"].includes(r)
+              ) as Array<"student" | "hod" | "dean" | "admin" | "staff">)
           : [],
         submittedDate: c.createdAt ? new Date(c.createdAt) : new Date(),
         lastUpdated: c.updatedAt ? new Date(c.updatedAt) : new Date(),
@@ -128,10 +106,10 @@ export function UserDashboard() {
           c.sourceRole === "headOfDepartment" ||
           c.sourceRole === "dean" ||
           c.sourceRole === "admin"
-            ? (c.sourceRole as
+            ? ((c.sourceRole === "headOfDepartment" ? "hod" : c.sourceRole) as
                 | "student"
                 | "staff"
-                | "headOfDepartment"
+                | "hod"
                 | "dean"
                 | "admin")
             : undefined,
@@ -156,11 +134,6 @@ export function UserDashboard() {
     null
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [overdueFilter, setOverdueFilter] = useState<
-    "all" | "overdue" | "notOverdue"
-  >("all");
-  const [prioritySort, setPrioritySort] = useState<"asc" | "desc">("desc");
   const navigate = useNavigate();
 
   const handleViewComplaint = (complaint: Complaint) => {
@@ -181,22 +154,13 @@ export function UserDashboard() {
       complaint.status !== "Closed"
     );
   }
-  const filteredComplaints = myComplaints.filter((complaint) => {
-    const matchesPriority =
-      priorityFilter === "all" || complaint.priority === priorityFilter;
-    const matchesOverdue =
-      overdueFilter === "all" ||
-      (overdueFilter === "overdue" && isOverdue(complaint)) ||
-      (overdueFilter === "notOverdue" && !isOverdue(complaint));
-    return matchesPriority && matchesOverdue;
-  });
-  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
-    const priorityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-    const aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-    const bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-    return prioritySort === "desc" ? bValue - aValue : aValue - bValue;
-  });
-  const recentComplaints = sortedComplaints.slice(0, 3);
+  const recentComplaints = [...myComplaints]
+    .sort(
+      (a, b) =>
+        new Date(b.submittedDate).getTime() -
+        new Date(a.submittedDate).getTime()
+    )
+    .slice(0, 3);
 
   return (
     <div className="space-y-8">
@@ -284,13 +248,13 @@ export function UserDashboard() {
           <h2 className="text-xl md:text-2xl font-semibold">
             Recent Complaints
           </h2>
-          <div className="flex flex-wrap gap-2 w-full">
+          <div className="flex gap-2 flex-wrap justify-end">
             <Button
               variant="outline"
               size="sm"
               onClick={loadComplaints}
               aria-label="Refresh complaints"
-              className="w-full sm:w-auto min-h-11"
+              className="min-h-11"
             >
               Refresh
             </Button>
@@ -299,37 +263,10 @@ export function UserDashboard() {
               size="sm"
               onClick={() => navigate("/my-complaints")}
               aria-label="View all complaints"
-              className="w-full sm:w-auto min-h-11"
+              className="min-h-11"
             >
               View All
             </Button>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-full sm:w-32">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="Critical">Critical</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={overdueFilter}
-              onValueChange={(v) =>
-                setOverdueFilter(v as "all" | "overdue" | "notOverdue")
-              }
-            >
-              <SelectTrigger className="w-full sm:w-36">
-                <SelectValue placeholder="Overdue" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-                <SelectItem value="notOverdue">Not Overdue</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
         <div className="w-full overflow-x-auto">

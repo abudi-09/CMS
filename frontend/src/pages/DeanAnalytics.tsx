@@ -36,7 +36,7 @@ import {
   Award,
 } from "lucide-react";
 import {
-  getDeanVisibleComplaintStatsApi,
+  getDeanAnalyticsSummaryApi,
   getDeanMonthlyTrendsApi,
   getDeanDepartmentOverviewApi,
   listAllComplaintsApi,
@@ -91,6 +91,25 @@ type DeptPerfRow = {
   successRate: number;
 };
 
+// Dean department overview response shape
+type DeanDeptOverview = {
+  range: { start: string; end: string };
+  count: number;
+  summary: Record<string, number>;
+  rows: Array<{
+    department: string;
+    totalComplaints: number;
+    resolvedComplaints: number;
+    pendingComplaints: number;
+    inProgress?: number;
+    overdue?: number;
+    staffCount?: number;
+    avgResolutionTime?: number;
+    byStatus?: Record<string, number>;
+    byPriority?: Record<string, number>;
+  }>;
+};
+
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
 
 export default function DeanAnalytics() {
@@ -122,6 +141,7 @@ export default function DeanAnalytics() {
     submittedTo?: string | null;
     assignedTo?: string | null;
     assignedBy?: string | null;
+    sourceRole?: string | null;
   };
 
   const [complaints, setComplaints] = useState<LiteComplaint[]>([]);
@@ -162,10 +182,15 @@ export default function DeanAnalytics() {
           typeof r.submittedTo === "string" ? (r.submittedTo as string) : null;
         const assignedTo =
           typeof r.assignedTo === "string" ? (r.assignedTo as string) : null;
+        const assignedByObj = r.assignedBy as unknown;
         const assignedBy =
-          (r.assignedBy as string | undefined) ??
-          (r.assignedBy?._id as string | undefined) ??
+          (assignedByObj as string | undefined) ||
+          ((assignedByObj && typeof assignedByObj === "object"
+            ? (assignedByObj as Record<string, unknown>)._id
+            : undefined) as string | undefined) ||
           null;
+        const sourceRole =
+          typeof r.sourceRole === "string" ? (r.sourceRole as string) : null;
         return {
           id,
           title,
@@ -179,6 +204,7 @@ export default function DeanAnalytics() {
           submittedTo,
           assignedTo,
           assignedBy,
+          sourceRole,
         };
       })
       .filter((c) => c.id && c.title && c.status);
@@ -214,7 +240,7 @@ export default function DeanAnalytics() {
       try {
         const [stats, monthly, overview, allItems, studentsResp] =
           await Promise.all([
-            getDeanVisibleComplaintStatsApi().catch((e) => {
+            getDeanAnalyticsSummaryApi().catch((e) => {
               throw new Error(
                 e instanceof Error ? e.message : "Failed to fetch dean stats"
               );
@@ -245,9 +271,16 @@ export default function DeanAnalytics() {
             resolved: d.resolved,
           }))
         );
-        setTotalDepartments(
-          Array.isArray(overview?.departments) ? overview.departments.length : 0
-        );
+        {
+          const ov = overview as unknown as Partial<DeanDeptOverview> | null;
+          setTotalDepartments(
+            typeof ov?.count === "number"
+              ? ov.count
+              : Array.isArray(ov?.rows)
+              ? ov?.rows?.length || 0
+              : 0
+          );
+        }
         setComplaints(
           normalizeComplaints(Array.isArray(allItems) ? allItems : [])
         );
@@ -279,10 +312,16 @@ export default function DeanAnalytics() {
     const loadDept = async () => {
       setDeptLoading(true);
       try {
-        const data = await apiClient.get<{ departments: DeptPerfRow[] }>(
-          "/stats/analytics/dean/department-performance"
-        );
-        if (!cancelled) setDeptRows(data.departments || []);
+        const data = await apiClient.get<{
+          departments?: DeptPerfRow[];
+          rows?: DeptPerfRow[];
+        }>("/stats/analytics/dean/department-performance");
+        if (!cancelled)
+          setDeptRows(
+            (Array.isArray(data.rows) && data.rows) ||
+              (Array.isArray(data.departments) && data.departments) ||
+              []
+          );
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         toast({
@@ -307,11 +346,12 @@ export default function DeanAnalytics() {
   const categoryDataDyn = useMemo(() => {
     // Use complaints excluding any admin-targeted items
     const filtered = complaints.filter((c) => {
-      const isAdminRecipient =
-        (c.recipientRole &&
-          String(c.recipientRole).toLowerCase() === "admin") ||
-        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
-      return !isAdminRecipient;
+      const studentToAdmin =
+        c.submittedTo &&
+        /admin/i.test(String(c.submittedTo)) &&
+        c.sourceRole &&
+        String(c.sourceRole).toLowerCase() === "student";
+      return !studentToAdmin;
     });
     const map = new Map<string, number>();
     filtered.forEach((c) => {
@@ -333,11 +373,12 @@ export default function DeanAnalytics() {
     };
     // filter out admin-targeted complaints
     const filtered = complaints.filter((c) => {
-      const isAdminRecipient =
-        (c.recipientRole &&
-          String(c.recipientRole).toLowerCase() === "admin") ||
-        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
-      return !isAdminRecipient;
+      const studentToAdmin =
+        c.submittedTo &&
+        /admin/i.test(String(c.submittedTo)) &&
+        c.sourceRole &&
+        String(c.sourceRole).toLowerCase() === "student";
+      return !studentToAdmin;
     });
     const map = new Map<string, number>();
     filtered.forEach((c) => {
@@ -356,11 +397,12 @@ export default function DeanAnalytics() {
     const counts: Record<string, number> = {};
     statuses.forEach((s) => (counts[s] = 0));
     const filtered = complaints.filter((c) => {
-      const isAdminRecipient =
-        (c.recipientRole &&
-          String(c.recipientRole).toLowerCase() === "admin") ||
-        (c.submittedTo && /admin/i.test(String(c.submittedTo)));
-      return !isAdminRecipient;
+      const studentToAdmin =
+        c.submittedTo &&
+        /admin/i.test(String(c.submittedTo)) &&
+        c.sourceRole &&
+        String(c.sourceRole).toLowerCase() === "student";
+      return !studentToAdmin;
     });
     filtered.forEach((c) => (counts[c.status] = (counts[c.status] || 0) + 1));
     return statuses

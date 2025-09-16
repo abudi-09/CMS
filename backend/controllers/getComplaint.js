@@ -22,7 +22,30 @@ export const getComplaint = async (req, res) => {
         return res.status(403).json({ error: "Access denied (dean scope)" });
       }
     }
-    res.status(200).json({ complaint });
+    // Compute staff action permission when a staff is viewing
+    try {
+      const viewerIsStaff =
+        req.user && String(req.user.role).toLowerCase() === "staff";
+      const viewerId =
+        req.user?._id?.toString?.() || req.user?.id?.toString?.() || null;
+      const assignedToId = complaint.assignedTo
+        ? complaint.assignedTo._id?.toString?.() || String(complaint.assignedTo)
+        : null;
+      const status = String(complaint.status || "");
+      const canStaffAct =
+        !!viewerIsStaff &&
+        !!viewerId &&
+        !!assignedToId &&
+        viewerId === assignedToId &&
+        ["Accepted", "In Progress"].includes(status);
+
+      const payload = complaint.toObject ? complaint.toObject() : complaint;
+      payload.canStaffAct = canStaffAct;
+      return res.status(200).json({ complaint: payload });
+    } catch (_) {
+      // Fallback to existing behavior if anything goes wrong
+      return res.status(200).json({ complaint });
+    }
   } catch (err) {
     console.error(`[getComplaint] Error for id=${req.params.id}:`, err);
     res

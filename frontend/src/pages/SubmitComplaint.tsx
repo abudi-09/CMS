@@ -354,7 +354,8 @@ export function SubmitComplaint() {
         submittedTo = `HoD (${user?.department || "Unknown Department"})`;
         status = "Submitted to HoD";
       } else if (formData.role === "dean") {
-        submittedTo = "Dean (Head of All Departments)";
+        // Canonical submittedTo for backend dean scoping
+        submittedTo = "dean";
         status = "Submitted to Dean";
       } else if (formData.role === "admin") {
         submittedTo = "Admin (System Administrator)";
@@ -378,9 +379,8 @@ export function SubmitComplaint() {
       const savedComplaint = await addComplaint({
         ...formData,
         priority: formData.priority as "Low" | "Medium" | "High" | "Critical",
-        submittedBy: formData.anonymous
-          ? "Anonymous"
-          : user?.username || "Current User",
+        // backend will derive submittedBy; only pass anonymity flag
+        isAnonymous: formData.anonymous,
         evidenceFile: evidenceFileUrl,
         submittedTo,
         department: user?.department || "Unknown Department",

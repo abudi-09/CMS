@@ -21,31 +21,82 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Footer } from "@/components/Footer";
+import { Footer } from "@/components/footer";
+import { useEffect, useMemo, useState } from "react";
+import { API_BASE } from "@/lib/api";
 
 export default function HomePage() {
-  const statistics = [
-    {
-      icon: CheckCircle,
-      value: "1,234",
-      label: "Total Complaints Resolved",
-    },
-    {
-      icon: Clock,
-      value: "48hrs",
-      label: "Average Response Time",
-    },
-    {
-      icon: Star,
-      value: "4.8/5",
-      label: "User Satisfaction Rating",
-    },
-    {
-      icon: Users,
-      value: "25,000+",
-      label: "Active Students & Staff",
-    },
-  ];
+  // Live stats from backend public endpoint
+  const [stats, setStats] = useState<{
+    totalResolved: number;
+    averageResponseHours: number | null;
+    averageRating: number | null;
+    activeStudentsAndStaff: number;
+    activeUsers?: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`${API_BASE}/stats/public/home`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        if (!cancelled) setStats(data);
+      } catch (_) {
+        // swallow errors on public landing; keep placeholders
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const statistics = useMemo(() => {
+    const fmtNumber = (n: number) =>
+      n >= 1000 ? `${Math.floor(n / 1000)}k+` : String(n);
+    const fmtHours = (h: number | null) =>
+      h == null ? "--" : h < 1 ? `${Math.round(h * 60)}m` : `${Math.round(h)}h`;
+    const fmtRating = (r: number | null) =>
+      r == null ? "--" : `${r.toFixed(1)}/5`;
+
+    return [
+      {
+        icon: CheckCircle,
+        value: stats ? fmtNumber(stats.totalResolved) : loading ? "--" : "0",
+        label: "Total Complaints Resolved",
+      },
+      {
+        icon: Clock,
+        value: stats ? fmtHours(stats.averageResponseHours) : "--",
+        label: "Average Response Time",
+      },
+      {
+        icon: Star,
+        value: stats ? fmtRating(stats.averageRating) : "--",
+        label: "User Satisfaction Rating",
+      },
+      {
+        icon: Users,
+        value: stats
+          ? fmtNumber(
+              typeof stats.activeUsers === "number" && stats.activeUsers >= 0
+                ? stats.activeUsers
+                : stats.activeStudentsAndStaff
+            )
+          : loading
+          ? "--"
+          : "0",
+        label: "Active Users",
+      },
+    ];
+  }, [stats, loading]);
 
   const features = [
     {

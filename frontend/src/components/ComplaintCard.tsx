@@ -62,6 +62,8 @@ export interface Complaint {
   // Internal metadata
   assignedBy?: string | null;
   assignedToId?: string | null;
+  // Server-computed permission for staff action visibility
+  canStaffAct?: boolean;
 }
 
 interface ComplaintCardProps {

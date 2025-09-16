@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
-    "meta:touch": "echo placeholder"
+    "meta:touch": "echo placeholder",
+    "audit:dean-recipients": "node backend/scripts/audit-dean-recipient.js"
   },
   "keywords": [],
   "author": "",

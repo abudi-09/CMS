@@ -7,6 +7,31 @@ import User, {
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
 
+// Masking helper for anonymity Option A (only original submitter sees identity)
+function maskSubmitter(c, viewerId) {
+  if (!c) return null;
+  try {
+    const isAnon = !!c.isAnonymous;
+    if (!isAnon)
+      return c.submittedBy && typeof c.submittedBy === "object"
+        ? c.submittedBy.name || c.submittedBy.email
+        : c.submittedBy;
+    // If anonymous, reveal only to owner
+    if (
+      viewerId &&
+      c.submittedBy &&
+      String(c.submittedBy._id || c.submittedBy) === String(viewerId)
+    ) {
+      return c.submittedBy && typeof c.submittedBy === "object"
+        ? c.submittedBy.name || c.submittedBy.email
+        : c.submittedBy;
+    }
+    return "Unknown";
+  } catch (_) {
+    return "Unknown";
+  }
+}
+
 // Helper: create a notification without blocking the main flow
 async function safeNotify({
   user,
@@ -49,6 +74,7 @@ export const createComplaint = async (req, res) => {
       assignmentPath,
       assignedByRole,
       sourceRole,
+      isAnonymous,
     } = req.body;
 
     const complaintData = {
@@ -57,6 +83,7 @@ export const createComplaint = async (req, res) => {
       category,
       priority,
       evidenceFile,
+      // Canonicalize submittedTo for dean to enforce strict scoping
       submittedTo,
       department: department || user?.department || "",
       sourceRole: sourceRole || "student",
@@ -65,6 +92,7 @@ export const createComplaint = async (req, res) => {
         ? assignmentPath
         : ["student"],
       submittedBy: user ? user._id : undefined,
+      isAnonymous: !!isAnonymous,
       // recipient routing (will be enforced below for dean submissions)
       recipientRole: null,
       recipientId: null,
@@ -73,9 +101,13 @@ export const createComplaint = async (req, res) => {
     // Strict dean targeting: if submittedTo is dean, require a specific dean recipient
     if (submittedTo && String(submittedTo).toLowerCase().includes("dean")) {
       const candidateId = req.body?.recipientId;
-      if (!candidateId || !mongoose.Types.ObjectId.isValid(String(candidateId))) {
+      if (
+        !candidateId ||
+        !mongoose.Types.ObjectId.isValid(String(candidateId))
+      ) {
         return res.status(400).json({
-          error: "A valid dean (recipientId) is required when submitting to the dean.",
+          error:
+            "A valid dean (recipientId) is required when submitting to the dean.",
         });
       }
       // Verify the user exists and is a dean
@@ -93,6 +125,8 @@ export const createComplaint = async (req, res) => {
       }
       complaintData.recipientRole = "dean";
       complaintData.recipientId = candidateId;
+      // Force canonical submittedTo for dean
+      complaintData.submittedTo = "dean";
     } else {
       // For non-dean submissions, allow optional explicit recipient but do not auto-set to dean
       if (req.body?.recipientRole && req.body?.recipientId) {
@@ -115,22 +149,29 @@ export const createComplaint = async (req, res) => {
 
     const complaint = new Complaint(complaintData);
 
-    // If recipientStaffId provided, assign immediately to staff
-    if (recipientStaffId) {
-      complaint.assignedTo = recipientStaffId;
-      complaint.assignedToRole = "staff";
-      complaint.assignedAt = new Date();
-      // use canonical enum value for status
-      complaint.status = "Pending";
-    }
+    // If directly targeting dean, do NOT auto-assign to staff/HoD
+    const isDeanRoute =
+      complaintData.submittedTo &&
+      String(complaintData.submittedTo).toLowerCase().includes("dean");
 
-    // If recipientHodId provided, assign immediately to HoD
-    if (recipientHodId) {
-      complaint.assignedTo = recipientHodId;
-      complaint.assignedToRole = "hod";
-      complaint.assignedAt = new Date();
-      // use canonical enum value for status
-      complaint.status = "Pending";
+    if (!isDeanRoute) {
+      // If recipientStaffId provided, assign immediately to staff
+      if (recipientStaffId) {
+        complaint.assignedTo = recipientStaffId;
+        complaint.assignedToRole = "staff";
+        complaint.assignedAt = new Date();
+        // use canonical enum value for status
+        complaint.status = "Pending";
+      }
+
+      // If recipientHodId provided, assign immediately to HoD
+      if (recipientHodId) {
+        complaint.assignedTo = recipientHodId;
+        complaint.assignedToRole = "hod";
+        complaint.assignedAt = new Date();
+        // use canonical enum value for status
+        complaint.status = "Pending";
+      }
     }
 
     await complaint.save();
@@ -311,9 +352,63 @@ export const updateMyComplaintRecipient = async (req, res) => {
         .status(400)
         .json({ error: "Recipient can be changed only while Pending" });
 
+    // Security: if this complaint targets dean, enforce valid dean recipient and canonical fields
+    const submittedToLower = String(complaint.submittedTo || "").toLowerCase();
+    if (submittedToLower.includes("dean")) {
+      // Force dean role and validate ID
+      if (
+        !recipientId ||
+        !mongoose.Types.ObjectId.isValid(String(recipientId))
+      ) {
+        return res
+          .status(400)
+          .json({ error: "A valid dean recipientId is required" });
+      }
+      const dean = await User.findOne({
+        _id: recipientId,
+        role: "dean",
+        isActive: true,
+      })
+        .select("_id role isActive")
+        .lean();
+      if (!dean) {
+        return res
+          .status(400)
+          .json({ error: "Selected recipient is not a valid active dean" });
+      }
+      const prev = { from: complaint.recipientRole || null };
+      complaint.recipientRole = "dean";
+      complaint.recipientId = dean._id;
+      complaint.submittedTo = "dean";
+      complaint.lastEditedAt = new Date();
+      complaint.editsCount = (complaint.editsCount || 0) + 1;
+      await complaint.save();
+
+      await ActivityLog.create({
+        user: req.user._id,
+        role: req.user.role,
+        action: "Recipient Updated",
+        complaint: complaint._id,
+        timestamp: new Date(),
+        details: { ...prev, to: complaint.recipientRole || null },
+      });
+
+      return res.status(200).json({ message: "Recipient updated", complaint });
+    }
+
+    // For non-dean submissions, allow changing recipient with basic validation when provided
     const prev = { from: complaint.recipientRole || null };
-    complaint.recipientRole = recipientRole || null;
-    complaint.recipientId = recipientId || null;
+    if (
+      recipientRole &&
+      recipientId &&
+      mongoose.Types.ObjectId.isValid(String(recipientId))
+    ) {
+      complaint.recipientRole = String(recipientRole).toLowerCase();
+      complaint.recipientId = recipientId;
+    } else {
+      complaint.recipientRole = null;
+      complaint.recipientId = null;
+    }
     complaint.lastEditedAt = new Date();
     complaint.editsCount = (complaint.editsCount || 0) + 1;
     await complaint.save();
@@ -512,7 +607,6 @@ export const getMyComplaints = async (req, res) => {
 // 3. Admin views all complaints
 export const getAllComplaints = async (req, res) => {
   try {
-    const role = String(req.user?.role || "").toLowerCase();
     // Pagination params (frontend expects paginated shape)
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.max(
@@ -521,11 +615,16 @@ export const getAllComplaints = async (req, res) => {
     );
     const skip = (page - 1) * limit;
 
-    // Base visibility: exclude soft-deleted
-    const baseFilter = { isDeleted: { $ne: true } };
-    // For deans, hide any complaint that is directed to Admin or involves Admin in routing
-    if (role === "dean") {
-      Object.assign(baseFilter, {
+    // Role-aware visibility
+    const role = String(req.user?.role || "").toLowerCase();
+    let baseFilter = { isDeleted: { $ne: true } };
+    if (role === "admin") {
+      // Admin: fetch all complaints (no exclusion), optional filters can be added here later
+    } else if (role === "dean") {
+      // Dean: student complaints only, exclude admin-targeted in any way
+      baseFilter = {
+        ...baseFilter,
+        sourceRole: { $regex: /^student$/i },
         $and: [
           {
             $or: [
@@ -550,7 +649,10 @@ export const getAllComplaints = async (req, res) => {
           },
           { assignmentPath: { $not: { $elemMatch: { $regex: /admin/i } } } },
         ],
-      });
+      };
+    } else {
+      // Should not reach here due to route guard, but keep safe default
+      return res.status(403).json({ error: "Access denied" });
     }
 
     const total = await Complaint.countDocuments(baseFilter);
@@ -570,10 +672,7 @@ export const getAllComplaints = async (req, res) => {
             c?.assignedTo && typeof c.assignedTo === "object"
               ? c.assignedTo.name || null
               : null;
-          const submittedByName =
-            c?.submittedBy && typeof c.submittedBy === "object"
-              ? c.submittedBy.name || null
-              : null;
+          const submittedByName = maskSubmitter(c, req.user?._id);
           return {
             id,
             complaintCode: c?.complaintCode ?? null,
@@ -596,6 +695,7 @@ export const getAllComplaints = async (req, res) => {
             submittedTo: c?.submittedTo ?? null,
             feedback: c?.status === "Resolved" ? c?.feedback || null : null,
             isEscalated: !!c?.isEscalated,
+            isAnonymous: !!c?.isAnonymous,
           };
         } catch (e) {
           console.error("[getAllComplaints] Format error at index", idx, e);
@@ -904,13 +1004,14 @@ export const getDeanInbox = async (req, res) => {
         submittedDate: c.createdAt,
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
-        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        submittedBy: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         assignedByRole: c.assignedByRole,
         assignmentPath: c.assignmentPath || [],
         submittedTo: c.submittedTo,
         sourceRole: c.sourceRole,
         department: c.department,
+        isAnonymous: !!c.isAnonymous,
       }))
     );
   } catch (err) {
@@ -966,8 +1067,9 @@ export const getDeanScopedComplaints = async (req, res) => {
         deadline: c.deadline,
         recipientRole: c.recipientRole,
         recipientId: c.recipientId,
-        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        submittedBy: maskSubmitter(c, req.user?._id),
         department: c.department,
+        isAnonymous: !!c.isAnonymous,
       })),
       total: sanitized.length,
     });
@@ -1007,11 +1109,12 @@ export const getAdminInbox = async (req, res) => {
         submittedDate: c.createdAt,
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
-        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        submittedBy: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         assignedByRole: c.assignedByRole,
         assignmentPath: c.assignmentPath || [],
         submittedTo: c.submittedTo || null,
+        isAnonymous: !!c.isAnonymous,
       }))
     );
   } catch (err) {
@@ -1075,12 +1178,13 @@ export const getAdminWorkflowComplaints = async (req, res) => {
       priority: c.priority,
       submittedDate: c.createdAt,
       lastUpdated: c.updatedAt,
-      submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+      submittedBy: maskSubmitter(c, req.user?._id),
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: c.assignmentPath || [],
       submittedTo: c.submittedTo || null,
       department: c.department || null,
+      isAnonymous: !!c.isAnonymous,
     }));
 
     return res.status(200).json(mapped);
@@ -1159,10 +1263,11 @@ export const getStaffInbox = async (req, res) => {
         submittedDate: c.createdAt,
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
-        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        submittedBy: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         submittedTo: c.submittedTo || null,
         department: c.department || null,
+        isAnonymous: !!c.isAnonymous,
       }))
     );
   } catch (err) {
@@ -1463,16 +1568,14 @@ export const getHodManagedComplaints = async (req, res) => {
         c.assignedTo && typeof c.assignedTo === "object"
           ? c.assignedTo.name || c.assignedTo.email
           : null,
-      submittedBy:
-        c.submittedBy && typeof c.submittedBy === "object"
-          ? c.submittedBy.name || c.submittedBy.email
-          : null,
+      submittedBy: maskSubmitter(c, req.user?._id),
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: Array.isArray(c.assignmentPath) ? c.assignmentPath : [],
       submittedTo: c.submittedTo,
       sourceRole: c.sourceRole,
       department: c.department,
+      isAnonymous: !!c.isAnonymous,
     }));
 
     // Debug: log all complaints assigned to staff (grouped by staff and by department)
@@ -1550,13 +1653,14 @@ export const getHodInbox = async (req, res) => {
         submittedDate: c.createdAt,
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
-        submittedBy: c.submittedBy?.name || c.submittedBy?.email,
+        submittedBy: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         assignedByRole: c.assignedByRole,
         assignmentPath: c.assignmentPath || [],
         submittedTo: c.submittedTo,
         sourceRole: c.sourceRole,
         department: c.department,
+        isAnonymous: !!c.isAnonymous,
       }))
     );
   } catch (err) {
@@ -1610,7 +1714,7 @@ export const hodAcceptAssignment = async (req, res) => {
       });
     }
 
-    // Notify student and dean
+    // Notify student and the specific dean involved (assignedBy dean or direct recipient dean)
     await Promise.all([
       safeNotify({
         user: complaint.submittedBy,
@@ -1621,12 +1725,16 @@ export const hodAcceptAssignment = async (req, res) => {
         meta: { status: "In Progress" },
       }),
       (async () => {
-        const dean = await User.findOne({ role: "dean", isActive: true })
-          .select("_id")
-          .lean();
-        if (dean?._id) {
+        // Determine the correct dean to notify
+        const deanUserId =
+          complaint.assignedByRole === "dean" && complaint.assignedBy
+            ? complaint.assignedBy
+            : complaint.recipientRole === "dean" && complaint.recipientId
+            ? complaint.recipientId
+            : null;
+        if (deanUserId) {
           await safeNotify({
-            user: dean._id,
+            user: deanUserId,
             complaint,
             type: "status",
             title: `HoD Accepted (${complaint.complaintCode})`,
@@ -1682,14 +1790,17 @@ export const hodRejectAssignment = async (req, res) => {
       },
     });
 
-    // Notify Dean and Student
-    const dean = await User.findOne({ role: "dean", isActive: true })
-      .select("_id")
-      .lean();
+    // Notify the specific Dean (if identifiable) and the Student
+    const deanUserId =
+      complaint.assignedByRole === "dean" && complaint.assignedBy
+        ? complaint.assignedBy
+        : complaint.recipientRole === "dean" && complaint.recipientId
+        ? complaint.recipientId
+        : null;
     await Promise.all([
-      dean?._id
+      deanUserId
         ? safeNotify({
-            user: dean._id,
+            user: deanUserId,
             complaint,
             type: "reject",
             title: `HoD Rejected (${complaint.complaintCode})`,
@@ -1805,16 +1916,14 @@ export const getHodAll = async (req, res) => {
         c.assignedTo && typeof c.assignedTo === "object"
           ? c.assignedTo.name || c.assignedTo.email
           : null,
-      submittedBy:
-        c.submittedBy && typeof c.submittedBy === "object"
-          ? c.submittedBy.name || c.submittedBy.email
-          : null,
+      submittedBy: maskSubmitter(c, req.user?._id),
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: Array.isArray(c.assignmentPath) ? c.assignmentPath : [],
       submittedTo: c.submittedTo,
       sourceRole: c.sourceRole,
       department: c.department,
+      isAnonymous: !!c.isAnonymous,
     });
 
     // Helper to check if assigned to current HoD
@@ -2215,10 +2324,7 @@ export const getAssignedComplaints = async (req, res) => {
       submittedDate: c.createdAt,
       lastUpdated: c.updatedAt,
       assignedAt: c.assignedAt || null,
-      submittedBy: {
-        name: c.submittedBy?.name,
-        email: c.submittedBy?.email,
-      },
+      submittedBy: maskSubmitter(c, req.user?._id),
       shortDescription: c.shortDescription,
       fullDescription: c.description,
       isEscalated: c.isEscalated || false,
@@ -2228,6 +2334,7 @@ export const getAssignedComplaints = async (req, res) => {
       assignmentPath: c.assignmentPath || [],
       submittedTo: c.submittedTo || null,
       department: c.department || null,
+      isAnonymous: !!c.isAnonymous,
     }));
 
     return res.status(200).json(formatted);
@@ -2315,10 +2422,7 @@ export const getAllFeedback = async (req, res) => {
               c?.assignedTo && typeof c.assignedTo === "object"
                 ? c.assignedTo.name || null
                 : null,
-            submittedBy:
-              c?.submittedBy && typeof c.submittedBy === "object"
-                ? c.submittedBy.name || null
-                : null,
+            submittedBy: maskSubmitter(c, req.user?._id),
             deadline: c?.deadline ?? null,
             sourceRole: c?.sourceRole ?? null,
             assignedByRole: c?.assignedByRole ?? null,
@@ -2328,6 +2432,7 @@ export const getAllFeedback = async (req, res) => {
             submittedTo: c?.submittedTo ?? null,
             feedback: c?.status === "Resolved" ? c?.feedback || null : null,
             isEscalated: !!c?.isEscalated,
+            isAnonymous: !!c?.isAnonymous,
           };
         } catch (e) {
           console.error(
@@ -2386,7 +2491,7 @@ export const getFeedbackByRole = async (req, res) => {
       complaintId: c._id,
       title: c.title,
       complaintCode: c.complaintCode,
-      submittedBy: c.submittedBy,
+      submittedBy: maskSubmitter(c, req.user?._id),
       assignedTo: c.assignedTo,
       feedback: c.feedback,
       resolvedAt: c.resolvedAt || c.updatedAt,
@@ -2398,6 +2503,7 @@ export const getFeedbackByRole = async (req, res) => {
       category: c.category,
       department: c.department,
       submittedTo: c.submittedTo || null,
+      isAnonymous: !!c.isAnonymous,
     }));
 
     res.status(200).json(feedbackList);
@@ -2425,7 +2531,7 @@ export const getMyFeedback = async (req, res) => {
       complaintId: c._id,
       title: c.title,
       complaintCode: c.complaintCode,
-      submittedBy: c.submittedBy,
+      submittedBy: maskSubmitter(c, req.user?._id),
       assignedTo: c.assignedTo,
       feedback: c.feedback,
       resolvedAt: c.resolvedAt || c.updatedAt,
@@ -2436,6 +2542,7 @@ export const getMyFeedback = async (req, res) => {
           : undefined,
       category: c.category,
       department: c.department,
+      isAnonymous: !!c.isAnonymous,
     }));
 
     res.status(200).json(feedbackList);
@@ -2609,8 +2716,12 @@ export const queryComplaints = async (req, res) => {
       .populate("assignedTo", "name role")
       .sort({ createdAt: -1 })
       .lean();
-
-    return res.status(200).json(complaints || []);
+    const mapped = (complaints || []).map((c) => ({
+      ...c,
+      submittedBy: maskSubmitter(c, req.user?._id),
+      isAnonymous: !!c.isAnonymous,
+    }));
+    return res.status(200).json(mapped);
   } catch (err) {
     console.error("queryComplaints error:", err?.message || err);
 

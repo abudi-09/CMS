@@ -55,11 +55,11 @@ type DeptComplaint = {
   code?: string;
   title: string;
   status: string;
-  assignedTo: { name?: string; role?: string } | null;
-  createdAt: string;
-  deadline: string | null;
-  resolvedAt: string | null;
-  resolvedBy: string | null;
+  assignedTo?: { name?: string; role?: string } | null;
+  createdAt?: string;
+  deadline?: string | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
 };
 
 const CANONICAL_DEPARTMENTS = [
@@ -165,6 +165,13 @@ export default function DeanDepartmentPerformance() {
     return copy;
   }, [perDept, sortBy]);
 
+  // Build dynamic department options from loaded data
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach((r) => r.department && set.add(r.department));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
   // Chart data
   const barData = perDept.map((d) => ({
     name: d.department,
@@ -190,8 +197,14 @@ export default function DeanDepartmentPerformance() {
         if (dateFrom) q.set("from", dateFrom);
         if (dateTo) q.set("to", dateTo);
         const path = `/stats/analytics/dean/department-complaints?${q.toString()}`;
-        const data = await apiClient.get<{ complaints: DeptComplaint[] }>(path);
-        if (!cancelled) setDeptComplaints(data.complaints || []);
+        const data = await apiClient.get<{
+          items?: DeptComplaint[];
+          complaints?: DeptComplaint[];
+          total?: number;
+          page?: number;
+          pageSize?: number;
+        }>(path);
+        if (!cancelled) setDeptComplaints(data.items || data.complaints || []);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         toast({
@@ -287,7 +300,7 @@ export default function DeanDepartmentPerformance() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Departments</SelectItem>
-                  {CANONICAL_DEPARTMENTS.map((d) => (
+                  {departmentOptions.map((d) => (
                     <SelectItem key={d} value={d}>
                       {d}
                     </SelectItem>

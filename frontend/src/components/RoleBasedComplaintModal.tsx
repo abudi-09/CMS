@@ -197,6 +197,10 @@ export function RoleBasedComplaintModal({
       (assignedTo.name as string) ||
       (assignedTo.email as string) ||
       fallback?.assignedStaff;
+    const assignedToId =
+      (assignedTo && (assignedTo as Record<string, unknown>)._id
+        ? String((assignedTo as Record<string, unknown>)._id)
+        : undefined) || (fallback?.assignedToId as string | undefined);
     const assignedAt = obj.assignedAt
       ? new Date(String(obj.assignedAt))
       : fallback?.assignedDate;
@@ -268,11 +272,18 @@ export function RoleBasedComplaintModal({
       evidenceFile,
       isEscalated,
       submittedTo,
+      assignedToId,
       // Prefer backend department if present; fall back to existing
       department: (obj.department as string) || fallback?.department,
       // Extra routing meta (augment separately if needed)
       recipientRole: recipientRole as unknown as Complaint["recipientRole"],
       recipientId: recipientId || undefined,
+      // Server-computed permission passthrough (safe read)
+      canStaffAct: Boolean(
+        Object.prototype.hasOwnProperty.call(obj, "canStaffAct")
+          ? (obj["canStaffAct"] as boolean)
+          : fallback?.canStaffAct ?? false
+      ),
     };
   }
 
@@ -2053,114 +2064,116 @@ export function RoleBasedComplaintModal({
         )}
 
         {/* Staff Action section: for Staff while working on a complaint (only when owner) */}
-        {user.role === "staff" &&
-          isOwner &&
-          ["Accepted", "In Progress", "Pending"].includes(
-            String(liveComplaint?.status || "")
-          ) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Staff Action</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="mb-2">Status</Label>
-                  <select
-                    className="w-full border rounded px-3 py-2"
-                    value={staffActionStatus}
-                    onChange={(e) =>
-                      setStaffActionStatus(
-                        e.target.value as Complaint["status"]
-                      )
-                    }
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
-                    <option value="Closed">Closed</option>
-                  </select>
-                </div>
-                <div>
-                  <Label className="mb-2">Note (optional)</Label>
-                  <Textarea
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="Add a brief note for the student (optional)…"
-                    value={staffStatusNote}
-                    onChange={(e) =>
-                      setStaffStatusNote(e.target.value.slice(0, 1000))
-                    }
-                    rows={3}
-                  />
-                  <div className="text-xs text-muted-foreground mt-1 text-right">
-                    {staffStatusNote.length}/1000
-                  </div>
-                </div>
-                <Button
-                  className="mt-2 w-full"
-                  disabled={isLoading}
-                  onClick={async () => {
-                    if (!liveComplaint) return;
-                    setIsLoading(true);
-                    try {
-                      const newStatus = staffActionStatus as
-                        | "Pending"
-                        | "In Progress"
-                        | "Resolved"
-                        | "Closed";
-                      await updateComplaintStatusApi(
-                        liveComplaint.id,
-                        newStatus,
-                        staffStatusNote.trim() || undefined
-                      );
-                      setLiveComplaint((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              status: newStatus,
-                              lastUpdated: new Date(),
-                            }
-                          : prev
-                      );
-                      setStaffStatusNote("");
-                      toast({
-                        title: "Status updated",
-                        description: `Updated to ${newStatus}.`,
-                      });
-                      try {
-                        const freshLogs = await getActivityLogsForComplaint(
-                          liveComplaint.id
-                        );
-                        setLogs(freshLogs as ActivityLog[]);
-                      } catch {
-                        // ignore
-                      }
-                      onUpdate?.(liveComplaint.id, {
-                        status: newStatus,
-                        lastUpdated: new Date(),
-                      });
-                      window.dispatchEvent(
-                        new CustomEvent("complaint:status-changed", {
-                          detail: {
-                            id: liveComplaint.id,
-                            status: newStatus,
-                            newStatus: newStatus,
-                            note: staffStatusNote.trim() || undefined,
-                            byRole: "staff",
-                            at: Date.now(),
-                          },
-                        })
-                      );
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
+        {(() => {
+          const status = String(liveComplaint?.status || "");
+          const serverFlag = !!liveComplaint?.canStaffAct;
+          const clientEval =
+            user.role === "staff" &&
+            isOwner &&
+            (status === "Accepted" || status === "In Progress");
+          const canStaffAct = serverFlag || clientEval;
+          return canStaffAct;
+        })() && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Staff Action</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="mb-2">Status</Label>
+                <select
+                  className="w-full border rounded px-3 py-2"
+                  value={staffActionStatus}
+                  onChange={(e) =>
+                    setStaffActionStatus(e.target.value as Complaint["status"])
+                  }
                 >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Save Changes
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+                  <option value="In Progress">In Progress</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+              <div>
+                <Label className="mb-2">Note (optional)</Label>
+                <Textarea
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="Add a brief note for the student (optional)…"
+                  value={staffStatusNote}
+                  onChange={(e) =>
+                    setStaffStatusNote(e.target.value.slice(0, 1000))
+                  }
+                  rows={3}
+                />
+                <div className="text-xs text-muted-foreground mt-1 text-right">
+                  {staffStatusNote.length}/1000
+                </div>
+              </div>
+              <Button
+                className="mt-2 w-full"
+                disabled={isLoading}
+                onClick={async () => {
+                  if (!liveComplaint) return;
+                  setIsLoading(true);
+                  try {
+                    const newStatus = staffActionStatus as
+                      | "Pending"
+                      | "In Progress"
+                      | "Resolved"
+                      | "Closed";
+                    await updateComplaintStatusApi(
+                      liveComplaint.id,
+                      newStatus,
+                      staffStatusNote.trim() || undefined
+                    );
+                    setLiveComplaint((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            status: newStatus,
+                            lastUpdated: new Date(),
+                          }
+                        : prev
+                    );
+                    setStaffStatusNote("");
+                    toast({
+                      title: "Status updated",
+                      description: `Updated to ${newStatus}.`,
+                    });
+                    try {
+                      const freshLogs = await getActivityLogsForComplaint(
+                        liveComplaint.id
+                      );
+                      setLogs(freshLogs as ActivityLog[]);
+                    } catch {
+                      // ignore
+                    }
+                    onUpdate?.(liveComplaint.id, {
+                      status: newStatus,
+                      lastUpdated: new Date(),
+                    });
+                    window.dispatchEvent(
+                      new CustomEvent("complaint:status-changed", {
+                        detail: {
+                          id: liveComplaint.id,
+                          status: newStatus,
+                          newStatus: newStatus,
+                          note: staffStatusNote.trim() || undefined,
+                          byRole: "staff",
+                          at: Date.now(),
+                        },
+                      })
+                    );
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Save Changes
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Only show these sections if assigned */}
         {isAssigned && (

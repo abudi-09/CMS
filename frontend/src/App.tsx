@@ -223,21 +223,10 @@ function AppContent() {
                     </RequireRole>
                   }
                 />
-                <Route
-                  path="/dean-analytics"
-                  element={
-                    <RequireRole allowed={["dean", "admin"]}>
-                      <DeanAnalytics />
-                    </RequireRole>
-                  }
-                />
+                <Route path="/dean-analytics" element={<DeanAnalytics />} />
                 <Route
                   path="/dean-department-performance"
-                  element={
-                    <RequireRole allowed={["dean", "admin"]}>
-                      <DeanDepartmentPerformance />
-                    </RequireRole>
-                  }
+                  element={<DeanDepartmentPerformance />}
                 />
                 <Route
                   path="/department-management"
@@ -298,14 +287,7 @@ function AppContent() {
                   element={<CategoryManagement />}
                 />
                 <Route path="/admin-complaints" element={<AdminComplaints />} />
-                <Route
-                  path="/dean-analytics"
-                  element={
-                    <RequireRole allowed={["dean", "admin"]}>
-                      <DeanAnalytics />
-                    </RequireRole>
-                  }
-                />
+                <Route path="/dean-analytics" element={<DeanAnalytics />} />
                 <Route
                   path="/dean-staff-performance"
                   element={

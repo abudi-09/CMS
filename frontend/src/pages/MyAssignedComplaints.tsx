@@ -112,11 +112,20 @@ export function MyAssignedComplaints() {
         const name = user.fullName ?? user.name ?? "";
         const mapped: Complaint[] = (data || []).map((d: unknown) => {
           const obj = (d ?? {}) as Record<string, unknown>;
-          const sb = obj.submittedBy as Record<string, unknown> | undefined;
+          const rawSb = obj.submittedBy as unknown;
+          const sbObj =
+            rawSb && typeof rawSb === "object"
+              ? (rawSb as Record<string, unknown>)
+              : undefined;
           const submittedByName =
-            (sb && typeof sb?.name === "string" && (sb.name as string)) ||
-            (sb && typeof sb?.email === "string" && (sb.email as string)) ||
-            "User";
+            (typeof rawSb === "string" && rawSb) ||
+            (sbObj &&
+              typeof sbObj.name === "string" &&
+              (sbObj.name as string)) ||
+            (sbObj &&
+              typeof sbObj.email === "string" &&
+              (sbObj.email as string)) ||
+            "Unknown";
           return {
             id: String((obj.id as string) || (obj._id as string) || ""),
             title: String(obj.title || ""),
@@ -312,17 +321,22 @@ export function MyAssignedComplaints() {
             const id = String(
               (obj.id as string) || (obj._id as string) || fallback?.id || ""
             );
-            const sb = obj.submittedBy as Record<string, unknown> | undefined;
+            const rawSb = obj.submittedBy as unknown;
+            const sb =
+              rawSb && typeof rawSb === "object"
+                ? (rawSb as Record<string, unknown>)
+                : undefined;
             const at = obj.assignedTo as Record<string, unknown> | undefined;
             const asg = obj.assignedStaff as
               | string
               | Record<string, unknown>
               | undefined;
             const submittedByName =
+              (typeof rawSb === "string" && rawSb) ||
               (sb && typeof sb.name === "string" && (sb.name as string)) ||
               (sb && typeof sb.email === "string" && (sb.email as string)) ||
               fallback?.submittedBy ||
-              "User";
+              "Unknown";
             const assignedStaffName =
               (typeof asg === "string" && asg) ||
               (asg &&

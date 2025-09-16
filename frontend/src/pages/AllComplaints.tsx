@@ -230,12 +230,24 @@ export default function AllComplaints() {
               if (all.length >= total || batch.length === 0) break;
               currentPage += 1;
             }
-            // Dean: exclude complaints submitted directly to admin by student (retain previous filter logic)
+            // Dean: student-only and exclude any admin-targeted/associated
             const deanFiltered =
               roleNorm === "dean"
-                ? all.filter(
-                    (c) => String(c.submittedTo || "").toLowerCase() !== "admin"
-                  )
+                ? all.filter((c) => {
+                    const src = String(c.sourceRole || "").toLowerCase();
+                    const to = String(c.submittedTo || "").toLowerCase();
+                    const by = String(c.assignedByRole || "").toLowerCase();
+                    const inPath = Array.isArray(c.assignmentPath)
+                      ? c.assignmentPath.some(
+                          (r) => String(r || "").toLowerCase() === "admin"
+                        )
+                      : false;
+                    if (src && src !== "student") return false;
+                    if (to.includes("admin")) return false;
+                    if (by === "admin") return false;
+                    if (inPath) return false;
+                    return true;
+                  })
                 : all;
             setComplaints(deanFiltered);
             setGlobalTotal(deanFiltered.length);

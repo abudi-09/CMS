@@ -172,6 +172,7 @@ export type Complaint = {
   // Extended (returned from backend) identifiers & meta (optional so creation payload not forced)
   complaintCode?: string;
   friendlyCode?: string; // UI alias for complaintCode
+  isAnonymous?: boolean; // anonymity flag
 };
 
 // Minimal UI complaint mapping used by cards/lists
@@ -942,6 +943,8 @@ export async function getAdminDepartmentPerformanceApi() {
       totalComplaints: number;
       resolvedComplaints: number;
       pendingComplaints: number;
+      inProgress?: number;
+      overdue?: number;
       avgResolutionTime: number;
       successRate: number;
       staffCount: number;
@@ -984,15 +987,11 @@ export async function getDeanAnalyticsSummaryApi() {
     credentials: "include",
   });
   return handleJson<{
-    totalComplaints: number;
-    resolvedComplaints: number;
-    pendingComplaints: number;
-    avgResolutionTime: number;
-    resolutionRate: number;
-    userSatisfaction: number;
-    totalReviews: number;
-    overdueComplaints: number;
-    departmentsManaged: number;
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    unassigned: number;
   }>(res);
 }
 
@@ -1006,14 +1005,20 @@ export async function getDeanDepartmentOverviewApi() {
     }
   );
   return handleJson<{
-    departments: Array<{
+    range: { start: string; end: string };
+    count: number;
+    summary: Record<string, number>;
+    rows: Array<{
       department: string;
-      hodName: string;
       totalComplaints: number;
       resolvedComplaints: number;
       pendingComplaints: number;
-      staffCount: number;
-      avgResolutionTime: number;
+      inProgress?: number;
+      overdue?: number;
+      staffCount?: number;
+      avgResolutionTime?: number;
+      byStatus?: Record<string, number>;
+      byPriority?: Record<string, number>;
     }>;
   }>(res);
 }

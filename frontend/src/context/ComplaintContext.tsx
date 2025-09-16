@@ -4,19 +4,23 @@ import { submitComplaintApi } from "../lib/api";
 import type { Complaint as APIComplaintPayload } from "../lib/api";
 import { Complaint } from "../components/ComplaintCard";
 
+// Input shape for creating a complaint from UI
+type NewComplaintInput = Omit<
+  Complaint,
+  "id" | "status" | "submittedDate" | "lastUpdated" | "submittedBy"
+> & {
+  recipientStaffId?: string;
+  recipientHodId?: string;
+  recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
+  recipientId?: string | null;
+  isAnonymous?: boolean;
+  // Allow form-extra keys; they will be ignored by API mapping if not used
+  [key: string]: unknown;
+};
+
 type ComplaintContextType = {
   complaints: Complaint[];
-  addComplaint: (
-    complaint: Omit<
-      Complaint,
-      "id" | "status" | "submittedDate" | "lastUpdated"
-    > & {
-      recipientStaffId?: string;
-      recipientHodId?: string;
-      recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
-      recipientId?: string | null;
-    }
-  ) => Promise<Complaint>;
+  addComplaint: (complaint: NewComplaintInput) => Promise<Complaint>;
   updateComplaint: (id: string, updates: Partial<Complaint>) => void;
 };
 
@@ -35,18 +39,42 @@ export const useComplaints = () => {
     }
     return {
       complaints: [],
-      addComplaint: async (
-        complaint: Omit<
-          Complaint,
-          "id" | "status" | "submittedDate" | "lastUpdated"
-        > & {
-          recipientStaffId?: string;
-          recipientHodId?: string;
-          recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
-          recipientId?: string | null;
-        }
-      ) => {
+      addComplaint: async (complaint: NewComplaintInput) => {
         // Mirror provider behavior by delegating to API and mapping category->department
+        const deadlineIso =
+          complaint.deadline instanceof Date
+            ? complaint.deadline.toISOString()
+            : undefined;
+        const submittedToNorm = ((): "admin" | "dean" | "hod" | undefined => {
+          const v = complaint.submittedTo;
+          if (!v) return undefined;
+          const low = String(v).toLowerCase();
+          if (low === "admin" || low === "dean" || low === "hod")
+            return low as typeof submittedToNorm extends () => infer R
+              ? R
+              : never;
+          return undefined;
+        })();
+        const assignedByRoleNorm = (():
+          | "student"
+          | "hod"
+          | "dean"
+          | "admin"
+          | undefined => {
+          const r = complaint.assignedByRole;
+          if (!r) return undefined;
+          const low = String(r).toLowerCase();
+          if (
+            low === "student" ||
+            low === "hod" ||
+            low === "dean" ||
+            low === "admin"
+          )
+            return low as typeof assignedByRoleNorm extends () => infer R
+              ? R
+              : never;
+          return undefined; // exclude staff to satisfy narrower backend type definition
+        })();
         const payload: APIComplaintPayload = {
           title: complaint.title,
           description: complaint.description,
@@ -55,16 +83,22 @@ export const useComplaints = () => {
           // Backend requires category; map from selected category
           category: complaint.category,
           priority: complaint.priority,
-          deadline: complaint.deadline,
+          deadline: deadlineIso,
           evidenceFile: complaint.evidenceFile ?? null,
-          submittedTo: complaint.submittedTo ?? null,
+          submittedTo: submittedToNorm,
           sourceRole: complaint.sourceRole,
-          assignedByRole: complaint.assignedByRole ?? null,
+          assignedByRole: assignedByRoleNorm,
           assignmentPath: complaint.assignmentPath,
           recipientStaffId: complaint.recipientStaffId,
           recipientHodId: complaint.recipientHodId,
           recipientRole: complaint.recipientRole ?? null,
           recipientId: complaint.recipientId ?? null,
+          isAnonymous:
+            (complaint as { isAnonymous?: boolean; anonymous?: boolean })
+              .isAnonymous ??
+            (complaint as { isAnonymous?: boolean; anonymous?: boolean })
+              .anonymous ??
+            false,
         };
         const savedComplaint = await submitComplaintApi(payload);
         return savedComplaint as Complaint;
@@ -80,29 +114,67 @@ export const useComplaints = () => {
 export const ComplaintProvider = ({ children }: { children: ReactNode }) => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
 
-  const addComplaint = async (
-    complaint: Omit<
-      Complaint,
-      "id" | "status" | "submittedDate" | "lastUpdated"
-    > & {
-      recipientStaffId?: string;
-      recipientHodId?: string;
-      recipientRole?: "staff" | "hod" | "dean" | "admin" | null;
-      recipientId?: string | null;
-    }
-  ) => {
+  const addComplaint = async (complaint: NewComplaintInput) => {
     try {
       // Ensure the complaint has all required fields for the API
       const savedComplaint = await submitComplaintApi({
-        ...complaint,
-        // Keep the caller-provided department (user's department)
+        title: complaint.title,
+        description: complaint.description,
         department: complaint.department || "",
-        // Ensure category is present for backend
         category: complaint.category,
+        priority:
+          (complaint.priority as APIComplaintPayload["priority"]) || undefined,
+        deadline:
+          complaint.deadline instanceof Date
+            ? complaint.deadline.toISOString()
+            : (complaint.deadline as string | undefined),
+        evidenceFile: complaint.evidenceFile ?? null,
+        submittedTo: (() => {
+          const v = complaint.submittedTo;
+          if (!v) return undefined;
+          const low = String(v).toLowerCase();
+          if (low === "admin" || low === "dean" || low === "hod")
+            return low as "admin" | "dean" | "hod";
+          return undefined;
+        })(),
+        sourceRole: (() => {
+          const r = complaint.sourceRole;
+          if (!r) return undefined;
+          const low = String(r).toLowerCase();
+          if (
+            low === "student" ||
+            low === "staff" ||
+            low === "hod" ||
+            low === "dean" ||
+            low === "admin"
+          )
+            return low as "student" | "staff" | "hod" | "dean" | "admin";
+          return undefined;
+        })(),
+        assignedByRole: (() => {
+          const r = complaint.assignedByRole;
+          if (!r) return undefined;
+          const low = String(r).toLowerCase();
+          if (
+            low === "student" ||
+            low === "hod" ||
+            low === "dean" ||
+            low === "admin"
+          )
+            return low as "student" | "hod" | "dean" | "admin";
+          return undefined;
+        })(),
+        assignmentPath: complaint.assignmentPath,
         recipientStaffId: complaint.recipientStaffId,
         recipientHodId: complaint.recipientHodId,
         recipientRole: complaint.recipientRole ?? null,
         recipientId: complaint.recipientId ?? null,
+        isAnonymous:
+          (complaint as { isAnonymous?: boolean; anonymous?: boolean })
+            .isAnonymous ??
+          (complaint as { isAnonymous?: boolean; anonymous?: boolean })
+            .anonymous ??
+          false,
       });
       setComplaints((prev) => [savedComplaint, ...prev]);
       return savedComplaint;

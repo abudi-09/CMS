@@ -51,6 +51,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getMyComplaintsApi } from "@/lib/api";
+import type { Complaint as FullComplaint } from "@/components/ComplaintCard";
 
 // Helper to format role labels
 const formatRole = (role?: string) => {
@@ -66,6 +68,12 @@ const formatRole = (role?: string) => {
   };
   return map[role] || role;
 };
+
+// Lightweight complaint subset for stats alignment
+interface MiniComplaint {
+  status: string;
+  submittedDate?: string | Date;
+}
 
 export function Profile() {
   type AuthWithSetter = ReturnType<typeof useAuth> & {
@@ -132,6 +140,41 @@ export function Profile() {
     averageRating: 0,
     averageResolutionTime: "-",
   });
+
+  const [myComplaints, setMyComplaints] = useState<MiniComplaint[]>([]);
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        const data = await getMyComplaintsApi().catch(() => []);
+        if (!ignore && Array.isArray(data)) {
+          // Minimal shaping: assume objects have status
+          const mapped: MiniComplaint[] = (data as any[]).map((c) => ({
+            status: c.status || "Pending",
+            submittedDate: c.createdAt || c.submittedDate,
+          }));
+          setMyComplaints(mapped);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+  const alignedUserStats = useMemo(() => {
+    if (!Array.isArray(myComplaints) || !myComplaints.length) return null;
+    const TOTAL = myComplaints.length;
+    const ACTIVE = ["Assigned", "Accepted", "In Progress", "Under Review"];
+    const pending = myComplaints.filter((c) => c.status === "Pending").length;
+    const inProgress = myComplaints.filter((c) =>
+      ACTIVE.includes(c.status)
+    ).length;
+    const resolved = myComplaints.filter((c) => c.status === "Resolved").length;
+    const successRate = TOTAL ? Math.round((resolved / TOTAL) * 100) : 0;
+    return { TOTAL, pending, inProgress, resolved, successRate };
+  }, [myComplaints]);
 
   useEffect(() => {
     let ignore = false;
@@ -1041,33 +1084,37 @@ export function Profile() {
                     </div>
                   ) : (
                     <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                      {[
-                        {
-                          label: "Submitted",
-                          value: performanceData.totalComplaints,
-                        },
-                        { label: "Resolved", value: performanceData.resolved },
-                        {
-                          label: "In Progress",
-                          value: performanceData.inProgress,
-                        },
-                        {
-                          label: "Success Rate",
-                          value: `${performanceData.resolutionRate || 0}%`,
-                        },
-                      ].map((b) => (
-                        <div
-                          key={b.label}
-                          className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition flex flex-col items-start"
-                        >
-                          <span className="text-xs text-muted-foreground tracking-wide uppercase">
-                            {b.label}
-                          </span>
-                          <span className="mt-2 text-2xl font-bold text-primary">
-                            {b.value}
-                          </span>
-                        </div>
-                      ))}
+                      {(() => {
+                        const a = alignedUserStats;
+                        const submitted =
+                          a?.TOTAL ?? performanceData.totalComplaints;
+                        const resolved =
+                          a?.resolved ?? performanceData.resolved;
+                        const inProg =
+                          a?.inProgress ?? performanceData.inProgress;
+                        const success =
+                          (a?.successRate ?? performanceData.resolutionRate) ||
+                          0;
+                        const items = [
+                          { label: "Submitted", value: submitted },
+                          { label: "Resolved", value: resolved },
+                          { label: "In Progress", value: inProg },
+                          { label: "Success Rate", value: `${success}%` },
+                        ];
+                        return items.map((b) => (
+                          <div
+                            key={b.label}
+                            className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition flex flex-col items-start"
+                          >
+                            <span className="text-xs text-muted-foreground tracking-wide uppercase">
+                              {b.label}
+                            </span>
+                            <span className="mt-2 text-2xl font-bold text-primary">
+                              {b.value}
+                            </span>
+                          </div>
+                        ));
+                      })()}
                     </div>
                   )}
                 </CardContent>
