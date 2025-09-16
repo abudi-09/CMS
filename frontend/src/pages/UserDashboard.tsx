@@ -39,7 +39,7 @@ export function UserDashboard() {
         department?: string;
         status?: string;
         priority?: string;
-        submittedBy?: { fullName?: string; name?: string } | null;
+        submittedBy?: string | { fullName?: string; name?: string } | null;
         assignedTo?: { fullName?: string; name?: string; role?: string } | null;
         assignedByRole?: string | null;
         assignmentPath?: string[];
@@ -53,6 +53,7 @@ export function UserDashboard() {
         isEscalated?: boolean;
         sourceRole?: string;
         submittedTo?: string;
+        isAnonymous?: boolean;
       }
       const arr: DTO[] = Array.isArray(data) ? (data as DTO[]) : [];
       const mapped: Complaint[] = arr.map((c: DTO) => ({
@@ -62,7 +63,12 @@ export function UserDashboard() {
         category: c.category || c.department || "General",
         status: (c.status || "Pending") as Complaint["status"],
         priority: (c.priority || "Medium") as Complaint["priority"],
-        submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+        submittedBy:
+          typeof c.submittedBy === "string"
+            ? c.submittedBy
+            : c.submittedBy?.fullName ||
+              c.submittedBy?.name ||
+              (c.isAnonymous ? "Anonymous" : "You"),
         assignedStaff: c.assignedTo?.fullName || c.assignedTo?.name || "",
         assignedStaffRole:
           c.assignedTo?.role &&

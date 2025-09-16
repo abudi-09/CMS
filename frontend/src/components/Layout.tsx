@@ -77,7 +77,7 @@ export function Layout({ children }: LayoutProps) {
               <GraduationCap className="h-8 w-8 text-primary" />
               <div className="hidden sm:block">
                 <Link to="/dashboard" className="block hover:underline">
-                  <h1 className="text-lg font-semibold">Gondar University</h1>
+                  <h1 className="text-lg font-semibold">Informatics College</h1>
                   <p className="text-xs text-muted-foreground">
                     Complaint Management
                   </p>

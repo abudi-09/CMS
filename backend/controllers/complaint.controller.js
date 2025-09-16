@@ -8,28 +8,16 @@ import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
 import { buildHodScopeFilter } from "../utils/hodFiltering.js";
 
-// Masking helper for anonymity Option A (only original submitter sees identity)
-function maskSubmitter(c, viewerId) {
+// Masking helper: if anonymous, always mask as "Anonymous" for ALL viewers/roles
+function maskSubmitter(c, _viewerId) {
   if (!c) return null;
   try {
-    const isAnon = !!c.isAnonymous;
-    if (!isAnon)
-      return c.submittedBy && typeof c.submittedBy === "object"
-        ? c.submittedBy.name || c.submittedBy.email
-        : c.submittedBy;
-    // If anonymous, reveal only to owner
-    if (
-      viewerId &&
-      c.submittedBy &&
-      String(c.submittedBy._id || c.submittedBy) === String(viewerId)
-    ) {
-      return c.submittedBy && typeof c.submittedBy === "object"
-        ? c.submittedBy.name || c.submittedBy.email
-        : c.submittedBy;
-    }
-    return "Unknown";
+    if (c.isAnonymous) return "Anonymous";
+    return c.submittedBy && typeof c.submittedBy === "object"
+      ? c.submittedBy.name || c.submittedBy.email
+      : c.submittedBy;
   } catch (_) {
-    return "Unknown";
+    return "Anonymous";
   }
 }
 
@@ -582,10 +570,11 @@ export const getMyComplaints = async (req, res) => {
         c?.assignedTo && typeof c.assignedTo === "object"
           ? c.assignedTo.name || c.assignedTo.email
           : null,
-      submittedBy:
-        c?.submittedBy && typeof c.submittedBy === "object"
-          ? c.submittedBy.name || c.submittedBy.email
-          : null,
+      submittedBy: c?.isAnonymous
+        ? "Anonymous"
+        : c?.submittedBy && typeof c.submittedBy === "object"
+        ? c.submittedBy.name || c.submittedBy.email
+        : null,
       deadline: c?.deadline ?? null,
       sourceRole: c?.sourceRole ?? null,
       assignedByRole: c?.assignedByRole ?? null,
@@ -596,6 +585,7 @@ export const getMyComplaints = async (req, res) => {
       isDeleted: !!c?.isDeleted,
       recipientRole: c?.recipientRole ?? null,
       recipientId: c?.recipientId ?? null,
+      isAnonymous: !!c?.isAnonymous,
     }));
 
     return res.status(200).json(formatted);

@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CategoryContext, Category } from "@/context/CategoryContext";
+import { useAuth } from "@/components/auth/AuthContext";
 import {
   listActiveAdminsPublicApi,
   listActiveDeansPublicApi,
@@ -37,7 +38,7 @@ type ApiComplaint = {
   description: string;
   priority: Priority;
   isAnonymous: boolean;
-  sourceRole: "student";
+  sourceRole: "student" | "staff" | "hod" | "dean" | "admin";
   recipientRole: "admin" | "dean" | "hod" | "staff" | null;
   recipientId: string | null;
   submittedTo?: "admin" | "dean" | "hod";
@@ -54,6 +55,7 @@ export default function ComplaintForm() {
     "Academic Affairs",
   ];
   const { toast } = useToast();
+  const { user } = useAuth();
   const categoryCtx = useContext(CategoryContext);
   const categories = categoryCtx?.categories || [];
 
@@ -127,7 +129,7 @@ export default function ComplaintForm() {
         description: formData.description,
         priority: formData.priority,
         isAnonymous,
-        sourceRole: "student",
+        sourceRole: user?.role || "student",
         recipientRole: formData.recipientRole || null,
         recipientId: formData.recipientId || null,
       };

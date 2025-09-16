@@ -73,7 +73,7 @@ interface BackendComplaintDTO {
   department?: string;
   status?: string;
   sourceRole?: string;
-  submittedBy?: { fullName?: string; name?: string } | null;
+  submittedBy?: string | { fullName?: string; name?: string } | null;
   // assignedTo may come as populated object or as a plain string name when sent directly to staff
   assignedTo?:
     | { fullName?: string; name?: string; role?: string }
@@ -92,6 +92,7 @@ interface BackendComplaintDTO {
   isEscalated?: boolean;
   submittedTo?: string;
   recipientRole?: string | null;
+  isAnonymous?: boolean;
 }
 
 const statusColors = {
@@ -172,7 +173,12 @@ export function MyComplaints() {
           description: c.description || "No description provided",
           category: (c.category || c.department || "").trim() || "General",
           status: (c.status as Complaint["status"]) || "Pending",
-          submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+          submittedBy:
+            typeof c.submittedBy === "string"
+              ? c.submittedBy
+              : c.submittedBy?.fullName ||
+                c.submittedBy?.name ||
+                (c.isAnonymous ? "Anonymous" : "You"),
           sourceRole: roleGuard(c.sourceRole),
           assignedStaff: getAssignedToName(c),
           // staff role for assignee cannot be 'student'; fallback to 'staff' when ambiguous
@@ -573,7 +579,12 @@ export function MyComplaints() {
           description: c.description || "No description provided",
           category: (c.category || c.department || "").trim() || "General",
           status: (c.status as Complaint["status"]) || "Pending",
-          submittedBy: c.submittedBy?.fullName || c.submittedBy?.name || "You",
+          submittedBy:
+            typeof c.submittedBy === "string"
+              ? c.submittedBy
+              : c.submittedBy?.fullName ||
+                c.submittedBy?.name ||
+                (c.isAnonymous ? "Anonymous" : "You"),
           sourceRole: roleGuard(c.sourceRole),
           assignedStaff: getAssignedToName(c),
           assignedStaffRole:
@@ -687,9 +698,11 @@ export function MyComplaints() {
                           "General",
                         status: (c.status as Complaint["status"]) || "Pending",
                         submittedBy:
-                          c.submittedBy?.fullName ||
-                          c.submittedBy?.name ||
-                          "You",
+                          typeof c.submittedBy === "string"
+                            ? c.submittedBy
+                            : c.submittedBy?.fullName ||
+                              c.submittedBy?.name ||
+                              (c.isAnonymous ? "Anonymous" : "You"),
                         sourceRole: roleGuard(c.sourceRole),
                         assignedStaff: getAssignedToName(c),
                         assignedStaffRole:

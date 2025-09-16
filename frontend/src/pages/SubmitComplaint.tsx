@@ -385,7 +385,7 @@ export function SubmitComplaint() {
         submittedTo,
         department: user?.department || "Unknown Department",
         // Who created the complaint (role)
-        sourceRole: "student",
+        sourceRole: user?.role || "student",
         // The assigner role for a direct student submission should be 'student'
         assignedByRole: "student",
         assignmentPath,

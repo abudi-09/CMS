@@ -92,6 +92,24 @@ export default function AllComplaints() {
     (user?.role || "").toLowerCase() === "admin" ||
     (user?.role || "").toLowerCase() === "dean";
 
+  // Helper function for anonymity logic
+  const getAnonymousSubmitter = (
+    submitter: string | { name?: string; email?: string } | null | undefined,
+    complaint?: Complaint
+  ): string => {
+    // Check if complaint was submitted anonymously
+    if (complaint?.isAnonymous) {
+      return "Anonymous";
+    }
+
+    if (!submitter) return "Unknown";
+    if (typeof submitter === "string") return submitter;
+    if (typeof submitter === "object") {
+      return submitter.name || submitter.email || "Unknown";
+    }
+    return "Unknown";
+  };
+
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowDetailModal(true);
@@ -222,6 +240,7 @@ export default function AllComplaints() {
               department: obj["department"]
                 ? String(obj["department"])
                 : undefined,
+              isAnonymous: Boolean(obj["isAnonymous"] ?? false),
             } as Complaint;
           };
           setLoadingList(true);
@@ -287,6 +306,7 @@ export default function AllComplaints() {
             submittedTo?: string | null;
             sourceRole?: string | null;
             department?: string | null;
+            isAnonymous?: boolean;
           };
           const mapLite = (c: InboxOrManaged): Complaint => ({
             id: String(c.id || c._id || ""),
@@ -316,6 +336,7 @@ export default function AllComplaints() {
               : [],
             submittedTo: c.submittedTo || undefined,
             department: c.department || undefined,
+            isAnonymous: Boolean(c.isAnonymous ?? false),
           });
           const merged = [...inbox.map(mapLite), ...managed.map(mapLite)];
           // de-duplicate by id
@@ -414,6 +435,7 @@ export default function AllComplaints() {
               department: String((obj?.department as string) || dept || "")
                 .toLowerCase()
                 .trim(),
+              isAnonymous: Boolean(obj?.isAnonymous ?? false),
             };
           };
           let deptMapped: Complaint[] = Array.isArray(deptRes)
@@ -480,6 +502,7 @@ export default function AllComplaints() {
             submittedTo?: string | null;
             sourceRole?: string | null;
             department?: string | null;
+            isAnonymous?: boolean;
           };
           const mapped: Complaint[] = (raw || []).map((c: MyComp) => ({
             id: String(c.id || c._id || ""),
@@ -506,6 +529,7 @@ export default function AllComplaints() {
               : [],
             submittedTo: c.submittedTo || undefined,
             department: c.department || undefined,
+            isAnonymous: Boolean(c.isAnonymous ?? false),
           }));
           setComplaints(mapped);
         }
@@ -1183,7 +1207,10 @@ export default function AllComplaints() {
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">
-                          {complaint.submittedBy}
+                          {getAnonymousSubmitter(
+                            complaint.submittedBy,
+                            complaint
+                          )}
                         </span>
                       </div>
                     </TableCell>

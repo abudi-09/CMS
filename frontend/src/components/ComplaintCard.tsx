@@ -48,6 +48,7 @@ export interface Complaint {
     comment: string;
   };
   resolutionNote?: string;
+  isAnonymous?: boolean;
   evidenceFile?: string; // Optional fields for feedback;
   isEscalated?: boolean; // Indicates if the complaint is escalated
   submittedTo?: string; // Add this field for tracking who complaint was submitted to

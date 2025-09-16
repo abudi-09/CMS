@@ -138,7 +138,7 @@ export default function HomePage() {
             </Badge>
 
             <h1 className="text-4xl md:text-6xl font-bold mb-6 text-foreground">
-              University of Gondar
+              Informatics College
               <span className="text-primary block mt-2">
                 Complaint Management System
               </span>

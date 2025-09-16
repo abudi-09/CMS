@@ -41,10 +41,21 @@ export const getComplaint = async (req, res) => {
 
       const payload = complaint.toObject ? complaint.toObject() : complaint;
       payload.canStaffAct = canStaffAct;
+      payload.isAnonymous = !!complaint.isAnonymous;
+      if (payload.isAnonymous) {
+        payload.submittedBy = "Anonymous";
+      }
       return res.status(200).json({ complaint: payload });
     } catch (_) {
       // Fallback to existing behavior if anything goes wrong
-      return res.status(200).json({ complaint });
+      const fallbackPayload = complaint.toObject
+        ? complaint.toObject()
+        : complaint;
+      fallbackPayload.isAnonymous = !!complaint.isAnonymous;
+      if (fallbackPayload.isAnonymous) {
+        fallbackPayload.submittedBy = "Anonymous";
+      }
+      return res.status(200).json({ complaint: fallbackPayload });
     }
   } catch (err) {
     console.error(`[getComplaint] Error for id=${req.params.id}:`, err);

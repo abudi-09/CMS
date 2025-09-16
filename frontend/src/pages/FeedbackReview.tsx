@@ -55,7 +55,7 @@ export function FeedbackReview() {
       complaintId: string;
       title: string;
       complaintCode?: string;
-      submittedBy?: { name?: string; email?: string };
+      submittedBy?: { name?: string; email?: string } | string | null;
       assignedTo?: {
         name?: string;
         email?: string;
@@ -81,7 +81,79 @@ export function FeedbackReview() {
     (async () => {
       try {
         const data = await getFeedbackByRoleApi();
-        if (mounted) setItems(data || []);
+        if (mounted) {
+          type ApiItem = {
+            id: string;
+            complaintId?: string;
+            title?: string;
+            complaintCode?: string;
+            rating?: number;
+            comment?: string;
+            submittedBy?: { name?: string; email?: string } | string | null;
+            assignedTo?: { name?: string; email?: string } | string | null;
+            createdAt?: string;
+            reviewed?: boolean;
+            resolvedAt?: string | Date;
+            submittedAt?: string | Date;
+            category?: string;
+            department?: string;
+            submittedTo?: string | null;
+            feedback?: {
+              rating?: number;
+              comment?: string;
+              reviewed?: boolean;
+              submittedAt?: string | Date;
+            };
+          };
+          const arr: ApiItem[] = Array.isArray(data) ? (data as ApiItem[]) : [];
+          const mapped = arr.map((r) => {
+            const complaintId = String(r.complaintId || r.id || "");
+            const assignedToRaw = r.assignedTo;
+            const assignedTo =
+              assignedToRaw && typeof assignedToRaw === "object"
+                ? assignedToRaw
+                : assignedToRaw
+                ? { name: String(assignedToRaw) }
+                : undefined;
+            const feedback = {
+              rating:
+                (r.feedback && typeof r.feedback.rating === "number"
+                  ? r.feedback.rating
+                  : undefined) ?? (typeof r.rating === "number" ? r.rating : 0),
+              comment:
+                (r.feedback && typeof r.feedback.comment === "string"
+                  ? r.feedback.comment
+                  : undefined) ??
+                (typeof r.comment === "string" ? r.comment : undefined),
+              reviewed:
+                (r.feedback && typeof r.feedback.reviewed === "boolean"
+                  ? r.feedback.reviewed
+                  : undefined) ??
+                (typeof r.reviewed === "boolean" ? r.reviewed : undefined),
+              submittedAt:
+                (r.feedback && r.feedback.submittedAt) || r.createdAt,
+            } as {
+              rating: number;
+              comment?: string;
+              reviewed?: boolean;
+              submittedAt?: string | Date;
+            };
+            return {
+              complaintId,
+              title: String(r.title || "Complaint"),
+              complaintCode: r.complaintCode,
+              submittedBy: r.submittedBy ?? null,
+              assignedTo,
+              feedback,
+              resolvedAt: r.resolvedAt,
+              submittedAt: r.submittedAt,
+              category: r.category,
+              department: r.department,
+              submittedTo: r.submittedTo || null,
+            };
+          });
+          setItems(mapped);
+        }
       } catch (e) {
         // surface a toast once, but don't spam
         toast({ title: "Failed to load feedback", variant: "destructive" });
@@ -317,8 +389,10 @@ export function FeedbackReview() {
                         </div>
                       </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {feedback.submittedBy?.name ||
-                          feedback.submittedBy?.email}
+                        {typeof feedback.submittedBy === "string"
+                          ? feedback.submittedBy
+                          : feedback.submittedBy?.name ||
+                            feedback.submittedBy?.email}
                       </TableCell>
                       <TableCell className="text-sm">
                         {feedback.assignedTo?.name ||
@@ -394,8 +468,10 @@ export function FeedbackReview() {
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           By:{" "}
-                          {feedback.submittedBy?.name ||
-                            feedback.submittedBy?.email}
+                          {typeof feedback.submittedBy === "string"
+                            ? feedback.submittedBy
+                            : feedback.submittedBy?.name ||
+                              feedback.submittedBy?.email}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 ml-2">

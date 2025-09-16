@@ -24,7 +24,7 @@ type StaffFeedbackItem = {
   complaintId: string;
   title: string;
   complaintCode?: string;
-  submittedBy?: { name?: string; email?: string };
+  submittedBy?: { name?: string; email?: string } | string | null;
   assignedTo?: {
     name?: string;
     email?: string;
@@ -63,7 +63,74 @@ export function StaffFeedback() {
       try {
         // Role-aware API returns feedback according to current user's role
         const data = await getFeedbackByRoleApi();
-        if (!cancelled) setItems(data as StaffFeedbackItem[]);
+        if (!cancelled) {
+          type ApiItem = {
+            id: string;
+            complaintId?: string;
+            title?: string;
+            complaintCode?: string;
+            rating?: number;
+            comment?: string;
+            submittedBy?: { name?: string; email?: string } | string | null;
+            assignedTo?: { name?: string; email?: string } | string | null;
+            createdAt?: string;
+            reviewed?: boolean;
+            resolvedAt?: string;
+            submittedAt?: string;
+            avgResolutionMs?: number;
+            category?: string;
+            department?: string;
+            feedback?: {
+              rating?: number;
+              comment?: string;
+              reviewed?: boolean;
+              submittedAt?: string | Date;
+            };
+          };
+          const arr: ApiItem[] = Array.isArray(data) ? (data as ApiItem[]) : [];
+          const mapped: StaffFeedbackItem[] = arr.map((r) => {
+            const complaintId = String(r.complaintId || r.id || "");
+            const assignedToRaw = r.assignedTo;
+            const assignedTo =
+              assignedToRaw && typeof assignedToRaw === "object"
+                ? assignedToRaw
+                : assignedToRaw
+                ? { name: String(assignedToRaw) }
+                : undefined;
+            const feedback = {
+              rating:
+                (r.feedback && typeof r.feedback.rating === "number"
+                  ? r.feedback.rating
+                  : undefined) ?? (typeof r.rating === "number" ? r.rating : 0),
+              comment:
+                (r.feedback && typeof r.feedback.comment === "string"
+                  ? r.feedback.comment
+                  : undefined) ??
+                (typeof r.comment === "string" ? r.comment : undefined),
+              reviewed:
+                (r.feedback && typeof r.feedback.reviewed === "boolean"
+                  ? r.feedback.reviewed
+                  : undefined) ??
+                (typeof r.reviewed === "boolean" ? r.reviewed : undefined),
+              submittedAt:
+                (r.feedback && r.feedback.submittedAt) ?? r.createdAt,
+            } as StaffFeedbackItem["feedback"];
+            return {
+              complaintId,
+              title: String(r.title || "Complaint"),
+              complaintCode: r.complaintCode,
+              submittedBy: r.submittedBy ?? null,
+              assignedTo,
+              feedback,
+              resolvedAt: r.resolvedAt,
+              submittedAt: r.submittedAt,
+              avgResolutionMs: r.avgResolutionMs,
+              category: r.category,
+              department: r.department,
+            } as StaffFeedbackItem;
+          });
+          setItems(mapped);
+        }
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -323,9 +390,11 @@ export function StaffFeedback() {
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <p className="text-xs md:text-sm text-muted-foreground">
                             By:{" "}
-                            {it.submittedBy?.name ||
-                              it.submittedBy?.email ||
-                              "Unknown"}
+                            {typeof it.submittedBy === "string"
+                              ? it.submittedBy
+                              : it.submittedBy?.name ||
+                                it.submittedBy?.email ||
+                                "Unknown"}
                           </p>
                           <span className="text-muted-foreground">•</span>
                           <p className="text-xs md:text-sm text-muted-foreground">

@@ -72,8 +72,13 @@ export function RoleBasedComplaintModal({
   const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(
     complaint
   );
-  // Helper for type-safe user display
+  // Helper for type-safe user display with anonymity logic
   function getUserDisplay(user: unknown): string {
+    // Check if complaint was submitted anonymously
+    if (liveComplaint?.isAnonymous) {
+      return "Anonymous";
+    }
+
     if (!user) return "Unknown";
     if (typeof user === "string") return user;
     if (typeof user === "object" && user !== null) {
@@ -179,7 +184,13 @@ export function RoleBasedComplaintModal({
   ): Complaint | null {
     if (!input || typeof input !== "object") return fallback ?? null;
     const obj = input as Record<string, unknown>;
-    const submittedBy = (obj.submittedBy as Record<string, unknown>) || {};
+    // submittedBy can be a string (already masked) or an object; prefer masked string
+    const submittedByRaw = obj.submittedBy as unknown;
+    const isAnonymous = Boolean(obj.isAnonymous);
+    const submittedByObj =
+      submittedByRaw && typeof submittedByRaw === "object"
+        ? (submittedByRaw as unknown as Record<string, unknown>)
+        : {};
     const assignedTo = (obj.assignedTo as Record<string, unknown>) || {};
     const id = (obj._id as string) || (obj.id as string) || fallback?.id || "";
     const title = (obj.title as string) || fallback?.title || "";
@@ -190,11 +201,14 @@ export function RoleBasedComplaintModal({
       (obj.status as Complaint["status"]) || fallback?.status || "Pending";
     const priority =
       (obj.priority as Complaint["priority"]) || fallback?.priority || "Medium";
-    const submittedByName =
-      (submittedBy.name as string) ||
-      (submittedBy.email as string) ||
-      fallback?.submittedBy ||
-      "User";
+    const submittedByName = isAnonymous
+      ? "Anonymous"
+      : typeof submittedByRaw === "string"
+      ? submittedByRaw
+      : (submittedByObj.name as string) ||
+        (submittedByObj.email as string) ||
+        fallback?.submittedBy ||
+        "User";
     const assignedStaffName =
       (assignedTo.fullName as string) ||
       (assignedTo.name as string) ||
@@ -275,6 +289,9 @@ export function RoleBasedComplaintModal({
       evidenceFile,
       isEscalated,
       submittedTo,
+      // surface isAnonymous for UI logic if needed later
+      // @ts-expect-error: extending shape for convenience
+      isAnonymous: isAnonymous,
       assignedToId,
       // Prefer backend department if present; fall back to existing
       department: (obj.department as string) || fallback?.department,

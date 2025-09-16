@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,7 +33,15 @@ import {
   Line,
   ResponsiveContainer,
 } from "recharts";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   AssignedComplaintLite,
   StaffStats,
@@ -59,7 +68,11 @@ export default function MyPerformance() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [assigned]);
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -228,32 +241,39 @@ export default function MyPerformance() {
   const totalResolved = stats?.resolved ?? 0;
   const totalPending = stats?.pending ?? 0;
 
-  const recentActivity = assigned.slice(0, 10).map((c) => {
-    const dateAssigned = c.assignedAt
-      ? new Date(c.assignedAt).toLocaleDateString()
-      : "-";
-    let dateResolved = "-";
-    if (c.resolvedAt) {
-      dateResolved = new Date(c.resolvedAt).toLocaleDateString();
-    } else if (c.status === "Resolved" && c.lastUpdated) {
-      // Fallback in case status is Resolved but resolvedAt wasn't populated
-      dateResolved = new Date(c.lastUpdated).toLocaleDateString();
-    }
-    const rating = (() => {
-      const maybe = c.feedback as { rating?: number } | null | undefined;
-      if (maybe && typeof maybe.rating === "number") return maybe.rating;
-      const m = feedbackMap[c.id];
-      return typeof m === "number" ? m : null;
-    })();
-    return {
-      id: c.id,
-      title: c.title,
-      status: c.status,
-      dateAssigned,
-      dateResolved,
-      rating,
-    };
-  });
+  const recentActivity = useMemo(() => {
+    const pageSize = 5;
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return assigned.slice(startIndex, endIndex).map((c) => {
+      const dateAssigned = c.assignedAt
+        ? new Date(c.assignedAt).toLocaleDateString()
+        : "-";
+      let dateResolved = "-";
+      if (c.resolvedAt) {
+        dateResolved = new Date(c.resolvedAt).toLocaleDateString();
+      } else if (c.status === "Resolved" && c.lastUpdated) {
+        // Fallback in case status is Resolved but resolvedAt wasn't populated
+        dateResolved = new Date(c.lastUpdated).toLocaleDateString();
+      }
+      const rating = (() => {
+        const maybe = c.feedback as { rating?: number } | null | undefined;
+        if (maybe && typeof maybe.rating === "number") return maybe.rating;
+        const m = feedbackMap[c.id];
+        return typeof m === "number" ? m : null;
+      })();
+      return {
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        dateAssigned,
+        dateResolved,
+        rating,
+      };
+    });
+  }, [assigned, currentPage, feedbackMap]);
+
+  const totalPages = Math.ceil(assigned.length / 5);
 
   return (
     <div className="p-6 space-y-6">
@@ -532,6 +552,55 @@ export default function MyPerformance() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() =>
+                        setCurrentPage(Math.max(1, currentPage - 1))
+                      }
+                      className={
+                        currentPage === 1
+                          ? "pointer-events-none opacity-50"
+                          : "cursor-pointer"
+                      }
+                    />
+                  </PaginationItem>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+                  )}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() =>
+                        setCurrentPage(Math.min(totalPages, currentPage + 1))
+                      }
+                      className={
+                        currentPage === totalPages
+                          ? "pointer-events-none opacity-50"
+                          : "cursor-pointer"
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

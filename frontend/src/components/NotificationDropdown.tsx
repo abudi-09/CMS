@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth/AuthContext";
 import {
-  listMyNotificationsApi, // returns unread only (backend enforced)
+  getNotificationsApi, // unified API - returns unread only when unread=true
   type NotificationItem,
   openNotificationsEventSource,
   patchNotificationReadApi,
@@ -46,7 +46,11 @@ export function NotificationDropdown() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await listMyNotificationsApi({ page: 1, pageSize: 20 });
+      const res = await getNotificationsApi({
+        page: 1,
+        pageSize: 20,
+        unread: false, // Load all notifications (read and unread)
+      });
       setItems((prev) => {
         const next = res.items;
         const prevSeen = seenIdsRef.current;
@@ -111,7 +115,9 @@ export function NotificationDropdown() {
   const markAsRead = async (id: string) => {
     try {
       await patchNotificationReadApi(id);
-      setItems((prev) => prev.filter((n) => n._id !== id)); // remove from UI (unread list)
+      setItems((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, read: true } : n))
+      ); // mark as read but keep in UI
     } catch (e) {
       console.warn("Failed to mark notification read", e);
     }
@@ -141,7 +147,7 @@ export function NotificationDropdown() {
   const markAllAsRead = async () => {
     try {
       await patchAllNotificationsReadApi();
-      setItems([]); // all cleared (no unread remain)
+      setItems((prev) => prev.map((n) => ({ ...n, read: true }))); // mark all as read but keep in UI
     } catch (e) {
       console.warn("Failed to mark all notifications read", e);
     }
@@ -167,20 +173,9 @@ export function NotificationDropdown() {
     }
   };
 
-  const handleOpenChange = async (next: boolean) => {
+  const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) {
-      // Auto-mark unread as read when opening
-      const hasUnread = items.some((n) => !n.read);
-      if (hasUnread) {
-        try {
-          await patchAllNotificationsReadApi();
-          setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-        } catch (e) {
-          console.warn("Auto mark-all failed", e);
-        }
-      }
-    }
+    // Removed auto-mark-as-read on dropdown open to prevent accidental marking
   };
 
   return (

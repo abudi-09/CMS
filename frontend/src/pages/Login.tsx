@@ -172,7 +172,7 @@ export function Login() {
           <div className="text-center text-white dark:text-[#FFD700] p-8 w-full">
             <GraduationCap className="h-20 w-20 mx-auto mb-6 text-white dark:text-primary" />
             <h1 className="text-4xl font-bold mb-4 text-white dark:text-foreground">
-              Gondar University
+              Informatics College
             </h1>
             <p className="text-xl mb-2 text-white dark:text-foreground">
               Complaint Management System

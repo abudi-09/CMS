@@ -22,12 +22,12 @@ export function HomePageHeader() {
             <Link
               to="/"
               className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-              aria-label="University of Gondar Home"
+              aria-label="Informatics Collage Home"
             >
               <GraduationCap className="h-10 w-10 text-primary" />
               <div className="flex flex-col text-left">
                 <span className="text-lg font-bold text-foreground hover:underline underline-offset-4">
-                  University of Gondar
+                  Informatics College
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Complaint Management System
