@@ -32,6 +32,7 @@ export type UserRole =
 export type StaffStatus = "pending" | "approved" | "rejected";
 
 interface User {
+  _id: string;
   username: string;
   id: string;
   name: string;

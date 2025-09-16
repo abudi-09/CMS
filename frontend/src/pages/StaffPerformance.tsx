@@ -113,9 +113,11 @@ export default function StaffPerformance() {
   const filteredAndSortedStaff = staffMembers
     .filter((staff) => {
       const matchesSearch =
-        staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        staff.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        staff.department.toLowerCase().includes(searchTerm.toLowerCase());
+        (staff.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (staff.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (staff.department || "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
 
       const matchesDepartment =
         departmentFilter === "all" || staff.department === departmentFilter;

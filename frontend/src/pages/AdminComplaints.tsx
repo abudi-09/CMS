@@ -67,7 +67,7 @@ function ServerStatsRow({ complaints }: { complaints: Complaint[] }) {
       {cards.map((c) => (
         <div
           key={c.title}
-          className="p-4 bg-white rounded shadow flex flex-col justify-between"
+          className="p-4 bg-white dark:bg-gray-800 rounded shadow flex flex-col justify-between"
         >
           <div className="text-xs text-muted-foreground">{c.title}</div>
           <div className="text-2xl font-bold">{c.value}</div>
@@ -334,6 +334,7 @@ function AdminComplaints() {
             showOverdueColumn={false}
             actionLabel="View Detail"
             hideIdColumn
+            showAssignedStaffColumn={false}
             onAccept={statusTab === "Pending" ? acceptComplaint : undefined}
             onReject={statusTab === "Pending" ? rejectComplaint : undefined}
             // Update action is available inside the View Detail modal

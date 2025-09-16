@@ -331,7 +331,6 @@ function AppContent() {
                     </RequireRole>
                   }
                 />
-
                 <Route
                   path="/hod/staff-management"
                   element={

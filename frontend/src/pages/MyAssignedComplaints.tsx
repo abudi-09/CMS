@@ -634,7 +634,7 @@ export function MyAssignedComplaints() {
 
   const isAssignedByHod = (c: Complaint) => {
     const arb = (c.assignedByRole || "").toLowerCase();
-    const ap = (c.assignmentPath || []).map((r) => r.toLowerCase());
+    const ap = (c.assignmentPath || []).map((r) => (r || "").toLowerCase());
     return (
       arb === "headofdepartment" ||
       arb === "hod" ||
@@ -677,8 +677,12 @@ export function MyAssignedComplaints() {
 
     let base = categoryBase.filter((complaint) => {
       const matchesSearch =
-        complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
+        (complaint.title || "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        (complaint.description || "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
       const matchesStatus =
         statusFilter === "All" || complaint.status === statusFilter;
       const matchesPriority =
@@ -1020,13 +1024,13 @@ export function MyAssignedComplaints() {
 
         <CardContent className="p-3 sm:p-4 md:p-6">
           {/* Desktop/Tablet Table */}
-          <div className="hidden md:block rounded-md border overflow-x-auto bg-transparent">
-            <Table className="bg-transparent min-w-[760px]">
+          <div className="hidden md:block rounded-md border overflow-x-auto bg-white dark:bg-gray-800">
+            <Table className="bg-white dark:bg-gray-800 min-w-[760px]">
               <style>{`
                 .my-assigned-table tr,
                 .my-assigned-table th,
                 .my-assigned-table td {
-                  background: transparent !important;
+                  background: inherit !important;
                 }
               `}</style>
               <TableHeader>

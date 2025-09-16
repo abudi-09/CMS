@@ -107,9 +107,13 @@ export function ComplaintTable({
   const showAssignedStaff = showAssignedStaffColumn;
   const filteredComplaints = complaintsData.filter((complaint) => {
     const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.id.toLowerCase().includes(searchTerm.toLowerCase());
+      (complaint.title || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (complaint.description || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (complaint.id || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || complaint.status === statusFilter;

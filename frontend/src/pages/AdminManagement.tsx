@@ -521,7 +521,7 @@ export default function AdminManagement() {
           </CardContent>
         </Card>
       </div>
-      <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
+      <Card className="shadow-lg rounded-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">Admin List</CardTitle>
           {!canManage && (
@@ -647,8 +647,8 @@ export default function AdminManagement() {
                             <Badge
                               className={
                                 user.isActive
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                  : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                               }
                             >
                               {user.isActive ? "Active" : "Inactive"}
@@ -745,8 +745,8 @@ export default function AdminManagement() {
                           <Badge
                             className={
                               u.isActive
-                                ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-800"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                             }
                           >
                             {u.isActive ? "Active" : "Inactive"}

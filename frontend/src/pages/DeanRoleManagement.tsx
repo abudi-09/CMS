@@ -194,7 +194,7 @@ export default function DeanRoleManagement() {
       </div>
 
       {/* Filters and Search */}
-      <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
+      <Card className="shadow-lg rounded-2xl">
         <CardHeader>
           {!canManage && (
             <Alert>
@@ -282,8 +282,8 @@ export default function DeanRoleManagement() {
                           <Badge
                             className={
                               u.isActive
-                                ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-800"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                             }
                           >
                             {u.isActive ? "Active" : "Inactive"}
@@ -380,8 +380,8 @@ export default function DeanRoleManagement() {
                         <Badge
                           className={
                             u.isActive
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                           }
                         >
                           {u.isActive ? "Active" : "Inactive"}

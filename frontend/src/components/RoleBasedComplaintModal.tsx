@@ -53,6 +53,8 @@ interface RoleBasedComplaintModalProps {
   hideHodActionsIfAssigned?: boolean;
   // Optional timeline filtering: full (default) shows all consolidated steps, summary reduces to key milestones
   timelineFilterMode?: "full" | "summary";
+  // When true, disable all action buttons in the modal
+  readOnly?: boolean;
 }
 
 export function RoleBasedComplaintModal({
@@ -64,6 +66,7 @@ export function RoleBasedComplaintModal({
   fetchLatest = true,
   hideHodActionsIfAssigned = false,
   timelineFilterMode = "full",
+  readOnly = false,
 }: RoleBasedComplaintModalProps) {
   // Local state for live backend complaint (initialized with incoming complaint)
   const [liveComplaint, setLiveComplaint] = useState<Complaint | null>(
@@ -136,7 +139,7 @@ export function RoleBasedComplaintModal({
   const deanVisiblePhase =
     deanStatus === "In Progress" || deanStatus === "Accepted";
   const showDeanActionSection =
-    user?.role === "dean" && deanVisiblePhase && acceptedByDean;
+    user?.role === "dean" && deanVisiblePhase && acceptedByDean && !readOnly;
   // (Optional) Normalized status if you want to render unified label elsewhere
   const deanEffectiveStatus =
     deanStatus === "Accepted" ? "In Progress" : deanStatus;
@@ -1493,6 +1496,7 @@ export function RoleBasedComplaintModal({
                     value={hodNote}
                     onChange={(e) => setHodNote(e.target.value.slice(0, 1000))}
                     rows={3}
+                    disabled={readOnly}
                   />
                   <div className="text-xs text-muted-foreground mt-1 text-right">
                     {hodNote.length}/1000
@@ -1501,7 +1505,7 @@ export function RoleBasedComplaintModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Button
                     variant="default"
-                    disabled={isLoading}
+                    disabled={isLoading || readOnly}
                     onClick={() => {
                       if (!liveComplaint) return;
                       setIsLoading(true);
@@ -1541,13 +1545,14 @@ export function RoleBasedComplaintModal({
                         setHodRejectReason(e.target.value.slice(0, 1000))
                       }
                       rows={2}
+                      disabled={readOnly}
                     />
                     <div className="text-xs text-muted-foreground mt-1 text-right">
                       {hodRejectReason.length}/1000
                     </div>
                     <Button
                       variant="destructive"
-                      disabled={isLoading}
+                      disabled={isLoading || readOnly}
                       className="mt-2 w-full"
                       onClick={() => {
                         if (!liveComplaint) return;
@@ -1868,6 +1873,7 @@ export function RoleBasedComplaintModal({
         {/* HoD Action Section - Only for HoD user; shown after acceptance (Accepted/In Progress) below the timeline */}
         {isHod &&
           !hideHodActions &&
+          !readOnly &&
           (liveComplaint.status === "In Progress" ||
             liveComplaint.status === "Accepted") && (
             <Card id="hod-actions" className="mt-6">
@@ -1885,6 +1891,7 @@ export function RoleBasedComplaintModal({
                       setIsEditingHodStatus(true);
                       setLastHodStatusEditAt(Date.now());
                     }}
+                    disabled={readOnly}
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
@@ -1903,6 +1910,7 @@ export function RoleBasedComplaintModal({
                       setHodStatusNote(e.target.value.slice(0, 1000))
                     }
                     rows={3}
+                    disabled={readOnly}
                   />
                   <div className="text-xs text-muted-foreground mt-1 text-right">
                     {hodStatusNote.length}/1000
@@ -1910,7 +1918,7 @@ export function RoleBasedComplaintModal({
                 </div>
                 <Button
                   className="mt-2 w-full"
-                  disabled={isLoading}
+                  disabled={isLoading || readOnly}
                   onClick={async () => {
                     if (!liveComplaint) return;
                     setIsLoading(true);
@@ -2002,6 +2010,7 @@ export function RoleBasedComplaintModal({
                     }`}
                     value={deanStatusUpdate}
                     onChange={(e) => setDeanStatusUpdate(e.target.value)}
+                    disabled={readOnly}
                   >
                     <option value="">Select Status</option>
                     <option value="In Progress">In Progress</option>
@@ -2022,6 +2031,7 @@ export function RoleBasedComplaintModal({
                     value={deanStatusNote}
                     onChange={(e) => setDeanStatusNote(e.target.value)}
                     className="min-h-[80px]"
+                    disabled={readOnly}
                   />
                   <p className="text-xs text-muted-foreground">
                     Students will see this status and note in their timeline
@@ -2032,7 +2042,7 @@ export function RoleBasedComplaintModal({
               <div className="flex gap-2">
                 <Button
                   onClick={handleDeanStatusUpdate}
-                  disabled={!deanStatusUpdate || isLoading}
+                  disabled={!deanStatusUpdate || isLoading || readOnly}
                   className="flex-1"
                 >
                   {isLoading ? (
@@ -2053,7 +2063,7 @@ export function RoleBasedComplaintModal({
                     setDeanStatusUpdate("");
                     setDeanStatusNote("");
                   }}
-                  disabled={isLoading}
+                  disabled={isLoading || readOnly}
                 >
                   <X className="h-4 w-4 mr-2" />
                   Cancel
@@ -2072,7 +2082,7 @@ export function RoleBasedComplaintModal({
             isOwner &&
             (status === "Accepted" || status === "In Progress");
           const canStaffAct = serverFlag || clientEval;
-          return canStaffAct;
+          return canStaffAct && !readOnly;
         })() && (
           <Card>
             <CardHeader>
@@ -2087,6 +2097,7 @@ export function RoleBasedComplaintModal({
                   onChange={(e) =>
                     setStaffActionStatus(e.target.value as Complaint["status"])
                   }
+                  disabled={readOnly}
                 >
                   <option value="In Progress">In Progress</option>
                   <option value="Resolved">Resolved</option>
@@ -2103,6 +2114,7 @@ export function RoleBasedComplaintModal({
                     setStaffStatusNote(e.target.value.slice(0, 1000))
                   }
                   rows={3}
+                  disabled={readOnly}
                 />
                 <div className="text-xs text-muted-foreground mt-1 text-right">
                   {staffStatusNote.length}/1000
@@ -2110,7 +2122,7 @@ export function RoleBasedComplaintModal({
               </div>
               <Button
                 className="mt-2 w-full"
-                disabled={isLoading}
+                disabled={isLoading || readOnly}
                 onClick={async () => {
                   if (!liveComplaint) return;
                   setIsLoading(true);
@@ -2181,7 +2193,8 @@ export function RoleBasedComplaintModal({
             {/* End-user: submit feedback when resolved and no feedback yet */}
             {user.role === "user" &&
               liveComplaint.status === "Resolved" &&
-              !liveComplaint.feedback && (
+              !liveComplaint.feedback &&
+              !readOnly && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -2229,6 +2242,7 @@ export function RoleBasedComplaintModal({
                           })
                         }
                         rows={3}
+                        disabled={readOnly}
                       />
                       <div className="text-xs text-muted-foreground mt-1 text-right">
                         {feedback.comment.length}/1000
@@ -2236,7 +2250,7 @@ export function RoleBasedComplaintModal({
                     </div>
                     <Button
                       onClick={handleFeedbackSubmit}
-                      disabled={isLoading || feedback.rating === 0}
+                      disabled={isLoading || feedback.rating === 0 || readOnly}
                       className="w-full"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
@@ -2252,6 +2266,7 @@ export function RoleBasedComplaintModal({
 
             {/* Admin Action section: for Admin after acceptance (In Progress), similar to HoD */}
             {user.role === "admin" &&
+              !readOnly &&
               (liveComplaint?.status === "Accepted" ||
                 liveComplaint?.status === "In Progress") && (
                 <Card>
@@ -2271,6 +2286,7 @@ export function RoleBasedComplaintModal({
                             e.target.value as Complaint["status"]
                           );
                         }}
+                        disabled={readOnly}
                       >
                         <option value="In Progress">In Progress</option>
                         <option value="Resolved">Resolved</option>
@@ -2289,6 +2305,7 @@ export function RoleBasedComplaintModal({
                           setAdminStatusNote(e.target.value.slice(0, 1000))
                         }
                         rows={3}
+                        disabled={readOnly}
                       />
                       <div className="text-xs text-muted-foreground mt-1 text-right">
                         {adminStatusNote.length}/1000
@@ -2296,7 +2313,7 @@ export function RoleBasedComplaintModal({
                     </div>
                     <Button
                       className="mt-2 w-full"
-                      disabled={isLoading}
+                      disabled={isLoading || readOnly}
                       onClick={async () => {
                         if (!liveComplaint) return;
                         setIsLoading(true);

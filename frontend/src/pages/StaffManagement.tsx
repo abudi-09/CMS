@@ -141,9 +141,9 @@ export default function StaffManagement({
 
   const filteredStaff = staff.filter(
     (s) =>
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.department.toLowerCase().includes(searchTerm.toLowerCase())
+      (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.department || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const approvedStaff = filteredStaff.filter((s) => s.status === "approved");

@@ -120,16 +120,22 @@ export default function DeanDepartmentPerformance() {
       departmentFilter === "All"
         ? rows
         : rows.filter((r) => r.department === departmentFilter);
-    return base.map((r) => ({
-      department: r.department,
-      total: r.totalComplaints,
-      resolvedHoD: r.resolvedHoD || 0,
-      resolvedStaff: r.resolvedStaff || 0,
-      inProgress: r.inProgress || 0,
-      overdue: r.overdue || 0,
-      resolved: r.resolvedComplaints || 0,
-      successRate: Math.round(r.successRate || 0),
-    }));
+    return base
+      .filter(
+        (r) =>
+          r.department.toLowerCase() !== "general" &&
+          r.department.toLowerCase() !== "it"
+      )
+      .map((r) => ({
+        department: r.department,
+        total: r.totalComplaints,
+        resolvedHoD: r.resolvedHoD || 0,
+        resolvedStaff: r.resolvedStaff || 0,
+        inProgress: r.inProgress || 0,
+        overdue: r.overdue || 0,
+        resolved: r.resolvedComplaints || 0,
+        successRate: Math.round(r.successRate || 0),
+      }));
   }, [rows, departmentFilter]);
 
   const totals = useMemo(() => {
@@ -169,7 +175,12 @@ export default function DeanDepartmentPerformance() {
   const departmentOptions = useMemo(() => {
     const set = new Set<string>();
     rows.forEach((r) => r.department && set.add(r.department));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return Array.from(set)
+      .filter(
+        (dept) =>
+          dept.toLowerCase() !== "general" && dept.toLowerCase() !== "it"
+      )
+      .sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
   // Chart data

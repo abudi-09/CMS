@@ -148,11 +148,19 @@ export function Profile() {
       try {
         const data = await getMyComplaintsApi().catch(() => []);
         if (!ignore && Array.isArray(data)) {
-          // Minimal shaping: assume objects have status
-          const mapped: MiniComplaint[] = (data as any[]).map((c) => ({
-            status: c.status || "Pending",
-            submittedDate: c.createdAt || c.submittedDate,
-          }));
+          const mapped: MiniComplaint[] = (data as unknown[]).map(
+            (c: unknown) => {
+              const complaint = c as {
+                status?: string;
+                createdAt?: string;
+                submittedDate?: string;
+              };
+              return {
+                status: complaint.status || "Pending",
+                submittedDate: complaint.createdAt || complaint.submittedDate,
+              };
+            }
+          );
           setMyComplaints(mapped);
         }
       } catch {
@@ -402,11 +410,22 @@ export function Profile() {
         address: formData.address,
         bio: formData.bio,
       });
-      auth.setUserName?.(updated.name || formData.name);
+      // API returns { user: ... }, so access updated.user
+      const userData = (
+        updated as {
+          user?: {
+            name?: string;
+            phone?: string;
+            address?: string;
+            bio?: string;
+          };
+        }
+      ).user;
+      auth.setUserName?.(userData?.name || formData.name);
       auth.updateUserProfile?.({
-        phone: updated.phone,
-        address: updated.address,
-        bio: updated.bio,
+        phone: userData?.phone,
+        address: userData?.address,
+        bio: userData?.bio,
       });
       setIsEditing(false);
       toast({

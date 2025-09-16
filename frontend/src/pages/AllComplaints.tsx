@@ -760,9 +760,15 @@ export default function AllComplaints() {
   // Filter complaints (from role-based visible set)
   let filteredComplaints = visibleComplaints.filter((complaint) => {
     const matchesSearch =
-      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.submittedBy.toLowerCase().includes(searchTerm.toLowerCase());
+      (complaint.title || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (complaint.description || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (complaint.submittedBy || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
     const matchesStatus = (() => {
       if (statusFilter === "All") return true;
       if (statusFilter === "Rejected") return isRejected(complaint);
@@ -1440,6 +1446,7 @@ export default function AllComplaints() {
           /* intentionally no-op for global read-only page */
         }}
         fetchLatest
+        readOnly={statusFilter === "All"}
       />
     </div>
   );
