@@ -181,11 +181,29 @@ function AppContent() {
                     </RequireRole>
                   }
                 />
-                <Route path="/hod-dashboard" element={<HoDDashboard />} />
-                <Route path="/hod-analytics" element={<HoDAnalytics />} />
+                <Route
+                  path="/hod-dashboard"
+                  element={
+                    <RequireRole allowed={["hod"]}>
+                      <HoDDashboard />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/hod-analytics"
+                  element={
+                    <RequireRole allowed={["hod"]}>
+                      <HoDAnalytics />
+                    </RequireRole>
+                  }
+                />
                 <Route
                   path="/hod-staff-performance"
-                  element={<StaffPerformance />}
+                  element={
+                    <RequireRole allowed={["hod"]}>
+                      <StaffPerformance />
+                    </RequireRole>
+                  }
                 />
                 <Route
                   path="/my-performance"
@@ -298,17 +316,29 @@ function AppContent() {
                 />
                 <Route
                   path="/hod/assign-complaints"
-                  element={<HoDAssignComplaints />}
+                  element={
+                    <RequireRole allowed={["hod"]}>
+                      <HoDAssignComplaints />
+                    </RequireRole>
+                  }
                 />
 
                 <Route
                   path="/hod/all-complaints"
-                  element={<HoDAllComplaints />}
+                  element={
+                    <RequireRole allowed={["hod"]}>
+                      <HoDAllComplaints />
+                    </RequireRole>
+                  }
                 />
 
                 <Route
                   path="/hod/staff-management"
-                  element={<HODStaffManagement />}
+                  element={
+                    <RequireRole allowed={["hod"]}>
+                      <HODStaffManagement />
+                    </RequireRole>
+                  }
                 />
 
                 <Route path="*" element={<NotFound />} />

@@ -366,14 +366,6 @@ function StudentManagement() {
             </span>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Complaints</span>
-            <span className="text-2xl font-bold text-blue-600">
-              {stats.complaints}
-            </span>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>

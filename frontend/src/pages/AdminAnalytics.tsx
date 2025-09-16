@@ -7,7 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   BarChart,
@@ -29,20 +28,16 @@ import {
   TrendingUp,
   Clock,
   Star,
-  Users,
   CheckCircle,
   AlertTriangle,
   FileText,
   Calendar,
-  Award,
 } from "lucide-react";
 import {
-  getAdminDepartmentPerformanceApi,
   getAdminPriorityDistributionApi,
   getAdminStatusDistributionApi,
   getAdminMonthlyTrendsApi,
   getCategoryCountsApi,
-  getAllUsersApi,
   getAdminAnalyticsSummaryApi,
 } from "@/lib/api";
 
@@ -77,57 +72,7 @@ const monthlyTrendData = [
   { month: "Jun", submitted: 67, resolved: 62 },
 ];
 
-// Department performance mock data (fallback)
-const departmentPerformance = [
-  {
-    department: "Computer Science",
-    staff: ["Dr. Sarah Johnson", "Dr. Alan Turing"],
-    totalAssigned: 60,
-    resolved: 55,
-    pending: 3,
-    inProgress: 2,
-    successRate: 91.7,
-  },
-  {
-    department: "IT",
-    staff: ["Ms. Emily Davis", "Mr. Steve Jobs"],
-    totalAssigned: 50,
-    resolved: 47,
-    pending: 2,
-    inProgress: 1,
-    successRate: 94.0,
-  },
-  {
-    department: "Information System",
-    staff: ["Prof. Michael Chen", "Ms. Ada Lovelace"],
-    totalAssigned: 40,
-    resolved: 36,
-    pending: 2,
-    inProgress: 2,
-    successRate: 90.0,
-  },
-  {
-    department: "Information Science",
-    staff: ["Mr. James Wilson", "Ms. Grace Hopper"],
-    totalAssigned: 35,
-    resolved: 30,
-    pending: 3,
-    inProgress: 2,
-    successRate: 85.7,
-  },
-];
-
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#8dd1e1"];
-
-type DeptPerf = {
-  department: string;
-  totalAssigned: number;
-  resolved: number;
-  pending: number;
-  inProgress: number;
-  successRate?: number;
-  staffCount?: number;
-};
 
 export default function AdminAnalytics() {
   const [timeframe, setTimeframe] = useState("all");
@@ -136,63 +81,18 @@ export default function AdminAnalytics() {
   const [priorityDataState, setPriorityDataState] = useState(priorityData);
   const [statusDataState, setStatusDataState] = useState(statusData);
   const [monthlyTrendState, setMonthlyTrendState] = useState(monthlyTrendData);
-  const [deptPerfState, setDeptPerfState] = useState<DeptPerf[]>(
-    departmentPerformance as DeptPerf[]
-  );
-  const [deptPieState, setDeptPieState] = useState([
-    { name: "Computer Science", value: 35, count: 45 },
-    { name: "IT", value: 28, count: 36 },
-    { name: "Information System", value: 22, count: 28 },
-    { name: "Information Science", value: 15, count: 19 },
-    { name: "Others", value: 0, count: 0 },
-  ]);
   const [summary, setSummary] = useState({
     resolutionRate: 89.2,
     avgResolutionTime: 3.2,
     userSatisfaction: 4.6,
     totalReviews: 156,
   });
-  const [roleCountsByDept, setRoleCountsByDept] = useState(
-    {} as Record<
-      string,
-      { students: number; staff: number; hods: number; deans: number }
-    >
-  );
   const [loading, setLoading] = useState(false);
 
   // category pie active slice index for hover expansion
   const [categoryActiveIndex, setCategoryActiveIndex] = useState<number | null>(
     null
   );
-
-  // primary departments to display (always show these 4)
-  const PRIMARY_DEPARTMENTS = [
-    "Computer Science",
-    "IT",
-    "Information System",
-    "Information Science",
-  ];
-
-  // derive a fixed 4-item department display (falls back to zeros if missing)
-  const displayedDeptPerf: DeptPerf[] = PRIMARY_DEPARTMENTS.map((name) => {
-    const found = deptPerfState.find((d) => d.department === name);
-    if (found) return found;
-    const counts = roleCountsByDept[name] || {
-      students: 0,
-      staff: 0,
-      hods: 0,
-      deans: 0,
-    };
-    return {
-      department: name,
-      totalAssigned: 0,
-      resolved: 0,
-      pending: 0,
-      inProgress: 0,
-      successRate: 0,
-      staffCount: counts.staff,
-    } as DeptPerf;
-  });
 
   // compute category pie as top-4 categories + Others
   const categoryPie = (() => {
@@ -222,23 +122,14 @@ export default function AdminAnalytics() {
     async function load() {
       setLoading(true);
       try {
-        const [
-          prioRes,
-          statusRes,
-          monthRes,
-          deptRes,
-          categoriesRes,
-          usersRes,
-          summaryRes,
-        ] = await Promise.all([
-          getAdminPriorityDistributionApi().catch(() => null),
-          getAdminStatusDistributionApi().catch(() => null),
-          getAdminMonthlyTrendsApi({ months: 6 }).catch(() => null),
-          getAdminDepartmentPerformanceApi().catch(() => null),
-          getCategoryCountsApi().catch(() => null),
-          getAllUsersApi().catch(() => null),
-          getAdminAnalyticsSummaryApi().catch(() => null),
-        ]);
+        const [prioRes, statusRes, monthRes, categoriesRes, summaryRes] =
+          await Promise.all([
+            getAdminPriorityDistributionApi().catch(() => null),
+            getAdminStatusDistributionApi().catch(() => null),
+            getAdminMonthlyTrendsApi({ months: 6 }).catch(() => null),
+            getCategoryCountsApi().catch(() => null),
+            getAdminAnalyticsSummaryApi().catch(() => null),
+          ]);
 
         if (!mounted) return;
 
@@ -349,88 +240,7 @@ export default function AdminAnalytics() {
           );
         }
 
-        if (
-          deptRes &&
-          typeof deptRes === "object" &&
-          deptRes !== null &&
-          "departments" in deptRes
-        ) {
-          const container = deptRes as {
-            departments?: Array<Record<string, unknown>>;
-          };
-          setDeptPerfState(
-            (container.departments || []).map((d) => ({
-              department: String(d.department ?? ""),
-              // normalize to previous UI fields
-              totalAssigned: Number(d.totalComplaints ?? 0),
-              resolved: Number(d.resolvedComplaints ?? 0),
-              pending: Number(d.pendingComplaints ?? 0),
-              inProgress: Number(d.inProgress ?? 0),
-              successRate: Number(d.successRate ?? 0),
-              staffCount: Number(d.staffCount ?? 0),
-            })) as DeptPerf[]
-          );
-          // compute pie for the four base departments + Others
-          const all = container.departments || [];
-          const primary = [
-            "Computer Science",
-            "IT",
-            "Information System",
-            "Information Science",
-          ];
-          const totalsByDept: Record<string, number> = {};
-          let grandTotal = 0;
-          (all as Array<Record<string, unknown>>).forEach((d) => {
-            const name = String(d.department ?? "");
-            const count = Number(d.totalComplaints ?? 0);
-            totalsByDept[name] = (totalsByDept[name] || 0) + count;
-            grandTotal += count;
-          });
-          const pie = primary.map((name) => {
-            const cnt = totalsByDept[name] || 0;
-            return {
-              name,
-              value: grandTotal ? Math.round((cnt / grandTotal) * 100) : 0,
-              count: cnt,
-            };
-          });
-          const primarySum = pie.reduce((s, p) => s + (p.count || 0), 0);
-          const othersCount = Math.max(0, grandTotal - primarySum);
-          pie.push({
-            name: "Others",
-            value: grandTotal
-              ? Math.round((othersCount / grandTotal) * 100)
-              : 0,
-            count: othersCount,
-          });
-          setDeptPieState(pie);
-        }
-
-        if (Array.isArray(usersRes)) {
-          const arr = usersRes as unknown[];
-          const map: Record<
-            string,
-            { students: number; staff: number; hods: number; deans: number }
-          > = {};
-          arr.forEach((u) => {
-            if (!u || typeof u !== "object") return;
-            const obj = u as Record<string, unknown>;
-            const dept = String(obj.department ?? "");
-            if (!map[dept])
-              map[dept] = { students: 0, staff: 0, hods: 0, deans: 0 };
-            const role = String(obj.role ?? "").toLowerCase();
-            if (role === "student") map[dept].students++;
-            else if (role === "staff") map[dept].staff++;
-            else if (
-              role === "hod" ||
-              role === "headofdepartment" ||
-              role === "headofdepartment"
-            )
-              map[dept].hods++;
-            else if (role === "dean") map[dept].deans++;
-          });
-          setRoleCountsByDept(map);
-        }
+        // Department performance table removed; skipping related fetch and mapping
         if (
           summaryRes &&
           typeof summaryRes === "object" &&
@@ -576,7 +386,7 @@ export default function AdminAnalytics() {
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
-                  animationActive={true}
+                  isAnimationActive={true}
                   animationDuration={700}
                   activeIndex={categoryActiveIndex ?? undefined}
                   activeShape={(p: unknown) => {
@@ -741,88 +551,7 @@ export default function AdminAnalytics() {
         </Card>
       </div>
 
-      {/* Department Performance */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" /> Department Performance Overview
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {displayedDeptPerf.map((dept: DeptPerf, index) => (
-              <div
-                key={dept.department}
-                className="p-4 border rounded-lg flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div className="min-w-0">
-                  <h3 className="font-semibold truncate">{dept.department}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {(() => {
-                      const counts = roleCountsByDept[dept.department] || {
-                        students: 0,
-                        staff: dept.staffCount || 0,
-                        hods: 0,
-                        deans: 0,
-                      };
-                      return `Students: ${counts.students} · Staff: ${counts.staff} · HODs: ${counts.hods} · Deans: ${counts.deans}`;
-                    })()}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 sm:flex sm:items-center sm:gap-6 gap-4">
-                  <div className="text-center">
-                    <div className="text-lg font-bold">
-                      {dept.totalAssigned}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-success">
-                      {dept.resolved}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Resolved
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-warning">
-                      {dept.pending}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Pending</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-info">
-                      {dept.inProgress}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      In Progress
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-center">
-                    <Badge
-                      variant="outline"
-                      className={`$${""} ${
-                        (dept.successRate ?? 0) >= 90
-                          ? "border-success text-success"
-                          : (dept.successRate ?? 0) >= 80
-                          ? "border-warning text-warning"
-                          : "border-destructive text-destructive"
-                      }`}
-                    >
-                      {typeof dept.successRate === "number"
-                        ? dept.successRate.toFixed(1)
-                        : "0.0"}
-                      %
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Department Performance removed per request */}
     </div>
   );
 }

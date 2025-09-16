@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SummaryCards } from "@/components/SummaryCards";
+import { computeStandardCounts } from "@/utils/statusBuckets";
 import { ComplaintTable } from "@/components/ComplaintTable";
 import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import { StatusUpdateModal } from "@/components/StatusUpdateModal";
@@ -71,43 +72,6 @@ export function HoDDashboard() {
     unassigned: number;
   }>({ total: 0, pending: 0, inProgress: 0, resolved: 0, unassigned: 0 });
   const [loadingStats, setLoadingStats] = useState(false);
-  const refreshStats = async () => {
-    try {
-      setLoadingStats(true);
-      const s = await getHodComplaintStatsApi();
-      if (s && typeof s === "object") {
-        setDeptStats({
-          total: s.total ?? 0,
-          pending: s.pending ?? 0,
-          inProgress: s.inProgress ?? 0,
-          resolved: s.resolved ?? 0,
-          unassigned: s.unassigned ?? 0,
-        });
-      }
-    } catch (e) {
-      // Surface errors so HODs know the stats failed to load
-      const msg =
-        typeof e === "object" && e && "message" in e
-          ? String((e as { message?: unknown }).message)
-          : "Failed to fetch department stats";
-      console.warn("HoD stats load failed:", e);
-      toast({
-        title: "Failed to fetch department stats",
-        description: msg,
-        variant: "destructive",
-      });
-      // Defensive fallback to avoid showing stale or partial numbers
-      setDeptStats({
-        total: 0,
-        pending: 0,
-        inProgress: 0,
-        resolved: 0,
-        unassigned: 0,
-      });
-    } finally {
-      setLoadingStats(false);
-    }
-  };
 
   const { updateComplaint } = useComplaints();
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
@@ -136,45 +100,9 @@ export function HoDDashboard() {
     }>
   >([]);
   const navigate = useNavigate();
-  // Compute department-scoped stats from fetched complaints
-  // Initial stats load + refresh on status change events
-  useEffect(() => {
-    // Only load HoD-scoped stats when a HoD user is present. This prevents
-    // accidentally showing department stats to non-HoD or unauthenticated users.
-    if (!user || !(user.role === "hod" || user.role === "headOfDepartment")) {
-      setDeptStats({
-        total: 0,
-        pending: 0,
-        inProgress: 0,
-        resolved: 0,
-        unassigned: 0,
-      });
-      return;
-    }
+  // (Removed duplicate early effect to avoid referencing computeHodCountsAndList before initialization)
 
-    refreshStats();
-    const handler = () => refreshStats();
-    window.addEventListener("complaint:status-changed", handler);
-    return () =>
-      window.removeEventListener("complaint:status-changed", handler);
-  }, [user]); // re-run when the authenticated user changes
-
-  // Keep HOD-scoped list and counts in sync using the same filter logic used elsewhere
-  useEffect(() => {
-    if (!user || !(user.role === "hod" || user.role === "headOfDepartment"))
-      return;
-    let cancelled = false;
-    (async () => {
-      await computeHodCountsAndList();
-      if (cancelled) return;
-    })();
-    const onChange = () => computeHodCountsAndList();
-    window.addEventListener("complaint:status-changed", onChange);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("complaint:status-changed", onChange);
-    };
-  }, [user]);
+  // (moved below computeHodCountsAndList to avoid TDZ)
 
   // HoD inbox for live pending list (latest 100, we show top 3)
   const [hodInbox, setHodInbox] = useState<InboxComplaint[]>([]);
@@ -286,6 +214,9 @@ export function HoDDashboard() {
 
   const isForCurrentHodRaw = useCallback(
     (item: Record<string, unknown>) => {
+      // Align with HoDAssignComplaints: strict HoD scoping.
+      // Include only when explicitly assigned to this HoD (by id or label)
+      // or explicitly addressed via recipientRole === 'hod' and matching recipientId.
       if (!user) return false;
       const hodId = String(
         (user as unknown as { id?: string; _id?: string })?.id ||
@@ -293,31 +224,26 @@ export function HoDDashboard() {
           ""
       );
       const myName = String(
-        (user as unknown as { name?: string })?.name || ""
+        (user as unknown as { name?: string; fullName?: string })?.name ||
+          (user as unknown as { name?: string; fullName?: string })?.fullName ||
+          ""
       ).toLowerCase();
       const myEmail = String(
         (user as unknown as { email?: string })?.email || ""
       ).toLowerCase();
-      const myDept = String(
-        (user as unknown as { department?: string })?.department || ""
+      const myUsername = String(
+        (user as unknown as { username?: string })?.username || ""
       ).toLowerCase();
 
-      // if we have no identifier at all, bail
-      if (!hodId && !myName && !myEmail && !myDept) return false;
-
-      const dept = (item["department"] as string | undefined) || "";
-      const submittedTo = (item["submittedTo"] as string | undefined) || "";
-      const assignmentPath = Array.isArray(item["assignmentPath"])
-        ? (item["assignmentPath"] as string[])
-        : [];
+      if (!hodId && !myName && !myEmail && !myUsername) return false;
 
       // Only include if explicitly assigned to this HoD or explicitly addressed to this HoD
       const assignedTo = item["assignedTo"];
-      // case 1: assignedTo is an id-like string
+      // case 1: assignedTo is a string (could be id or label)
       if (typeof assignedTo === "string") {
         if (hodId && String(assignedTo) === hodId) return true;
-        // allow label matches such as 'ithod' matching user's name/email
         const a = String(assignedTo).toLowerCase();
+        if (myUsername && a === myUsername) return true;
         if (myName && a === myName) return true;
         if (myEmail && a === myEmail) return true;
       }
@@ -340,10 +266,7 @@ export function HoDDashboard() {
         if (recId && (recId === hodId || recId === maybeUserId)) return true;
       }
 
-      // Fallback: if submittedTo mentions this user's department (e.g. "HoD (Information Technology)")
-      if (myDept && String(submittedTo).toLowerCase().includes(myDept))
-        return true;
-
+      // No department-based fallback; require explicit assignment or recipient like Assign page
       return false;
     },
     [user]
@@ -352,6 +275,7 @@ export function HoDDashboard() {
   const computeHodCountsAndList = useCallback(
     async function computeHodCountsAndList() {
       try {
+        setLoadingStats(true);
         const [inboxRes, managedRes] = await Promise.all([
           getHodInboxApi(),
           getHodManagedComplaintsApi(),
@@ -380,18 +304,10 @@ export function HoDDashboard() {
         setHodAll(unique);
         setHodManaged(managedArr);
 
-        // compute counts from the deduplicated list
-        const total = unique.length;
-        const pending = unique.filter(
-          (f) => String(f.status || "").toLowerCase() === "pending"
-        ).length;
-        const inProgress = unique.filter((f) => {
-          const s = String(f.status || "").toLowerCase();
-          return s === "in progress" || s === "accepted" || s === "assigned";
-        }).length;
-        const resolved = unique.filter(
-          (f) => String(f.status || "").toLowerCase() === "resolved"
-        ).length;
+        // compute counts from the deduplicated list via shared buckets
+        const { total, pending, inProgress, resolved } = computeStandardCounts(
+          unique as Array<{ status?: string }>
+        );
         setDeptStats({ total, pending, inProgress, resolved, unassigned: 0 });
       } catch (e) {
         // fallback to previous stats endpoint
@@ -409,10 +325,37 @@ export function HoDDashboard() {
         } catch {
           // ignore
         }
+      } finally {
+        setLoadingStats(false);
       }
     },
     [isForCurrentHodRaw]
   );
+
+  // Keep HOD-scoped list and counts in sync using the same filter logic used elsewhere
+  useEffect(() => {
+    if (!user || !(user.role === "hod" || user.role === "headOfDepartment")) {
+      setDeptStats({
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0,
+        unassigned: 0,
+      });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      await computeHodCountsAndList();
+      if (cancelled) return;
+    })();
+    const onChange = () => computeHodCountsAndList();
+    window.addEventListener("complaint:status-changed", onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("complaint:status-changed", onChange);
+    };
+  }, [user, computeHodCountsAndList]);
 
   // Load department staff (approved & active) for assignment modal
   useEffect(() => {
@@ -471,7 +414,7 @@ export function HoDDashboard() {
       // ignore errors here but proceed to trigger listeners
     }
     window.dispatchEvent(new CustomEvent("complaint:status-changed"));
-    refreshStats();
+    await computeHodCountsAndList();
   };
 
   const handleAccept = async ({
@@ -491,9 +434,7 @@ export function HoDDashboard() {
         : [];
       const deanAssigned = !!(
         inboxItem &&
-        (inboxItem.status === "Assigned" ||
-          inboxItem.assignedByRole === "dean" ||
-          path.includes("dean"))
+        (inboxItem.assignedByRole === "dean" || path.includes("dean"))
       );
 
       if (deanAssigned) {
@@ -910,7 +851,7 @@ export function HoDDashboard() {
 
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate("/all-complaints")}
+          onClick={() => navigate("/hod/all-complaints")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1006,36 +947,7 @@ export function HoDDashboard() {
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="col-span-2"
-                    onClick={() => {
-                      setSelectedComplaint({
-                        id: String(c.id),
-                        title: c.title || "Complaint",
-                        description: "", // placeholder (will be refetched in modal)
-                        category: c.category || "General",
-                        status: (c.status as Complaint["status"]) || "Pending",
-                        submittedBy:
-                          typeof c.submittedBy === "string"
-                            ? c.submittedBy
-                            : c.submittedBy?.name || "",
-                        priority:
-                          (c.priority as Complaint["priority"]) || "Medium",
-                        submittedDate: c.submittedDate
-                          ? new Date(c.submittedDate)
-                          : new Date(),
-                        lastUpdated: c.lastUpdated
-                          ? new Date(c.lastUpdated)
-                          : new Date(),
-                        assignedStaff: undefined,
-                      } as Complaint);
-                      setShowDetailModal(true);
-                    }}
-                  >
-                    View Detail
-                  </Button>
+                  {/** View Detail removed for HoD Review cards */}
                   <Button
                     size="sm"
                     variant="secondary"
@@ -1201,38 +1113,7 @@ export function HoDDashboard() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2 items-center flex-wrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedComplaint({
-                              id: String(c.id),
-                              title: c.title || "Complaint",
-                              description: "",
-                              category: c.category || "General",
-                              status:
-                                (c.status as Complaint["status"]) || "Pending",
-                              submittedBy:
-                                typeof c.submittedBy === "string"
-                                  ? c.submittedBy
-                                  : c.submittedBy?.name || "",
-                              priority:
-                                (c.priority as Complaint["priority"]) ||
-                                "Medium",
-                              submittedDate: c.submittedDate
-                                ? new Date(c.submittedDate)
-                                : new Date(),
-                              lastUpdated: c.lastUpdated
-                                ? new Date(c.lastUpdated)
-                                : new Date(),
-                              assignedStaff: undefined,
-                            } as Complaint);
-                            setShowDetailModal(true);
-                          }}
-                          className="text-xs"
-                        >
-                          View Detail
-                        </Button>
+                        {/** View Detail removed for HoD Review table */}
                         <Button
                           size="sm"
                           variant="secondary"

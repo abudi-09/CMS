@@ -83,7 +83,10 @@ export default function HoDAllComplaints() {
   // Summary metrics (align with dashboard: Total, Pending, In Progress, Resolved)
   const { total, pending, inProgress, resolved } = useMemo(() => {
     const total = items.length;
-    const pending = items.filter((c) => c.status === "Pending").length;
+    // Pending should include explicit Pending and Unassigned to match analytics
+    const pending = items.filter(
+      (c) => c.status === "Pending" || c.status === "Unassigned"
+    ).length;
     // Treat both "In Progress" and "Assigned" as in-progress work
     const inProgress = items.filter(
       (c) => c.status === "In Progress" || c.status === "Assigned"
@@ -141,30 +144,61 @@ export default function HoDAllComplaints() {
             department: (r["department"] as string | undefined) || undefined,
           };
         };
-        const resolvedArr: HodAllResponse["accepted"] = Array.isArray(
-          (data as unknown as { resolved?: unknown }).resolved
-        )
-          ? (data as unknown as { resolved: HodAllResponse["accepted"] })
-              .resolved || []
-          : [];
+        // Support both legacy and new response shapes via user-defined type guard
+        const isNewShape = (
+          x: HodAllResponse
+        ): x is import("@/lib/api").HodAllResponseNew =>
+          (x as { inProgress?: unknown; unassigned?: unknown }).inProgress !==
+            undefined ||
+          (x as { unassigned?: unknown }).unassigned !== undefined ||
+          (x as { total?: unknown }).total !== undefined;
+
+        const pend = data.pending ?? [];
+        const resolvedArr = (data as { resolved?: unknown }).resolved;
+        const resolvedList = Array.isArray(resolvedArr) ? resolvedArr : [];
+        const rejected = data.rejected ?? [];
+
+        const inProg = isNewShape(data) ? data.inProgress ?? [] : [];
+        const accepted = !isNewShape(data) ? data.accepted ?? [] : [];
+        const assigned = !isNewShape(data) ? data.assigned ?? [] : [];
+        const unassigned = isNewShape(data) ? data.unassigned ?? [] : [];
+
         const merged = [
-          ...data.pending.map(toComp),
-          ...data.accepted.map(toComp),
-          ...data.assigned.map(toComp),
-          ...resolvedArr.map(toComp),
-          ...data.rejected.map(toComp),
+          ...pend.map(toComp),
+          ...(inProg.length ? inProg : [...accepted, ...assigned]).map(toComp),
+          ...resolvedList.map(toComp),
+          ...rejected.map(toComp),
+          ...unassigned.map(toComp),
         ];
         const byId = new Map<string, ComplaintType>();
         for (const c of merged) byId.set(c.id, c);
-        const mergedItems = Array.from(byId.values());
-        // Enforce department scoping: only show complaints for this HoD's department
+        let mergedItems = Array.from(byId.values());
+        // Enforce department scoping: only show complaints for this HoD's department and exclude dean/admin-directed-only
         const normalize = (v?: string) =>
           (v || "").toString().trim().toLowerCase();
         if (user && user.department) {
           const myDept = normalize(user.department);
-          setItems(
-            mergedItems.filter((m) => normalize(m.department) === myDept)
+          mergedItems = mergedItems.filter(
+            (m) => normalize(m.department) === myDept
           );
+          mergedItems = mergedItems.filter((m) => {
+            const to = normalize(m.submittedTo);
+            const by = normalize(m.assignedByRole);
+            const src = normalize(m.sourceRole);
+            const inPath = Array.isArray(m.assignmentPath)
+              ? m.assignmentPath.some(
+                  (r) =>
+                    normalize(String(r)) === "admin" ||
+                    normalize(String(r)) === "dean"
+                )
+              : false;
+            if (to.includes("admin") || to.includes("dean")) return false;
+            if (by === "admin" || by === "dean") return false;
+            if (src === "admin" || src === "dean") return false;
+            if (inPath) return false;
+            return true;
+          });
+          setItems(mergedItems);
         } else {
           setItems([]);
         }
@@ -276,14 +310,32 @@ export default function HoDAllComplaints() {
           ];
           const byId = new Map<string, ComplaintType>();
           for (const c of merged) byId.set(c.id, c);
-          const mergedItems = Array.from(byId.values());
+          let mergedItems = Array.from(byId.values());
           const normalize = (v?: string) =>
             (v || "").toString().trim().toLowerCase();
           if (user && user.department) {
             const myDept = normalize(user.department);
-            setItems(
-              mergedItems.filter((m) => normalize(m.department) === myDept)
+            mergedItems = mergedItems.filter(
+              (m) => normalize(m.department) === myDept
             );
+            mergedItems = mergedItems.filter((m) => {
+              const to = normalize(m.submittedTo);
+              const by = normalize(m.assignedByRole);
+              const src = normalize(m.sourceRole);
+              const inPath = Array.isArray(m.assignmentPath)
+                ? m.assignmentPath.some(
+                    (r) =>
+                      normalize(String(r)) === "admin" ||
+                      normalize(String(r)) === "dean"
+                  )
+                : false;
+              if (to.includes("admin") || to.includes("dean")) return false;
+              if (by === "admin" || by === "dean") return false;
+              if (src === "admin" || src === "dean") return false;
+              if (inPath) return false;
+              return true;
+            });
+            setItems(mergedItems);
           } else {
             setItems([]);
           }
@@ -302,6 +354,8 @@ export default function HoDAllComplaints() {
     const q = searchTerm.trim().toLowerCase();
     const matchesStatus = (c: ComplaintType) => {
       if (!statusFilter || statusFilter === "All") return true;
+      if (statusFilter === "Pending")
+        return c.status === "Pending" || c.status === "Unassigned";
       if (statusFilter === "In Progress")
         return c.status === "In Progress" || c.status === "Assigned";
       if (statusFilter === "Assigned") return c.status === "Assigned";
@@ -450,7 +504,7 @@ export default function HoDAllComplaints() {
                     <TableCell>
                       {c.status === "Closed"
                         ? "Rejected"
-                        : c.assignedStaff || "Not Assigned"}
+                        : c.assignedStaff || "Unassigned"}
                     </TableCell>
                     <TableCell>
                       <Badge

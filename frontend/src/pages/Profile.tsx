@@ -1050,77 +1050,7 @@ export function Profile() {
                 </CardContent>
               </Card>
             </div>
-          ) : (
-            user?.role !== "dean" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Account Statistics</CardTitle>
-                  <CardDescription>Your activity summary</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {user?.role === "admin" && roleCounts ? (
-                    <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                      {[
-                        { label: "Staff", value: roleCounts.staff },
-                        { label: "Students", value: roleCounts.students },
-                        {
-                          label: "Dept. Heads",
-                          value: roleCounts.departmentHeads,
-                        },
-                        { label: "Deans", value: roleCounts.deans },
-                      ].map((b) => (
-                        <div
-                          key={b.label}
-                          className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition flex flex-col items-start"
-                        >
-                          <span className="text-xs text-muted-foreground tracking-wide uppercase">
-                            {b.label}
-                          </span>
-                          <span className="mt-2 text-2xl font-bold text-primary">
-                            {b.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                      {(() => {
-                        const a = alignedUserStats;
-                        const submitted =
-                          a?.TOTAL ?? performanceData.totalComplaints;
-                        const resolved =
-                          a?.resolved ?? performanceData.resolved;
-                        const inProg =
-                          a?.inProgress ?? performanceData.inProgress;
-                        const success =
-                          (a?.successRate ?? performanceData.resolutionRate) ||
-                          0;
-                        const items = [
-                          { label: "Submitted", value: submitted },
-                          { label: "Resolved", value: resolved },
-                          { label: "In Progress", value: inProg },
-                          { label: "Success Rate", value: `${success}%` },
-                        ];
-                        return items.map((b) => (
-                          <div
-                            key={b.label}
-                            className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition flex flex-col items-start"
-                          >
-                            <span className="text-xs text-muted-foreground tracking-wide uppercase">
-                              {b.label}
-                            </span>
-                            <span className="mt-2 text-2xl font-bold text-primary">
-                              {b.value}
-                            </span>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          )}
+          ) : null}
         </TabsContent>
 
         <TabsContent value="security" className="space-y-6">

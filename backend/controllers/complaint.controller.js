@@ -6,6 +6,7 @@ import User, {
 } from "../models/user.model.js";
 import { sendComplaintUpdateEmail } from "../utils/sendComplaintUpdateEmail.js";
 import Notification from "../models/notification.model.js";
+import { buildHodScopeFilter } from "../utils/hodFiltering.js";
 
 // Masking helper for anonymity Option A (only original submitter sees identity)
 function maskSubmitter(c, viewerId) {
@@ -805,6 +806,15 @@ export const approveComplaint = async (req, res) => {
     const complaint = await Complaint.findById(complaintId);
     if (!complaint)
       return res.status(404).json({ error: "Complaint not found" });
+    // Enforce complaint is in the same department as HOD
+    if (
+      String(complaint.department || "").trim() !==
+      String(req.user.department || "").trim()
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Can only assign complaints from your department" });
+    }
     // Allow approval from Pending or Rejected (Closed)
     const isPending = complaint.status === "Pending";
     const isRejected = complaint.status === "Closed";
@@ -1533,23 +1543,34 @@ export const getHodManagedComplaints = async (req, res) => {
   try {
     if (req.user.role !== "hod")
       return res.status(403).json({ error: "Access denied" });
-    const dept = req.user.department;
-    // Find staff in same department
-    const staffInDept = await User.find({ role: "staff", department: dept })
+    // Build centralized HoD scope, then restrict to managed semantics (self or staff in dept)
+    const dept = String(req.user.department || "").trim();
+    const escapeRegex = (s) =>
+      String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const deptRegex = dept ? new RegExp(`^${escapeRegex(dept)}$`, "i") : null;
+    const staffInDept = await User.find({
+      role: "staff",
+      ...(deptRegex ? { department: deptRegex } : {}),
+    })
       .select("_id")
       .lean();
     const staffIds = staffInDept.map((s) => s._id);
 
-    const filter = {
-      $or: [
-        // Items accepted by HoD (assigned to self)
-        { assignedTo: req.user._id },
-        // Items assigned to staff in same department
-        { assignedTo: { $in: staffIds } },
+    const base = buildHodScopeFilter(req.user, { staffIds });
+    const managedOnly = {
+      ...base,
+      $and: [
+        ...(base.$and || []),
+        {
+          $or: [
+            { assignedTo: req.user._id },
+            { assignedTo: { $in: staffIds } },
+          ],
+        },
       ],
     };
 
-    const complaints = await Complaint.find(filter)
+    const complaints = await Complaint.find(managedOnly)
       .populate("submittedBy", "name email")
       .populate("assignedTo", "name fullName email role")
       .sort({ updatedAt: -1 })
@@ -1630,16 +1651,40 @@ export const getHodInbox = async (req, res) => {
   try {
     if (req.user.role !== "hod")
       return res.status(403).json({ error: "Access denied" });
-    const filter = {
+    // Centralized HoD scope plus inbox-specific constraints
+    const dept = String(req.user.department || "").trim();
+    const escapeRegex = (s) =>
+      String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const deptRegex = dept ? new RegExp(`^${escapeRegex(dept)}$`, "i") : null;
+    const staffInDept = await User.find({
+      role: "staff",
+      ...(deptRegex ? { department: deptRegex } : {}),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((s) => s._id);
+
+    const base = buildHodScopeFilter(req.user, {
+      staffIds,
+      strictRecipient: true,
+    });
+    // Inbox: limit to items directly for this HoD (self or recipient), not staff-assigned
+    const inboxFilter = {
+      ...base,
       status: { $in: ["Pending", "Assigned"] },
       isEscalated: { $ne: true },
-      $or: [
-        { submittedTo: { $regex: /hod/i } },
-        { assignedTo: req.user._id },
-        { assignmentPath: { $in: ["hod", "headOfDepartment"] } },
+      $and: [
+        ...(base.$and || []),
+        {
+          $or: [
+            { assignedTo: req.user._id },
+            { $and: [{ recipientRole: "hod" }, { recipientId: req.user._id }] },
+          ],
+        },
       ],
     };
-    const complaints = await Complaint.find(filter)
+
+    const complaints = await Complaint.find(inboxFilter)
       .populate("submittedBy", "name email")
       .sort({ createdAt: -1 })
       .limit(100);
@@ -1861,48 +1906,8 @@ export const getHodAll = async (req, res) => {
       staffIds.length
     );
 
-    // Pending (Inbox for HoD)
-    // Inbox: only include complaints that are explicitly for this HoD
-    // (either assignedTo this HoD or explicitly addressed to this HoD via recipientId).
-    // Do NOT include generic "submittedTo: hod" items here — those are department-level
-    // and belong on the shared All Complaints view, not an individual HoD's inbox/dashboard.
-    const inboxFilter = {
-      status: "Pending",
-      isEscalated: { $ne: true },
-      ...(deptRegex ? { department: deptRegex } : {}),
-      $or: [
-        // explicitly assigned to this HoD
-        { assignedTo: req.user._id },
-        // explicitly routed to this HoD as recipient
-        { $and: [{ recipientRole: "hod" }, { recipientId: req.user._id }] },
-      ],
-    };
-    const inbox = await Complaint.find(inboxFilter)
-      .populate("submittedBy", "name email")
-      .populate("assignedTo", "name email role")
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .lean();
-
-    // Managed (self or staff in dept)
-    const managedFilter = {
-      // restrict to items in this department (so other-department HoDs don't see them)
-      ...(deptRegex ? { department: deptRegex } : {}),
-      $or: [
-        { assignedTo: req.user._id },
-        { assignedTo: { $in: staffIds } },
-        // include complaints assigned to any HoD in this department
-        { assignedTo: { $in: hodIds } },
-        // include complaints explicitly routed to a HoD (recipientRole/recipientId)
-        { $and: [{ recipientRole: "hod" }, { recipientId: { $in: hodIds } }] },
-      ],
-    };
-    const managed = await Complaint.find(managedFilter)
-      .populate("submittedBy", "name email")
-      .populate("assignedTo", "name email role")
-      .sort({ updatedAt: -1 })
-      .limit(1000)
-      .lean();
+    // Department-wide HoD base scope (align with analytics): no strict recipient, no managed-only narrowing
+    const base = buildHodScopeFilter(req.user, { staffIds });
 
     const mapItem = (c) => ({
       id: String(c._id),
@@ -1926,67 +1931,31 @@ export const getHodAll = async (req, res) => {
       isAnonymous: !!c.isAnonymous,
     });
 
-    // Helper to check if assigned to current HoD
-    const isSelf = (c) =>
-      c.assignedTo &&
-      typeof c.assignedTo === "object" &&
-      String(c.assignedTo._id || c.assignedTo) === String(req.user._id);
+    // Fetch all department complaints (no date filter) and group by status-only buckets
+    const docs = await Complaint.find({ ...base })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email role")
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
 
-    const isAssignedToAnyHod = (c) =>
-      c.assignedTo &&
-      hodIds.some(
-        (id) => String(id) === String(c.assignedTo?._id || c.assignedTo)
+    const items = docs.map(mapItem);
+    const isInProgress = (s) =>
+      ["Accepted", "Assigned", "In Progress", "Under Review"].includes(
+        String(s || "")
       );
-
-    const isRecipientHoD = (c) =>
-      c.recipientRole === "hod" &&
-      c.recipientId &&
-      hodIds.some((id) => String(id) === String(c.recipientId));
-
-    const pending = inbox.map(mapItem).filter((c) => !c.assignedTo);
-
-    const accepted = managed
-      .filter((c) =>
-        ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
-      )
-      // include complaints assigned to any HoD in the department or explicitly routed to a HoD in the dept
-      .filter((c) => isAssignedToAnyHod(c) || isRecipientHoD(c))
-      .map(mapItem);
-
-    // assigned: only include complaints assigned to staff in the department
-    // (HoD-assigned items are intentionally excluded from this list)
-
-    // Resolved in department scope (self or staff)
-    const resolved = managed
-      .filter((c) => String(c.status) === "Resolved")
-      .map(mapItem);
-
-    // Final assigned computation (staff-only)
-    const assigned = managed
-      .filter((c) =>
-        ["In Progress", "Assigned", "Pending"].includes(String(c.status || ""))
-      )
-      // Only include complaints assigned to staff in the department (exclude HoDs)
-      .filter((c) => {
-        if (!c.assignedTo) return false;
-        const assignedId = String(c.assignedTo?._id || c.assignedTo);
-        const isStaff = staffIds.some((id) => String(id) === assignedId);
-        const isHodAssigned = hodIds.some((id) => String(id) === assignedId);
-        return isStaff && !isHodAssigned;
-      })
-      .map(mapItem);
-
-    // Rejected/Closed in department scope
-    const rejected = managed
-      .filter((c) => String(c.status) === "Closed")
-      .map(mapItem);
+    const pending = items.filter((c) => String(c.status) === "Pending");
+    const inProgress = items.filter((c) => isInProgress(c.status));
+    const resolved = items.filter((c) => String(c.status) === "Resolved");
+    const rejected = items.filter((c) => String(c.status) === "Closed");
+    const unassigned = items.filter((c) => !c.assignedTo);
 
     const result = {
+      total: items.length,
       pending,
-      accepted,
-      assigned,
+      inProgress,
       resolved,
       rejected,
+      unassigned,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -2642,8 +2611,34 @@ export const queryComplaints = async (req, res) => {
       } else {
         q.assignedTo = user._id; // fallback
       }
-      // Only include complaints directed to staff mailbox (server-side guard)
-      q.submittedTo = { $regex: /staff/i };
+      // Exclude dean/admin-directed/associated items regardless
+      if (!q.$and) q.$and = [];
+      q.$and.push(
+        {
+          $or: [
+            { submittedTo: { $exists: false } },
+            { submittedTo: null },
+            { submittedTo: { $not: /(admin|dean)/i } },
+          ],
+        },
+        {
+          $or: [
+            { assignedByRole: { $exists: false } },
+            { assignedByRole: null },
+            { assignedByRole: { $not: /(admin|dean)/i } },
+          ],
+        },
+        {
+          $or: [
+            { recipientRole: { $exists: false } },
+            { recipientRole: null },
+            { recipientRole: { $not: /(admin|dean)/i } },
+          ],
+        },
+        {
+          assignmentPath: { $not: { $elemMatch: { $regex: /(admin|dean)/i } } },
+        }
+      );
     } else if (
       !assignedTo &&
       !department &&

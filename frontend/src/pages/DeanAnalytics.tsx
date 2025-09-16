@@ -316,12 +316,19 @@ export default function DeanAnalytics() {
           departments?: DeptPerfRow[];
           rows?: DeptPerfRow[];
         }>("/stats/analytics/dean/department-performance");
-        if (!cancelled)
-          setDeptRows(
+        if (!cancelled) {
+          const raw =
             (Array.isArray(data.rows) && data.rows) ||
-              (Array.isArray(data.departments) && data.departments) ||
-              []
-          );
+            (Array.isArray(data.departments) && data.departments) ||
+            [];
+          const filtered = raw.filter((r) => {
+            const name = String(r?.department || "")
+              .trim()
+              .toLowerCase();
+            return name !== "general" && name !== "it";
+          });
+          setDeptRows(filtered);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         toast({

@@ -3,6 +3,7 @@ import Complaint from "../models/complaint.model.js";
 import User from "../models/user.model.js";
 // Added missing ActivityLog import (was causing ReferenceError -> 500 responses for dean calendar endpoints)
 import ActivityLog from "../models/activityLog.model.js";
+import { buildHodScopeFilter } from "../utils/hodFiltering.js";
 
 import Notification from "../models/notification.model.js";
 import fs from "fs";
@@ -99,39 +100,47 @@ export const getDepartmentComplaintStats = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Prefer the department on the authenticated user's profile, fall back to query param
-    const deptFromUser = user.department && String(user.department).trim();
-    const deptFromQuery =
-      typeof req.query.department === "string" && req.query.department.trim()
-        ? req.query.department.trim()
-        : null;
-    const dept = deptFromUser || deptFromQuery || null;
-
-    if (!dept) {
-      return res
-        .status(400)
-        .json({ error: "Department is required for HoD stats" });
-    }
-
-    // Only count complaints assigned to the current HOD
-    const assignedToHodFilter = {
-      assignedTo: user._id,
-      isDeleted: { $ne: true },
+    // Build base HoD-scoped filter using centralized helper
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    // Base HoD scope (department, excludes admin/dean-only unless internally assigned)
+    const base = buildHodScopeFilter(user, { staffIds });
+    // Managed-only: handled by this HoD OR this HoD assigned to staff in department
+    const managedOnly = {
+      ...base,
+      $and: [
+        ...(base.$and || []),
+        {
+          $or: [
+            { assignedTo: user._id },
+            {
+              $and: [
+                { assignedTo: { $in: staffIds } },
+                { assignedBy: user._id },
+              ],
+            },
+          ],
+        },
+      ],
     };
+
+    const inProgressSet = ["Assigned", "In Progress", "Under Review"];
 
     const [total, pending, inProgress, resolved, unassigned] =
       await Promise.all([
-        Complaint.countDocuments({ ...assignedToHodFilter }),
-        Complaint.countDocuments({ ...assignedToHodFilter, status: "Pending" }),
-        Complaint.countDocuments({
-          ...assignedToHodFilter,
-          status: "In Progress",
-        }),
-        Complaint.countDocuments({
-          ...assignedToHodFilter,
-          status: "Resolved",
-        }),
-        Complaint.countDocuments({ ...assignedToHodFilter, assignedTo: null }), // This will always be 0, but kept for structure
+        Complaint.countDocuments(base),
+        Complaint.countDocuments({ ...base, status: "Pending" }),
+        Complaint.countDocuments({ ...base, status: { $in: inProgressSet } }),
+        Complaint.countDocuments({ ...base, status: "Resolved" }),
+        Complaint.countDocuments({ ...base, assignedTo: null }),
       ]);
 
     return res
@@ -260,6 +269,333 @@ export const getUserStats = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch user stats" });
+  }
+};
+
+// ========================= HoD Department Analytics =========================
+
+// Derive HoD's department from authenticated user or query fallback
+function getHodDepartment(req) {
+  const user = req.user;
+  const role = user && String(user.role || "").toLowerCase();
+  if (role !== "hod") return { error: "Access denied", status: 403 };
+  const deptFromUser = user.department && String(user.department).trim();
+  const deptFromQuery =
+    typeof req.query.department === "string" && req.query.department.trim()
+      ? req.query.department.trim()
+      : null;
+  const department = deptFromUser || deptFromQuery || null;
+  if (!department)
+    return { error: "Department is required for HoD analytics", status: 400 };
+  return { department, status: 200 };
+}
+
+// /complaints/department/priority-distribution (HoD)
+export const getDepartmentPriorityDistribution = async (req, res) => {
+  const { department, error, status } = getHodDepartment(req);
+  if (error) return res.status(status || 400).json({ error });
+  try {
+    // Use the same HoD base scope as summary stats
+    const user = req.user;
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    const base = buildHodScopeFilter(user, { staffIds });
+
+    const results = await Complaint.aggregate([
+      {
+        $match: base,
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [{ $ifNull: ["$priority", false] }, "$priority", "Unknown"],
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const priorities = results.map((r) => ({
+      priority: r._id,
+      count: r.count,
+      color: getPriorityColor(r._id),
+    }));
+
+    return res.status(200).json({ department, priorities });
+  } catch (err) {
+    console.error(
+      "getDepartmentPriorityDistribution error:",
+      err?.message || err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch priority distribution" });
+  }
+};
+
+// /complaints/department/status-distribution (HoD)
+export const getDepartmentStatusDistribution = async (req, res) => {
+  const { department, error, status } = getHodDepartment(req);
+  if (error) return res.status(status || 400).json({ error });
+  try {
+    // Use the same HoD base scope as summary stats
+    const user = req.user;
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    const base = buildHodScopeFilter(user, { staffIds });
+
+    const results = await Complaint.aggregate([
+      {
+        $match: base,
+      },
+      {
+        $group: {
+          _id: { $ifNull: ["$status", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const statuses = results.map((r) => ({
+      status: r._id,
+      count: r.count,
+      color: getStatusColor(r._id),
+    }));
+
+    return res.status(200).json({ department, statuses });
+  } catch (err) {
+    console.error(
+      "getDepartmentStatusDistribution error:",
+      err?.message || err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch status distribution" });
+  }
+};
+
+// /complaints/department/category-distribution (HoD)
+export const getDepartmentCategoryCounts = async (req, res) => {
+  const { department, error, status } = getHodDepartment(req);
+  if (error) return res.status(status || 400).json({ error });
+  try {
+    // Use the same HoD base scope as summary stats
+    const user = req.user;
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    const base = buildHodScopeFilter(user, { staffIds });
+
+    const results = await Complaint.aggregate([
+      {
+        $match: base,
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [{ $ifNull: ["$category", false] }, "$category", "Unknown"],
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const total = results.reduce((acc, r) => acc + (r.count || 0), 0);
+    const categories = results.map((r) => ({
+      category: r._id,
+      count: r.count,
+    }));
+    return res.status(200).json({ department, total, categories });
+  } catch (err) {
+    console.error("getDepartmentCategoryCounts error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch category distribution" });
+  }
+};
+
+// /complaints/department/monthly-trends (HoD)
+export const getDepartmentMonthlyTrends = async (req, res) => {
+  const { department, error, status } = getHodDepartment(req);
+  if (error) return res.status(status || 400).json({ error });
+  try {
+    const months = Math.max(1, Math.min(24, Number(req.query.months) || 6));
+    const end = new Date();
+    const start = new Date(end);
+    start.setMonth(start.getMonth() - (months - 1));
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    // Use the same HoD base scope as summary stats
+    const user = req.user;
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    const matchBase = buildHodScopeFilter(user, { staffIds });
+
+    const submittedAgg = await Complaint.aggregate([
+      { $match: { ...matchBase, createdAt: { $gte: start, $lte: end } } },
+      {
+        $group: {
+          _id: { y: { $year: "$createdAt" }, m: { $month: "$createdAt" } },
+          submitted: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.y": 1, "_id.m": 1 } },
+    ]);
+
+    const resolvedAgg = await Complaint.aggregate([
+      {
+        $match: {
+          ...matchBase,
+          status: "Resolved",
+          resolvedAt: { $ne: null, $gte: start, $lte: end },
+        },
+      },
+      {
+        $group: {
+          _id: { y: { $year: "$resolvedAt" }, m: { $month: "$resolvedAt" } },
+          resolved: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.y": 1, "_id.m": 1 } },
+    ]);
+
+    // Build contiguous months array
+    const data = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth() + 1;
+      const key = `${y}-${m}`;
+      const sub = submittedAgg.find((r) => r._id.y === y && r._id.m === m);
+      const reso = resolvedAgg.find((r) => r._id.y === y && r._id.m === m);
+      data.push({
+        month: new Date(y, m - 1, 1).toLocaleString("en", { month: "short" }),
+        year: y,
+        submitted: sub ? sub.submitted : 0,
+        resolved: reso ? reso.resolved : 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return res.status(200).json({ department, range: { start, end }, data });
+  } catch (err) {
+    console.error("getDepartmentMonthlyTrends error:", err?.message || err);
+    return res.status(500).json({ error: "Failed to fetch monthly trends" });
+  }
+};
+
+// /complaints/department/staff-performance (HoD)
+export const getDepartmentStaffPerformance = async (req, res) => {
+  const { department, error, status } = getHodDepartment(req);
+  if (error) return res.status(status || 400).json({ error });
+  try {
+    // 1) Fetch ONLY APPROVED staff in this department (exclude other roles/departments)
+    const staffUsers = await User.find({
+      role: "staff",
+      department,
+      isApproved: true,
+    })
+      .select("_id name email department role")
+      .lean();
+    const staffIds = staffUsers.map((u) => u._id);
+
+    // 2) Aggregate ONLY their complaints within HoD base scope (align with summary)
+    const base = buildHodScopeFilter(req.user, { staffIds });
+    const agg = await Complaint.aggregate([
+      {
+        $match: { ...base, assignedTo: { $in: staffIds } },
+      },
+      {
+        $group: {
+          _id: "$assignedTo",
+          totalComplaints: { $sum: 1 },
+          resolvedComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          pendingComplaints: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          inProgress: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    "$status",
+                    ["Accepted", "Assigned", "In Progress", "Under Review"],
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const aggMap = new Map(agg.map((a) => [String(a._id), a]));
+
+    // 3) Build rows for every staff user, including zeros for no-complaint staff
+    const rows = staffUsers.map((u) => {
+      const a = aggMap.get(String(u._id));
+      const total = a?.totalComplaints || 0;
+      const resolved = a?.resolvedComplaints || 0;
+      const pending = a?.pendingComplaints || 0;
+      const inProgress = a?.inProgress || 0;
+      const successRate = total ? (resolved / total) * 100 : 0;
+      return {
+        staffId: u._id,
+        staffName: u.name || u.email || "Unknown",
+        department,
+        totalComplaints: total,
+        resolvedComplaints: resolved,
+        pendingComplaints: pending,
+        inProgress,
+        successRate: Number(successRate.toFixed(1)),
+      };
+    });
+
+    // Sort by totalComplaints desc by default
+    rows.sort((a, b) => (b.totalComplaints || 0) - (a.totalComplaints || 0));
+
+    return res.status(200).json({ department, rows, count: rows.length });
+  } catch (err) {
+    console.error("getDepartmentStaffPerformance error:", err?.message || err);
+    return res.status(500).json({ error: "Failed to fetch staff performance" });
   }
 };
 
@@ -608,29 +944,11 @@ export const getAdminCalendarSummary = async (req, res) => {
             deadline: { ...(base.deadline || {}), $gte: start, $lte: end },
           });
         })(),
+        // Resolved This Month: count by resolution timestamp within the selected month
         Complaint.countDocuments({
           ...base,
           status: "Resolved",
-          ...(viewType === "submission"
-            ? {
-                $or: [
-                  {
-                    createdAt: {
-                      ...(base.createdAt || {}),
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
-                  { submittedDate: { $gte: monthStart, $lte: monthEnd } },
-                ],
-              }
-            : {
-                createdAt: {
-                  ...(base.createdAt || {}),
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              }),
+          resolvedAt: { $gte: monthStart, $lte: monthEnd },
         }),
       ]);
 
@@ -1317,6 +1635,332 @@ export const getDeanCalendarSummary = async (req, res) => {
   }
 };
 
+// HoD calendar summary: department-scoped for the logged-in HoD
+export const getHodCalendarSummary = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const month = parseInt(req.query.month, 10); // 0-11
+    const year = parseInt(req.query.year, 10);
+    const now = new Date();
+    const baseMonth = isNaN(month) ? now.getMonth() : month;
+    const baseYear = isNaN(year) ? now.getFullYear() : year;
+    const monthStart = new Date(baseYear, baseMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+
+    const submissionFrom = req.query.submissionFrom
+      ? new Date(String(req.query.submissionFrom) + "T00:00:00.000Z")
+      : null;
+    const submissionTo = req.query.submissionTo
+      ? new Date(String(req.query.submissionTo) + "T23:59:59.999Z")
+      : null;
+    const deadlineFrom = req.query.deadlineFrom
+      ? new Date(String(req.query.deadlineFrom) + "T00:00:00.000Z")
+      : null;
+    const deadlineTo = req.query.deadlineTo
+      ? new Date(String(req.query.deadlineTo) + "T23:59:59.999Z")
+      : null;
+
+    // Base filter via centralized helper
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    // Base HoD scope (department-scoped)
+    const base = buildHodScopeFilter(user, { staffIds });
+    // Managed-only: handled by this HoD OR assigned by this HoD to staff in department
+    const managedOnly = {
+      ...base,
+      $and: [
+        ...(base.$and || []),
+        {
+          $or: [
+            { assignedTo: user._id },
+            {
+              $and: [
+                { assignedTo: { $in: staffIds } },
+                { assignedBy: user._id },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    if (status && status !== "all") managedOnly.status = status;
+    if (priority && priority !== "all") managedOnly.priority = priority;
+    if (categories && categories.length)
+      managedOnly.category = { $in: categories };
+
+    const submissionRange = {};
+    if (submissionFrom) submissionRange.$gte = submissionFrom;
+    if (submissionTo) submissionRange.$lte = submissionTo;
+    if (Object.keys(submissionRange).length)
+      managedOnly.createdAt = submissionRange;
+
+    const deadlineRange = {};
+    if (deadlineFrom) deadlineRange.$gte = deadlineFrom;
+    if (deadlineTo) deadlineRange.$lte = deadlineTo;
+    if (Object.keys(deadlineRange).length) managedOnly.deadline = deadlineRange;
+
+    const monthFilter = {
+      ...managedOnly,
+      ...(viewType === "submission"
+        ? {
+            $or: [
+              {
+                createdAt: {
+                  ...(managedOnly.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+              {
+                submittedDate: {
+                  ...(managedOnly.submittedDate || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+            ],
+          }
+        : {
+            deadline: {
+              ...(managedOnly.deadline || {}),
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          }),
+    };
+
+    const [totalThisMonth, overdue, dueToday, resolvedThisMonth] =
+      await Promise.all([
+        Complaint.countDocuments(monthFilter),
+        Complaint.countDocuments({
+          ...managedOnly,
+          deadline: { ...(managedOnly.deadline || {}), $lt: new Date() },
+          status: { $nin: ["Resolved", "Closed"] },
+        }),
+        (() => {
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          const end = new Date();
+          end.setHours(23, 59, 59, 999);
+          return Complaint.countDocuments({
+            ...managedOnly,
+            deadline: {
+              ...(managedOnly.deadline || {}),
+              $gte: start,
+              $lte: end,
+            },
+          });
+        })(),
+        Complaint.countDocuments({
+          ...managedOnly,
+          status: "Resolved",
+          ...(viewType === "submission"
+            ? {
+                $or: [
+                  {
+                    createdAt: {
+                      ...(managedOnly.createdAt || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                  {
+                    submittedDate: {
+                      ...(managedOnly.submittedDate || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                ],
+              }
+            : {
+                createdAt: {
+                  ...(managedOnly.createdAt || {}),
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              }),
+        }),
+      ]);
+
+    const [byStatusAgg, byPriorityAgg, byCategoryAgg] = await Promise.all([
+      Complaint.aggregate([
+        { $match: monthFilter },
+        {
+          $group: {
+            _id: { $ifNull: ["$status", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: monthFilter },
+        {
+          $group: {
+            _id: { $ifNull: ["$priority", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Complaint.aggregate([
+        { $match: monthFilter },
+        {
+          $group: {
+            _id: { $ifNull: ["$category", "Unknown"] },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const countsByStatus = Object.fromEntries(
+      (byStatusAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByPriority = Object.fromEntries(
+      (byPriorityAgg || []).map((r) => [r._id, r.count])
+    );
+    const countsByCategory = Object.fromEntries(
+      (byCategoryAgg || []).map((r) => [r._id, r.count])
+    );
+
+    return res.status(200).json({
+      totalThisMonth,
+      overdue,
+      dueToday,
+      resolvedThisMonth,
+      countsByStatus,
+      countsByPriority,
+      countsByCategory,
+    });
+  } catch (err) {
+    console.error("getHodCalendarSummary error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch HOD calendar summary" });
+  }
+};
+
+// HoD calendar day list: department-scoped for the logged-in HoD
+export const getHodCalendarDay = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || String(user.role).toLowerCase() !== "hod") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const status = req.query.status || null;
+    const priority = req.query.priority || null;
+    const categoriesParam = req.query.categories;
+    const categories = Array.isArray(categoriesParam)
+      ? categoriesParam
+      : typeof categoriesParam === "string" && categoriesParam.length
+      ? categoriesParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const viewType =
+      req.query.viewType === "deadline" ? "deadline" : "submission";
+    const dateStr = String(req.query.date || "");
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+      return res.status(400).json({ error: "Invalid or missing date" });
+    }
+    const [yStr, mStr, dStr] = dateStr.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10) - 1;
+    const d = parseInt(dStr, 10);
+    const dayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+    // Base filter via centralized helper
+    const staffInDept = await User.find({
+      role: "staff",
+      department: new RegExp(
+        `^${String(user.department).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
+    })
+      .select("_id")
+      .lean();
+    const staffIds = staffInDept.map((u) => u._id);
+    const base = buildHodScopeFilter(user, { staffIds });
+    // Managed-only for day view as well
+    const managedOnly = {
+      ...base,
+      $and: [
+        ...(base.$and || []),
+        {
+          $or: [
+            { assignedTo: user._id },
+            {
+              $and: [
+                { assignedTo: { $in: staffIds } },
+                { assignedBy: user._id },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    if (status && status !== "all") managedOnly.status = status;
+    if (priority && priority !== "all") managedOnly.priority = priority;
+    if (categories && categories.length)
+      managedOnly.category = { $in: categories };
+
+    const dateFilter =
+      viewType === "submission"
+        ? {
+            $or: [
+              { createdAt: { $gte: dayStart, $lte: dayEnd } },
+              { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+            ],
+          }
+        : { deadline: { $gte: dayStart, $lte: dayEnd } };
+
+    const items = await Complaint.find({ $and: [managedOnly, dateFilter] })
+      .select(
+        "title status priority category submittedBy createdAt submittedDate updatedAt lastUpdated deadline isEscalated submittedTo department sourceRole assignedByRole assignmentPath assignedTo recipientRole recipientId"
+      )
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(items || []);
+  } catch (err) {
+    console.error("getHodCalendarDay error:", err?.message || err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch HOD calendar day complaints" });
+  }
+};
+
 // Admin Analytics Summary (global across system)
 export const getAdminAnalyticsSummary = async (req, res) => {
   try {
@@ -1586,21 +2230,21 @@ export const getAdminMonthlyTrends = async (req, res) => {
       { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
 
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const data = agg.map((r) => {
-      const monthNames = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
       const avgResolutionTime =
         r.resolvedCount > 0 ? r.totalResolutionDays / r.resolvedCount : 0;
       return {
@@ -1958,9 +2602,8 @@ export const getAdminDepartmentPerformance = async (req, res) => {
       ...(priority && priority !== "all" ? { priority } : {}),
       ...(categories.length ? { category: { $in: categories } } : {}),
     };
-    const match = buildGlobalMinusAdminMatch(baseExtra);
-
     const nowIso = new Date().toISOString();
+    const match = buildGlobalMinusAdminMatch(baseExtra);
     const agg = await Complaint.aggregate([
       { $match: match },
       {
@@ -2066,7 +2709,7 @@ export const getAdminDepartmentPerformance = async (req, res) => {
       (staffAgg || []).map((r) => [String(r._id), Number(r.count || 0)])
     );
 
-    const departments = (agg || []).map((r) => {
+    let departments = (agg || []).map((r) => {
       const total = r.totalComplaints || 0;
       const resolved = r.resolvedComplaints || 0;
       const successRate = total
@@ -2088,6 +2731,49 @@ export const getAdminDepartmentPerformance = async (req, res) => {
         avgResolutionTime,
         successRate,
       };
+    });
+
+    // Ensure all departments appear, even if zero in the window
+    const primaryFallback = [
+      "Computer Science",
+      "IT",
+      "Information System",
+      "Information Science",
+    ];
+    const distinctUsers = await User.distinct("department", {
+      role: { $in: ["student", "staff", "hod", "dean"] },
+    });
+    const knownDepartments = Array.from(
+      new Set(
+        [...(distinctUsers || []), ...primaryFallback]
+          .map((d) => (d ? String(d).trim() : ""))
+          .filter(Boolean)
+      )
+    );
+    const existingNames = new Set(departments.map((d) => d.department));
+    for (const name of knownDepartments) {
+      if (!existingNames.has(name)) {
+        departments.push({
+          department: name,
+          totalComplaints: 0,
+          resolvedComplaints: 0,
+          pendingComplaints: 0,
+          inProgress: 0,
+          overdue: 0,
+          staffCount: Number(staffCountByDept.get(name) || 0),
+          avgResolutionTime: 0,
+          successRate: 0,
+        });
+      }
+    }
+    // Optional: keep a consistent order by primary first, then others alphabetically
+    departments.sort((a, b) => {
+      const ai = primaryFallback.indexOf(a.department);
+      const bi = primaryFallback.indexOf(b.department);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.department.localeCompare(b.department);
     });
 
     const summary = departments.reduce(
@@ -2304,9 +2990,8 @@ export const getDeanDepartmentPerformance = async (req, res) => {
     if (priority && priority !== "all") baseExtra.priority = priority;
     if (categories && categories.length)
       baseExtra.category = { $in: categories };
-    const match = buildGlobalMinusAdminMatch(baseExtra);
-
     const nowIso = new Date().toISOString();
+    const match = buildGlobalMinusAdminMatch(baseExtra);
     const agg = await Complaint.aggregate([
       { $match: match },
       {
@@ -2360,14 +3045,39 @@ export const getDeanDepartmentPerformance = async (req, res) => {
       { $sort: { totalComplaints: -1 } },
     ]);
 
-    const departments = (agg || []).map((r) => {
+    // Staff count per department (approved+active staff only)
+    const staffAgg = await User.aggregate([
+      {
+        $match: {
+          role: "staff",
+          isActive: true,
+          isApproved: true,
+          $or: [
+            { isRejected: { $exists: false } },
+            { isRejected: { $ne: true } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { $ifNull: ["$department", "Unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const staffCountByDept = new Map(
+      (staffAgg || []).map((r) => [String(r._id), Number(r.count || 0)])
+    );
+
+    let departments = (agg || []).map((r) => {
       const total = r.totalComplaints || 0;
       const resolved = r.resolvedComplaints || 0;
       const successRate = total
         ? Number(((resolved / total) * 100).toFixed(2))
         : 0;
+      const deptName = String(r._id);
       return {
-        department: r._id,
+        department: deptName,
         totalComplaints: total,
         resolvedComplaints: resolved,
         pendingComplaints: r.pendingComplaints || 0,
@@ -2375,10 +3085,54 @@ export const getDeanDepartmentPerformance = async (req, res) => {
         overdue: r.overdue || 0,
         resolvedHoD: 0,
         resolvedStaff: 0,
-        staffCount: 0,
+        staffCount: Number(staffCountByDept.get(deptName) || 0),
         avgResolutionTime: 0,
         successRate,
       };
+    });
+
+    // Ensure all departments appear, even if zero in the window
+    const primaryFallback = [
+      "Computer Science",
+      "IT",
+      "Information System",
+      "Information Science",
+    ];
+    const distinctUsers = await User.distinct("department", {
+      role: { $in: ["student", "staff", "hod", "dean"] },
+    });
+    const knownDepartments = Array.from(
+      new Set(
+        [...(distinctUsers || []), ...primaryFallback]
+          .map((d) => (d ? String(d).trim() : ""))
+          .filter(Boolean)
+      )
+    );
+    const existingNames = new Set(departments.map((d) => d.department));
+    for (const name of knownDepartments) {
+      if (!existingNames.has(name)) {
+        departments.push({
+          department: name,
+          totalComplaints: 0,
+          resolvedComplaints: 0,
+          pendingComplaints: 0,
+          inProgress: 0,
+          overdue: 0,
+          resolvedHoD: 0,
+          resolvedStaff: 0,
+          staffCount: Number(staffCountByDept.get(name) || 0),
+          avgResolutionTime: 0,
+          successRate: 0,
+        });
+      }
+    }
+    departments.sort((a, b) => {
+      const ai = primaryFallback.indexOf(a.department);
+      const bi = primaryFallback.indexOf(b.department);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.department.localeCompare(b.department);
     });
 
     const summary = departments.reduce(

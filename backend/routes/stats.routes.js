@@ -18,12 +18,14 @@ import {
   getDeanCalendarMonth,
   getDeanCalendarDay,
   getDeanCalendarSummary,
+  getHodCalendarSummary,
+  getHodCalendarDay,
   // HoD analytics
-  // getDepartmentPriorityDistribution,
-  // getDepartmentStatusDistribution,
-  // getDepartmentCategoryCounts,
-  // getDepartmentMonthlyTrends,
-  // getDepartmentStaffPerformance,
+  getDepartmentPriorityDistribution,
+  getDepartmentStatusDistribution,
+  getDepartmentCategoryCounts,
+  getDepartmentMonthlyTrends,
+  getDepartmentStaffPerformance,
   // New Analytics APIs
   // getDeanCalendarSummary,
   // getDeanCalendarDay,
@@ -85,18 +87,18 @@ router.get(
 );
 
 // HOD calendar summary/day
-// router.get(
-//   "/complaints/calendar/hod-summary",
-//   protectRoute,
-//   hodOnly,
-//   getHodCalendarSummary
-// );
-// router.get(
-//   "/complaints/calendar/hod-day",
-//   protectRoute,
-//   hodOnly,
-//   getHodCalendarDay
-// );
+router.get(
+  "/complaints/calendar/hod-summary",
+  protectRoute,
+  hodOnly,
+  getHodCalendarSummary
+);
+router.get(
+  "/complaints/calendar/hod-day",
+  protectRoute,
+  hodOnly,
+  getHodCalendarDay
+);
 
 // Admin or Dean complaint stats
 router.get(
@@ -163,36 +165,36 @@ router.get(
   getDepartmentComplaintStats
 );
 // HoD: department distributions & analytics
-// router.get(
-//   "/complaints/department/priority-distribution",
-//   protectRoute,
-//   hodOnly,
-//   getDepartmentPriorityDistribution
-// );
-// router.get(
-//   "/complaints/department/status-distribution",
-//   protectRoute,
-//   hodOnly,
-//   getDepartmentStatusDistribution
-// );
-// router.get(
-//   "/complaints/department/category-distribution",
-//   protectRoute,
-//   hodOnly,
-//   getDepartmentCategoryCounts
-// );
-// router.get(
-//   "/complaints/department/monthly-trends",
-//   protectRoute,
-//   hodOnly,
-//   getDepartmentMonthlyTrends
-// );
-// router.get(
-//   "/complaints/department/staff-performance",
-//   protectRoute,
-//   hodOnly,
-//   getDepartmentStaffPerformance
-// );
+router.get(
+  "/complaints/department/priority-distribution",
+  protectRoute,
+  hodOnly,
+  getDepartmentPriorityDistribution
+);
+router.get(
+  "/complaints/department/status-distribution",
+  protectRoute,
+  hodOnly,
+  getDepartmentStatusDistribution
+);
+router.get(
+  "/complaints/department/category-distribution",
+  protectRoute,
+  hodOnly,
+  getDepartmentCategoryCounts
+);
+router.get(
+  "/complaints/department/monthly-trends",
+  protectRoute,
+  hodOnly,
+  getDepartmentMonthlyTrends
+);
+router.get(
+  "/complaints/department/staff-performance",
+  protectRoute,
+  hodOnly,
+  getDepartmentStaffPerformance
+);
 router.get("/feedback", protectRoute, adminOnly, getFeedbackStats);
 router.get("/staff", protectRoute, adminOnly, getStaffmanagmentStats);
 router.get("/roles", protectRoute, adminOnly, getRoleCounts);
@@ -313,7 +315,7 @@ router.get(
 //   hodOnly,
 //   getHodAnalyticsSummary
 // );
-// router.get(
+//router.get(
 //   "/analytics/hod/staff-overview",
 //   protectRoute,
 //   hodOnly,

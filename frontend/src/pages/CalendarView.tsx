@@ -29,7 +29,7 @@ import {
   getDeanCalendarMonthApi,
   getHodCalendarSummaryApi,
   getHodCalendarDayApi,
-  getHodManagedComplaintsApi,
+  getHodInboxApi,
   getStaffCalendarSummaryApi,
   getStaffCalendarDayApi,
   getAssignedComplaintsApi,
@@ -241,7 +241,7 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
     };
   }, [effectiveRole, isCheckingAuth]);
 
-  // HoD: initial load from inbox + managed to populate calendar markers
+  // HoD: initial load from inbox (strictly addressed to this HOD) to populate calendar markers
   useEffect(() => {
     let cancelled = false;
     if (isCheckingAuth) return;
@@ -250,9 +250,9 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
       try {
         setLoading(true);
         setError(null);
-        const [managed] = await Promise.all([getHodManagedComplaintsApi()]);
+        const inbox = await getHodInboxApi();
         if (cancelled) return;
-        const rows = [...((managed as unknown[]) || [])];
+        const rows = [...((inbox as unknown[]) || [])];
         const mapped: Complaint[] = rows.map((raw) => {
           const c = raw as Record<string, unknown>;
           const ap = Array.isArray(c.assignmentPath)
@@ -648,26 +648,6 @@ export default function CalendarView({ role = "admin" }: CalendarViewProps) {
           });
         } else if (roleKey === "dean") {
           raw = await getDeanCalendarMonthApi({
-            month: params.month,
-            year: params.year,
-            viewType: params.viewType,
-            status: params.status,
-            priority: params.priority,
-            categories: params.categories,
-          });
-        } else if (roleKey === "hod") {
-          raw = await getHodCalendarDayApi({
-            // For month-level prefetch we reuse the day endpoint per selectedDate
-            month: params.month,
-            year: params.year,
-            viewType: params.viewType,
-            status: params.status,
-            priority: params.priority,
-            categories: params.categories,
-          });
-        } else {
-          // staff
-          raw = await getStaffCalendarDayApi({
             month: params.month,
             year: params.year,
             viewType: params.viewType,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,15 @@ import {
 
 export default function AllComplaints() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // HoD should not use this generic page; redirect to protected HoD route
+  useEffect(() => {
+    const role = (user?.role || "").toLowerCase();
+    if (role === "hod" || role === "headofdepartment") {
+      navigate("/hod/all-complaints", { replace: true });
+    }
+  }, [user, navigate]);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -311,14 +321,30 @@ export default function AllComplaints() {
           // de-duplicate by id
           const byId = new Map<string, Complaint>();
           for (const c of merged) byId.set(c.id, c);
-          setComplaints(Array.from(byId.values()));
+          // Exclude dean/admin-directed-only items client-side as safety
+          const normalize = (s?: string) => (s || "").toLowerCase();
+          const filtered = Array.from(byId.values()).filter((m) => {
+            const to = normalize(m.submittedTo);
+            const by = normalize(m.assignedByRole);
+            const src = normalize(m.sourceRole);
+            const inPath = Array.isArray(m.assignmentPath)
+              ? m.assignmentPath.some(
+                  (r) =>
+                    normalize(String(r)) === "admin" ||
+                    normalize(String(r)) === "dean"
+                )
+              : false;
+            if (to.includes("admin") || to.includes("dean")) return false;
+            if (by === "admin" || by === "dean") return false;
+            if (src === "admin" || src === "dean") return false;
+            if (inPath) return false;
+            return true;
+          });
+          setComplaints(filtered);
         } else if (roleNorm === "staff") {
-          // Staff: show department-wide complaints (shared) + ensure own assigned appear
+          // Staff: department-wide complaints (shared) + own assigned; server already excludes dean/admin-directed-only
           const staffName = user.fullName || user.name || "";
-          const dept = user.department || "";
-          // Fetch department-scoped items via query endpoint. Use scope=department
-          // so the server enforces sourceRole=staff and the authenticated user's
-          // department to avoid leaking other departments' complaints.
+          const dept = (user.department || "").toLowerCase().trim();
           const url = `${API_BASE}/complaints?scope=department`;
           const [deptRes, assigned] = await Promise.all([
             fetch(url, {
@@ -390,14 +416,33 @@ export default function AllComplaints() {
                 .trim(),
             };
           };
-          const deptMapped: Complaint[] = Array.isArray(deptRes)
-            ? (deptRes as unknown[])
-                .map((o) => mapAny((o || {}) as Record<string, unknown>))
-                // Keep only items that are targeted to staff for department view
-                .filter((c) =>
-                  (c.submittedTo || "").toLowerCase().includes("staff")
-                )
+          let deptMapped: Complaint[] = Array.isArray(deptRes)
+            ? (deptRes as unknown[]).map((o) =>
+                mapAny((o || {}) as Record<string, unknown>)
+              )
             : [];
+          // Client safety filter: ensure same department and exclude dean/admin-directed-only
+          const normalize = (s?: string) => (s || "").toLowerCase();
+          deptMapped = deptMapped.filter(
+            (m) => normalize(m.department) === dept
+          );
+          deptMapped = deptMapped.filter((m) => {
+            const to = normalize(m.submittedTo);
+            const by = normalize(m.assignedByRole);
+            const src = normalize(m.sourceRole);
+            const inPath = Array.isArray(m.assignmentPath)
+              ? m.assignmentPath.some(
+                  (r) =>
+                    normalize(String(r)) === "admin" ||
+                    normalize(String(r)) === "dean"
+                )
+              : false;
+            if (to.includes("admin") || to.includes("dean")) return false;
+            if (by === "admin" || by === "dean") return false;
+            if (src === "admin" || src === "dean") return false;
+            if (inPath) return false;
+            return true;
+          });
           const assignedMapped: Complaint[] = Array.isArray(assigned)
             ? (assigned as unknown[]).map((o: unknown) => {
                 const c = mapAny((o || {}) as Record<string, unknown>);

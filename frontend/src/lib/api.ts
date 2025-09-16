@@ -678,21 +678,87 @@ export async function getHodStaffPerformanceApi() {
       credentials: "include",
     }
   );
-  return handleJson<{
-    staff: Array<{
-      staffId: string;
-      name: string;
-      email: string;
-      department?: string;
-      totalAssigned: number;
-      pending: number;
-      inProgress: number;
-      resolved: number;
-      successRate: number;
-      avgResolutionHours: number;
-      avgRating: number;
-    }>;
-  }>(res);
+  const raw = await handleJson<
+    | { rows: Record<string, unknown>[] }
+    | { staff: Record<string, unknown>[] }
+    | Record<string, unknown>
+  >(res);
+  // Normalize various possible backend shapes into { staff: [...] }
+  let staff: Array<{
+    staffId: string;
+    name: string;
+    email?: string;
+    department?: string;
+    totalAssigned: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    successRate: number;
+    avgResolutionHours: number;
+    avgRating: number;
+  }> = [];
+
+  const hasRows = (v: unknown): v is { rows: Record<string, unknown>[] } => {
+    if (!v || typeof v !== "object") return false;
+    const obj = v as Record<string, unknown>;
+    return Array.isArray(obj["rows"]);
+  };
+  const hasStaff = (v: unknown): v is { staff: Record<string, unknown>[] } => {
+    if (!v || typeof v !== "object") return false;
+    const obj = v as Record<string, unknown>;
+    return Array.isArray(obj["staff"]);
+  };
+
+  if (hasRows(raw)) {
+    const rows = raw.rows;
+    staff = rows.map((r) => ({
+      staffId: String(r.staffId || r._id || r.staff || r.email || ""),
+      name: String(r.staffName || r.name || r.email || "Unknown"),
+      email: r.email ? String(r.email as string) : undefined,
+      department: r.department ? String(r.department as string) : undefined,
+      totalAssigned: Number(
+        (r.totalComplaints as number | undefined) ??
+          (r.totalAssigned as number | undefined) ??
+          (r.assigned as number | undefined) ??
+          0
+      ),
+      pending: Number(
+        (r.pendingComplaints as number | undefined) ??
+          (r.pending as number | undefined) ??
+          0
+      ),
+      inProgress: Number((r.inProgress as number | undefined) ?? 0),
+      resolved: Number(
+        (r.resolvedComplaints as number | undefined) ??
+          (r.resolved as number | undefined) ??
+          0
+      ),
+      successRate: Number((r.successRate as number | undefined) ?? 0),
+      avgResolutionHours: Number(
+        (r.avgResolutionHours as number | undefined) ?? 0
+      ),
+      avgRating: Number((r.avgRating as number | undefined) ?? 0),
+    }));
+  } else if (hasStaff(raw)) {
+    const rows = raw.staff;
+    staff = rows.map((r) => ({
+      staffId: String(r.staffId || r._id || r.staff || r.email || ""),
+      name: String(r.name || r.email || "Unknown"),
+      email: r.email ? String(r.email as string) : undefined,
+      department: r.department ? String(r.department as string) : undefined,
+      totalAssigned: Number((r.totalAssigned as number | undefined) ?? 0),
+      pending: Number((r.pending as number | undefined) ?? 0),
+      inProgress: Number((r.inProgress as number | undefined) ?? 0),
+      resolved: Number((r.resolved as number | undefined) ?? 0),
+      successRate: Number((r.successRate as number | undefined) ?? 0),
+      avgResolutionHours: Number(
+        (r.avgResolutionHours as number | undefined) ?? 0
+      ),
+      avgRating: Number((r.avgRating as number | undefined) ?? 0),
+    }));
+  }
+
+  return { staff };
 }
 
 // ========================= Staff self metrics & workload =========================
@@ -2144,13 +2210,14 @@ export type HodAllComplaint = {
   department?: string | null;
 };
 
-export type HodAllResponse = {
+// Legacy response shape (pre-analytics-alignment)
+export type HodAllResponseLegacy = {
   pending: HodAllComplaint[];
   accepted: HodAllComplaint[];
   assigned: HodAllComplaint[];
   resolved: HodAllComplaint[];
   rejected: HodAllComplaint[];
-  counts: {
+  counts?: {
     pending: number;
     accepted: number;
     assigned: number;
@@ -2159,6 +2226,19 @@ export type HodAllResponse = {
   };
   lastUpdated: string;
 };
+
+// New response shape (analytics-aligned, department-wide)
+export type HodAllResponseNew = {
+  total: number;
+  pending: HodAllComplaint[];
+  inProgress: HodAllComplaint[];
+  resolved: HodAllComplaint[];
+  rejected: HodAllComplaint[];
+  unassigned: HodAllComplaint[];
+  lastUpdated: string;
+};
+
+export type HodAllResponse = HodAllResponseLegacy | HodAllResponseNew;
 
 export async function getHodAllApi() {
   const res = await fetch(`${API_BASE}/complaints/hod/all`, {

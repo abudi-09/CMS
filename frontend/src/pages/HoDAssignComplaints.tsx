@@ -95,7 +95,7 @@ export default function HoDAssignComplaints() {
   >("");
   const [updateNote, setUpdateNote] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "All" | "Pending" | "Accepted" | "Assigned" | "Resolved" | "Rejected"
+    "All" | "Pending" | "Accepted" | "Resolved" | "Rejected"
   >("Pending");
   // Shared modals state
   const [acceptOpen, setAcceptOpen] = useState(false);
@@ -290,47 +290,8 @@ export default function HoDAssignComplaints() {
         return String(recId) === hodId;
       }
 
-      // 3) If submittedTo appears to explicitly target a specific user (id/email/name), match only that user
-      const submittedToRaw = (c as unknown as Record<string, unknown>)[
-        "submittedTo"
-      ];
-      const submittedToStr = submittedToRaw
-        ? String(submittedToRaw).trim()
-        : "";
-      const looksLikeObjectId = /^[a-fA-F0-9]{24}$/.test(submittedToStr);
-      const looksLikeEmail = /@/.test(submittedToStr);
-      // reuse myEmail and myName computed above when available
-      // (they are defined earlier when matching assignedStaffLabel)
-      const genericHodRoleMatch =
-        /^(hod|headofdepartment|head-of-department)$/i;
-
-      if (submittedToStr && !genericHodRoleMatch.test(submittedToStr)) {
-        if (looksLikeObjectId) return submittedToStr === hodId;
-        if (looksLikeEmail) return submittedToStr.toLowerCase() === myEmail;
-        const lower = submittedToStr.toLowerCase();
-        if (myName && lower.includes(myName)) return true;
-        if (myEmail && lower.includes(myEmail)) return true;
-        if (myUsername && lower.includes(myUsername)) return true;
-        return false;
-      }
-
-      // 4) Generic 'HoD (Department)' style submissions: include when complaint.department === user.department
-      if (submittedToStr && genericHodRoleMatch.test(submittedToStr)) {
-        const complaintDept = (c as unknown as Record<string, unknown>)[
-          "department"
-        ] as string | undefined;
-        const myDept = (user as unknown as { department?: string })?.department;
-        if (
-          complaintDept &&
-          myDept &&
-          String(complaintDept).toLowerCase() === String(myDept).toLowerCase()
-        ) {
-          return true;
-        }
-        // Also allow if assignedStaff label matched above or recipientId matched above; otherwise deny
-        return false;
-      }
-
+      // Strict scoping: do NOT include generic department-targeted items by submittedTo.
+      // If it's not explicitly for this HOD (assignment or recipient), exclude.
       return false;
     },
     [user]
@@ -450,8 +411,8 @@ export default function HoDAssignComplaints() {
           detail: { id: complaintId },
         })
       );
-      // Move UI focus to Assigned tab
-      setActiveTab("Assigned");
+      // After assignment, switch to All so the item remains visible without an Assigned tab
+      setActiveTab("All");
     } catch (err) {
       toast({
         title: "Assignment failed",
@@ -542,14 +503,7 @@ export default function HoDAssignComplaints() {
         isAssignedToSelf(c)
       );
     }
-    if (activeTab === "Assigned") {
-      // Assigned: delegated to staff (has assignee and not self)
-      return (
-        (c.status === "In Progress" || c.status === "Assigned") &&
-        !!c.assignedStaff &&
-        !isAssignedToSelf(c)
-      );
-    }
+    // Assigned tab removed
     if (activeTab === "Resolved") return c.status === "Resolved";
     if (activeTab === "Rejected") return c.status === "Closed";
     return false;
@@ -602,14 +556,26 @@ export default function HoDAssignComplaints() {
         ? isOverdue(c)
         : !isOverdue(c)
     );
-
+  // no-op
   // Summary counts derived from the same filtered list so the cards reflect
   // the active tab + filters shown in the table.
   const summaryBaseList = filteredComplaints;
-  const unassignedCount = summaryBaseList.filter(
-    (c) => !c.assignedStaff
+  const pendingCount = summaryBaseList.filter((c) => {
+    const s = String(c.status || "");
+    return s === "Pending" || s === "Unassigned";
+  }).length;
+  const inProgressCount = summaryBaseList.filter((c) => {
+    const s = String(c.status || "");
+    return (
+      s === "In Progress" ||
+      s === "Assigned" ||
+      s === "Under Review" ||
+      s === "Accepted"
+    );
+  }).length;
+  const resolvedCount = summaryBaseList.filter(
+    (c) => c.status === "Resolved"
   ).length;
-  const assignedCount = summaryBaseList.filter((c) => !!c.assignedStaff).length;
 
   // Pagination calculations
   const totalItems = filteredComplaints.length;
@@ -648,7 +614,7 @@ export default function HoDAssignComplaints() {
         Manage staff assignments for complaints in your department
       </p>
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -662,22 +628,34 @@ export default function HoDAssignComplaints() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Filters</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">
-              Use the controls below
+            <div className="text-2xl font-bold text-yellow-600">
+              {pendingCount}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assigned</CardTitle>
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
             <div className="h-4 w-4 rounded-full bg-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {summaryBaseList.filter((c) => !!c.assignedStaff).length}
+              {inProgressCount}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Resolved</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {resolvedCount}
             </div>
           </CardContent>
         </Card>
@@ -739,7 +717,6 @@ export default function HoDAssignComplaints() {
                 <TabsTrigger value="All">All</TabsTrigger>
                 <TabsTrigger value="Pending">Pending</TabsTrigger>
                 <TabsTrigger value="Accepted">Accepted</TabsTrigger>
-                <TabsTrigger value="Assigned">Assigned</TabsTrigger>
                 <TabsTrigger value="Resolved">Resolved</TabsTrigger>
                 <TabsTrigger value="Rejected">Rejected</TabsTrigger>
               </TabsList>
@@ -757,7 +734,6 @@ export default function HoDAssignComplaints() {
               <div className="text-center py-6 text-muted-foreground">
                 {activeTab === "Pending" && "No pending complaints"}
                 {activeTab === "Accepted" && "No accepted complaints"}
-                {activeTab === "Assigned" && "No assigned complaints"}
                 {activeTab === "Resolved" && "No resolved complaints"}
                 {activeTab === "Rejected" && "No rejected complaints"}
                 {activeTab === "All" && "No complaints found"}
@@ -1039,7 +1015,6 @@ export default function HoDAssignComplaints() {
                     >
                       {activeTab === "Pending" && "No pending complaints"}
                       {activeTab === "Accepted" && "No accepted complaints"}
-                      {activeTab === "Assigned" && "No assigned complaints"}
                       {activeTab === "Resolved" && "No resolved complaints"}
                       {activeTab === "Rejected" && "No rejected complaints"}
                       {activeTab === "All" && "No complaints found"}
@@ -1254,8 +1229,11 @@ export default function HoDAssignComplaints() {
           complaint={selectedComplaint}
           open={showDetailModal}
           onOpenChange={setShowDetailModal}
-          // Hide HoD action panel when viewing from Assigned tab (only staff may update)
-          hideHodActionsIfAssigned={activeTab === "Assigned"}
+          // Hide HoD action panel if the selected complaint is delegated to staff
+          hideHodActionsIfAssigned={
+            !!selectedComplaint?.assignedStaff &&
+            !isAssignedToSelf(selectedComplaint)
+          }
           timelineFilterMode="summary"
         />
       )}
