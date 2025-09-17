@@ -45,6 +45,14 @@ export const getComplaint = async (req, res) => {
       if (payload.isAnonymous) {
         payload.submittedBy = "Anonymous";
       }
+      // Derived display value for submitter (mask-aware)
+      payload.displayName = payload.isAnonymous
+        ? "Anonymous"
+        : payload.submittedBy && typeof payload.submittedBy === "object"
+        ? payload.submittedBy.name || payload.submittedBy.email || null
+        : typeof payload.submittedBy === "string"
+        ? payload.submittedBy
+        : null;
       return res.status(200).json({ complaint: payload });
     } catch (_) {
       // Fallback to existing behavior if anything goes wrong
@@ -55,6 +63,16 @@ export const getComplaint = async (req, res) => {
       if (fallbackPayload.isAnonymous) {
         fallbackPayload.submittedBy = "Anonymous";
       }
+      fallbackPayload.displayName = fallbackPayload.isAnonymous
+        ? "Anonymous"
+        : fallbackPayload.submittedBy &&
+          typeof fallbackPayload.submittedBy === "object"
+        ? fallbackPayload.submittedBy.name ||
+          fallbackPayload.submittedBy.email ||
+          null
+        : typeof fallbackPayload.submittedBy === "string"
+        ? fallbackPayload.submittedBy
+        : null;
       return res.status(200).json({ complaint: fallbackPayload });
     }
   } catch (err) {

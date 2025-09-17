@@ -389,10 +389,6 @@ export function SubmitComplaint() {
         // The assigner role for a direct student submission should be 'student'
         assignedByRole: "student",
         assignmentPath,
-        deadline:
-          formData.role === "staff" && formData.deadline
-            ? new Date(formData.deadline)
-            : undefined,
         recipientStaffId:
           formData.role === "staff" ? formData.recipient : undefined,
         // NEW: send Hod id when role is hod
@@ -775,33 +771,7 @@ export function SubmitComplaint() {
               </div>
             )}
 
-            {/* Deadline Field (only for staff) */}
-            {formData.role === "staff" && (
-              <div className="space-y-2">
-                <Label htmlFor="deadline">Deadline *</Label>
-                <Input
-                  id="deadline"
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      deadline: e.target.value,
-                    }))
-                  }
-                  onBlur={() =>
-                    setTouched((prev) => ({ ...prev, deadline: true }))
-                  }
-                  required
-                  className="rounded-lg"
-                />
-                {touched.deadline && !formData.deadline && (
-                  <span className="text-xs text-red-600">
-                    Deadline is required for staff complaints.
-                  </span>
-                )}
-              </div>
-            )}
+            {/* No deadline input for staff; backend enforces a 3-day default */}
 
             {/* Evidence File */}
             <div className="space-y-2">
@@ -981,8 +951,7 @@ export function SubmitComplaint() {
                 !formData.priority ||
                 !formData.role ||
                 !formData.recipient ||
-                !formData.description ||
-                (formData.role === "staff" && !formData.deadline)
+                !formData.description
               }
               size="lg"
               aria-label="Submit Complaint"

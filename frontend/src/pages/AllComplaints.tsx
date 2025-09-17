@@ -164,16 +164,18 @@ export default function AllComplaints() {
           // Helper mapping borrowed & expanded from previous dedicated admin effect
           const mapRecord = (raw: unknown): Complaint => {
             const obj = (raw ?? {}) as Record<string, unknown>;
-            // submittedBy may be an object or string
-            let submittedBy = "Unknown";
-            const sb = obj["submittedBy"];
-            if (sb) {
-              if (typeof sb === "string") submittedBy = sb;
-              else if (typeof sb === "object") {
-                const sbo = sb as Record<string, unknown>;
-                submittedBy = String(
-                  sbo["fullName"] ?? sbo["name"] ?? sbo["email"] ?? "User"
-                );
+            // submittedBy may be an object or string; prefer displayName if provided
+            let submittedBy = String(obj["displayName"] || "");
+            if (!submittedBy) {
+              const sb = obj["submittedBy"];
+              if (sb) {
+                if (typeof sb === "string") submittedBy = sb;
+                else if (typeof sb === "object") {
+                  const sbo = sb as Record<string, unknown>;
+                  submittedBy = String(
+                    sbo["fullName"] ?? sbo["name"] ?? sbo["email"] ?? "User"
+                  );
+                }
               }
             }
             const assignedStaffRaw = obj["assignedTo"] ?? obj["assignedStaff"];
@@ -300,6 +302,7 @@ export default function AllComplaints() {
             lastUpdated?: string | Date;
             assignedTo?: string | { name?: string; email?: string } | null;
             submittedBy?: string | { name?: string; email?: string } | null;
+            displayName?: string;
             deadline?: string | Date | null;
             assignedByRole?: string | null;
             assignmentPath?: string[];
@@ -316,7 +319,9 @@ export default function AllComplaints() {
             status: (c.status as Complaint["status"]) || "Pending",
             priority: (c.priority as Complaint["priority"]) || "Medium",
             submittedBy:
-              typeof c.submittedBy === "string"
+              typeof c.displayName === "string" && c.displayName
+                ? c.displayName
+                : typeof c.submittedBy === "string"
                 ? c.submittedBy
                 : c.submittedBy?.name || c.submittedBy?.email || "",
             assignedStaff:
@@ -382,12 +387,16 @@ export default function AllComplaints() {
 
           // Normalize both lists to Complaint
           const mapAny = (obj: Record<string, unknown>): Complaint => {
+            const preferred = obj["displayName"] as string | undefined;
             const sb = obj?.submittedBy as
               | string
               | { name?: string; email?: string }
               | undefined;
-            const submittedByName =
-              typeof sb === "string" ? sb : sb?.name || sb?.email || "User";
+            const submittedByName = preferred
+              ? preferred
+              : typeof sb === "string"
+              ? sb
+              : sb?.name || sb?.email || "User";
             return {
               id: String((obj?.id as string) || (obj?._id as string) || ""),
               title: String(

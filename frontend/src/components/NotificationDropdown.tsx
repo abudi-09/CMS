@@ -153,8 +153,16 @@ export function NotificationDropdown() {
     }
   };
 
-  const removeLocal = (id: string) => {
-    setItems((prev) => prev.filter((n) => n._id !== id));
+  const removeAndPersist = async (id: string) => {
+    try {
+      // Mark as read on the server so it won't return on reload
+      await patchNotificationReadApi(id);
+    } catch (e) {
+      // Non-blocking: still remove locally for UX; it may reappear on next load if request failed
+      console.warn("Failed to persist read state before removal", e);
+    } finally {
+      setItems((prev) => prev.filter((n) => n._id !== id));
+    }
   };
 
   const getTimeAgo = (iso: string) => {
@@ -259,7 +267,7 @@ export function NotificationDropdown() {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeLocal(n._id);
+                        removeAndPersist(n._id);
                       }}
                       className="h-6 w-6 p-0"
                     >

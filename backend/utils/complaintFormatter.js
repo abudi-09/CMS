@@ -1,6 +1,18 @@
 export function complaintToDTO(doc) {
   if (!doc) return null;
   const c = doc.toObject ? doc.toObject({ virtuals: false }) : doc;
+  // Derive a human-friendly display name for the submitter (mask-aware)
+  const displayName = (() => {
+    try {
+      if (c.isAnonymous) return "Anonymous";
+      if (typeof c.submittedBy === "string" && c.submittedBy) return c.submittedBy;
+      if (c.submittedBy && typeof c.submittedBy === "object")
+        return c.submittedBy.name || c.submittedBy.fullName || c.submittedBy.email || null;
+      return null;
+    } catch {
+      return "Anonymous";
+    }
+  })();
   return {
     id: String(c._id),
     complaintCode: c.complaintCode || null,
@@ -20,6 +32,7 @@ export function complaintToDTO(doc) {
       c.submittedBy && typeof c.submittedBy === "object"
         ? c.submittedBy.name || c.submittedBy.email || null
         : null,
+    displayName,
     deadline: c.deadline || null,
     sourceRole: c.sourceRole || null,
     assignedByRole: c.assignedByRole || null,
@@ -30,5 +43,6 @@ export function complaintToDTO(doc) {
     isDeleted: !!c.isDeleted,
     recipientRole: c.recipientRole || null,
     recipientId: c.recipientId || null,
+    isAnonymous: !!c.isAnonymous,
   };
 }

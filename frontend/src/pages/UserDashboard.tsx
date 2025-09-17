@@ -39,6 +39,7 @@ export function UserDashboard() {
         department?: string;
         status?: string;
         priority?: string;
+        displayName?: string; // derived by backend
         submittedBy?: string | { fullName?: string; name?: string } | null;
         assignedTo?: { fullName?: string; name?: string; role?: string } | null;
         assignedByRole?: string | null;
@@ -64,7 +65,9 @@ export function UserDashboard() {
         status: (c.status || "Pending") as Complaint["status"],
         priority: (c.priority || "Medium") as Complaint["priority"],
         submittedBy:
-          typeof c.submittedBy === "string"
+          typeof c.displayName === "string" && c.displayName
+            ? c.displayName
+            : typeof c.submittedBy === "string"
             ? c.submittedBy
             : c.submittedBy?.fullName ||
               c.submittedBy?.name ||

@@ -128,7 +128,13 @@ export const createComplaint = async (req, res) => {
       }
     }
 
-    if (deadline) {
+    // Determine if this is a direct-to-staff submission; if so, we'll ignore any provided deadline
+    const isDirectToStaff =
+      !!recipientStaffId ||
+      String(req.body?.recipientRole || "").toLowerCase() === "staff";
+
+    // Only respect client-provided deadline for non-staff routes
+    if (deadline && !isDirectToStaff) {
       try {
         complaintData.deadline = new Date(deadline);
       } catch (err) {
@@ -151,6 +157,9 @@ export const createComplaint = async (req, res) => {
         complaint.assignedAt = new Date();
         // use canonical enum value for status
         complaint.status = "Pending";
+        // Enforce a default 3-day deadline for direct-to-staff complaints
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        complaint.deadline = new Date(Date.now() + THREE_DAYS_MS);
       }
 
       // If recipientHodId provided, assign immediately to HoD
@@ -575,6 +584,7 @@ export const getMyComplaints = async (req, res) => {
         : c?.submittedBy && typeof c.submittedBy === "object"
         ? c.submittedBy.name || c.submittedBy.email
         : null,
+      displayName: maskSubmitter(c, req.user?._id),
       deadline: c?.deadline ?? null,
       sourceRole: c?.sourceRole ?? null,
       assignedByRole: c?.assignedByRole ?? null,
@@ -677,6 +687,7 @@ export const getAllComplaints = async (req, res) => {
             resolvedAt: c?.resolvedAt ?? null,
             assignedTo: assignedToName,
             submittedBy: submittedByName,
+            displayName: submittedByName,
             deadline: c?.deadline ?? null,
             sourceRole: c?.sourceRole ?? null,
             assignedByRole: c?.assignedByRole ?? null,
@@ -1005,6 +1016,7 @@ export const getDeanInbox = async (req, res) => {
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
         submittedBy: maskSubmitter(c, req.user?._id),
+        displayName: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         assignedByRole: c.assignedByRole,
         assignmentPath: c.assignmentPath || [],
@@ -1068,6 +1080,7 @@ export const getDeanScopedComplaints = async (req, res) => {
         recipientRole: c.recipientRole,
         recipientId: c.recipientId,
         submittedBy: maskSubmitter(c, req.user?._id),
+        displayName: maskSubmitter(c, req.user?._id),
         department: c.department,
         isAnonymous: !!c.isAnonymous,
       })),
@@ -1110,6 +1123,7 @@ export const getAdminInbox = async (req, res) => {
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
         submittedBy: maskSubmitter(c, req.user?._id),
+        displayName: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         assignedByRole: c.assignedByRole,
         assignmentPath: c.assignmentPath || [],
@@ -1179,6 +1193,7 @@ export const getAdminWorkflowComplaints = async (req, res) => {
       submittedDate: c.createdAt,
       lastUpdated: c.updatedAt,
       submittedBy: maskSubmitter(c, req.user?._id),
+      displayName: maskSubmitter(c, req.user?._id),
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: c.assignmentPath || [],
@@ -1264,6 +1279,7 @@ export const getStaffInbox = async (req, res) => {
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
         submittedBy: maskSubmitter(c, req.user?._id),
+        displayName: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         submittedTo: c.submittedTo || null,
         department: c.department || null,
@@ -1580,6 +1596,7 @@ export const getHodManagedComplaints = async (req, res) => {
           ? c.assignedTo.name || c.assignedTo.email
           : null,
       submittedBy: maskSubmitter(c, req.user?._id),
+      displayName: maskSubmitter(c, req.user?._id),
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: Array.isArray(c.assignmentPath) ? c.assignmentPath : [],
@@ -1689,6 +1706,7 @@ export const getHodInbox = async (req, res) => {
         lastUpdated: c.updatedAt,
         assignedTo: c.assignedTo,
         submittedBy: maskSubmitter(c, req.user?._id),
+        displayName: maskSubmitter(c, req.user?._id),
         deadline: c.deadline,
         assignedByRole: c.assignedByRole,
         assignmentPath: c.assignmentPath || [],
@@ -1912,6 +1930,7 @@ export const getHodAll = async (req, res) => {
           ? c.assignedTo.name || c.assignedTo.email
           : null,
       submittedBy: maskSubmitter(c, req.user?._id),
+      displayName: maskSubmitter(c, req.user?._id),
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: Array.isArray(c.assignmentPath) ? c.assignmentPath : [],
