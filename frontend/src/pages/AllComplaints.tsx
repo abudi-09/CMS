@@ -970,28 +970,30 @@ export default function AllComplaints() {
   // Removed separate admin/dean pagination effect: admin/dean now fetch full dataset once (see loadByRole above)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">All Complaints</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+      <div className="space-y-2 md:space-y-3">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">
+          All Complaints
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Complete overview of all complaints in the system
         </p>
         {/* Development debug UI removed */}
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 lg:gap-6">
+        <Card className="hover:shadow-md transition-shadow min-h-[80px] md:min-h-[100px]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
               Total Complaints
             </CardTitle>
-            <div className="bg-blue-50 p-2 rounded-lg dark:bg-blue-900/20">
-              <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <FileText className="h-3 w-3 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-3">
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold flex items-center gap-2 md:gap-3">
               {globalTotal ?? stats.total}
               <span className="text-xs font-normal text-muted-foreground hidden sm:inline">
                 (page {page} of {totalPages})
@@ -1002,7 +1004,7 @@ export default function AllComplaints() {
               <span className="flex items-center gap-1">
                 <span className="hidden sm:inline">Per page:</span>
                 <select
-                  className="border rounded px-1 py-0.5 bg-background text-xs"
+                  className="border rounded px-1 py-0.5 bg-background text-xs h-6 md:h-7"
                   value={pageSize}
                   onChange={(e) => {
                     setPage(1);
@@ -1020,90 +1022,96 @@ export default function AllComplaints() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow min-h-[80px] md:min-h-[100px]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
               Pending
             </CardTitle>
-            <div className="bg-yellow-50 p-2 rounded-lg dark:bg-yellow-900/20">
-              <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <div className="bg-yellow-50 p-1.5 md:p-2 rounded-lg dark:bg-yellow-900/20 flex-shrink-0">
+              <Clock className="h-3 w-3 md:h-4 md:w-4 text-yellow-600 dark:text-yellow-400" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">{stats.pending}</div>
             <p className="text-xs text-muted-foreground">Awaiting action</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow min-h-[80px] md:min-h-[100px]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
               In Process
             </CardTitle>
-            <div className="bg-blue-50 p-2 rounded-lg dark:bg-blue-900/20">
-              <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <AlertCircle className="h-3 w-3 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">
+              {stats.inProgress}
+            </div>
             <p className="text-xs text-muted-foreground">Being worked on</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow min-h-[80px] md:min-h-[100px]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
               Under Review
             </CardTitle>
-            <div className="bg-purple-50 p-2 rounded-lg dark:bg-purple-900/20">
-              <AlertCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <div className="bg-purple-50 p-1.5 md:p-2 rounded-lg dark:bg-purple-900/20 flex-shrink-0">
+              <AlertCircle className="h-3 w-3 md:h-4 md:w-4 text-purple-600 dark:text-purple-400" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.underReview}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">
+              {stats.underReview}
+            </div>
             <p className="text-xs text-muted-foreground">Being evaluated</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="hover:shadow-md transition-shadow min-h-[80px] md:min-h-[100px]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
               Resolved
             </CardTitle>
-            <div className="bg-green-50 p-2 rounded-lg dark:bg-green-900/20">
-              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <div className="bg-green-50 p-1.5 md:p-2 rounded-lg dark:bg-green-900/20 flex-shrink-0">
+              <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-green-600 dark:text-green-400" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.resolved}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">
+              {stats.resolved}
+            </div>
             <p className="text-xs text-muted-foreground">Completed</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Search & Filter Controls */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
+      <Card className="mb-4 p-3 md:p-4 lg:p-6">
+        <CardHeader className="p-0 pb-3 md:pb-4">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Search className="h-4 w-4 md:h-5 md:w-5" />
             Search & Filter
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2 sm:gap-4 w-full">
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
             {/* Search input */}
-            <div className="relative w-full">
+            <div className="relative sm:col-span-2 lg:col-span-2">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title, department, or submitter..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full"
+                className="pl-10 h-9 md:h-10 text-sm"
               />
             </div>
             {/* Status dropdown */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -1118,7 +1126,7 @@ export default function AllComplaints() {
             </Select>
             {/* Priority dropdown */}
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by priority" />
               </SelectTrigger>
               <SelectContent>
@@ -1131,7 +1139,7 @@ export default function AllComplaints() {
             </Select>
             {/* Category dropdown */}
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by category" />
               </SelectTrigger>
               <SelectContent>
@@ -1145,7 +1153,7 @@ export default function AllComplaints() {
             </Select>
             {/* Role filter dropdown */}
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by role" />
               </SelectTrigger>
               <SelectContent>
@@ -1158,7 +1166,7 @@ export default function AllComplaints() {
             </Select>
             {/* Overdue filter dropdown */}
             <Select value={overdueFilter} onValueChange={setOverdueFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by overdue" />
               </SelectTrigger>
               <SelectContent>
@@ -1291,9 +1299,9 @@ export default function AllComplaints() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="lg:hidden space-y-4">
+        <div className="lg:hidden space-y-3 md:space-y-4">
           {pagedComplaints.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-6 md:py-8 text-muted-foreground text-sm md:text-base">
               {searchTerm ||
               statusFilter !== "All" ||
               categoryFilter !== "All" ||
@@ -1303,16 +1311,21 @@ export default function AllComplaints() {
             </div>
           ) : (
             pagedComplaints.map((complaint) => (
-              <Card key={complaint.id} className="p-4">
+              <Card
+                key={complaint.id}
+                className="p-3 md:p-4 hover:shadow-md transition-shadow"
+              >
                 <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-sm">{complaint.title}</h3>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                        {complaint.title}
+                      </h3>
                       {/* Complaint ID hidden per request */}
                     </div>
-                    <div className="flex gap-2 ml-2">
+                    <div className="flex flex-wrap gap-1 ml-2 flex-shrink-0">
                       <Badge
-                        className={`text-xs ${getPriorityColor(
+                        className={`text-xs px-1.5 py-0.5 ${getPriorityColor(
                           complaint.priority
                         )}`}
                         variant="outline"
@@ -1320,7 +1333,7 @@ export default function AllComplaints() {
                         {complaint.priority}
                       </Badge>
                       <Badge
-                        className={`text-xs ${getStatusColor(
+                        className={`text-xs px-1.5 py-0.5 ${getStatusColor(
                           complaint.status
                         )}`}
                         variant="outline"
@@ -1329,46 +1342,52 @@ export default function AllComplaints() {
                       </Badge>
                       {isOverdue(complaint) ? (
                         <Badge
-                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs px-1.5 py-0.5"
                           variant="outline"
                         >
                           Overdue
                         </Badge>
                       ) : (
                         <Badge
-                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                          className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs px-1.5 py-0.5"
                           variant="outline"
                         >
-                          Not Overdue
+                          On Time
                         </Badge>
                       )}
                     </div>
                   </div>
 
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Student:</span>
-                      <span className="font-medium ml-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs">
+                        Student:
+                      </span>
+                      <span className="font-medium truncate">
                         {complaint.submittedBy}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Category:</span>
-                      <span className="font-medium ml-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs">
+                        Category:
+                      </span>
+                      <span className="font-medium truncate">
                         {complaint.category}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <span className="text-muted-foreground text-xs">
                         Assigned To:
                       </span>
-                      <span className="font-medium ml-2">
+                      <span className="font-medium truncate">
                         {complaint.assignedStaff || "Unassigned"}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Date:</span>
-                      <span className="font-medium ml-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs">
+                        Date:
+                      </span>
+                      <span className="font-medium">
                         {complaint.submittedDate.toLocaleDateString()}
                       </span>
                     </div>
@@ -1378,7 +1397,7 @@ export default function AllComplaints() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleViewComplaint(complaint)}
-                    className="w-full hover:bg-primary/10"
+                    className="w-full h-9 md:h-10 text-sm hover:bg-primary/10 touch-manipulation"
                   >
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
@@ -1392,9 +1411,9 @@ export default function AllComplaints() {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="px-4 md:px-0">
+        <div className="px-3 md:px-4 lg:px-0 mt-4 md:mt-6">
           <Pagination>
-            <PaginationContent>
+            <PaginationContent className="flex-wrap gap-1 md:gap-2">
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
@@ -1402,9 +1421,20 @@ export default function AllComplaints() {
                     e.preventDefault();
                     goToPage(page - 1);
                   }}
-                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                  className={`h-9 md:h-10 px-2 md:px-3 text-sm touch-manipulation ${
+                    page === 1 ? "pointer-events-none opacity-50" : ""
+                  }`}
                 />
               </PaginationItem>
+
+              {/* Mobile: Show current page and total pages */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground sm:hidden">
+                <span>
+                  Page {page} of {totalPages}
+                </span>
+              </div>
+
+              {/* Desktop: Show page numbers */}
               {getVisiblePages()[0] !== 1 && (
                 <>
                   <PaginationItem className="hidden sm:list-item">
@@ -1414,6 +1444,7 @@ export default function AllComplaints() {
                         e.preventDefault();
                         goToPage(1);
                       }}
+                      className="h-9 md:h-10 px-2 md:px-3 text-sm"
                     >
                       1
                     </PaginationLink>
@@ -1432,6 +1463,7 @@ export default function AllComplaints() {
                       e.preventDefault();
                       goToPage(p);
                     }}
+                    className="h-9 md:h-10 px-2 md:px-3 text-sm"
                   >
                     {p}
                   </PaginationLink>
@@ -1449,6 +1481,7 @@ export default function AllComplaints() {
                         e.preventDefault();
                         goToPage(totalPages);
                       }}
+                      className="h-9 md:h-10 px-2 md:px-3 text-sm"
                     >
                       {totalPages}
                     </PaginationLink>
@@ -1462,9 +1495,9 @@ export default function AllComplaints() {
                     e.preventDefault();
                     goToPage(page + 1);
                   }}
-                  className={
+                  className={`h-9 md:h-10 px-2 md:px-3 text-sm touch-manipulation ${
                     page === totalPages ? "pointer-events-none opacity-50" : ""
-                  }
+                  }`}
                 />
               </PaginationItem>
             </PaginationContent>

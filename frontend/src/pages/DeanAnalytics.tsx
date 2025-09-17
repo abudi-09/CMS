@@ -486,49 +486,67 @@ export default function DeanAnalytics() {
       </p>
 
       {/* Top summary cards (wired to backend where possible) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-6">
-            <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">{totalStudents ?? "—"}</span>
-            <span className="text-muted-foreground">Total Students</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
+        <Card className="p-4 md:p-6">
+          <CardContent className="flex flex-col items-center justify-center py-4 md:py-6">
+            <Users className="h-6 w-6 md:h-8 md:w-8 text-primary mb-2" />
+            <span className="text-xl md:text-2xl font-bold">
+              {totalStudents ?? "—"}
+            </span>
+            <span className="text-xs md:text-sm text-muted-foreground text-center">
+              Total Students
+            </span>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-6">
-            <Users className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">{totalDepartments}</span>
-            <span className="text-muted-foreground">Total departments</span>
+        <Card className="p-4 md:p-6">
+          <CardContent className="flex flex-col items-center justify-center py-4 md:py-6">
+            <Users className="h-6 w-6 md:h-8 md:w-8 text-primary mb-2" />
+            <span className="text-xl md:text-2xl font-bold">
+              {totalDepartments}
+            </span>
+            <span className="text-xs md:text-sm text-muted-foreground text-center">
+              Total departments
+            </span>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-6">
-            <FileText className="h-8 w-8 text-primary mb-2" />
-            <span className="text-2xl font-bold">
+        <Card className="p-4 md:p-6">
+          <CardContent className="flex flex-col items-center justify-center py-4 md:py-6">
+            <FileText className="h-6 w-6 md:h-8 md:w-8 text-primary mb-2" />
+            <span className="text-xl md:text-2xl font-bold">
               {summary?.total ?? (loading ? "…" : complaints.length)}
             </span>
-            <span className="text-muted-foreground">Total Complaints</span>
+            <span className="text-xs md:text-sm text-muted-foreground text-center">
+              Total Complaints
+            </span>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-6">
-            <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
-            <span className="text-2xl font-bold">
+        <Card className="p-4 md:p-6">
+          <CardContent className="flex flex-col items-center justify-center py-4 md:py-6">
+            <CheckCircle className="h-6 w-6 md:h-8 md:w-8 text-green-600 mb-2" />
+            <span className="text-xl md:text-2xl font-bold">
               {complaints.length ? resolvedNonAdmin : summary?.resolved ?? 0}
             </span>
-            <span className="text-muted-foreground">Resolved Complaints</span>
+            <span className="text-xs md:text-sm text-muted-foreground text-center">
+              Resolved Complaints
+            </span>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Complaints by Category</CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-3 md:pb-4">
+            <CardTitle className="text-base md:text-lg">
+              Complaints by Category
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer
+              width="100%"
+              height={200}
+              className="md:h-[250px]"
+            >
               <PieChart>
                 <Pie
                   data={categoryDataDyn}
@@ -553,12 +571,18 @@ export default function DeanAnalytics() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Complaints by Priority</CardTitle>
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-3 md:pb-4">
+            <CardTitle className="text-base md:text-lg">
+              Complaints by Priority
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer
+              width="100%"
+              height={200}
+              className="md:h-[250px]"
+            >
               <BarChart data={priorityDataDyn}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="priority" />
@@ -577,13 +601,19 @@ export default function DeanAnalytics() {
       </div>
 
       {/* Status and Monthly Trends */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Complaints by Status</CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-3 md:pb-4">
+            <CardTitle className="text-base md:text-lg">
+              Complaints by Status
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer
+              width="100%"
+              height={200}
+              className="md:h-[250px]"
+            >
               <BarChart data={statusDataDyn}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="status" />
@@ -595,12 +625,18 @@ export default function DeanAnalytics() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Complaint Trends</CardTitle>
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-3 md:pb-4">
+            <CardTitle className="text-base md:text-lg">
+              Monthly Complaint Trends
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer
+              width="100%"
+              height={200}
+              className="md:h-[250px]"
+            >
               <LineChart data={monthlyTrendFromComplaints}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -616,12 +652,14 @@ export default function DeanAnalytics() {
       </div>
 
       {/* Department Performance (real data) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Department Performance</CardTitle>
+      <Card className="p-4 md:p-6">
+        <CardHeader className="pb-4 md:pb-6">
+          <CardTitle className="text-lg md:text-xl">
+            Department Performance
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {deptLoading && deptRows.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
                 Loading…
@@ -634,59 +672,68 @@ export default function DeanAnalytics() {
               deptRows.map((row, index) => (
                 <div
                   key={row.department}
-                  className="flex flex-col md:flex-row items-center justify-between gap-4 border-b pb-4"
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-4 border-b pb-3 md:pb-4 last:border-b-0"
                 >
-                  <div className="flex items-center gap-4 min-w-[200px]">
-                    <div className="w-8 h-8 flex items-center justify-center font-bold text-lg">
+                  <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
+                    <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center font-bold text-sm md:text-lg bg-primary/10 text-primary rounded-full flex-shrink-0">
                       {index + 1}
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{row.department}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-sm md:text-base truncate">
+                        {row.department}
+                      </h3>
+                      <p className="text-xs md:text-sm text-muted-foreground">
                         Staff: {row.staffCount ?? 0}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-center">
-                      <div className="text-lg font-bold">
+                  <div className="flex items-center gap-2 md:gap-6 flex-wrap sm:flex-nowrap">
+                    <div className="text-center min-w-[50px] md:min-w-[60px]">
+                      <div className="text-base md:text-lg font-bold">
                         {row.totalComplaints}
                       </div>
                       <div className="text-xs text-muted-foreground">Total</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-green-600">
+                    <div className="text-center min-w-[50px] md:min-w-[60px]">
+                      <div className="text-base md:text-lg font-bold text-green-600">
                         {row.resolvedComplaints}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Resolved
                       </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-amber-600">
+                    <div className="text-center min-w-[50px] md:min-w-[60px]">
+                      <div className="text-base md:text-lg font-bold text-amber-600">
                         {row.pendingComplaints}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Pending
                       </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-blue-600">
+                    <div className="text-center min-w-[50px] md:min-w-[60px]">
+                      <div className="text-base md:text-lg font-bold text-blue-600">
                         {row.inProgress}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         In Progress
                       </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-red-600">
+                    <div className="text-center min-w-[50px] md:min-w-[60px]">
+                      <div className="text-base md:text-lg font-bold text-red-600">
                         {row.overdue}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Overdue
                       </div>
                     </div>
-                    <Badge>{Math.round(row.successRate)}%</Badge>
+                    <div className="flex items-center justify-center min-w-[50px] md:min-w-[60px]">
+                      <Badge
+                        variant="secondary"
+                        className="text-xs md:text-sm px-2 py-1"
+                      >
+                        {Math.round(row.successRate)}%
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               ))

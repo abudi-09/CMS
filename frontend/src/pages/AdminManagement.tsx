@@ -482,136 +482,181 @@ export default function AdminManagement() {
 
   // Responsive summary cards
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Admin Management</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 md:space-y-6 px-4 md:px-6 lg:px-8">
+      <div className="pt-4 md:pt-6">
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">
+          Admin Management
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
           Manage admin accounts for Informatics College
         </p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" /> Total Admins
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-2 md:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <Users className="h-4 w-4 md:h-5 md:w-5" /> Total Admins
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAdmins}</div>
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{totalAdmins}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5" /> Active Admins
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-2 md:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <UserCheck className="h-4 w-4 md:h-5 md:w-5" /> Active Admins
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeAdmins}</div>
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{activeAdmins}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserMinus className="h-5 w-5" /> Inactive Admins
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-2 md:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <UserMinus className="h-4 w-4 md:h-5 md:w-5" /> Inactive Admins
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{inactiveAdmins}</div>
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">
+              {inactiveAdmins}
+            </div>
           </CardContent>
         </Card>
       </div>
       <Card className="shadow-lg rounded-2xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">Admin List</CardTitle>
+        <CardHeader className="pb-4 md:pb-6">
+          <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+            Admin List
+          </CardTitle>
           {!canManage && (
-            <Alert className="mt-2">
-              <AlertDescription>
+            <Alert className="mt-3">
+              <AlertDescription className="text-sm">
                 You don't have permission to manage admins. Please sign in as an
                 admin.
               </AlertDescription>
             </Alert>
           )}
-          <div className="pt-2 flex flex-col lg:flex-row gap-3 lg:items-center">
-            <div className="mb-3 w-full">
+          <div className="pt-3 md:pt-4 space-y-4">
+            {/* Mobile-first tabs */}
+            <div className="w-full overflow-x-auto">
               <Tabs
                 defaultValue="All"
                 value={roleTab}
                 onValueChange={(v: string) => setRoleTab(v)}
               >
-                <TabsList>
-                  <TabsTrigger value="All">All</TabsTrigger>
-                  <TabsTrigger value="Student">Student</TabsTrigger>
-                  <TabsTrigger value="Staff">Staff</TabsTrigger>
-                  <TabsTrigger value="HOD">Head of Department</TabsTrigger>
-                  <TabsTrigger value="Dean">Dean</TabsTrigger>
-                  <TabsTrigger value="Admin">Admin</TabsTrigger>
+                <TabsList className="w-full h-auto p-1 grid grid-cols-3 md:grid-cols-6 gap-1 min-h-[44px]">
+                  <TabsTrigger
+                    value="All"
+                    className="text-xs md:text-sm px-2 md:px-3 py-2 md:py-2.5 min-h-[40px]"
+                  >
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Student"
+                    className="text-xs md:text-sm px-2 md:px-3 py-2 md:py-2.5 min-h-[40px]"
+                  >
+                    Student
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Staff"
+                    className="text-xs md:text-sm px-2 md:px-3 py-2 md:py-2.5 min-h-[40px]"
+                  >
+                    Staff
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="HOD"
+                    className="text-xs md:text-sm px-2 md:px-3 py-2 md:py-2.5 min-h-[40px]"
+                  >
+                    HOD
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Dean"
+                    className="text-xs md:text-sm px-2 md:px-3 py-2 md:py-2.5 min-h-[40px]"
+                  >
+                    Dean
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Admin"
+                    className="text-xs md:text-sm px-2 md:px-3 py-2 md:py-2.5 min-h-[40px]"
+                  >
+                    Admin
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 lg:left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 lg:h-6 lg:w-6 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, username or department..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-12 lg:pl-16 rounded-lg h-12 text-lg lg:w-96"
-              />
-            </div>
-            <div className="flex gap-2 items-center">
-              <Select
-                value={departmentFilter}
-                onValueChange={(v) => setDepartmentFilter(v)}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Departments</SelectItem>
-                  <SelectItem value="Computer Science">
-                    Computer Science
-                  </SelectItem>
-                  <SelectItem value="Information Systems">
-                    Information Systems
-                  </SelectItem>
-                  <SelectItem value="Information Science">
-                    Information Science
-                  </SelectItem>
-                  <SelectItem value="Information Technology">
-                    Information Technology
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={statusView}
-                onValueChange={(v: "All" | "Active" | "Inactive") =>
-                  setStatusView(v)
-                }
-              >
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Status</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Search and Filters */}
+            <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, username or department..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10 md:pl-12 h-11 md:h-12 text-sm md:text-base w-full"
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Select
+                  value={departmentFilter}
+                  onValueChange={(v) => setDepartmentFilter(v)}
+                >
+                  <SelectTrigger className="w-full sm:w-[200px] h-11 md:h-12">
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Departments</SelectItem>
+                    <SelectItem value="Computer Science">
+                      Computer Science
+                    </SelectItem>
+                    <SelectItem value="Information Systems">
+                      Information Systems
+                    </SelectItem>
+                    <SelectItem value="Information Science">
+                      Information Science
+                    </SelectItem>
+                    <SelectItem value="Information Technology">
+                      Information Technology
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusView}
+                  onValueChange={(v: "All" | "Active" | "Inactive") =>
+                    setStatusView(v)
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-[150px] h-11 md:h-12">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Status</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {/* Desktop Table */}
           <div className="hidden lg:block overflow-x-auto rounded-md border bg-transparent">
-            <Table className="bg-transparent">
+            <Table className="bg-transparent min-w-[800px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Department / Working Position</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="min-w-[150px]">Full Name</TableHead>
+                  <TableHead className="min-w-[200px]">Email</TableHead>
+                  <TableHead className="min-w-[100px]">Role</TableHead>
+                  <TableHead className="min-w-[180px]">
+                    Department / Working Position
+                  </TableHead>
+                  <TableHead className="min-w-[100px]">Status</TableHead>
+                  <TableHead className="text-right min-w-[300px]">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -637,8 +682,12 @@ export default function AdminManagement() {
                           : "N/A";
                       return (
                         <TableRow key={user._id}>
-                          <TableCell>{user.name}</TableCell>
-                          <TableCell>{user.email}</TableCell>
+                          <TableCell className="font-medium">
+                            {user.name}
+                          </TableCell>
+                          <TableCell className="break-all">
+                            {user.email}
+                          </TableCell>
                           <TableCell>
                             <Badge>{roleLabel}</Badge>
                           </TableCell>
@@ -654,55 +703,62 @@ export default function AdminManagement() {
                               {user.isActive ? "Active" : "Inactive"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            {user.isActive && (
+                          <TableCell className="text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {user.isActive && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => promptDeactivate(user._id)}
+                                  className="whitespace-nowrap"
+                                >
+                                  <UserMinus className="h-4 w-4 mr-1" />{" "}
+                                  Deactivate
+                                </Button>
+                              )}
+                              {!user.isActive && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => promptActivate(user._id)}
+                                  className="whitespace-nowrap"
+                                >
+                                  <UserCheck className="h-4 w-4 mr-1" />{" "}
+                                  Activate
+                                </Button>
+                              )}
+                              {roleLabel !== "Admin" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => promoteToAdmin(user._id)}
+                                  className="whitespace-nowrap"
+                                >
+                                  <UserPlus className="h-4 w-4 mr-1" /> Promote
+                                  to Admin
+                                </Button>
+                              )}
+                              {user.role === "admin" && user.previousRole && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setUserRole(user._id, user.previousRole)
+                                  }
+                                  className="whitespace-nowrap"
+                                >
+                                  Revert to Previous
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => promptDeactivate(user._id)}
+                                onClick={() => setProfileUserId(user._id)}
+                                className="whitespace-nowrap"
                               >
-                                <UserMinus className="h-4 w-4 mr-1" />{" "}
-                                Deactivate
+                                <Users className="h-4 w-4 mr-1" /> View Profile
                               </Button>
-                            )}
-                            {!user.isActive && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => promptActivate(user._id)}
-                              >
-                                <UserCheck className="h-4 w-4 mr-1" /> Activate
-                              </Button>
-                            )}
-                            {roleLabel !== "Admin" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => promoteToAdmin(user._id)}
-                              >
-                                <UserPlus className="h-4 w-4 mr-1" /> Promote to
-                                Admin
-                              </Button>
-                            )}
-                            {user.role === "admin" && user.previousRole && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setUserRole(user._id, user.previousRole)
-                                }
-                              >
-                                Revert to Previous
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setProfileUserId(user._id)}
-                              className="ml-2"
-                            >
-                              <Users className="h-4 w-4 mr-1" /> View Profile
-                            </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -713,9 +769,9 @@ export default function AdminManagement() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="lg:hidden space-y-3">
+          <div className="lg:hidden space-y-4">
             {filtered.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground text-sm">
                 No users found
               </div>
             ) : (
@@ -727,82 +783,95 @@ export default function AdminManagement() {
                     ? u.department || "N/A"
                     : "N/A";
                   return (
-                    <Card key={u._id} className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{u.name}</div>
-                          <div className="text-xs text-muted-foreground break-all">
+                    <Card key={u._id} className="p-4 md:p-5 shadow-sm">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-base md:text-lg mb-1">
+                            {u.name}
+                          </div>
+                          <div className="text-sm text-muted-foreground break-all mb-1">
                             {u.email}
                           </div>
-                          <div className="text-xs text-muted-foreground break-all">
-                            {u.username || ""}
-                          </div>
+                          {u.username && (
+                            <div className="text-xs text-muted-foreground break-all">
+                              @{u.username}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge
+                            variant="secondary"
+                            className="text-xs px-2 py-1"
+                          >
                             {roleLabel}
                           </Badge>
                           <Badge
-                            className={
+                            className={`text-xs px-2 py-1 ${
                               u.isActive
                                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                 : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                            }
+                            }`}
                           >
                             {u.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </div>
                       </div>
-                      <div className="text-xs mt-2">
+                      <div className="text-sm text-muted-foreground mb-4">
                         {roleLabel === "Dean"
-                          ? "Working Position: "
-                          : "Department: "}
-                        {dept}
+                          ? `Working Position: ${u.workingPlace || dept}`
+                          : `Department: ${dept}`}
                       </div>
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {u.isActive ? (
+                      <div className="grid grid-cols-1 gap-3">
+                        {/* Primary Action Button */}
+                        <div className="flex gap-3">
+                          {u.isActive ? (
+                            <Button
+                              className="flex-1 min-h-[44px] text-sm"
+                              variant="outline"
+                              onClick={() => promptDeactivate(u._id)}
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" /> Deactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              className="flex-1 min-h-[44px] text-sm"
+                              variant="default"
+                              onClick={() => promptActivate(u._id)}
+                            >
+                              <UserCheck className="h-4 w-4 mr-2" /> Activate
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Secondary Action Buttons */}
+                        <div className="flex flex-col gap-2">
                           <Button
-                            className="w-full min-h-11"
+                            className="w-full min-h-[44px] text-sm"
                             variant="outline"
-                            onClick={() => promptDeactivate(u._id)}
+                            onClick={() => setProfileUserId(u._id)}
                           >
-                            <UserMinus className="h-4 w-4 mr-2" /> Deactivate
+                            <Users className="h-4 w-4 mr-2" /> View Profile
                           </Button>
-                        ) : (
-                          <Button
-                            className="w-full min-h-11"
-                            variant="outline"
-                            onClick={() => promptActivate(u._id)}
-                          >
-                            <UserCheck className="h-4 w-4 mr-2" /> Activate
-                          </Button>
-                        )}
-                        {roleLabel !== "Admin" && (
-                          <Button
-                            className="w-full min-h-11"
-                            variant="outline"
-                            onClick={() => promoteToAdmin(u._id)}
-                          >
-                            <UserPlus className="h-4 w-4 mr-2" /> Promote to
-                            Admin
-                          </Button>
-                        )}
-                        {u.role === "admin" && u.previousRole && (
-                          <Button
-                            className="w-full min-h-11"
-                            variant="outline"
-                            onClick={() => setUserRole(u._id, u.previousRole)}
-                          >
-                            Revert to Previous
-                          </Button>
-                        )}
-                        <Button
-                          className="w-full min-h-11"
-                          variant="outline"
-                          onClick={() => setProfileUserId(u._id)}
-                        >
-                          <Users className="h-4 w-4 mr-2" /> View Profile
-                        </Button>
+                          {roleLabel !== "Admin" && (
+                            <Button
+                              className="w-full min-h-[44px] text-sm"
+                              variant="outline"
+                              onClick={() => promoteToAdmin(u._id)}
+                            >
+                              <UserPlus className="h-4 w-4 mr-2" /> Promote to
+                              Admin
+                            </Button>
+                          )}
+                          {u.role === "admin" && u.previousRole && (
+                            <Button
+                              className="w-full min-h-[44px] text-sm"
+                              variant="outline"
+                              onClick={() => setUserRole(u._id, u.previousRole)}
+                            >
+                              Revert to Previous Role
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </Card>
                   );
@@ -810,9 +879,9 @@ export default function AdminManagement() {
             )}
           </div>
           {totalPages > 1 && (
-            <div className="pt-4">
+            <div className="pt-6 md:pt-8">
               <Pagination>
-                <PaginationContent>
+                <PaginationContent className="flex-wrap gap-1 md:gap-2">
                   <PaginationItem>
                     <PaginationPrevious
                       href="#"
@@ -820,13 +889,13 @@ export default function AdminManagement() {
                         e.preventDefault();
                         setPage((p) => Math.max(1, p - 1));
                       }}
-                      className={
+                      className={`min-h-[44px] px-3 md:px-4 text-sm ${
                         page === 1 ? "pointer-events-none opacity-50" : ""
-                      }
+                      }`}
                     />
                   </PaginationItem>
                   {(() => {
-                    const windowSize = 5;
+                    const windowSize = window.innerWidth < 640 ? 3 : 5; // Fewer pages on mobile
                     let start = Math.max(1, page - Math.floor(windowSize / 2));
                     const end = Math.min(totalPages, start + windowSize - 1);
                     if (end - start + 1 < windowSize) {
@@ -843,6 +912,7 @@ export default function AdminManagement() {
                             setPage(p);
                           }}
                           aria-current={p === page ? "page" : undefined}
+                          className="min-h-[44px] min-w-[44px] px-3 md:px-4 text-sm"
                         >
                           {p}
                         </PaginationLink>
@@ -856,15 +926,18 @@ export default function AdminManagement() {
                         e.preventDefault();
                         setPage((p) => Math.min(totalPages, p + 1));
                       }}
-                      className={
+                      className={`min-h-[44px] px-3 md:px-4 text-sm ${
                         page === totalPages
                           ? "pointer-events-none opacity-50"
                           : ""
-                      }
+                      }`}
                     />
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>
+              <div className="text-center text-sm text-muted-foreground mt-3">
+                Page {page} of {totalPages} ({filtered.length} total users)
+              </div>
             </div>
           )}
         </CardContent>

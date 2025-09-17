@@ -862,67 +862,77 @@ export function MyAssignedComplaints() {
   // Note: no auto-escalation side-effects here; escalation is handled by backend if applicable.
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-          My Assigned Complaints
+    <div className="max-w-6xl mx-auto py-8 space-y-6">
+      <div className="pt-4 md:pt-6">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">
+          My Assigned Complaints (Staff)
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm md:text-base text-muted-foreground">
           Manage complaints assigned specifically to you
         </p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
         <Card
           onClick={applyRecentFilter}
-          className="cursor-pointer hover:shadow"
+          className="cursor-pointer hover:shadow transition-shadow min-h-[80px] md:min-h-[100px]"
         >
-          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
-            <CardTitle className="text-sm font-medium">
+          <CardHeader className="pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Recently Assigned
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 sm:p-4 md:p-6">
-            <div className="text-2xl font-bold">{recentTop3.length}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-xl md:text-2xl font-bold">
+              {recentTop3.length}
+            </div>
             <p className="text-xs text-muted-foreground">Top 3 newest</p>
           </CardContent>
         </Card>
         <Card
           onClick={applyInProgressFilter}
-          className="cursor-pointer hover:shadow"
+          className="cursor-pointer hover:shadow transition-shadow min-h-[80px] md:min-h-[100px]"
         >
-          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+          <CardHeader className="pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              In Progress
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 sm:p-4 md:p-6">
-            <div className="text-2xl font-bold">{inProgressCount}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-xl md:text-2xl font-bold">
+              {inProgressCount}
+            </div>
             <p className="text-xs text-muted-foreground">Working now</p>
           </CardContent>
         </Card>
         <Card
           onClick={applyResolvedThisMonthFilter}
-          className="cursor-pointer hover:shadow"
+          className="cursor-pointer hover:shadow transition-shadow min-h-[80px] md:min-h-[100px]"
         >
-          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
-            <CardTitle className="text-sm font-medium">
+          <CardHeader className="pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Resolved This Month
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 sm:p-4 md:p-6">
-            <div className="text-2xl font-bold">{resolvedThisMonthCount}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-xl md:text-2xl font-bold">
+              {resolvedThisMonthCount}
+            </div>
             <p className="text-xs text-muted-foreground">This calendar month</p>
           </CardContent>
         </Card>
         <Card
           onClick={applyOverdueFilter}
-          className="cursor-pointer hover:shadow"
+          className="cursor-pointer hover:shadow transition-shadow min-h-[80px] md:min-h-[100px]"
         >
-          <CardHeader className="pb-2 p-3 sm:p-4 md:p-6">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+          <CardHeader className="pb-2 p-3 md:p-4 lg:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              Overdue
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 sm:p-4 md:p-6">
-            <div className="text-2xl font-bold">{overdueCount}</div>
+          <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
+            <div className="text-xl md:text-2xl font-bold">{overdueCount}</div>
             <p className="text-xs text-muted-foreground">Past deadline</p>
           </CardContent>
         </Card>
@@ -930,29 +940,44 @@ export function MyAssignedComplaints() {
 
       {/* Main Content */}
       <Card className="shadow-lg rounded-2xl bg-white dark:bg-gray-800">
-        <CardHeader className="p-3 sm:p-4 md:p-6">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+            <FileText className="h-4 w-4 md:h-5 md:w-5" />
             Assigned Complaints ({filtered.length})
           </CardTitle>
 
           {/* Tabs: category groups per requirements */}
           <div className="pt-2">
             <Tabs value={categoryTab} onValueChange={onCategoryTabChange}>
-              <TabsList className="flex gap-2 overflow-x-auto md:overflow-visible whitespace-nowrap md:whitespace-normal -mx-2 px-2 py-1">
-                <TabsTrigger className="shrink-0" value="direct">
+              <TabsList className="flex gap-1 md:gap-2 overflow-x-auto md:overflow-visible whitespace-nowrap md:whitespace-normal -mx-2 px-2 py-1 h-auto">
+                <TabsTrigger
+                  className="shrink-0 text-xs md:text-sm py-2 px-3 md:px-4 min-h-11 md:min-h-9"
+                  value="direct"
+                >
                   Direct Complaints
                 </TabsTrigger>
-                <TabsTrigger className="shrink-0" value="assignedByHod">
+                <TabsTrigger
+                  className="shrink-0 text-xs md:text-sm py-2 px-3 md:px-4 min-h-11 md:min-h-9"
+                  value="assignedByHod"
+                >
                   Assigned by HOD
                 </TabsTrigger>
-                <TabsTrigger className="shrink-0" value="accepted">
+                <TabsTrigger
+                  className="shrink-0 text-xs md:text-sm py-2 px-3 md:px-4 min-h-11 md:min-h-9"
+                  value="accepted"
+                >
                   Accepted
                 </TabsTrigger>
-                <TabsTrigger className="shrink-0" value="rejected">
+                <TabsTrigger
+                  className="shrink-0 text-xs md:text-sm py-2 px-3 md:px-4 min-h-11 md:min-h-9"
+                  value="rejected"
+                >
                   Rejected
                 </TabsTrigger>
-                <TabsTrigger className="shrink-0" value="resolved">
+                <TabsTrigger
+                  className="shrink-0 text-xs md:text-sm py-2 px-3 md:px-4 min-h-11 md:min-h-9"
+                  value="resolved"
+                >
                   Resolved
                 </TabsTrigger>
               </TabsList>
@@ -960,22 +985,22 @@ export function MyAssignedComplaints() {
           </div>
 
           {/* Search and Filter Controls */}
-          <div className="flex flex-col md:flex-row gap-4 pt-4">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-4 pt-4">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 rounded-lg"
+                className="pl-10 h-11 md:h-10 rounded-lg"
               />
             </div>
 
-            <div className="flex flex-col md:flex-row gap-2">
-              <div className="flex items-center gap-2 min-w-0 sm:min-w-[180px]">
-                <Filter className="h-4 w-4 text-muted-foreground" />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:min-w-[180px]">
+                <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="rounded-lg">
+                  <SelectTrigger className="h-11 md:h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -986,7 +1011,7 @@ export function MyAssignedComplaints() {
                 </Select>
               </div>
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="min-w-0 sm:min-w-[150px] rounded-lg">
+                <SelectTrigger className="min-w-0 flex-1 sm:flex-initial sm:min-w-[150px] h-11 md:h-10 rounded-lg">
                   <SelectValue placeholder="All Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1000,7 +1025,7 @@ export function MyAssignedComplaints() {
 
               {/* Overdue Filter */}
               <Select value={overdueFilter} onValueChange={setOverdueFilter}>
-                <SelectTrigger className="min-w-0 sm:min-w-[140px] rounded-lg">
+                <SelectTrigger className="min-w-0 flex-1 sm:flex-initial sm:min-w-[140px] h-11 md:h-10 rounded-lg">
                   <SelectValue placeholder="Overdue" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1013,7 +1038,7 @@ export function MyAssignedComplaints() {
               <Button
                 variant="outline"
                 onClick={handleSortByPriority}
-                className="min-w-0 sm:min-w-[140px] rounded-lg hover:bg-muted"
+                className="min-w-0 flex-1 sm:flex-initial sm:min-w-[140px] h-11 md:h-10 rounded-lg hover:bg-muted"
               >
                 <ArrowUpDown className="h-4 w-4 mr-2" />
                 Sort Priority
@@ -1022,10 +1047,10 @@ export function MyAssignedComplaints() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-3 sm:p-4 md:p-6">
+        <CardContent className="p-4 md:p-6">
           {/* Desktop/Tablet Table */}
           <div className="hidden md:block rounded-md border overflow-x-auto bg-white dark:bg-gray-800">
-            <Table className="bg-white dark:bg-gray-800 min-w-[760px]">
+            <Table className="bg-white dark:bg-gray-800 min-w-[600px] md:min-w-[700px] lg:min-w-[900px]">
               <style>{`
                 .my-assigned-table tr,
                 .my-assigned-table th,
@@ -1035,18 +1060,22 @@ export function MyAssignedComplaints() {
               `}</style>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-sm align-middle">Title</TableHead>
-                  <TableHead className="text-sm align-middle">
+                  <TableHead className="text-xs md:text-sm align-middle min-w-[200px]">
+                    Title
+                  </TableHead>
+                  <TableHead className="text-xs md:text-sm align-middle min-w-[120px]">
                     Category
                   </TableHead>
-                  <TableHead className="text-sm align-middle">
+                  <TableHead className="text-xs md:text-sm align-middle min-w-[100px]">
                     Priority
                   </TableHead>
-                  <TableHead className="text-sm align-middle">Status</TableHead>
-                  <TableHead className="text-sm align-middle">
+                  <TableHead className="text-xs md:text-sm align-middle min-w-[100px]">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs md:text-sm align-middle min-w-[80px]">
                     Overdue
                   </TableHead>
-                  <TableHead className="text-right text-sm align-middle">
+                  <TableHead className="text-right text-xs md:text-sm align-middle min-w-[120px]">
                     Action
                   </TableHead>
                 </TableRow>
@@ -1074,8 +1103,10 @@ export function MyAssignedComplaints() {
                         className="hover:bg-muted/50 dark:hover:bg-accent/10"
                       >
                         <TableCell className="max-w-xs">
-                          <div className="font-medium truncate flex items-center gap-2">
-                            <span className="truncate">{complaint.title}</span>
+                          <div className="font-medium flex items-center gap-2">
+                            <span className="break-words">
+                              {complaint.title}
+                            </span>
                             {isNew(complaint) && (
                               <Badge
                                 className="ml-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 text-[10px]"
@@ -1085,7 +1116,7 @@ export function MyAssignedComplaints() {
                               </Badge>
                             )}
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">
+                          <div className="text-xs text-muted-foreground break-words">
                             {complaint.description.substring(0, 60)}...
                           </div>
                         </TableCell>
@@ -1201,9 +1232,9 @@ export function MyAssignedComplaints() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="md:hidden space-y-4">
+          <div className="md:hidden space-y-3 md:space-y-4">
             {filtered.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
                 {searchTerm ||
                 statusFilter !== "All" ||
                 priorityFilter !== "All"
@@ -1216,19 +1247,19 @@ export function MyAssignedComplaints() {
                 .map((complaint) => (
                   <Card
                     key={complaint.id}
-                    className="p-4 shadow-md rounded-2xl"
+                    className="p-4 shadow-md rounded-2xl hover:shadow-lg transition-shadow"
                   >
                     <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-sm">
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-base md:text-base leading-tight mb-1">
                             {complaint.title}
                           </h3>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-muted-foreground truncate">
                             #{complaint.id}
                           </p>
                         </div>
-                        <div className="flex gap-2 ml-2">
+                        <div className="flex flex-wrap gap-1 justify-end">
                           {isNew(complaint) && (
                             <Badge
                               className="text-xs bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"
@@ -1267,36 +1298,28 @@ export function MyAssignedComplaints() {
                       </div>
 
                       <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground text-xs">
                             Category:
                           </span>
-                          <span className="font-medium ml-2">
+                          <Badge variant="secondary" className="text-xs">
                             {complaint.category}
-                          </span>
+                          </Badge>
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">
-                            Category:
-                          </span>
-                          <span className="font-medium ml-2">
-                            {complaint.category}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground text-xs">
                             Overdue:
                           </span>
                           {isOverdue(complaint) ? (
                             <Badge
-                              className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs ml-2"
+                              className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 text-xs"
                               variant="outline"
                             >
                               Overdue
                             </Badge>
                           ) : (
                             <Badge
-                              className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs ml-2"
+                              className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 text-xs"
                               variant="outline"
                             >
                               Not Overdue
@@ -1306,17 +1329,17 @@ export function MyAssignedComplaints() {
                       </div>
 
                       <div className="bg-muted/50 p-3 rounded-lg">
-                        <p className="text-sm">
+                        <p className="text-base leading-relaxed">
                           {complaint.description.substring(0, 120)}...
                         </p>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewComplaint(complaint)}
-                          className="flex-1 hover:bg-primary/10 dark:hover:bg-hover-blue/10"
+                          className="flex-1 h-11 md:h-10 hover:bg-primary/10 dark:hover:bg-hover-blue/10 text-sm"
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
@@ -1327,7 +1350,7 @@ export function MyAssignedComplaints() {
                             size="sm"
                             variant="destructive"
                             onClick={() => rejectComplaint(complaint.id)}
-                            className="flex-1"
+                            className="flex-1 h-11 md:h-10 text-sm"
                           >
                             <ThumbsDown className="h-4 w-4 mr-2" />
                             Reject
@@ -1337,7 +1360,7 @@ export function MyAssignedComplaints() {
                             size="sm"
                             variant="default"
                             onClick={() => acceptComplaint(complaint.id)}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            className="flex-1 h-11 md:h-10 bg-green-600 hover:bg-green-700 text-white text-sm"
                           >
                             <ThumbsUp className="h-4 w-4 mr-2" />
                             Re-accept
@@ -1352,7 +1375,7 @@ export function MyAssignedComplaints() {
                                   size="sm"
                                   onClick={() => acceptComplaint(complaint.id)}
                                   disabled={acceptedIds.has(complaint.id)}
-                                  className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-70"
+                                  className="flex-1 h-11 md:h-10 bg-green-600 hover:bg-green-700 text-white disabled:opacity-70 text-sm"
                                 >
                                   <ThumbsUp className="h-4 w-4 mr-2" />
                                   {acceptedIds.has(complaint.id)
@@ -1364,7 +1387,7 @@ export function MyAssignedComplaints() {
                                   size="sm"
                                   onClick={() => rejectComplaint(complaint.id)}
                                   disabled={rejectedIds.has(complaint.id)}
-                                  className="flex-1"
+                                  className="flex-1 h-11 md:h-10 text-sm"
                                 >
                                   <ThumbsDown className="h-4 w-4 mr-2" />
                                   {rejectedIds.has(complaint.id)
@@ -1388,7 +1411,7 @@ export function MyAssignedComplaints() {
       {totalPages > 1 && (
         <div className="px-4 md:px-0">
           <Pagination>
-            <PaginationContent>
+            <PaginationContent className="flex-wrap justify-center md:justify-start gap-1 md:gap-2">
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
@@ -1396,7 +1419,9 @@ export function MyAssignedComplaints() {
                     e.preventDefault();
                     setPage((p) => Math.max(1, p - 1));
                   }}
-                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                  className={`h-11 md:h-10 px-3 md:px-4 text-sm md:text-base ${
+                    page === 1 ? "pointer-events-none opacity-50" : ""
+                  }`}
                 />
               </PaginationItem>
               {(() => {
@@ -1419,12 +1444,13 @@ export function MyAssignedComplaints() {
                               e.preventDefault();
                               setPage(1);
                             }}
+                            className="h-9 md:h-10 w-9 md:w-10 text-sm md:text-base"
                           >
                             1
                           </PaginationLink>
                         </PaginationItem>
                         <PaginationItem className="hidden sm:list-item">
-                          <PaginationEllipsis />
+                          <PaginationEllipsis className="h-9 md:h-10 w-9 md:w-10" />
                         </PaginationItem>
                       </>
                     )}
@@ -1437,6 +1463,7 @@ export function MyAssignedComplaints() {
                             e.preventDefault();
                             setPage(p);
                           }}
+                          className="h-9 md:h-10 w-9 md:w-10 text-sm md:text-base"
                         >
                           {p}
                         </PaginationLink>
@@ -1445,7 +1472,7 @@ export function MyAssignedComplaints() {
                     {pages[pages.length - 1] !== totalPages && (
                       <>
                         <PaginationItem className="hidden sm:list-item">
-                          <PaginationEllipsis />
+                          <PaginationEllipsis className="h-9 md:h-10 w-9 md:w-10" />
                         </PaginationItem>
                         <PaginationItem className="hidden sm:list-item">
                           <PaginationLink
@@ -1454,6 +1481,7 @@ export function MyAssignedComplaints() {
                               e.preventDefault();
                               setPage(totalPages);
                             }}
+                            className="h-9 md:h-10 w-9 md:w-10 text-sm md:text-base"
                           >
                             {totalPages}
                           </PaginationLink>
@@ -1470,9 +1498,9 @@ export function MyAssignedComplaints() {
                     e.preventDefault();
                     setPage((p) => Math.min(totalPages, p + 1));
                   }}
-                  className={
+                  className={`h-11 md:h-10 px-3 md:px-4 text-sm md:text-base ${
                     page === totalPages ? "pointer-events-none opacity-50" : ""
-                  }
+                  }`}
                 />
               </PaginationItem>
             </PaginationContent>

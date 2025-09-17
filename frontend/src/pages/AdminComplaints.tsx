@@ -288,6 +288,15 @@ function AdminComplaints() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-6">
+      <div className="pt-4 md:pt-6">
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">
+          Admin Complaints
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
+          Manage and oversee all complaint submissions and resolutions.
+        </p>
+      </div>
+
       {/* Top summary counters (fetched from server): Total, Pending, Accepted, Resolved, Rejected */}
       <ServerStatsRow
         complaints={complaints}

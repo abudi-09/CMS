@@ -322,17 +322,19 @@ export default function HODStaffManagement() {
     data: Staff[];
     actions: (s: Staff) => JSX.Element;
   }) => (
-    <div className="rounded-md border overflow-x-auto">
+    <div className="hidden lg:block rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Working Position</TableHead>
-            <TableHead>Registration Date</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="w-[150px] md:w-[200px] text-sm">
+              Name
+            </TableHead>
+            <TableHead className="text-sm">Email</TableHead>
+            <TableHead className="text-sm">Department</TableHead>
+            <TableHead className="text-sm">Working Position</TableHead>
+            <TableHead className="text-sm">Registration Date</TableHead>
+            <TableHead className="text-sm">Status</TableHead>
+            <TableHead className="text-right text-sm">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -340,43 +342,58 @@ export default function HODStaffManagement() {
             <TableRow>
               <TableCell
                 colSpan={7}
-                className="text-center py-8 text-muted-foreground"
+                className="text-center py-8 text-muted-foreground text-sm md:text-base"
               >
                 {loading ? "Loading..." : "No staff found"}
               </TableCell>
             </TableRow>
           ) : (
             data.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell>{s.name}</TableCell>
-                <TableCell>{s.email}</TableCell>
-                <TableCell>{s.department}</TableCell>
-                <TableCell>
-                  {s.workingPlace || (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+              <TableRow key={s.id} className="hover:bg-muted/50">
+                <TableCell className="font-medium text-sm">
+                  <div className="max-w-[150px] md:max-w-[200px] truncate">
+                    {s.name}
+                  </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-sm">
+                  <div className="truncate max-w-[200px]">{s.email}</div>
+                </TableCell>
+                <TableCell className="text-sm">
+                  <div className="truncate max-w-[120px]">{s.department}</div>
+                </TableCell>
+                <TableCell className="text-sm">
+                  <div className="truncate max-w-[150px]">
+                    {s.workingPlace || (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                   {s.registeredDate
                     ? s.registeredDate.toLocaleDateString()
                     : "—"}
                 </TableCell>
                 <TableCell>
                   <Badge
-                    className={
+                    className={`text-xs ${
                       s.status === "approved"
-                        ? "bg-green-100 text-green-800"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
                         : s.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
+                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
                         : s.status === "deactivated"
-                        ? "bg-orange-100 text-orange-800"
-                        : "bg-red-100 text-red-800"
-                    }
+                        ? "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                    }`}
+                    variant="outline"
                   >
                     {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">{actions(s)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex gap-1 md:gap-2 justify-end flex-wrap">
+                    {actions(s)}
+                  </div>
+                </TableCell>
               </TableRow>
             ))
           )}
@@ -396,138 +413,280 @@ export default function HODStaffManagement() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">HoD Staff Management</h1>
-        <p className="text-muted-foreground">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 lg:space-y-8">
+      <div className="space-y-2 md:space-y-3">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight">
+          HoD Staff Management
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Approve, reject, deactivate and reactivate staff in your department
         </p>
       </div>
 
       {/* Stats summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Total Staff</span>
-            <span className="text-2xl font-bold text-primary">
-              {stats.total}
-            </span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 lg:gap-6">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Total Staff
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-blue-600">
+                  {stats.total}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Approved</span>
-            <span className="text-2xl font-bold text-green-600">
-              {stats.approved}
-            </span>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-green-50 p-1.5 md:p-2 rounded-lg dark:bg-green-900/20 flex-shrink-0">
+                <UserCheck className="h-4 w-4 md:h-5 md:w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Approved
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-green-600">
+                  {stats.approved}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Pending</span>
-            <span className="text-2xl font-bold text-yellow-600">
-              {stats.pending}
-            </span>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-yellow-50 p-1.5 md:p-2 rounded-lg dark:bg-yellow-900/20 flex-shrink-0">
+                <UserCheck className="h-4 w-4 md:h-5 md:w-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Pending
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-yellow-600">
+                  {stats.pending}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Rejected</span>
-            <span className="text-2xl font-bold text-red-600">
-              {stats.rejected}
-            </span>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-red-50 p-1.5 md:p-2 rounded-lg dark:bg-red-900/20 flex-shrink-0">
+                <UserX className="h-4 w-4 md:h-5 md:w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Rejected
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-red-600">
+                  {stats.rejected}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Deactivated</span>
-            <span className="text-2xl font-bold text-orange-600">
-              {stats.deactivated}
-            </span>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-orange-50 p-1.5 md:p-2 rounded-lg dark:bg-orange-900/20 flex-shrink-0">
+                <UserX className="h-4 w-4 md:h-5 md:w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Deactivated
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-orange-600">
+                  {stats.deactivated}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Staff Directory</CardTitle>
-          <div className="flex flex-wrap gap-2 mt-4">
-            <Input
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full max-w-md"
-            />
+      <Card className="p-3 md:p-6">
+        <CardHeader className="p-0 pb-3 md:pb-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg md:text-xl">
+                Staff Directory
+              </CardTitle>
+              <p className="text-xs md:text-sm text-muted-foreground">
+                Manage staff accounts and permissions
+              </p>
+            </div>
+            <div className="relative w-full md:max-w-md">
+              <Input
+                placeholder="Search by name, email, or position..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-9 md:h-10 text-sm"
+              />
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="p-0">
           <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1">
+              <TabsTrigger
+                value="pending"
+                className="text-xs md:text-sm py-2 px-2 md:px-3"
+              >
+                Pending
+              </TabsTrigger>
+              <TabsTrigger
+                value="approved"
+                className="text-xs md:text-sm py-2 px-2 md:px-3"
+              >
+                Approved
+              </TabsTrigger>
+              <TabsTrigger
+                value="rejected"
+                className="text-xs md:text-sm py-2 px-2 md:px-3"
+              >
+                Rejected
+              </TabsTrigger>
+              <TabsTrigger
+                value="deactivated"
+                className="text-xs md:text-sm py-2 px-2 md:px-3"
+              >
+                Deactivated
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="approved">
               <StaffTable
                 data={filterList(approved)}
                 actions={(s) => (
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-1 md:gap-2 justify-end flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setProfileUserId(s.id)}
-                      className="text-blue-600"
+                      className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8 px-2 md:px-3"
                     >
-                      <Users className="h-4 w-4" /> View Profile
+                      <Users className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">View Profile</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeactivate(s.id)}
-                      className="text-red-600"
+                      className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-xs h-8 px-2 md:px-3"
                       disabled={processingId === s.id}
                     >
-                      <UserX className="h-4 w-4" /> Deactivate
+                      <UserX className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">Deactivate</span>
                     </Button>
                   </div>
                 )}
               />
-              <div className="lg:hidden space-y-4 mt-4">
-                {filterList(approved).map((s) => (
-                  <Card key={s.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium">{s.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {s.email}
-                        </p>
-                        <p className="text-sm">{s.department}</p>
+              {/* Mobile Cards - Approved */}
+              <div className="lg:hidden space-y-3 md:space-y-4 mt-4">
+                {filterList(approved).length === 0 ? (
+                  <div className="text-center py-8 md:py-12 text-muted-foreground text-sm md:text-base">
+                    {loading ? "Loading..." : "No approved staff found"}
+                  </div>
+                ) : (
+                  filterList(approved).map((s) => (
+                    <Card
+                      key={s.id}
+                      className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+                    >
+                      <div className="space-y-3 md:space-y-4">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                              {s.name}
+                            </h3>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge
+                                className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 text-xs"
+                                variant="outline"
+                              >
+                                APPROVED
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Email:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Department:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.department}
+                            </span>
+                          </div>
+                          {s.workingPlace && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Position:
+                              </span>
+                              <span className="truncate text-xs md:text-sm">
+                                {s.workingPlace}
+                              </span>
+                            </div>
+                          )}
+                          {s.registeredDate && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Joined:
+                              </span>
+                              <span className="text-xs md:text-sm whitespace-nowrap">
+                                {s.registeredDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProfileUserId(s.id)}
+                            className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8"
+                          >
+                            <Users className="h-3 w-3 mr-1" />
+                            View Profile
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeactivate(s.id)}
+                            className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-xs h-8"
+                            disabled={processingId === s.id}
+                          >
+                            <UserX className="h-3 w-3 mr-1" />
+                            Deactivate
+                          </Button>
+                        </div>
                       </div>
-                      <Badge className="ml-2">{s.status}</Badge>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-blue-600"
-                        onClick={() => setProfileUserId(s.id)}
-                      >
-                        <Users className="h-4 w-4 mr-1" /> View Profile
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-red-600"
-                        onClick={() => handleDeactivate(s.id)}
-                        disabled={processingId === s.id}
-                      >
-                        <UserX className="h-4 w-4 mr-1" /> Deactivate
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  ))
+                )}
               </div>
             </TabsContent>
 
@@ -535,79 +694,142 @@ export default function HODStaffManagement() {
               <StaffTable
                 data={filterList(pending)}
                 actions={(s) => (
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-1 md:gap-2 justify-end flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setProfileUserId(s.id)}
-                      className="text-blue-600"
+                      className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8 px-2 md:px-3"
                     >
-                      <Users className="h-4 w-4" /> View Profile
+                      <Users className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">View Profile</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleApprove(s.id)}
-                      className="text-green-600"
+                      className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8 px-2 md:px-3"
                       disabled={processingId === s.id}
                     >
-                      <UserCheck className="h-4 w-4" /> Approve
+                      <UserCheck className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">Approve</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleReject(s.id)}
-                      className="text-red-600"
+                      className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-xs h-8 px-2 md:px-3"
                       disabled={processingId === s.id}
                     >
-                      <UserX className="h-4 w-4" /> Reject
+                      <UserX className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">Reject</span>
                     </Button>
                   </div>
                 )}
               />
-              <div className="lg:hidden space-y-4 mt-4">
-                {filterList(pending).map((s) => (
-                  <Card key={s.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium">{s.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {s.email}
-                        </p>
-                        <p className="text-sm">{s.department}</p>
+              {/* Mobile Cards - Pending */}
+              <div className="lg:hidden space-y-3 md:space-y-4 mt-4">
+                {filterList(pending).length === 0 ? (
+                  <div className="text-center py-8 md:py-12 text-muted-foreground text-sm md:text-base">
+                    {loading ? "Loading..." : "No pending staff found"}
+                  </div>
+                ) : (
+                  filterList(pending).map((s) => (
+                    <Card
+                      key={s.id}
+                      className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+                    >
+                      <div className="space-y-3 md:space-y-4">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                              {s.name}
+                            </h3>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge
+                                className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400 text-xs"
+                                variant="outline"
+                              >
+                                PENDING
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Email:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Department:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.department}
+                            </span>
+                          </div>
+                          {s.workingPlace && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Position:
+                              </span>
+                              <span className="truncate text-xs md:text-sm">
+                                {s.workingPlace}
+                              </span>
+                            </div>
+                          )}
+                          {s.registeredDate && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Applied:
+                              </span>
+                              <span className="text-xs md:text-sm whitespace-nowrap">
+                                {s.registeredDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProfileUserId(s.id)}
+                            className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8"
+                          >
+                            <Users className="h-3 w-3 mr-1" />
+                            View Profile
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApprove(s.id)}
+                            className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8"
+                            disabled={processingId === s.id}
+                          >
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReject(s.id)}
+                            className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-xs h-8"
+                            disabled={processingId === s.id}
+                          >
+                            <UserX className="h-3 w-3 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
                       </div>
-                      <Badge className="ml-2">{s.status}</Badge>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-blue-600"
-                        onClick={() => setProfileUserId(s.id)}
-                      >
-                        <Users className="h-4 w-4 mr-1" /> View Profile
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-green-600"
-                        onClick={() => handleApprove(s.id)}
-                        disabled={processingId === s.id}
-                      >
-                        <UserCheck className="h-4 w-4 mr-1" /> Approve
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-red-600"
-                        onClick={() => handleReject(s.id)}
-                        disabled={processingId === s.id}
-                      >
-                        <UserX className="h-4 w-4 mr-1" /> Reject
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  ))
+                )}
               </div>
             </TabsContent>
 
@@ -615,61 +837,122 @@ export default function HODStaffManagement() {
               <StaffTable
                 data={filterList(rejected)}
                 actions={(s) => (
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-1 md:gap-2 justify-end flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setProfileUserId(s.id)}
-                      className="text-blue-600"
+                      className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8 px-2 md:px-3"
                     >
-                      <Users className="h-4 w-4" /> View Profile
+                      <Users className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">View Profile</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleApprove(s.id)}
-                      className="text-green-600"
+                      className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8 px-2 md:px-3"
                       disabled={processingId === s.id}
                     >
-                      <UserCheck className="h-4 w-4" /> Re-approve
+                      <UserCheck className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">Re-approve</span>
                     </Button>
                   </div>
                 )}
               />
-              <div className="lg:hidden space-y-4 mt-4">
-                {filterList(rejected).map((s) => (
-                  <Card key={s.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium">{s.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {s.email}
-                        </p>
-                        <p className="text-sm">{s.department}</p>
+              {/* Mobile Cards - Rejected */}
+              <div className="lg:hidden space-y-3 md:space-y-4 mt-4">
+                {filterList(rejected).length === 0 ? (
+                  <div className="text-center py-8 md:py-12 text-muted-foreground text-sm md:text-base">
+                    {loading ? "Loading..." : "No rejected staff found"}
+                  </div>
+                ) : (
+                  filterList(rejected).map((s) => (
+                    <Card
+                      key={s.id}
+                      className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+                    >
+                      <div className="space-y-3 md:space-y-4">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                              {s.name}
+                            </h3>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge
+                                className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400 text-xs"
+                                variant="outline"
+                              >
+                                REJECTED
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Email:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Department:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.department}
+                            </span>
+                          </div>
+                          {s.workingPlace && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Position:
+                              </span>
+                              <span className="truncate text-xs md:text-sm">
+                                {s.workingPlace}
+                              </span>
+                            </div>
+                          )}
+                          {s.registeredDate && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Applied:
+                              </span>
+                              <span className="text-xs md:text-sm whitespace-nowrap">
+                                {s.registeredDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProfileUserId(s.id)}
+                            className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8"
+                          >
+                            <Users className="h-3 w-3 mr-1" />
+                            View Profile
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApprove(s.id)}
+                            className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8"
+                            disabled={processingId === s.id}
+                          >
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Re-approve
+                          </Button>
+                        </div>
                       </div>
-                      <Badge className="ml-2">{s.status}</Badge>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-blue-600"
-                        onClick={() => setProfileUserId(s.id)}
-                      >
-                        <Users className="h-4 w-4 mr-1" /> View Profile
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-green-600"
-                        onClick={() => handleApprove(s.id)}
-                        disabled={processingId === s.id}
-                      >
-                        <UserCheck className="h-4 w-4 mr-1" /> Re-approve
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  ))
+                )}
               </div>
             </TabsContent>
 
@@ -677,97 +960,124 @@ export default function HODStaffManagement() {
               <StaffTable
                 data={filterList(deactivated)}
                 actions={(s) => (
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-1 md:gap-2 justify-end flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setProfileUserId(s.id)}
-                      className="text-blue-600"
+                      className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8 px-2 md:px-3"
                     >
-                      <Users className="h-4 w-4" /> View Profile
+                      <Users className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">View Profile</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleReactivate(s.id)}
-                      className="text-green-600"
+                      className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8 px-2 md:px-3"
                       disabled={processingId === s.id}
                     >
-                      <UserCheck className="h-4 w-4" /> Reactivate
+                      <UserCheck className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      <span className="hidden sm:inline">Reactivate</span>
                     </Button>
                   </div>
                 )}
               />
-              <div className="lg:hidden space-y-4 mt-4">
-                {filterList(deactivated).map((s) => (
-                  <Card key={s.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium">{s.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {s.email}
-                        </p>
-                        <p className="text-sm">{s.department}</p>
+              {/* Mobile Cards - Deactivated */}
+              <div className="lg:hidden space-y-3 md:space-y-4 mt-4">
+                {filterList(deactivated).length === 0 ? (
+                  <div className="text-center py-8 md:py-12 text-muted-foreground text-sm md:text-base">
+                    {loading ? "Loading..." : "No deactivated staff found"}
+                  </div>
+                ) : (
+                  filterList(deactivated).map((s) => (
+                    <Card
+                      key={s.id}
+                      className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+                    >
+                      <div className="space-y-3 md:space-y-4">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                              {s.name}
+                            </h3>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge
+                                className="bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 text-xs"
+                                variant="outline"
+                              >
+                                DEACTIVATED
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Email:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                              Department:
+                            </span>
+                            <span className="truncate text-xs md:text-sm">
+                              {s.department}
+                            </span>
+                          </div>
+                          {s.workingPlace && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Position:
+                              </span>
+                              <span className="truncate text-xs md:text-sm">
+                                {s.workingPlace}
+                              </span>
+                            </div>
+                          )}
+                          {s.registeredDate && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-muted-foreground min-w-fit">
+                                Joined:
+                              </span>
+                              <span className="text-xs md:text-sm whitespace-nowrap">
+                                {s.registeredDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProfileUserId(s.id)}
+                            className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 text-xs h-8"
+                          >
+                            <Users className="h-3 w-3 mr-1" />
+                            View Profile
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReactivate(s.id)}
+                            className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8"
+                            disabled={processingId === s.id}
+                          >
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Reactivate
+                          </Button>
+                        </div>
                       </div>
-                      <Badge className="ml-2">{s.status}</Badge>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-blue-600"
-                        onClick={() => setProfileUserId(s.id)}
-                      >
-                        <Users className="h-4 w-4 mr-1" /> View Profile
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-green-600"
-                        onClick={() => handleReactivate(s.id)}
-                        disabled={processingId === s.id}
-                      >
-                        <UserCheck className="h-4 w-4 mr-1" /> Reactivate
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  ))
+                )}
               </div>
             </TabsContent>
-            {/* Mobile cards */}
-            <div className="lg:hidden space-y-4 mt-4">
-              {filterList(approved).map((s) => (
-                <Card key={s.id} className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium">{s.name}</h3>
-                      <p className="text-sm text-muted-foreground">{s.email}</p>
-                      <p className="text-sm">{s.department}</p>
-                    </div>
-                    <Badge className="ml-2">{s.status}</Badge>
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-blue-600"
-                      onClick={() => setProfileUserId(s.id)}
-                    >
-                      <Users className="h-4 w-4 mr-1" /> View Profile
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-red-600"
-                      onClick={() => handleDeactivate(s.id)}
-                      disabled={processingId === s.id}
-                    >
-                      <UserX className="h-4 w-4 mr-1" /> Deactivate
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
           </Tabs>
         </CardContent>
       </Card>

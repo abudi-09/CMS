@@ -302,18 +302,18 @@ export default function DepartmentManagement() {
       return (
         <>
           <Button
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-green-600 hover:bg-green-700 text-white h-9 md:h-8 text-sm font-medium px-3 min-w-0 flex-1"
             disabled={loading}
             onClick={() => openConfirm("approve", h)}
           >
-            Approve
+            <span className="truncate">Approve</span>
           </Button>
           <Button
-            className="bg-red-600 hover:bg-red-700 text-white"
+            className="bg-red-600 hover:bg-red-700 text-white h-9 md:h-8 text-sm font-medium px-3 min-w-0 flex-1"
             disabled={loading}
             onClick={() => openConfirm("reject", h)}
           >
-            Reject
+            <span className="truncate">Reject</span>
           </Button>
         </>
       );
@@ -321,41 +321,41 @@ export default function DepartmentManagement() {
     if (h.status === "approved") {
       return h.active ? (
         <Button
-          className="bg-red-600 hover:bg-red-700 text-white"
+          className="bg-red-600 hover:bg-red-700 text-white h-9 md:h-8 text-sm font-medium px-3 min-w-0 flex-1"
           disabled={loading}
           onClick={() => openConfirm("deactivate", h)}
         >
-          Deactivate
+          <span className="truncate">Deactivate</span>
         </Button>
       ) : (
         <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="bg-blue-600 hover:bg-blue-700 text-white h-9 md:h-8 text-sm font-medium px-3 min-w-0 flex-1"
           disabled={loading}
           onClick={() => openConfirm("reactivate", h)}
         >
-          Reactivate
+          <span className="truncate">Reactivate</span>
         </Button>
       );
     }
     if (h.status === "rejected") {
       return (
         <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="bg-blue-600 hover:bg-blue-700 text-white h-9 md:h-8 text-sm font-medium px-3 min-w-0 flex-1"
           disabled={loading}
           onClick={() => openConfirm("reapprove", h)}
         >
-          Re-approve
+          <span className="truncate">Re-approve</span>
         </Button>
       );
     }
     // deactivated
     return (
       <Button
-        className="bg-blue-600 hover:bg-blue-700 text-white"
+        className="bg-blue-600 hover:bg-blue-700 text-white h-9 md:h-8 text-sm font-medium px-3 min-w-0 flex-1"
         disabled={loading}
         onClick={() => openConfirm("reactivate", h)}
       >
-        Reactivate
+        <span className="truncate">Reactivate</span>
       </Button>
     );
   };
@@ -449,275 +449,409 @@ export default function DepartmentManagement() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <h1 className="text-3xl font-bold">Head of Department Management</h1>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="border border-blue-200 bg-blue-50 dark:bg-blue-950/30">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              Total HoDs
-            </CardTitle>
-            <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-800 dark:text-blue-200">
-              {totalHods}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-green-200 bg-green-50 dark:bg-green-950/30">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">
-              Active HoDs
-            </CardTitle>
-            <UserCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-800 dark:text-green-200">
-              {activeHods}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-red-200 bg-red-50 dark:bg-red-950/30">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-red-700 dark:text-red-300">
-              Deactivated HoDs
-            </CardTitle>
-            <UserX className="h-5 w-5 text-red-600 dark:text-red-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-800 dark:text-red-200">
-              {deactivatedHods}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="mb-3 w-full sm:w-auto">
-          <Tabs
-            defaultValue="pending"
-            value={activeTab}
-            onValueChange={(v: string) => setActiveTab(v as Status)}
-          >
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
-            </TabsList>
-          </Tabs>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">
+            Head of Department Management
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Manage and oversee department heads across all departments
+          </p>
         </div>
 
-        {/* Search and filter */}
-        <div className="flex flex-wrap gap-2 items-center">
-          <Input
-            placeholder="Search by name, email, or department"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
-          />
-          <Select value={deptFilter} onValueChange={setDeptFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by department" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-              {departments.map((d) => (
-                <SelectItem key={d} value={d}>
-                  {d}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            onClick={() => fetchLists()}
-            disabled={loading}
-            className="ml-2"
-          >
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      {/* Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {activeTab === "all"
-              ? "All HoDs"
-              : activeTab === "pending"
-              ? "Pending List"
-              : activeTab === "approved"
-              ? "Approved List"
-              : activeTab === "rejected"
-              ? "Rejected List"
-              : "Deactivated List"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Loading */}
-          {loading && (
-            <div className="text-sm text-muted-foreground pb-3">Loading…</div>
-          )}
-
-          {/* Mobile Cards */}
-          <div className="md:hidden space-y-3">
-            {!loading && loaded && listForTab.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                No results
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <Card className="border border-blue-200 bg-blue-50 dark:bg-blue-950/30 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-sm md:text-base font-medium text-blue-700 dark:text-blue-300">
+                Total HoDs
+              </CardTitle>
+              <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-blue-600 dark:text-blue-400" />
               </div>
-            ) : !loaded ? null : (
-              listForTab.map((h) => (
-                <Card key={h.id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-sm">{h.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {h.email}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Dept:{" "}
-                        {h.department && h.department.trim().length > 0
-                          ? h.department
-                          : "Unassigned"}
-                      </div>
-                      <Badge
-                        className={
-                          h.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : h.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : h.status === "deactivated"
-                            ? "bg-orange-100 text-orange-800"
-                            : "bg-red-100 text-red-800"
-                        }
-                      >
-                        {h.status === "approved"
-                          ? "Approved"
-                          : h.status === "pending"
-                          ? "Pending"
-                          : h.status === "deactivated"
-                          ? "Deactivated"
-                          : "Rejected"}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2 [&>button]:w-full">
-                    {renderActions(h)}
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => setProfileUserId(h.id)}
-                    >
-                      <Users className="h-4 w-4 mr-2" /> View Profile
-                    </Button>
-                  </div>
-                </Card>
-              ))
-            )}
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-blue-800 dark:text-blue-200">
+                {totalHods}
+              </div>
+              <p className="text-xs md:text-sm text-blue-600 dark:text-blue-400 mt-1">
+                Registered department heads
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-green-200 bg-green-50 dark:bg-green-950/30 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-sm md:text-base font-medium text-green-700 dark:text-green-300">
+                Active HoDs
+              </CardTitle>
+              <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                <UserCheck className="h-4 w-4 md:h-5 md:w-5 text-green-600 dark:text-green-400" />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-green-800 dark:text-green-200">
+                {activeHods}
+              </div>
+              <p className="text-xs md:text-sm text-green-600 dark:text-green-400 mt-1">
+                Currently active accounts
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-red-200 bg-red-50 dark:bg-red-950/30 shadow-sm hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-sm md:text-base font-medium text-red-700 dark:text-red-300">
+                Deactivated HoDs
+              </CardTitle>
+              <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                <UserX className="h-4 w-4 md:h-5 md:w-5 text-red-600 dark:text-red-400" />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-red-800 dark:text-red-200">
+                {deactivatedHods}
+              </div>
+              <p className="text-xs md:text-sm text-red-600 dark:text-red-400 mt-1">
+                Inactive accounts
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs and Controls Section */}
+        <div className="space-y-4">
+          {/* Mobile: Tabs first, then controls below */}
+          <div className="block md:hidden">
+            <Tabs
+              defaultValue="pending"
+              value={activeTab}
+              onValueChange={(v: string) => setActiveTab(v as Status)}
+            >
+              <TabsList className="grid w-full grid-cols-3 h-auto p-1">
+                <TabsTrigger value="all" className="text-xs py-2">
+                  All
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="text-xs py-2">
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger value="approved" className="text-xs py-2">
+                  Approved
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Tabs
+              defaultValue="pending"
+              value={activeTab}
+              onValueChange={(v: string) => setActiveTab(v as Status)}
+            >
+              <TabsList className="grid w-full grid-cols-2 h-auto p-1 mt-2">
+                <TabsTrigger value="rejected" className="text-xs py-2">
+                  Rejected
+                </TabsTrigger>
+                <TabsTrigger value="deactivated" className="text-xs py-2">
+                  Deactivated
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {!loading && loaded && listForTab.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={activeTab === "approved" ? 5 : 4}
-                      className="text-center text-muted-foreground"
-                    >
-                      No results
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  listForTab.map((h) => (
-                    <TableRow key={h.id}>
-                      <TableCell className="font-medium">{h.name}</TableCell>
-                      <TableCell>
-                        {h.department && h.department.trim().length > 0
-                          ? h.department
-                          : "Unassigned"}
-                      </TableCell>
-                      <TableCell>{h.email}</TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            h.status === "approved"
-                              ? "bg-green-100 text-green-800"
-                              : h.status === "pending"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : h.status === "deactivated"
-                              ? "bg-orange-100 text-orange-800"
-                              : "bg-red-100 text-red-800"
-                          }
-                        >
-                          {h.status === "approved"
-                            ? "Approved"
-                            : h.status === "pending"
-                            ? "Pending"
-                            : h.status === "deactivated"
-                            ? "Deactivated"
-                            : "Rejected"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {renderActions(h)}
+          {/* Desktop: All tabs in one row */}
+          <div className="hidden md:block">
+            <Tabs
+              defaultValue="pending"
+              value={activeTab}
+              onValueChange={(v: string) => setActiveTab(v as Status)}
+            >
+              <TabsList className="h-auto p-1">
+                <TabsTrigger value="all" className="px-4 py-2">
+                  All
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="px-4 py-2">
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger value="approved" className="px-4 py-2">
+                  Approved
+                </TabsTrigger>
+                <TabsTrigger value="rejected" className="px-4 py-2">
+                  Rejected
+                </TabsTrigger>
+                <TabsTrigger value="deactivated" className="px-4 py-2">
+                  Deactivated
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              <div className="flex-1 min-w-0">
+                <Input
+                  placeholder="Search by name, email, or department"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-10"
+                />
+              </div>
+              <Select value={deptFilter} onValueChange={setDeptFilter}>
+                <SelectTrigger className="w-full sm:w-48 h-10">
+                  <SelectValue placeholder="Filter by department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => fetchLists()}
+              disabled={loading}
+              className="h-10 px-4 whitespace-nowrap"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {activeTab === "all"
+                ? "All HoDs"
+                : activeTab === "pending"
+                ? "Pending List"
+                : activeTab === "approved"
+                ? "Approved List"
+                : activeTab === "rejected"
+                ? "Rejected List"
+                : "Deactivated List"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Loading */}
+            {loading && (
+              <div className="text-sm text-muted-foreground pb-3">Loading…</div>
+            )}
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-4">
+              {!loading && loaded && listForTab.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium">
+                    No results found
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Try adjusting your search or filter criteria
+                  </p>
+                </div>
+              ) : !loaded ? null : (
+                listForTab.map((h) => (
+                  <Card
+                    key={h.id}
+                    className="p-4 shadow-sm border-l-4 border-l-blue-500 hover:shadow-md transition-shadow"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base leading-tight mb-1">
+                            {h.name}
+                          </h3>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {h.email}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              className={`text-xs px-2 py-1 ${
+                                h.status === "approved"
+                                  ? "bg-green-100 text-green-800"
+                                  : h.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : h.status === "deactivated"
+                                  ? "bg-orange-100 text-orange-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {h.status === "approved"
+                                ? "Approved"
+                                : h.status === "pending"
+                                ? "Pending"
+                                : h.status === "deactivated"
+                                ? "Deactivated"
+                                : "Rejected"}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground font-medium">
+                            Department:
+                          </span>
+                          <span className="text-foreground">
+                            {h.department && h.department.trim().length > 0
+                              ? h.department
+                              : "Unassigned"}
+                          </span>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="grid grid-cols-2 gap-2">
+                            {renderActions(h)}
+                          </div>
                           <Button
-                            size="sm"
                             variant="outline"
                             onClick={() => setProfileUserId(h.id)}
+                            className="w-full h-10 text-sm font-medium px-4"
                           >
-                            <Users className="h-4 w-4 mr-1" /> View Profile
+                            <Users className="h-4 w-4 mr-2 flex-shrink-0" />
+                            <span className="truncate">View Profile</span>
                           </Button>
                         </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b">
+                    <TableHead className="font-semibold text-foreground min-w-[200px]">
+                      Name
+                    </TableHead>
+                    <TableHead className="font-semibold text-foreground min-w-[150px]">
+                      Department
+                    </TableHead>
+                    <TableHead className="font-semibold text-foreground min-w-[250px]">
+                      Email
+                    </TableHead>
+                    <TableHead className="font-semibold text-foreground min-w-[120px]">
+                      Status
+                    </TableHead>
+                    <TableHead className="font-semibold text-foreground text-right min-w-[200px]">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!loading && loaded && listForTab.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="font-medium">No results found</p>
+                        <p className="text-sm mt-1">
+                          Try adjusting your search or filter criteria
+                        </p>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                  ) : (
+                    listForTab.map((h) => (
+                      <TableRow
+                        key={h.id}
+                        className="hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell className="font-medium text-foreground">
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{h.name}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {h.email}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-foreground">
+                          {h.department && h.department.trim().length > 0 ? (
+                            h.department
+                          ) : (
+                            <span className="text-muted-foreground italic">
+                              Unassigned
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-foreground font-mono text-sm">
+                          {h.email}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`font-medium ${
+                              h.status === "approved"
+                                ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                : h.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                                : h.status === "deactivated"
+                                ? "bg-orange-100 text-orange-800 hover:bg-orange-200"
+                                : "bg-red-100 text-red-800 hover:bg-red-200"
+                            }`}
+                          >
+                            {h.status === "approved"
+                              ? "Approved"
+                              : h.status === "pending"
+                              ? "Pending"
+                              : h.status === "deactivated"
+                              ? "Deactivated"
+                              : "Rejected"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2 flex-wrap">
+                            {renderActions(h)}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setProfileUserId(h.id)}
+                              className="h-8 px-3"
+                            >
+                              <Users className="h-4 w-4 mr-1" />
+                              View Profile
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Confirmation Modal */}
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Confirm Action"
-        onConfirm={applyAction}
-        onCancel={() => setConfirmOpen(false)}
-        confirmText="Confirm"
-        cancelText="Cancel"
-        warning={undefined}
-      >
-        {confirmText}
-      </ConfirmDialog>
-      <UserProfileModal
-        userId={profileUserId || ""}
-        open={!!profileUserId}
-        onOpenChange={(o) => !o && setProfileUserId(null)}
-      />
+        {/* Confirmation Modal */}
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Confirm Action"
+          onConfirm={applyAction}
+          onCancel={() => setConfirmOpen(false)}
+          confirmText="Confirm"
+          cancelText="Cancel"
+          warning={undefined}
+        >
+          {confirmText}
+        </ConfirmDialog>
+        <UserProfileModal
+          userId={profileUserId || ""}
+          open={!!profileUserId}
+          onOpenChange={(o) => !o && setProfileUserId(null)}
+        />
+      </div>
     </div>
   );
 }

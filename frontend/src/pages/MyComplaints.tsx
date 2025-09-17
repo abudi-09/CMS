@@ -654,10 +654,10 @@ export function MyComplaints() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 px-4 md:px-0">
       <div>
-        <h1 className="text-3xl font-bold">My Complaints</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl md:text-3xl font-bold">My Complaints</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Track and manage all your submitted complaints
         </p>
       </div>
@@ -665,16 +665,16 @@ export function MyComplaints() {
       {loading && (
         <Card>
           <CardContent className="p-6 text-center text-muted-foreground">
-            Loading complaints...
+            <div className="text-sm md:text-base">Loading complaints...</div>
           </CardContent>
         </Card>
       )}
 
       {error && !loading && (
         <Card>
-          <CardContent className="p-6 text-center text-red-600">
-            {error}
-            <div className="mt-4">
+          <CardContent className="p-4 md:p-6 text-center text-red-600">
+            <div className="text-sm md:text-base mb-4">{error}</div>
+            <div className="flex justify-center">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -747,6 +747,7 @@ export function MyComplaints() {
                     }
                   })();
                 }}
+                className="min-h-9"
               >
                 Retry
               </Button>
@@ -767,20 +768,20 @@ export function MyComplaints() {
               Find specific complaints or filter by status
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-3 gap-4">
+          <CardContent className="space-y-4 lg:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by title, description, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-10"
                 />
               </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -805,7 +806,7 @@ export function MyComplaints() {
               </Select>
 
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="Filter by priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -832,21 +833,41 @@ export function MyComplaints() {
           </CardDescription>
           <div className="mt-2">
             <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-              <TabsList className="flex flex-wrap gap-1">
-                <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-                <TabsTrigger value="Pending">
+              <TabsList className="flex flex-wrap gap-1 h-auto p-1">
+                <TabsTrigger
+                  value="all"
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-2 min-h-8"
+                >
+                  All ({counts.all})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="Pending"
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-2 min-h-8"
+                >
                   Pending ({counts["Pending"]})
                 </TabsTrigger>
-                <TabsTrigger value="In Progress">
+                <TabsTrigger
+                  value="In Progress"
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-2 min-h-8"
+                >
                   In Progress ({counts["In Progress"]})
                 </TabsTrigger>
-                <TabsTrigger value="Resolved">
+                <TabsTrigger
+                  value="Resolved"
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-2 min-h-8"
+                >
                   Resolved ({counts["Resolved"]})
                 </TabsTrigger>
-                <TabsTrigger value="Closed">
+                <TabsTrigger
+                  value="Closed"
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-2 min-h-8"
+                >
                   Closed ({counts["Closed"]})
                 </TabsTrigger>
-                <TabsTrigger value="Overdue">
+                <TabsTrigger
+                  value="Overdue"
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-2 min-h-8"
+                >
                   Overdue ({counts["Overdue"]})
                 </TabsTrigger>
               </TabsList>
@@ -855,8 +876,8 @@ export function MyComplaints() {
         </CardHeader>
         <CardContent>
           {filteredComplaints.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">
+            <div className="text-center py-8 px-4">
+              <p className="text-sm md:text-base text-muted-foreground">
                 No complaints found matching your criteria.
               </p>
             </div>
@@ -864,17 +885,33 @@ export function MyComplaints() {
             <>
               {/* Desktop Table View */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[800px] lg:min-w-[1000px]">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left p-3 font-medium">Title</th>
-                      <th className="text-left p-3 font-medium">Category</th>
-                      <th className="text-left p-3 font-medium">Priority</th>
-                      <th className="text-left p-3 font-medium">Status</th>
-                      <th className="text-left p-3 font-medium">Overdue</th>
-                      <th className="text-left p-3 font-medium">Assigned To</th>
-                      <th className="text-left p-3 font-medium">Date</th>
-                      <th className="text-left p-3 font-medium">Actions</th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Title
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Category
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Priority
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Status
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Overdue
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Assigned To
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Date
+                      </th>
+                      <th className="text-left p-2 md:p-3 lg:p-4 font-medium text-sm md:text-base">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -883,18 +920,22 @@ export function MyComplaints() {
                         key={complaint.id}
                         className="border-b hover:bg-muted/5 dark:hover:bg-accent/10"
                       >
-                        <td className="p-3">
-                          <div className="font-medium">{complaint.title}</div>
+                        <td className="p-2 md:p-3 lg:p-4">
+                          <div className="font-medium text-sm md:text-base">
+                            {complaint.title}
+                          </div>
                           {complaint.friendlyCode && (
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-xs md:text-sm text-muted-foreground">
                               Code: {complaint.friendlyCode}
                             </div>
                           )}
                         </td>
-                        <td className="p-3">
-                          <span className="text-sm">{complaint.category}</span>
+                        <td className="p-2 md:p-3 lg:p-4">
+                          <span className="text-sm md:text-base">
+                            {complaint.category}
+                          </span>
                         </td>
-                        <td className="p-3">
+                        <td className="p-2 md:p-3 lg:p-4">
                           <Badge
                             className={`text-xs px-2 py-0.5 rounded font-semibold ${
                               complaint.priority === "Critical"
@@ -909,7 +950,7 @@ export function MyComplaints() {
                             {complaint.priority}
                           </Badge>
                         </td>
-                        <td className="p-3">
+                        <td className="p-2 md:p-3 lg:p-4">
                           <Badge
                             variant="outline"
                             className={
@@ -921,7 +962,7 @@ export function MyComplaints() {
                             {complaint.status}
                           </Badge>
                         </td>
-                        <td className="p-3">
+                        <td className="p-2 md:p-3 lg:p-4">
                           {isOverdue(complaint) ? (
                             <Badge className="text-xs px-2 py-0.5 bg-red-100 text-red-700 border-red-200">
                               Yes
@@ -935,25 +976,25 @@ export function MyComplaints() {
                             </Badge>
                           )}
                         </td>
-                        <td className="p-3">
-                          <span className="text-sm">
+                        <td className="p-2 md:p-3 lg:p-4">
+                          <span className="text-sm md:text-base">
                             {complaint.assignedStaff || "Not Assigned"}
                           </span>
                         </td>
-                        <td className="p-3">
-                          <span className="text-sm">
+                        <td className="p-2 md:p-3 lg:p-4">
+                          <span className="text-sm md:text-base">
                             {complaint.submittedDate.toLocaleDateString()}
                           </span>
                         </td>
-                        <td className="p-3">
-                          <div className="flex gap-2">
+                        <td className="p-2 md:p-3 lg:p-4">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleViewComplaint(complaint)}
-                              className="dark:hover:text-blue-400"
+                              className="min-h-8 text-xs md:text-sm dark:hover:text-blue-400"
                             >
-                              <Eye className="h-4 w-4 mr-1" />
+                              <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                               View
                             </Button>
                             {canEditOrDelete(complaint) && (
@@ -962,9 +1003,10 @@ export function MyComplaints() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleOpenEdit(complaint)}
-                                  className="dark:hover:text-blue-400"
+                                  className="min-h-8 text-xs md:text-sm dark:hover:text-blue-400"
                                 >
-                                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                                  <Pencil className="h-3 w-3 md:h-4 md:w-4 mr-1" />{" "}
+                                  Edit
                                 </Button>
                                 <Button
                                   variant="destructive"
@@ -973,8 +1015,10 @@ export function MyComplaints() {
                                     setSelectedComplaint(complaint);
                                     setDeleteDialogOpen(true);
                                   }}
+                                  className="min-h-8 text-xs md:text-sm"
                                 >
-                                  <Trash2 className="h-4 w-4 mr-1" /> Delete
+                                  <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1" />{" "}
+                                  Delete
                                 </Button>
                               </>
                             )}
@@ -983,9 +1027,9 @@ export function MyComplaints() {
                                 variant="default"
                                 size="sm"
                                 onClick={() => handleFeedback(complaint)}
-                                className="dark:hover:bg-blue-400"
+                                className="min-h-8 text-xs md:text-sm dark:hover:bg-blue-400"
                               >
-                                <MessageSquare className="h-4 w-4 mr-1" />
+                                <MessageSquare className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                                 Give Feedback
                               </Button>
                             )}
@@ -1013,7 +1057,7 @@ export function MyComplaints() {
                             </p>
                           )}
                         </div>
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-1 ml-2">
                           <Badge
                             className={`text-xs px-2 py-0.5 rounded font-semibold ${
                               complaint.priority === "Critical"
@@ -1029,7 +1073,7 @@ export function MyComplaints() {
                           </Badge>
                           <Badge
                             variant="outline"
-                            className={`ml-2 text-xs ${
+                            className={`text-xs ${
                               statusColors[
                                 complaint.status as keyof typeof statusColors
                               ]
@@ -1042,19 +1086,21 @@ export function MyComplaints() {
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
-                          <span className="text-muted-foreground">
-                            category:
+                          <span className="text-muted-foreground text-xs">
+                            Category:
                           </span>
                           <p className="font-medium">{complaint.category}</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Date:</span>
+                          <span className="text-muted-foreground text-xs">
+                            Date:
+                          </span>
                           <p className="font-medium">
                             {complaint.submittedDate.toLocaleDateString()}
                           </p>
                         </div>
                         <div className="col-span-2">
-                          <span className="text-muted-foreground">
+                          <span className="text-muted-foreground text-xs">
                             Assigned Staff:
                           </span>
                           <p className="font-medium">
@@ -1068,7 +1114,7 @@ export function MyComplaints() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewComplaint(complaint)}
-                          className="flex-1 text-xs dark:hover:text-blue-400"
+                          className="flex-1 min-h-9 text-xs dark:hover:text-blue-400"
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
@@ -1079,7 +1125,7 @@ export function MyComplaints() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleOpenEdit(complaint)}
-                              className="flex-1 text-xs dark:hover:text-blue-400"
+                              className="flex-1 min-h-9 text-xs dark:hover:text-blue-400"
                             >
                               <Pencil className="h-3 w-3 mr-1 " /> Edit
                             </Button>
@@ -1090,7 +1136,7 @@ export function MyComplaints() {
                                 setSelectedComplaint(complaint);
                                 setDeleteDialogOpen(true);
                               }}
-                              className="flex-1 text-xs"
+                              className="flex-1 min-h-9 text-xs"
                             >
                               <Trash2 className="h-3 w-3 mr-1" /> Delete
                             </Button>
@@ -1101,7 +1147,7 @@ export function MyComplaints() {
                             variant="default"
                             size="sm"
                             onClick={() => handleFeedback(complaint)}
-                            className="flex-1 text-xs dark:hover:bg-blue-400"
+                            className="flex-1 min-h-9 text-xs dark:hover:bg-blue-400"
                           >
                             <MessageSquare className="h-3 w-3 mr-1" />
                             Feedback
@@ -1121,7 +1167,7 @@ export function MyComplaints() {
       {!loading && !error && totalPages > 1 && (
         <div className="px-4 md:px-0">
           <Pagination>
-            <PaginationContent>
+            <PaginationContent className="flex-wrap justify-center">
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
@@ -1129,29 +1175,32 @@ export function MyComplaints() {
                     e.preventDefault();
                     goToPage(page - 1);
                   }}
-                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                  className={`min-h-9 ${
+                    page === 1 ? "pointer-events-none opacity-50" : ""
+                  }`}
                 />
               </PaginationItem>
               {getVisiblePages()[0] !== 1 && (
                 <>
-                  <PaginationItem className="hidden sm:list-item">
+                  <PaginationItem className="hidden sm:flex">
                     <PaginationLink
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
                         goToPage(1);
                       }}
+                      className="min-h-9"
                     >
                       1
                     </PaginationLink>
                   </PaginationItem>
-                  <PaginationItem className="hidden sm:list-item">
+                  <PaginationItem className="hidden sm:flex">
                     <PaginationEllipsis />
                   </PaginationItem>
                 </>
               )}
               {getVisiblePages().map((p) => (
-                <PaginationItem key={p} className="hidden sm:list-item">
+                <PaginationItem key={p} className="hidden sm:flex">
                   <PaginationLink
                     href="#"
                     isActive={p === page}
@@ -1159,6 +1208,7 @@ export function MyComplaints() {
                       e.preventDefault();
                       goToPage(p);
                     }}
+                    className="min-h-9"
                   >
                     {p}
                   </PaginationLink>
@@ -1166,16 +1216,17 @@ export function MyComplaints() {
               ))}
               {getVisiblePages().slice(-1)[0] !== totalPages && (
                 <>
-                  <PaginationItem className="hidden sm:list-item">
+                  <PaginationItem className="hidden sm:flex">
                     <PaginationEllipsis />
                   </PaginationItem>
-                  <PaginationItem className="hidden sm:list-item">
+                  <PaginationItem className="hidden sm:flex">
                     <PaginationLink
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
                         goToPage(totalPages);
                       }}
+                      className="min-h-9"
                     >
                       {totalPages}
                     </PaginationLink>
@@ -1189,9 +1240,9 @@ export function MyComplaints() {
                     e.preventDefault();
                     goToPage(page + 1);
                   }}
-                  className={
+                  className={`min-h-9 ${
                     page === totalPages ? "pointer-events-none opacity-50" : ""
-                  }
+                  }`}
                 />
               </PaginationItem>
             </PaginationContent>
@@ -1219,23 +1270,30 @@ export function MyComplaints() {
 
       {/* Edit Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg mx-4">
           <DialogHeader>
-            <DialogTitle>Edit Complaint</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">
+              Edit Complaint
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="title">Title</Label>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title" className="text-sm md:text-base">
+                Title
+              </Label>
               <Input
                 id="title"
                 value={editForm.title}
                 onChange={(e) =>
                   setEditForm((p) => ({ ...p, title: e.target.value }))
                 }
+                className="h-10"
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="category">Category</Label>
+            <div className="space-y-2">
+              <Label htmlFor="category" className="text-sm md:text-base">
+                Category
+              </Label>
               <Select
                 value={editForm.category}
                 onValueChange={(v) =>
@@ -1243,7 +1301,7 @@ export function MyComplaints() {
                 }
                 disabled={loadingEditCategories}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue
                     placeholder={
                       loadingEditCategories ? "Loading..." : "Select category"
@@ -1264,31 +1322,47 @@ export function MyComplaints() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="department">Department</Label>
-              <Input id="department" value={editForm.department} disabled />
+            <div className="space-y-2">
+              <Label htmlFor="department" className="text-sm md:text-base">
+                Department
+              </Label>
+              <Input
+                id="department"
+                value={editForm.department}
+                disabled
+                className="h-10"
+              />
             </div>
             {/* Priority is not editable during student edit per requirement */}
-            <div className="space-y-1">
-              <Label htmlFor="desc">Description</Label>
+            <div className="space-y-2">
+              <Label htmlFor="desc" className="text-sm md:text-base">
+                Description
+              </Label>
               <Textarea
                 id="desc"
                 value={editForm.description}
                 onChange={(e) =>
                   setEditForm((p) => ({ ...p, description: e.target.value }))
                 }
+                rows={4}
+                className="min-h-[80px]"
               />
             </div>
             {/* Attachment is not editable during student edit per requirement */}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setShowEditModal(false)}
                 disabled={editWorking}
+                className="flex-1 min-h-10"
               >
                 Cancel
               </Button>
-              <Button onClick={handleSaveEdit} disabled={editWorking}>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={editWorking}
+                className="flex-1 min-h-10"
+              >
                 {editWorking ? "Saving..." : "Save"}
               </Button>
             </div>

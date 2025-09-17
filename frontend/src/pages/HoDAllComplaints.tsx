@@ -383,78 +383,120 @@ export default function HoDAllComplaints() {
   }, [totalPages, page]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-semibold">All Complaints (HoD)</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 lg:space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">
+          All Complaints (HoD)
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
+          View all complaints in your department
+        </p>
       </div>
 
       {/* Summary cards - match dashboard */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-sm text-muted-foreground">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Total Complaints
             </CardTitle>
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <Search className="h-3 w-3 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
+            </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-semibold">{total}</div>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">{total}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              All department complaints
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-sm text-muted-foreground">
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Pending
             </CardTitle>
+            <div className="bg-yellow-50 p-1.5 md:p-2 rounded-lg dark:bg-yellow-900/20 flex-shrink-0">
+              <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-yellow-500" />
+            </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-semibold">{pending}</div>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-yellow-600">
+              {pending}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Awaiting action
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-sm text-muted-foreground">
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               In Progress
             </CardTitle>
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-blue-500" />
+            </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-semibold">{inProgress}</div>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-blue-600">
+              {inProgress}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Being worked on
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-sm text-muted-foreground">
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Resolved
             </CardTitle>
+            <div className="bg-green-50 p-1.5 md:p-2 rounded-lg dark:bg-green-900/20 flex-shrink-0">
+              <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500" />
+            </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-semibold">{resolved}</div>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-green-600">
+              {resolved}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Successfully completed
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Search
+      <Card className="p-3 md:p-6">
+        <CardHeader className="p-0 pb-3 md:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Search className="h-4 w-4 md:h-5 md:w-5" />
+            Search & Filter
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by title, submitter, assignee, category..."
-            />
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by title, submitter, assignee, category..."
+                className="pl-10 h-9 md:h-10 text-sm"
+              />
+            </div>
             <Select
               onValueChange={(v) => setStatusFilter(v)}
               value={statusFilter}
             >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="h-9 md:h-10 text-sm">
+                <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="All">All</SelectItem>
+                <SelectItem value="All">All Statuses</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="In Progress">In Progress</SelectItem>
                 <SelectItem value="Assigned">Assigned</SelectItem>
@@ -468,47 +510,61 @@ export default function HoDAllComplaints() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle>Complaints</CardTitle>
+        <CardHeader className="p-3 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-2">
+            <CardTitle className="text-base md:text-lg">Complaints</CardTitle>
             <div className="text-sm text-muted-foreground">
-              {filtered.length} item{filtered.length === 1 ? "" : "s"}
+              {filtered.length} complaint{filtered.length !== 1 ? "s" : ""}{" "}
+              found
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 md:p-6 pt-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[200px]">Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Submitted By</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Timeline</TableHead>
+                  <TableHead className="w-[200px] md:w-[250px] text-sm">
+                    Title
+                  </TableHead>
+                  <TableHead className="text-sm">Category</TableHead>
+                  <TableHead className="text-sm">Submitted By</TableHead>
+                  <TableHead className="text-sm">Assigned To</TableHead>
+                  <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pageItems.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{c.title}</span>
+                    <TableCell className="font-medium text-sm">
+                      <div className="max-w-[200px] md:max-w-[250px]">
+                        <div className="font-medium leading-tight line-clamp-2">
+                          {c.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          #{c.id}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="text-sm whitespace-nowrap">
                       {c.category || "-"}
                     </TableCell>
-                    <TableCell>{c.submittedBy || "Unknown"}</TableCell>
-                    <TableCell>
-                      {c.status === "Closed"
-                        ? "Rejected"
-                        : c.assignedStaff || "Unassigned"}
+                    <TableCell className="text-sm">
+                      <div className="max-w-[120px] md:max-w-none truncate">
+                        {c.submittedBy || "Unknown"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div className="max-w-[120px] md:max-w-none truncate">
+                        {c.status === "Closed"
+                          ? "Rejected"
+                          : c.assignedStaff || "Unassigned"}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        className={`text-xs ${
+                        className={`text-xs px-2 py-1 ${
                           statusColors[c.status] ?? "bg-gray-100 text-gray-800"
                         }`}
                       >
@@ -523,8 +579,9 @@ export default function HoDAllComplaints() {
                           setSelected(c);
                           setOpen(true);
                         }}
+                        className="text-xs h-8 px-3"
                       >
-                        <Eye className="h-4 w-4 mr-1" /> View
+                        <Eye className="h-3 w-3 mr-1" /> View
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -533,7 +590,7 @@ export default function HoDAllComplaints() {
                   <TableRow>
                     <TableCell
                       colSpan={6}
-                      className="text-center text-muted-foreground py-8"
+                      className="text-center text-muted-foreground py-8 text-sm md:text-base"
                     >
                       {statusFilter === "Pending" && "No pending complaints"}
                       {statusFilter === "In Progress" &&
@@ -551,7 +608,7 @@ export default function HoDAllComplaints() {
           </div>
 
           {totalPages > 1 && (
-            <div className="mt-4">
+            <div className="mt-4 md:mt-6">
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
@@ -561,6 +618,9 @@ export default function HoDAllComplaints() {
                         e.preventDefault();
                         setPage(Math.max(1, page - 1));
                       }}
+                      className={`text-sm px-3 py-2 h-9 ${
+                        page === 1 ? "pointer-events-none opacity-50" : ""
+                      }`}
                     />
                   </PaginationItem>
                   {Array.from(
@@ -576,6 +636,7 @@ export default function HoDAllComplaints() {
                           e.preventDefault();
                           setPage(p);
                         }}
+                        className="text-sm h-9 w-9"
                       >
                         {p}
                       </PaginationLink>
@@ -588,6 +649,11 @@ export default function HoDAllComplaints() {
                         e.preventDefault();
                         setPage(Math.min(totalPages, page + 1));
                       }}
+                      className={`text-sm px-3 py-2 h-9 ${
+                        page === totalPages
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }`}
                     />
                   </PaginationItem>
                 </PaginationContent>

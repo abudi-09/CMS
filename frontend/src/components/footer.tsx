@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 
 export function Footer() {
   return (
-    <footer className="bg-muted rounded-lg mt-8 p-6">
-      <div className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+    <footer className="bg-muted rounded-lg mt-4 md:mt-8 p-6">
+      <div className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* Left: University Info */}
         <div>
           <div className="flex items-center gap-2 mb-1">

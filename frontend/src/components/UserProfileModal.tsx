@@ -130,37 +130,50 @@ export function UserProfileModal({ userId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>User Profile</DialogTitle>
+      <DialogContent className="w-[95vw] max-w-md mx-auto sm:w-full sm:max-w-2xl">
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="text-lg sm:text-xl">User Profile</DialogTitle>
         </DialogHeader>
-        <div className="space-y-6">
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto">
           {loading && (
-            <p className="text-sm text-muted-foreground">Loading profile...</p>
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3"></div>
+              <p className="text-sm text-muted-foreground">
+                Loading profile...
+              </p>
+            </div>
           )}
           {error && !loading && (
-            <p className="text-sm text-destructive">
-              Failed to load profile: {error}
-            </p>
+            <div className="text-center py-8">
+              <p className="text-sm text-destructive bg-destructive/10 p-4 rounded-md">
+                Failed to load profile: {error}
+              </p>
+            </div>
           )}
           {!loading && !error && data && (
             <>
-              <div className="flex gap-4 items-start">
-                <Avatar className="h-20 w-20 border">
-                  {avatarUrl && (
-                    <AvatarImage
-                      src={avatarUrl}
-                      alt={data.name || data.email}
-                    />
-                  )}
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 space-y-1">
-                  <h3 className="text-xl font-semibold leading-tight">
+              <div className="flex flex-col sm:flex-row gap-4 items-start">
+                <div className="flex justify-center sm:justify-start">
+                  <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2">
+                    {avatarUrl && (
+                      <AvatarImage
+                        src={avatarUrl}
+                        alt={data.name || data.email}
+                      />
+                    )}
+                    <AvatarFallback className="text-lg sm:text-xl">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="flex-1 space-y-3 text-center sm:text-left">
+                  <h3 className="text-lg sm:text-xl font-semibold leading-tight">
                     {data.name || data.username || data.email}
                   </h3>
-                  <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
-                    <Badge variant="secondary">{roleLabel(data.role)}</Badge>
+                  <div className="flex flex-wrap gap-2 items-center justify-center sm:justify-start">
+                    <Badge variant="secondary" className="text-xs">
+                      {roleLabel(data.role)}
+                    </Badge>
                     {data.department && (
                       <Badge variant="outline" className="text-xs">
                         {data.department}
@@ -172,40 +185,46 @@ export function UserProfileModal({ userId, open, onOpenChange }: Props) {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-3 pt-2 text-sm">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 text-sm text-muted-foreground justify-center sm:justify-start">
                     <span className="inline-flex items-center gap-1">
-                      <Mail className="h-4 w-4" /> {data.email}
+                      <Mail className="h-4 w-4" />
+                      <span className="break-all">{data.email}</span>
                     </span>
                     {joined !== "-" && (
                       <span className="inline-flex items-center gap-1">
-                        <Calendar className="h-4 w-4" /> Joined {joined}
+                        <Calendar className="h-4 w-4" />
+                        Joined {joined}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3">
                 {statBlocks.map((s) => (
                   <div
                     key={s.label}
-                    className="rounded-lg border bg-card p-3 shadow-sm hover:shadow transition flex flex-col"
+                    className="rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col"
                   >
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground font-medium">
                       {s.label}
                     </span>
                     <span
-                      className={`mt-1 text-lg font-semibold ${s.accent || ""}`}
+                      className={`mt-1 text-lg sm:text-xl font-bold ${
+                        s.accent || "text-foreground"
+                      }`}
                     >
                       {s.value}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="pt-2 flex justify-end">
+
+              <div className="pt-4 flex justify-end border-t">
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={() => onOpenChange(false)}
+                  className="h-10 px-6"
                 >
                   Close
                 </Button>

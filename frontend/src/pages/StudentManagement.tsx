@@ -278,16 +278,18 @@ function StudentManagement() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 lg:space-y-8">
       {/* Promote Modal */}
       <Dialog open={promoteModalOpen} onOpenChange={setPromoteModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Promote Student</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">
+              Promote Student
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="role-select">
+              <Label htmlFor="role-select" className="text-sm md:text-base">
                 Select new role for{" "}
                 <span className="font-semibold">{promoteTarget?.name}</span>:
               </Label>
@@ -295,7 +297,10 @@ function StudentManagement() {
                 value={selectedRole}
                 onValueChange={(v) => setSelectedRole(v as "Staff")}
               >
-                <SelectTrigger id="role-select" className="mt-2 w-full">
+                <SelectTrigger
+                  id="role-select"
+                  className="mt-2 w-full h-9 md:h-10"
+                >
                   <SelectValue placeholder="Choose role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -305,20 +310,29 @@ function StudentManagement() {
 
               {selectedRole === "Staff" && (
                 <div className="mt-3">
-                  <Label htmlFor="working-place">Working position</Label>
+                  <Label
+                    htmlFor="working-place"
+                    className="text-sm md:text-base"
+                  >
+                    Working position
+                  </Label>
                   <Input
                     id="working-place"
                     placeholder="e.g., Lecturer, Lab Assistant"
                     value={workingPlace}
                     onChange={(e) => setWorkingPlace(e.target.value)}
-                    className="mt-2 w-full"
+                    className="mt-2 w-full h-9 md:h-10"
                   />
                 </div>
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closePromoteModal}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={closePromoteModal}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button
@@ -327,6 +341,7 @@ function StudentManagement() {
                 !selectedRole ||
                 (selectedRole === "Staff" && !workingPlace.trim())
               }
+              className="w-full sm:w-auto"
             >
               Confirm
             </Button>
@@ -334,44 +349,92 @@ function StudentManagement() {
         </DialogContent>
       </Dialog>
 
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">
+      <div className="space-y-2">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight">
           Student Management
         </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
+          Manage student accounts and permissions
+        </p>
       </div>
 
       {/* Stats summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">
-              Total Students
-            </span>
-            <span className="text-2xl font-bold text-primary">
-              {stats.total}
-            </span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Total Students
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-blue-600">
+                  {stats.total}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Active</span>
-            <span className="text-2xl font-bold text-green-600">
-              {stats.active}
-            </span>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-green-50 p-1.5 md:p-2 rounded-lg dark:bg-green-900/20 flex-shrink-0">
+                <UserCheck className="h-4 w-4 md:h-5 md:w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Active
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-green-600">
+                  {stats.active}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">Inactive</span>
-            <span className="text-2xl font-bold text-red-600">
-              {stats.inactive}
-            </span>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-red-50 p-1.5 md:p-2 rounded-lg dark:bg-red-900/20 flex-shrink-0">
+                <UserX className="h-4 w-4 md:h-5 md:w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Inactive
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-red-600">
+                  {stats.inactive}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-3 md:p-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <div className="bg-orange-50 p-1.5 md:p-2 rounded-lg dark:bg-orange-900/20 flex-shrink-0">
+                <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  Total Complaints
+                </p>
+                <p className="text-lg md:text-2xl font-bold text-orange-600">
+                  {stats.complaints}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="p-3 md:p-6">
+        <CardHeader className="p-0 pb-3 md:pb-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="relative w-full md:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -379,15 +442,15 @@ function StudentManagement() {
                 placeholder="Search by name, email, or department..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-9 md:h-10 text-sm"
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="h-9 md:h-10 text-sm">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -399,12 +462,12 @@ function StudentManagement() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <Select
                   value={roleFilter}
                   onValueChange={(v) => setRoleFilter(v as "All" | "student")}
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="h-9 md:h-10 text-sm">
                     <SelectValue placeholder="Role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -417,21 +480,23 @@ function StudentManagement() {
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="p-3 md:p-6 pt-0">
           {/* Desktop Table */}
           <div className="hidden lg:block rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined Date</TableHead>
-                  <TableHead>Complaints</TableHead>
-                  <TableHead>Last Activity</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[150px] md:w-[200px] text-sm">
+                    Name
+                  </TableHead>
+                  <TableHead className="text-sm">Email</TableHead>
+                  <TableHead className="text-sm">Department</TableHead>
+                  <TableHead className="text-sm">Role</TableHead>
+                  <TableHead className="text-sm">Status</TableHead>
+                  <TableHead className="text-sm">Joined Date</TableHead>
+                  <TableHead className="text-sm">Complaints</TableHead>
+                  <TableHead className="text-sm">Last Activity</TableHead>
+                  <TableHead className="text-right text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -439,7 +504,7 @@ function StudentManagement() {
                   <TableRow>
                     <TableCell
                       colSpan={9}
-                      className="text-center py-8 text-muted-foreground"
+                      className="text-center py-8 text-muted-foreground text-sm md:text-base"
                     >
                       {totalItems === 0
                         ? searchTerm ||
@@ -453,19 +518,26 @@ function StudentManagement() {
                 ) : (
                   pagedStudents.map((student) => (
                     <TableRow key={student._id} className="hover:bg-muted/50">
-                      <TableCell>
-                        <div className="font-medium">{student.name}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">{student.email}</span>
+                      <TableCell className="font-medium text-sm">
+                        <div className="max-w-[150px] md:max-w-[200px] truncate">
+                          {student.name}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">
                         <div className="flex items-center gap-2">
-                          <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                          <Badge variant="secondary" className="text-xs">
+                          <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate max-w-[200px]">
+                            {student.email}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <Badge
+                            variant="secondary"
+                            className="text-xs truncate max-w-[120px]"
+                          >
                             {student.department}
                           </Badge>
                         </div>
@@ -489,25 +561,27 @@ function StudentManagement() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(student.createdAt).toLocaleDateString()}
+                          <Calendar className="h-4 w-4 flex-shrink-0" />
+                          <span className="whitespace-nowrap">
+                            {new Date(student.createdAt).toLocaleDateString()}
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">
                         <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                          <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <span className="font-medium">
                             {student.complaintsCount}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {student.lastActivity
                           ? new Date(student.lastActivity).toLocaleDateString()
                           : "-"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-1 md:gap-2 justify-end flex-wrap">
                           {student.status === "Active" && (
                             <Button
                               variant="outline"
@@ -515,10 +589,10 @@ function StudentManagement() {
                               onClick={() =>
                                 openPromoteModal(student._id, student.name)
                               }
-                              className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-xs h-8 px-2 md:px-3"
                             >
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              Promote
+                              <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                              <span className="hidden sm:inline">Promote</span>
                             </Button>
                           )}
                           {student.status === "Active" ? (
@@ -528,10 +602,12 @@ function StudentManagement() {
                               onClick={() =>
                                 handleDeactivate(student._id, student.name)
                               }
-                              className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
+                              className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-xs h-8 px-2 md:px-3"
                             >
-                              <UserX className="h-4 w-4 mr-1" />
-                              Deactivate
+                              <UserX className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                              <span className="hidden sm:inline">
+                                Deactivate
+                              </span>
                             </Button>
                           ) : (
                             <Button
@@ -540,20 +616,22 @@ function StudentManagement() {
                               onClick={() =>
                                 handleActivate(student._id, student.name)
                               }
-                              className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
+                              className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8 px-2 md:px-3"
                             >
-                              <UserCheck className="h-4 w-4 mr-1" />
-                              Activate
+                              <UserCheck className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                              <span className="hidden sm:inline">Activate</span>
                             </Button>
                           )}
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setProfileUserId(student._id)}
-                            className="hover:bg-gray-50 dark:hover:bg-gray-900/20"
+                            className="hover:bg-gray-50 dark:hover:bg-gray-900/20 text-xs h-8 px-2 md:px-3"
                           >
-                            <Users className="h-4 w-4 mr-1" />
-                            View Profile
+                            <Users className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                            <span className="hidden sm:inline">
+                              View Profile
+                            </span>
                           </Button>
                         </div>
                       </TableCell>
@@ -565,9 +643,9 @@ function StudentManagement() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="lg:hidden space-y-4">
+          <div className="lg:hidden space-y-3 md:space-y-4">
             {pagedStudents.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 md:py-12 text-muted-foreground text-sm md:text-base">
                 {totalItems === 0
                   ? searchTerm || statusFilter !== "All" || roleFilter !== "All"
                     ? "No users match your search criteria"
@@ -576,52 +654,66 @@ function StudentManagement() {
               </div>
             ) : (
               pagedStudents.map((student) => (
-                <Card key={student._id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-medium">{student.name}</h3>
+                <Card
+                  key={student._id}
+                  className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+                >
+                  <div className="space-y-3 md:space-y-4">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                          {student.name}
+                        </h3>
+                        <div className="flex items-center gap-1 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            STUDENT
+                          </Badge>
+                          <Badge
+                            className={`text-xs ${
+                              student.status === "Active"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                                : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                            }`}
+                            variant="outline"
+                          >
+                            {student.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <Badge variant="outline" className="text-xs mr-2">
-                        STUDENT
-                      </Badge>
-                      <Badge
-                        className={`text-xs ${
-                          student.status === "Active"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                            : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                        }`}
-                        variant="outline"
-                      >
-                        {student.status}
-                      </Badge>
                     </div>
 
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{student.email}</span>
+                        <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate text-xs md:text-sm">
+                          {student.email}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                        <span>{student.department}</span>
+                        <GraduationCap className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <Badge
+                          variant="secondary"
+                          className="text-xs truncate max-w-[150px]"
+                        >
+                          {student.department}
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>
+                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs md:text-sm whitespace-nowrap">
                           Joined:{" "}
                           {new Date(student.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                        <span>
+                        <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs md:text-sm">
                           {student.complaintsCount} complaints submitted
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-2 border-t">
                       {student.status === "Active" && (
                         <Button
                           variant="outline"
@@ -629,9 +721,9 @@ function StudentManagement() {
                           onClick={() =>
                             openPromoteModal(student._id, student.name)
                           }
-                          className="flex-1 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          className="hover:bg-blue-50 dark:hover:bg-blue-900/20 text-xs h-8"
                         >
-                          <UserPlus className="h-4 w-4 mr-1" />
+                          <UserPlus className="h-3 w-3 mr-1" />
                           Promote
                         </Button>
                       )}
@@ -642,9 +734,9 @@ function StudentManagement() {
                           onClick={() =>
                             handleDeactivate(student._id, student.name)
                           }
-                          className="flex-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
+                          className="hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-xs h-8"
                         >
-                          <UserX className="h-4 w-4 mr-1" />
+                          <UserX className="h-3 w-3 mr-1" />
                           Deactivate
                         </Button>
                       ) : (
@@ -654,9 +746,9 @@ function StudentManagement() {
                           onClick={() =>
                             handleActivate(student._id, student.name)
                           }
-                          className="flex-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
+                          className="hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 text-xs h-8"
                         >
-                          <UserCheck className="h-4 w-4 mr-1" />
+                          <UserCheck className="h-3 w-3 mr-1" />
                           Activate
                         </Button>
                       )}
@@ -664,9 +756,9 @@ function StudentManagement() {
                         variant="outline"
                         size="sm"
                         onClick={() => setProfileUserId(student._id)}
-                        className="flex-1 hover:bg-gray-50 dark:hover:bg-gray-900/20"
+                        className="hover:bg-gray-50 dark:hover:bg-gray-900/20 text-xs h-8"
                       >
-                        <Users className="h-4 w-4 mr-1" />
+                        <Users className="h-3 w-3 mr-1" />
                         View Profile
                       </Button>
                     </div>
@@ -680,9 +772,9 @@ function StudentManagement() {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="px-4 md:px-0">
+        <div className="px-3 md:px-0">
           <Pagination>
-            <PaginationContent>
+            <PaginationContent className="flex-wrap gap-1 md:gap-2">
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
@@ -690,9 +782,20 @@ function StudentManagement() {
                     e.preventDefault();
                     goToPage(page - 1);
                   }}
-                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                  className={`${
+                    page === 1 ? "pointer-events-none opacity-50" : ""
+                  } h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm`}
                 />
               </PaginationItem>
+
+              {/* Mobile: Show current page indicator */}
+              <PaginationItem className="sm:hidden">
+                <span className="px-3 py-2 text-sm text-muted-foreground">
+                  {page} of {totalPages}
+                </span>
+              </PaginationItem>
+
+              {/* Desktop: Show page numbers */}
               {getVisiblePages()[0] !== 1 && (
                 <>
                   <PaginationItem className="hidden sm:list-item">
@@ -702,6 +805,7 @@ function StudentManagement() {
                         e.preventDefault();
                         goToPage(1);
                       }}
+                      className="h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
                     >
                       1
                     </PaginationLink>
@@ -720,6 +824,7 @@ function StudentManagement() {
                       e.preventDefault();
                       goToPage(p);
                     }}
+                    className="h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
                   >
                     {p}
                   </PaginationLink>
@@ -737,6 +842,7 @@ function StudentManagement() {
                         e.preventDefault();
                         goToPage(totalPages);
                       }}
+                      className="h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
                     >
                       {totalPages}
                     </PaginationLink>
@@ -750,9 +856,9 @@ function StudentManagement() {
                     e.preventDefault();
                     goToPage(page + 1);
                   }}
-                  className={
+                  className={`${
                     page === totalPages ? "pointer-events-none opacity-50" : ""
-                  }
+                  } h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm`}
                 />
               </PaginationItem>
             </PaginationContent>

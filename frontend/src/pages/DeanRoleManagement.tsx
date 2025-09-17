@@ -151,76 +151,81 @@ export default function DeanRoleManagement() {
   }, [canManage]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dean Role Management</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 md:space-y-6 px-4 md:px-6 lg:px-8">
+      <div className="pt-4 md:pt-6">
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">
+          Dean Role Management
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
           Promote, deactivate, or reassign deans dynamically.
         </p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" /> Total Deans
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-2 md:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <Users className="h-4 w-4 md:h-5 md:w-5" /> Total Deans
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalDeans}</div>
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{totalDeans}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5" /> Active Deans
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-2 md:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <UserCheck className="h-4 w-4 md:h-5 md:w-5" /> Active Deans
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeCount}</div>
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{activeCount}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserMinus className="h-5 w-5" /> Inactive/Rejected
+        <Card className="p-4 md:p-6">
+          <CardHeader className="pb-2 md:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <UserMinus className="h-4 w-4 md:h-5 md:w-5" /> Inactive/Rejected
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{inactiveCount}</div>
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{inactiveCount}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters and Search */}
       <Card className="shadow-lg rounded-2xl">
-        <CardHeader>
+        <CardHeader className="pb-4 md:pb-6">
           {!canManage && (
-            <Alert>
-              <AlertDescription>
+            <Alert className="mt-3">
+              <AlertDescription className="text-sm">
                 Admins only. Sign in as admin to manage deans.
               </AlertDescription>
             </Alert>
           )}
-          <div className="pt-2 flex flex-col lg:flex-row gap-3 lg:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="pt-3 md:pt-4 space-y-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
               <Input
-                className="pl-10"
+                className="pl-10 md:pl-12 h-11 md:h-12 text-sm md:text-base"
                 placeholder="Search by name or email"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex gap-2 w-full lg:w-auto">
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
               <Select
                 value={statusFilter}
                 onValueChange={(v: "All" | "Active" | "Inactive") =>
                   setStatusFilter(v)
                 }
               >
-                <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectTrigger className="w-full sm:w-[160px] h-11 md:h-12">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,7 +238,7 @@ export default function DeanRoleManagement() {
                 value={deptFilter}
                 onValueChange={(v: string) => setDeptFilter(v)}
               >
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px] h-11 md:h-12">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,14 +255,18 @@ export default function DeanRoleManagement() {
         <CardContent>
           {/* Desktop Table */}
           <div className="hidden lg:block overflow-x-auto rounded-md border bg-transparent">
-            <Table className="bg-transparent">
+            <Table className="bg-transparent min-w-[700px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Working Position</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="min-w-[150px]">Name</TableHead>
+                  <TableHead className="min-w-[200px]">Email</TableHead>
+                  <TableHead className="min-w-[180px]">
+                    Working Position
+                  </TableHead>
+                  <TableHead className="min-w-[100px]">Status</TableHead>
+                  <TableHead className="text-right min-w-[250px]">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -275,8 +284,8 @@ export default function DeanRoleManagement() {
                     .slice((page - 1) * pageSize, page * pageSize)
                     .map((u) => (
                       <TableRow key={u._id}>
-                        <TableCell>{u.name}</TableCell>
-                        <TableCell>{u.email}</TableCell>
+                        <TableCell className="font-medium">{u.name}</TableCell>
+                        <TableCell className="break-all">{u.email}</TableCell>
                         <TableCell>{u.workingPlace || "-"}</TableCell>
                         <TableCell>
                           <Badge
@@ -289,64 +298,69 @@ export default function DeanRoleManagement() {
                             {u.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          {canManage &&
-                            (u.isActive ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={async () => {
-                                  try {
-                                    await deactivateDeanApi(u._id);
-                                    toast({ title: "Dean deactivated" });
-                                    await loadData();
-                                  } catch (e: unknown) {
-                                    const msg =
-                                      e instanceof Error
-                                        ? e.message
-                                        : "Deactivate failed";
-                                    toast({
-                                      variant: "destructive",
-                                      title: msg,
-                                    });
-                                  }
-                                }}
-                              >
-                                <UserMinus className="h-4 w-4 mr-1" />{" "}
-                                Deactivate
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={async () => {
-                                  try {
-                                    await reactivateDeanApi(u._id);
-                                    toast({ title: "Dean reactivated" });
-                                    await loadData();
-                                  } catch (e: unknown) {
-                                    const msg =
-                                      e instanceof Error
-                                        ? e.message
-                                        : "Reactivate failed";
-                                    toast({
-                                      variant: "destructive",
-                                      title: msg,
-                                    });
-                                  }
-                                }}
-                              >
-                                <UserCheck className="h-4 w-4 mr-1" />{" "}
-                                Reactivate
-                              </Button>
-                            ))}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setProfileUserId(u._id)}
-                          >
-                            <Users className="h-4 w-4 mr-1" /> View Profile
-                          </Button>
+                        <TableCell className="text-right">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {canManage &&
+                              (u.isActive ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      await deactivateDeanApi(u._id);
+                                      toast({ title: "Dean deactivated" });
+                                      await loadData();
+                                    } catch (e: unknown) {
+                                      const msg =
+                                        e instanceof Error
+                                          ? e.message
+                                          : "Deactivate failed";
+                                      toast({
+                                        variant: "destructive",
+                                        title: msg,
+                                      });
+                                    }
+                                  }}
+                                  className="whitespace-nowrap"
+                                >
+                                  <UserMinus className="h-4 w-4 mr-1" />{" "}
+                                  Deactivate
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      await reactivateDeanApi(u._id);
+                                      toast({ title: "Dean reactivated" });
+                                      await loadData();
+                                    } catch (e: unknown) {
+                                      const msg =
+                                        e instanceof Error
+                                          ? e.message
+                                          : "Reactivate failed";
+                                      toast({
+                                        variant: "destructive",
+                                        title: msg,
+                                      });
+                                    }
+                                  }}
+                                  className="whitespace-nowrap"
+                                >
+                                  <UserCheck className="h-4 w-4 mr-1" />{" "}
+                                  Reactivate
+                                </Button>
+                              ))}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setProfileUserId(u._id)}
+                              className="whitespace-nowrap"
+                            >
+                              <Users className="h-4 w-4 mr-1" /> View Profile
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -356,81 +370,100 @@ export default function DeanRoleManagement() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="lg:hidden space-y-3">
+          <div className="lg:hidden space-y-4">
             {filteredApproved.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground text-sm">
                 No records found
               </div>
             ) : (
               filteredApproved
                 .slice((page - 1) * pageSize, page * pageSize)
                 .map((u) => (
-                  <Card key={u._id} className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{u.name}</div>
-                        <div className="text-xs text-muted-foreground break-all">
+                  <Card key={u._id} className="p-4 md:p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-base md:text-lg mb-1">
+                          {u.name}
+                        </div>
+                        <div className="text-sm text-muted-foreground break-all mb-1">
                           {u.email}
                         </div>
-                        <div className="text-xs mt-1">
+                        <div className="text-sm text-muted-foreground">
                           Position: {u.workingPlace || "-"}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col items-end gap-2">
                         <Badge
-                          className={
+                          className={`text-xs px-2 py-1 ${
                             u.isActive
                               ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                               : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                          }
+                          }`}
                         >
                           {u.isActive ? "Active" : "Inactive"}
                         </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setProfileUserId(u._id)}
+                          className="text-xs px-2 py-1 h-7 min-w-[80px]"
+                        >
+                          <Users className="h-3 w-3 mr-1" /> View Profile
+                        </Button>
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      {canManage &&
-                        (u.isActive ? (
-                          <Button
-                            className="w-full min-h-11"
-                            variant="outline"
-                            onClick={async () => {
-                              try {
-                                await deactivateDeanApi(u._id);
-                                toast({ title: "Dean deactivated" });
-                                await loadData();
-                              } catch (e: unknown) {
-                                const msg =
-                                  e instanceof Error
-                                    ? e.message
-                                    : "Deactivate failed";
-                                toast({ variant: "destructive", title: msg });
-                              }
-                            }}
-                          >
-                            <UserMinus className="h-4 w-4 mr-2" /> Deactivate
-                          </Button>
-                        ) : (
-                          <Button
-                            className="w-full min-h-11"
-                            variant="outline"
-                            onClick={async () => {
-                              try {
-                                await reactivateDeanApi(u._id);
-                                toast({ title: "Dean reactivated" });
-                                await loadData();
-                              } catch (e: unknown) {
-                                const msg =
-                                  e instanceof Error
-                                    ? e.message
-                                    : "Reactivate failed";
-                                toast({ variant: "destructive", title: msg });
-                              }
-                            }}
-                          >
-                            <UserCheck className="h-4 w-4 mr-2" /> Reactivate
-                          </Button>
-                        ))}
+                    <div className="grid grid-cols-1 gap-3">
+                      {/* Primary Action Button */}
+                      <div className="flex gap-3">
+                        {canManage &&
+                          (u.isActive ? (
+                            <Button
+                              className="flex-1 min-h-[44px] text-sm"
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  await deactivateDeanApi(u._id);
+                                  toast({ title: "Dean deactivated" });
+                                  await loadData();
+                                } catch (e: unknown) {
+                                  const msg =
+                                    e instanceof Error
+                                      ? e.message
+                                      : "Deactivate failed";
+                                  toast({
+                                    variant: "destructive",
+                                    title: msg,
+                                  });
+                                }
+                              }}
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" /> Deactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              className="flex-1 min-h-[44px] text-sm"
+                              variant="default"
+                              onClick={async () => {
+                                try {
+                                  await reactivateDeanApi(u._id);
+                                  toast({ title: "Dean reactivated" });
+                                  await loadData();
+                                } catch (e: unknown) {
+                                  const msg =
+                                    e instanceof Error
+                                      ? e.message
+                                      : "Reactivate failed";
+                                  toast({
+                                    variant: "destructive",
+                                    title: msg,
+                                  });
+                                }
+                              }}
+                            >
+                              <UserCheck className="h-4 w-4 mr-2" /> Reactivate
+                            </Button>
+                          ))}
+                      </div>
                     </div>
                   </Card>
                 ))
@@ -439,9 +472,9 @@ export default function DeanRoleManagement() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="pt-4">
+            <div className="pt-6 md:pt-8">
               <Pagination>
-                <PaginationContent>
+                <PaginationContent className="flex-wrap gap-1 md:gap-2">
                   <PaginationItem>
                     <PaginationPrevious
                       href="#"
@@ -449,17 +482,18 @@ export default function DeanRoleManagement() {
                         e.preventDefault();
                         setPage((p) => Math.max(1, p - 1));
                       }}
-                      className={
+                      className={`min-h-[44px] px-3 md:px-4 text-sm ${
                         page === 1 ? "pointer-events-none opacity-50" : ""
-                      }
+                      }`}
                     />
                   </PaginationItem>
                   {(() => {
-                    const windowSize = 3;
-                    let start = Math.max(1, page - 1);
+                    const windowSize = window.innerWidth < 640 ? 3 : 5; // Fewer pages on mobile
+                    let start = Math.max(1, page - Math.floor(windowSize / 2));
                     const end = Math.min(totalPages, start + windowSize - 1);
-                    if (end - start + 1 < windowSize)
+                    if (end - start + 1 < windowSize) {
                       start = Math.max(1, end - windowSize + 1);
+                    }
                     const pages: number[] = [];
                     for (let i = start; i <= end; i++) pages.push(i);
                     return (
@@ -473,6 +507,7 @@ export default function DeanRoleManagement() {
                                   e.preventDefault();
                                   setPage(1);
                                 }}
+                                className="min-h-[44px] min-w-[44px] px-3 md:px-4 text-sm"
                               >
                                 1
                               </PaginationLink>
@@ -491,6 +526,7 @@ export default function DeanRoleManagement() {
                                 e.preventDefault();
                                 setPage(p);
                               }}
+                              className="min-h-[44px] min-w-[44px] px-3 md:px-4 text-sm"
                             >
                               {p}
                             </PaginationLink>
@@ -508,6 +544,7 @@ export default function DeanRoleManagement() {
                                   e.preventDefault();
                                   setPage(totalPages);
                                 }}
+                                className="min-h-[44px] min-w-[44px] px-3 md:px-4 text-sm"
                               >
                                 {totalPages}
                               </PaginationLink>
@@ -524,37 +561,47 @@ export default function DeanRoleManagement() {
                         e.preventDefault();
                         setPage((p) => Math.min(totalPages, p + 1));
                       }}
-                      className={
+                      className={`min-h-[44px] px-3 md:px-4 text-sm ${
                         page === totalPages
                           ? "pointer-events-none opacity-50"
                           : ""
-                      }
+                      }`}
                     />
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>
+              <div className="text-center text-sm text-muted-foreground mt-3">
+                Page {page} of {totalPages} ({filteredApproved.length} total
+                deans)
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Pending Dean Sign-ups */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Dean Sign-ups</CardTitle>
+      <Card className="mt-6 md:mt-8">
+        <CardHeader className="pb-4 md:pb-6">
+          <CardTitle className="text-lg md:text-xl">
+            Pending Dean Sign-ups
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading && (
-            <div className="text-sm text-muted-foreground mb-2">Loading…</div>
+            <div className="text-sm text-muted-foreground mb-4">Loading…</div>
           )}
           <div className="hidden lg:block overflow-x-auto rounded-md border bg-transparent">
-            <Table>
+            <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Working Position</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="min-w-[150px]">Name</TableHead>
+                  <TableHead className="min-w-[200px]">Email</TableHead>
+                  <TableHead className="min-w-[180px]">
+                    Working Position
+                  </TableHead>
+                  <TableHead className="text-right min-w-[200px]">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -562,7 +609,7 @@ export default function DeanRoleManagement() {
                   <TableRow>
                     <TableCell
                       colSpan={4}
-                      className="text-center py-6 text-muted-foreground"
+                      className="text-center py-8 text-muted-foreground"
                     >
                       No pending dean sign-ups
                     </TableCell>
@@ -570,27 +617,30 @@ export default function DeanRoleManagement() {
                 ) : (
                   pendingDeans.map((u) => (
                     <TableRow key={u._id}>
-                      <TableCell>{u.name}</TableCell>
-                      <TableCell>{u.email}</TableCell>
+                      <TableCell className="font-medium">{u.name}</TableCell>
+                      <TableCell className="break-all">{u.email}</TableCell>
                       <TableCell>{u.workingPlace || "-"}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!canManage}
-                          onClick={() => approveDean(u._id)}
-                        >
-                          <UserCheck className="h-4 w-4 mr-1" /> Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="ml-2"
-                          disabled={!canManage}
-                          onClick={() => rejectDean(u._id)}
-                        >
-                          <UserMinus className="h-4 w-4 mr-1" /> Reject
-                        </Button>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!canManage}
+                            onClick={() => approveDean(u._id)}
+                            className="whitespace-nowrap"
+                          >
+                            <UserCheck className="h-4 w-4 mr-1" /> Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!canManage}
+                            onClick={() => rejectDean(u._id)}
+                            className="whitespace-nowrap"
+                          >
+                            <UserMinus className="h-4 w-4 mr-1" /> Reject
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -600,52 +650,61 @@ export default function DeanRoleManagement() {
           </div>
 
           {/* Mobile cards for pending */}
-          <div className="lg:hidden space-y-3">
+          <div className="lg:hidden space-y-4">
             {pendingDeans.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground text-sm">
                 No pending dean sign-ups
               </div>
             ) : (
               pendingDeans.map((u) => (
-                <Card key={u._id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-sm">{u.name}</div>
-                      <div className="text-xs text-muted-foreground break-all">
+                <Card key={u._id} className="p-4 md:p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-base md:text-lg mb-1">
+                        {u.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground break-all mb-1">
                         {u.email}
                       </div>
-                      <div className="text-xs mt-1">
+                      <div className="text-sm text-muted-foreground">
                         Position: {u.workingPlace || "-"}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs px-2 py-1">
+                        Pending
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {/* Primary Action Buttons */}
+                    <div className="flex gap-3">
                       <Button
-                        className="min-h-11"
-                        size="sm"
-                        variant="outline"
+                        className="flex-1 min-h-[44px] text-sm"
+                        variant="default"
                         disabled={!canManage}
                         onClick={() => approveDean(u._id)}
                       >
                         <UserCheck className="h-4 w-4 mr-2" /> Approve
                       </Button>
                       <Button
-                        className="min-h-11"
-                        size="sm"
+                        className="flex-1 min-h-[44px] text-sm"
                         variant="outline"
                         disabled={!canManage}
                         onClick={() => rejectDean(u._id)}
                       >
                         <UserMinus className="h-4 w-4 mr-2" /> Reject
                       </Button>
-                      <Button
-                        className="min-h-11"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setProfileUserId(u._id)}
-                      >
-                        <Users className="h-4 w-4 mr-2" /> View Profile
-                      </Button>
                     </div>
+
+                    {/* Secondary Action Button */}
+                    <Button
+                      className="w-full min-h-[44px] text-sm"
+                      variant="outline"
+                      onClick={() => setProfileUserId(u._id)}
+                    >
+                      <Users className="h-4 w-4 mr-2" /> View Profile
+                    </Button>
                   </div>
                 </Card>
               ))

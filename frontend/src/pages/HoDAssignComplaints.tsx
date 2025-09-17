@@ -608,79 +608,114 @@ export default function HoDAssignComplaints() {
   };
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Assign & Reassign Complaints (HOD)</h1>
-      <p className="text-muted-foreground">
-        Manage staff assignments for complaints in your department
-      </p>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 lg:space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">
+          Assign & Reassign Complaints (HOD)
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
+          Manage staff assignments for complaints in your department
+        </p>
+      </div>
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 md:gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Total Complaints
             </CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <UserPlus className="h-3 w-3 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summaryBaseList.length}</div>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">
+              {summaryBaseList.length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              All department complaints
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-yellow-500" />
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              Pending
+            </CardTitle>
+            <div className="bg-yellow-50 p-1.5 md:p-2 rounded-lg dark:bg-yellow-900/20 flex-shrink-0">
+              <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-yellow-500" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-yellow-600">
               {pendingCount}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Awaiting action
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-blue-500" />
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              In Progress
+            </CardTitle>
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-blue-500" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-blue-600">
               {inProgressCount}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Being worked on
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Resolved</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-green-500" />
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              Resolved
+            </CardTitle>
+            <div className="bg-green-50 p-1.5 md:p-2 rounded-lg dark:bg-green-900/20 flex-shrink-0">
+              <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-green-600">
               {resolvedCount}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Successfully completed
+            </p>
           </CardContent>
         </Card>
       </div>
       {/* Search & Filter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
+      <Card className="p-3 md:p-6">
+        <CardHeader className="p-0 pb-3 md:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Search className="h-4 w-4 md:h-5 md:w-5" />
             Search & Filter
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4 w-full">
-            <div className="relative w-full">
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            <div className="relative sm:col-span-2 lg:col-span-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title, department, or submitter..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full"
+                className="pl-10 h-9 md:h-10 text-sm"
               />
             </div>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by priority" />
               </SelectTrigger>
               <SelectContent>
@@ -692,7 +727,7 @@ export default function HoDAssignComplaints() {
               </SelectContent>
             </Select>
             <Select value={overdueFilter} onValueChange={setOverdueFilter}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-9 md:h-10 text-sm">
                 <SelectValue placeholder="Filter by overdue" />
               </SelectTrigger>
               <SelectContent>
@@ -706,32 +741,57 @@ export default function HoDAssignComplaints() {
       </Card>
       {/* Complaints Table */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle>Complaints</CardTitle>
+        <CardHeader className="p-3 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-2">
+            <CardTitle className="text-base md:text-lg">Complaints</CardTitle>
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as typeof activeTab)}
             >
-              <TabsList>
-                <TabsTrigger value="All">All</TabsTrigger>
-                <TabsTrigger value="Pending">Pending</TabsTrigger>
-                <TabsTrigger value="Accepted">Accepted</TabsTrigger>
-                <TabsTrigger value="Resolved">Resolved</TabsTrigger>
-                <TabsTrigger value="Rejected">Rejected</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:grid-cols-5 h-9 md:h-10">
+                <TabsTrigger
+                  value="All"
+                  className="text-xs md:text-sm px-1 md:px-3"
+                >
+                  All
+                </TabsTrigger>
+                <TabsTrigger
+                  value="Pending"
+                  className="text-xs md:text-sm px-1 md:px-3"
+                >
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger
+                  value="Accepted"
+                  className="text-xs md:text-sm px-1 md:px-3"
+                >
+                  Accepted
+                </TabsTrigger>
+                <TabsTrigger
+                  value="Resolved"
+                  className="text-xs md:text-sm px-1 md:px-3"
+                >
+                  Resolved
+                </TabsTrigger>
+                <TabsTrigger
+                  value="Rejected"
+                  className="text-xs md:text-sm px-1 md:px-3"
+                >
+                  Rejected
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
-          <CardDescription>
+          <CardDescription className="text-sm">
             {filteredComplaints.length} complaint
             {filteredComplaints.length !== 1 ? "s" : ""} found
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Mobile Cards */}
-          <div className="md:hidden space-y-3">
+          <div className="lg:hidden space-y-3 md:space-y-4">
             {filteredComplaints.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
+              <div className="text-center py-6 md:py-8 text-muted-foreground text-sm md:text-base">
                 {activeTab === "Pending" && "No pending complaints"}
                 {activeTab === "Accepted" && "No accepted complaints"}
                 {activeTab === "Resolved" && "No resolved complaints"}
@@ -740,21 +800,26 @@ export default function HoDAssignComplaints() {
               </div>
             ) : (
               paginatedComplaints.map((complaint) => (
-                <Card key={complaint.id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 space-y-1">
-                      <div className="text-xs text-muted-foreground">
-                        #{complaint.id}
+                <Card
+                  key={complaint.id}
+                  className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          #{complaint.id}
+                        </div>
+                        <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                          {complaint.title}
+                        </h3>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Category: {complaint.category}
+                        </div>
                       </div>
-                      <div className="font-medium text-sm">
-                        {complaint.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Category: {complaint.category}
-                      </div>
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex flex-wrap gap-1 flex-shrink-0">
                         <Badge
-                          className={`text-xs ${
+                          className={`text-xs px-1.5 py-0.5 ${
                             statusColors[
                               complaint.status as keyof typeof statusColors
                             ]
@@ -763,192 +828,188 @@ export default function HoDAssignComplaints() {
                           {complaint.status}
                         </Badge>
                         <Badge
-                          className={`${
+                          className={`text-xs px-1.5 py-0.5 ${
                             priorityColors[complaint.priority || "Medium"]
-                          } text-xs`}
+                          }`}
                         >
                           {complaint.priority || "Medium"}
                         </Badge>
                         {isOverdue(complaint) ? (
                           <Badge
-                            className="text-xs bg-red-100 text-red-800 border-red-200"
+                            className="text-xs px-1.5 py-0.5 bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400"
                             variant="outline"
                           >
                             Overdue
                           </Badge>
                         ) : (
                           <Badge
-                            className="text-xs bg-green-100 text-green-800 border-green-200"
+                            className="text-xs px-1.5 py-0.5 bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400"
                             variant="outline"
                           >
                             On Time
                           </Badge>
                         )}
-                        {/* Inline Status Update (optional note) */}
-                        {updatingRow === complaint.id ? (
-                          <div className="flex flex-col gap-2 w-full max-w-xs">
-                            <Select
-                              value={updateStatusValue || undefined}
-                              onValueChange={(v) =>
-                                setUpdateStatusValue(
-                                  v as
+                      </div>
+                    </div>
+                    {/* Inline Status Update */}
+                    {updatingRow === complaint.id ? (
+                      <div className="flex flex-col gap-2 w-full max-w-xs">
+                        <Select
+                          value={updateStatusValue || undefined}
+                          onValueChange={(v) =>
+                            setUpdateStatusValue(
+                              v as
+                                | "Pending"
+                                | "In Progress"
+                                | "Resolved"
+                                | "Closed"
+                            )
+                          }
+                        >
+                          <SelectTrigger className="w-full text-xs">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="In Progress">
+                              In Progress
+                            </SelectItem>
+                            <SelectItem value="Resolved">Resolved</SelectItem>
+                            <SelectItem value="Closed">Closed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Add description (optional)"
+                          value={updateNote}
+                          onChange={(e) => setUpdateNote(e.target.value)}
+                          className="text-xs"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="text-xs"
+                            disabled={!updateStatusValue}
+                            onClick={async () => {
+                              try {
+                                console.log("[HOD] Inline update start", {
+                                  id: complaint.id,
+                                  to: updateStatusValue,
+                                  note: updateNote.trim() || undefined,
+                                });
+                                const result = await updateComplaintStatusApi(
+                                  complaint.id,
+                                  updateStatusValue as
                                     | "Pending"
                                     | "In Progress"
                                     | "Resolved"
-                                    | "Closed"
-                                )
+                                    | "Closed",
+                                  updateNote.trim() || undefined
+                                );
+                                console.log("[HOD] Update API result:", result);
+                                const [inboxRaw, managedRaw] =
+                                  await Promise.all([
+                                    getHodInboxApi(),
+                                    getHodManagedComplaintsApi(),
+                                  ]);
+                                setInbox(
+                                  (inboxRaw as unknown[])
+                                    .map(mapApiToComplaint)
+                                    .filter(isForCurrentHod)
+                                );
+                                const managedMapped: ComplaintType[] = (
+                                  managedRaw as unknown[]
+                                ).map(mapApiToComplaint);
+                                setComplaints(
+                                  managedMapped.filter(isForCurrentHod)
+                                );
+                                try {
+                                  const updated = managedMapped.find(
+                                    (c) => c.id === complaint.id
+                                  );
+                                  console.log(
+                                    "[HOD] Post-refetch status:",
+                                    updated?.status,
+                                    updated
+                                  );
+                                } catch {
+                                  // ignore debug mapping errors
+                                }
+                                // Keep item visible by switching to Resolved tab when resolved
+                                if (updateStatusValue === "Resolved") {
+                                  setActiveTab("Resolved");
+                                }
+                                // dispatch event to refresh open modals timelines
+                                try {
+                                  window.dispatchEvent(
+                                    new CustomEvent(
+                                      "complaint:status-changed",
+                                      {
+                                        detail: { id: complaint.id },
+                                      }
+                                    ) as Event
+                                  );
+                                } catch {
+                                  // no-op: best-effort event dispatch
+                                }
+                                toast({
+                                  title: "Status Updated",
+                                  description:
+                                    `Updated to ${updateStatusValue}$$${
+                                      updateNote.trim()
+                                        ? `: ${updateNote.trim()}`
+                                        : ""
+                                    }`.replace("$:", ":"),
+                                });
+                              } catch (err) {
+                                toast({
+                                  title: "Update failed",
+                                  description: (err as Error).message,
+                                  variant: "destructive",
+                                });
+                              } finally {
+                                setUpdatingRow(null);
+                                setUpdateStatusValue("");
+                                setUpdateNote("");
                               }
-                            >
-                              <SelectTrigger className="w-full text-xs">
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Pending">Pending</SelectItem>
-                                <SelectItem value="In Progress">
-                                  In Progress
-                                </SelectItem>
-                                <SelectItem value="Resolved">
-                                  Resolved
-                                </SelectItem>
-                                <SelectItem value="Closed">Closed</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              placeholder="Add description (optional)"
-                              value={updateNote}
-                              onChange={(e) => setUpdateNote(e.target.value)}
-                              className="text-xs"
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="text-xs"
-                                disabled={!updateStatusValue}
-                                onClick={async () => {
-                                  try {
-                                    console.log("[HOD] Inline update start", {
-                                      id: complaint.id,
-                                      to: updateStatusValue,
-                                      note: updateNote.trim() || undefined,
-                                    });
-                                    const result =
-                                      await updateComplaintStatusApi(
-                                        complaint.id,
-                                        updateStatusValue as
-                                          | "Pending"
-                                          | "In Progress"
-                                          | "Resolved"
-                                          | "Closed",
-                                        updateNote.trim() || undefined
-                                      );
-                                    console.log(
-                                      "[HOD] Update API result:",
-                                      result
-                                    );
-                                    const [inboxRaw, managedRaw] =
-                                      await Promise.all([
-                                        getHodInboxApi(),
-                                        getHodManagedComplaintsApi(),
-                                      ]);
-                                    setInbox(
-                                      (inboxRaw as unknown[])
-                                        .map(mapApiToComplaint)
-                                        .filter(isForCurrentHod)
-                                    );
-                                    const managedMapped: ComplaintType[] = (
-                                      managedRaw as unknown[]
-                                    ).map(mapApiToComplaint);
-                                    setComplaints(
-                                      managedMapped.filter(isForCurrentHod)
-                                    );
-                                    try {
-                                      const updated = managedMapped.find(
-                                        (c) => c.id === complaint.id
-                                      );
-                                      console.log(
-                                        "[HOD] Post-refetch status:",
-                                        updated?.status,
-                                        updated
-                                      );
-                                    } catch {
-                                      // ignore debug mapping errors
-                                    }
-                                    // Keep item visible by switching to Resolved tab when resolved
-                                    if (updateStatusValue === "Resolved") {
-                                      setActiveTab("Resolved");
-                                    }
-                                    // dispatch event to refresh open modals timelines
-                                    try {
-                                      window.dispatchEvent(
-                                        new CustomEvent(
-                                          "complaint:status-changed",
-                                          {
-                                            detail: { id: complaint.id },
-                                          }
-                                        ) as Event
-                                      );
-                                    } catch {
-                                      // no-op: best-effort event dispatch
-                                    }
-                                    toast({
-                                      title: "Status Updated",
-                                      description:
-                                        `Updated to ${updateStatusValue}$$${
-                                          updateNote.trim()
-                                            ? `: ${updateNote.trim()}`
-                                            : ""
-                                        }`.replace("$:", ":"),
-                                    });
-                                  } catch (err) {
-                                    toast({
-                                      title: "Update failed",
-                                      description: (err as Error).message,
-                                      variant: "destructive",
-                                    });
-                                  } finally {
-                                    setUpdatingRow(null);
-                                    setUpdateStatusValue("");
-                                    setUpdateNote("");
-                                  }
-                                }}
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs"
-                                onClick={() => {
-                                  setUpdatingRow(null);
-                                  setUpdateStatusValue("");
-                                  setUpdateNote("");
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
+                            }}
+                          >
+                            Save
+                          </Button>
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="ghost"
                             className="text-xs"
-                            onClick={() => setUpdatingRow(complaint.id)}
+                            onClick={() => {
+                              setUpdatingRow(null);
+                              setUpdateStatusValue("");
+                              setUpdateNote("");
+                            }}
                           >
-                            Update Status
+                            Cancel
                           </Button>
-                        )}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        Assignee:{" "}
-                        {complaint.status === "Closed"
-                          ? "Rejected"
-                          : complaint.assignedStaff || "Not Assigned"}
-                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => setUpdatingRow(complaint.id)}
+                      >
+                        Update Status
+                      </Button>
+                    )}
+                    {/* Assignee Info */}
+                    <div className="text-xs text-muted-foreground">
+                      Assignee:{" "}
+                      {complaint.status === "Closed"
+                        ? "Rejected"
+                        : complaint.assignedStaff || "Not Assigned"}
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 [&>button]:w-full">
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t">
                     <Button
                       size="sm"
                       variant="outline"
@@ -991,9 +1052,7 @@ export default function HoDAssignComplaints() {
               ))
             )}
           </div>
-
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden lg:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

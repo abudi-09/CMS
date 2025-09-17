@@ -33,19 +33,30 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+      <DialogContent className="w-[95vw] max-w-md mx-auto sm:w-full sm:max-w-lg">
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="text-lg sm:text-xl">{title}</DialogTitle>
         </DialogHeader>
-        {warning && <div className="text-sm text-red-600 mb-2">{warning}</div>}
-        {children}
-        <DialogFooter>
+        <div className="space-y-4">
+          {warning && (
+            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-md border border-red-200 dark:border-red-800">
+              {warning}
+            </div>
+          )}
+          {children && (
+            <div className="text-sm text-muted-foreground leading-relaxed">
+              {children}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 pt-4">
           <Button
             variant="outline"
             onClick={() => {
               onOpenChange(false);
               if (onCancel) onCancel();
             }}
+            className="w-full sm:w-auto h-10 sm:h-9"
           >
             {cancelText}
           </Button>
@@ -55,6 +66,7 @@ export function ConfirmDialog({
               onOpenChange(false);
               onConfirm();
             }}
+            className="w-full sm:w-auto h-10 sm:h-9"
           >
             {confirmText}
           </Button>

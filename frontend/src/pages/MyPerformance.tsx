@@ -276,115 +276,157 @@ export default function MyPerformance() {
   const totalPages = Math.ceil(assigned.length / 5);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2 mb-6">
-        <Activity className="h-6 w-6 text-primary" />
-        <h1 className="text-3xl font-bold">My Performance Dashboard</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <Activity className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">
+          My Performance Dashboard
+        </h1>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {/* Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Total Assigned
             </CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
+            <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg dark:bg-blue-900/20 flex-shrink-0">
+              <User className="h-3 w-3 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">
               {loading ? "-" : totalAssigned}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Total complaints assigned
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Total Resolved
             </CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <div className="bg-green-50 p-1.5 md:p-2 rounded-lg dark:bg-green-900/20 flex-shrink-0">
+              <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-green-600 dark:text-green-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-green-600">
               {loading ? "-" : totalResolved}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Successfully completed
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              Pending
+            </CardTitle>
+            <div className="bg-orange-50 p-1.5 md:p-2 rounded-lg dark:bg-orange-900/20 flex-shrink-0">
+              <AlertCircle className="h-3 w-3 md:h-4 md:w-4 text-orange-600 dark:text-orange-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-orange-600">
               {loading ? "-" : totalPending}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Awaiting resolution
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
               Avg Resolution
             </CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <div className="bg-purple-50 p-1.5 md:p-2 rounded-lg dark:bg-purple-900/20 flex-shrink-0">
+              <Clock className="h-3 w-3 md:h-4 md:w-4 text-purple-600 dark:text-purple-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold">
               {loading ? "-" : formatDuration(avgResolutionMs)}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Average time to resolve
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
-            <Star className="h-4 w-4 text-muted-foreground" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              Avg Rating
+            </CardTitle>
+            <div className="bg-yellow-50 p-1.5 md:p-2 rounded-lg dark:bg-yellow-900/20 flex-shrink-0">
+              <Star className="h-3 w-3 md:h-4 md:w-4 text-yellow-600 dark:text-yellow-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-yellow-600">
               {averageRating ? `${averageRating}/5` : "-"}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Customer satisfaction
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Timeliness</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">
+              Timeliness
+            </CardTitle>
+            <div className="bg-indigo-50 p-1.5 md:p-2 rounded-lg dark:bg-indigo-900/20 flex-shrink-0">
+              <Target className="h-3 w-3 md:h-4 md:w-4 text-indigo-600 dark:text-indigo-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+          <CardContent className="p-3 md:p-6 pt-0">
+            <div className="text-lg md:text-2xl font-bold text-blue-600">
               {typeof timelinessScore === "number"
                 ? `${timelinessScore}%`
                 : "-"}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              On-time resolution rate
+            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Visual Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Complaints by Category (placeholder) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* Complaints by Category */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="p-3 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <BarChart3 className="h-4 w-4 md:h-5 md:w-5" />
               Complaints by Category
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <ResponsiveContainer
+              width="100%"
+              height={180}
+              className="text-xs md:text-sm"
+            >
               <PieChart>
                 <Pie
                   data={categoryData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={40}
-                  outerRadius={80}
+                  innerRadius={30}
+                  outerRadius={60}
                   dataKey="value"
                 >
                   {categoryData.map((entry, index) => (
@@ -398,15 +440,19 @@ export default function MyPerformance() {
         </Card>
 
         {/* Resolution Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="p-3 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />
               Resolution Trend
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <ResponsiveContainer
+              width="100%"
+              height={180}
+              className="text-xs md:text-sm"
+            >
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -424,22 +470,26 @@ export default function MyPerformance() {
         </Card>
 
         {/* Status Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+        <Card className="hover:shadow-md transition-shadow md:col-span-2 lg:col-span-1">
+          <CardHeader className="p-3 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
+              <Calendar className="h-4 w-4 md:h-5 md:w-5" />
               Status Breakdown
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+          <CardContent className="p-3 md:p-6 pt-0">
+            <ResponsiveContainer
+              width="100%"
+              height={180}
+              className="text-xs md:text-sm"
+            >
               <PieChart>
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
+                  innerRadius={35}
+                  outerRadius={65}
                   dataKey="value"
                 >
                   {statusData.map((entry, index) => (
@@ -454,65 +504,84 @@ export default function MyPerformance() {
       </div>
 
       {/* Recent Activity - Responsive (cards on mobile, table on desktop) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="p-3 md:p-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Activity className="h-4 w-4 md:h-5 md:w-5" />
             Recent Activity
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 md:p-6 pt-0">
           {/* Mobile Cards */}
-          <div className="md:hidden space-y-3">
+          <div className="lg:hidden space-y-3">
             {recentActivity.map((c, idx) => (
-              <Card key={`${c.id}-${idx}`} className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="text-sm font-semibold">{c.title}</div>
-                  <Badge
-                    className={
-                      c.status === "Resolved"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-orange-100 text-orange-800"
-                    }
-                  >
-                    {c.status}
-                  </Badge>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">Assigned:</span>
-                    <span className="ml-1 font-medium">{c.dateAssigned}</span>
+              <Card
+                key={`${c.id}-${idx}`}
+                className="p-3 md:p-4 hover:shadow-sm transition-shadow"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm md:text-base leading-tight line-clamp-2">
+                        {c.title}
+                      </h3>
+                    </div>
+                    <Badge
+                      className={`text-xs px-2 py-1 flex-shrink-0 ${
+                        c.status === "Resolved"
+                          ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                          : "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400"
+                      }`}
+                    >
+                      {c.status}
+                    </Badge>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">Resolved:</span>
-                    <span className="ml-1 font-medium">{c.dateResolved}</span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Assigned:</span>
+                      <span className="font-medium truncate">
+                        {c.dateAssigned}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Resolved:</span>
+                      <span className="font-medium truncate">
+                        {c.dateResolved}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-2 text-xs">
-                  <span className="text-muted-foreground">Rating:</span>
-                  {c.rating ? (
-                    <span className="ml-1 inline-flex items-center gap-1 font-medium">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      {c.rating}
-                    </span>
-                  ) : (
-                    <span className="ml-1 text-muted-foreground">-</span>
-                  )}
+
+                  <div className="flex items-center gap-2 text-xs md:text-sm">
+                    <span className="text-muted-foreground">Rating:</span>
+                    {c.rating ? (
+                      <div className="flex items-center gap-1">
+                        <Star className="h-3 w-3 md:h-4 md:w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium">{c.rating}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))}
           </div>
 
           {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden lg:block overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date Assigned</TableHead>
-                  <TableHead>Date Resolved</TableHead>
-                  <TableHead>Rating</TableHead>
+                  <TableHead className="text-sm font-medium">Title</TableHead>
+                  <TableHead className="text-sm font-medium">Status</TableHead>
+                  <TableHead className="text-sm font-medium">
+                    Date Assigned
+                  </TableHead>
+                  <TableHead className="text-sm font-medium">
+                    Date Resolved
+                  </TableHead>
+                  <TableHead className="text-sm font-medium">Rating</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -521,30 +590,38 @@ export default function MyPerformance() {
                     key={`${complaint.id}-${idx}`}
                     className="hover:bg-muted/50"
                   >
-                    <TableCell className="font-medium">
-                      {complaint.title}
+                    <TableCell className="font-medium text-sm max-w-xs">
+                      <div className="truncate" title={complaint.title}>
+                        {complaint.title}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        className={
+                        className={`text-xs ${
                           complaint.status === "Resolved"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-orange-100 text-orange-800"
-                        }
+                            ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                            : "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400"
+                        }`}
                       >
                         {complaint.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{complaint.dateAssigned}</TableCell>
-                    <TableCell>{complaint.dateResolved}</TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.dateAssigned}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {complaint.dateResolved}
+                    </TableCell>
                     <TableCell>
                       {complaint.rating ? (
                         <div className="flex items-center gap-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span>{complaint.rating}</span>
+                          <span className="text-sm font-medium">
+                            {complaint.rating}
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -555,46 +632,56 @@ export default function MyPerformance() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-4 md:mt-6 px-2 md:px-0">
               <Pagination>
-                <PaginationContent>
+                <PaginationContent className="flex-wrap gap-1 md:gap-2 justify-center">
                   <PaginationItem>
                     <PaginationPrevious
                       onClick={() =>
                         setCurrentPage(Math.max(1, currentPage - 1))
                       }
-                      className={
+                      className={`h-9 md:h-10 px-2 md:px-3 text-sm touch-manipulation ${
                         currentPage === 1
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
-                      }
+                      }`}
                     />
                   </PaginationItem>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (page) => (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          onClick={() => setCurrentPage(page)}
-                          isActive={currentPage === page}
-                          className="cursor-pointer"
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    )
-                  )}
+                  {/* Mobile: Show current page and total pages */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground lg:hidden">
+                    <span>
+                      Page {currentPage} of {totalPages}
+                    </span>
+                  </div>
+
+                  {/* Desktop: Show page numbers */}
+                  <div className="hidden lg:flex lg:items-center lg:gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="h-9 md:h-10 px-2 md:px-3 text-sm cursor-pointer touch-manipulation"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    )}
+                  </div>
 
                   <PaginationItem>
                     <PaginationNext
                       onClick={() =>
                         setCurrentPage(Math.min(totalPages, currentPage + 1))
                       }
-                      className={
+                      className={`h-9 md:h-10 px-2 md:px-3 text-sm touch-manipulation ${
                         currentPage === totalPages
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
-                      }
+                      }`}
                     />
                   </PaginationItem>
                 </PaginationContent>

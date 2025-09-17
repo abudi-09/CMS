@@ -673,38 +673,50 @@ export function Profile() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 self-start min-h-9"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Profile Settings</h1>
-          <p className="text-muted-foreground">
+        <div className="flex-1">
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">
+            Profile Settings
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage your account information and security
           </p>
         </div>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="profile">Profile Information</TabsTrigger>
-          <TabsTrigger value="security">Security Settings</TabsTrigger>
+      <Tabs defaultValue="profile" className="space-y-4 md:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 h-auto p-1">
+          <TabsTrigger
+            value="profile"
+            className="text-xs md:text-sm py-2 md:py-3 min-h-9"
+          >
+            Profile Information
+          </TabsTrigger>
+          <TabsTrigger
+            value="security"
+            className="text-xs md:text-sm py-2 md:py-3 min-h-9"
+          >
+            Security Settings
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-3">
+        <TabsContent value="profile" className="space-y-4 md:space-y-6">
+          <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
             {/* Profile Card */}
             <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+              <CardHeader className="pb-4 md:pb-6">
+                <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                  <User className="h-4 w-4 md:h-5 md:w-5" />
                   Profile Overview
                 </CardTitle>
               </CardHeader>
@@ -731,7 +743,7 @@ export function Profile() {
                   >
                     <Avatar
                       key={userWithAvatar?.avatarUrl || "no-avatar"}
-                      className="h-24 w-24 bg-muted overflow-hidden relative"
+                      className="h-20 w-20 md:h-24 md:w-24 bg-muted overflow-hidden relative"
                     >
                       {avatarSrc && (
                         <AvatarImage
@@ -745,7 +757,7 @@ export function Profile() {
                           }}
                         />
                       )}
-                      <AvatarFallback className="flex items-center justify-center h-full w-full text-2xl font-semibold uppercase tracking-wide select-none text-gray-800 dark:text-gray-200">
+                      <AvatarFallback className="flex items-center justify-center h-full w-full text-xl md:text-2xl font-semibold uppercase tracking-wide select-none text-gray-800 dark:text-gray-200">
                         {getInitials(
                           profileData.name ||
                             user?.fullName ||
@@ -770,10 +782,10 @@ export function Profile() {
                             e.stopPropagation();
                             if (!isLoading) fileInputRef.current?.click();
                           }}
-                          className="absolute -bottom-2 -right-2 bg-white/95 rounded-full p-2 shadow hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          className="absolute -bottom-2 -right-2 bg-white/95 rounded-full p-1.5 md:p-2 shadow hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                           aria-label="Change profile picture"
                         >
-                          <Pencil className="h-5 w-5 text-gray-700" />
+                          <Pencil className="h-4 w-4 md:h-5 md:w-5 text-gray-700" />
                         </button>
                       </>
                     )}
@@ -798,12 +810,15 @@ export function Profile() {
                   )}
 
                   <div>
-                    <h3 className="text-lg font-semibold">
+                    <h3 className="text-base md:text-lg font-semibold">
                       {profileData.name}
                     </h3>
                     <div className="flex items-center justify-center gap-2 mt-1">
-                      <UserCheck className="h-4 w-4 text-muted-foreground" />
-                      <Badge variant={getRoleBadgeVariant(user?.role || "")}>
+                      <UserCheck className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+                      <Badge
+                        variant={getRoleBadgeVariant(user?.role || "")}
+                        className="text-xs md:text-sm"
+                      >
                         {formatRole(user?.role)}
                       </Badge>
                     </div>
@@ -817,29 +832,31 @@ export function Profile() {
                       size="sm"
                       disabled={isLoading || !userWithAvatar?.avatarUrl}
                       onClick={handleAvatarReset}
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 h-8 md:h-9 text-xs md:text-sm"
                     >
-                      <RotateCcw className="h-4 w-4" />
+                      <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
                       Reset Avatar
                     </Button>
                   </div>
                 )}
 
-                <div className="space-y-3 pt-4 border-t">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{profileData.email}</span>
+                <div className="space-y-2 md:space-y-3 pt-4 border-t">
+                  <div className="flex items-center gap-2 text-xs md:text-sm">
+                    <Mail className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+                    <span className="break-all">{profileData.email}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2 text-xs md:text-sm">
+                    <Phone className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
                     <span>{user?.phone || profileData.phone || "—"}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{user?.address || profileData.address || ""}</span>
+                  <div className="flex items-center gap-2 text-xs md:text-sm">
+                    <MapPin className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+                    <span className="break-words">
+                      {user?.address || profileData.address || ""}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2 text-xs md:text-sm">
+                    <Calendar className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
                     <span>
                       Joined{" "}
                       {new Date(profileData.joinDate).toLocaleDateString()}
@@ -855,10 +872,12 @@ export function Profile() {
                   user?.role === "dean") &&
                   profileData.department && (
                     <div className="space-y-2 pt-3 border-t">
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs md:text-sm text-muted-foreground">
                         Department
                       </p>
-                      <p className="font-medium">{profileData.department}</p>
+                      <p className="font-medium text-sm md:text-base">
+                        {profileData.department}
+                      </p>
                     </div>
                   )}
               </CardContent>
@@ -866,30 +885,33 @@ export function Profile() {
 
             {/* Editable Form */}
             <Card className="lg:col-span-2">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Edit className="h-5 w-5" />
+              <CardHeader className="pb-4 md:pb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <Edit className="h-4 w-4 md:h-5 md:w-5" />
                     Personal Information
                   </CardTitle>
                   {!isEditing && (
                     <Button
                       onClick={() => setIsEditing(true)}
                       variant="outline"
+                      className="h-8 md:h-9 text-sm md:text-base"
                     >
-                      <Edit className="h-4 w-4 mr-2" />
+                      <Edit className="h-3 w-3 md:h-4 md:w-4 mr-2" />
                       Edit Profile
                     </Button>
                   )}
                 </div>
-                <CardDescription>
+                <CardDescription className="text-sm md:text-base">
                   Update your personal details and contact information
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 md:space-y-6">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name" className="text-sm md:text-base">
+                      Full Name
+                    </Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -898,16 +920,19 @@ export function Profile() {
                       }
                       disabled={!isEditing}
                       placeholder="Enter your full name"
+                      className="h-10 md:h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email" className="text-sm md:text-base">
+                      Email Address
+                    </Label>
                     <Input
                       id="email"
                       value={profileData.email}
                       disabled
-                      className="bg-muted"
+                      className="bg-muted h-10 md:h-11"
                     />
                     <p className="text-xs text-muted-foreground">
                       Email cannot be changed
@@ -917,7 +942,9 @@ export function Profile() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="phone" className="text-sm md:text-base">
+                      Phone Number
+                    </Label>
                     <Input
                       id="phone"
                       value={formData.phone}
@@ -926,11 +953,14 @@ export function Profile() {
                       }
                       disabled={!isEditing}
                       placeholder="Enter your phone number"
+                      className="h-10 md:h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
+                    <Label htmlFor="address" className="text-sm md:text-base">
+                      Address
+                    </Label>
                     <Input
                       id="address"
                       value={formData.address}
@@ -939,28 +969,31 @@ export function Profile() {
                       }
                       disabled={!isEditing}
                       placeholder="Enter your address"
+                      className="h-10 md:h-11"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
+                  <Label htmlFor="bio" className="text-sm md:text-base">
+                    Bio
+                  </Label>
                   <Textarea
                     id="bio"
                     value={formData.bio}
                     onChange={(e) => handleInputChange("bio", e.target.value)}
                     disabled={!isEditing}
                     placeholder="Tell us about yourself"
-                    className="min-h-20"
+                    className="min-h-20 md:min-h-24"
                   />
                 </div>
 
                 {isEditing && (
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-4">
                     <Button
                       onClick={handleSave}
                       disabled={isLoading}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 h-10 md:h-11 text-sm md:text-base"
                     >
                       <Save className="h-4 w-4" />
                       {isLoading ? "Saving..." : "Save Changes"}
@@ -980,6 +1013,7 @@ export function Profile() {
                           bio: user?.bio || "",
                         });
                       }}
+                      className="h-10 md:h-11 text-sm md:text-base"
                     >
                       Cancel
                     </Button>
@@ -991,35 +1025,39 @@ export function Profile() {
 
           {/* Performance/Statistics Section */}
           {user?.role === "staff" ? (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:gap-6 md:grid-cols-2">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5" />
+                <CardHeader className="pb-4 md:pb-6">
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <Target className="h-4 w-4 md:h-5 md:w-5" />
                     Current Workload
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 md:space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Resolved</span>
-                    <Badge variant="secondary">
+                    <span className="text-sm md:text-base">Resolved</span>
+                    <Badge variant="secondary" className="text-xs md:text-sm">
                       {performanceData.resolved}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">In Progress</span>
-                    <Badge variant="default">
+                    <span className="text-sm md:text-base">In Progress</span>
+                    <Badge variant="default" className="text-xs md:text-sm">
                       {performanceData.inProgress}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Pending</span>
-                    <Badge variant="outline">{performanceData.pending}</Badge>
+                    <span className="text-sm md:text-base">Pending</span>
+                    <Badge variant="outline" className="text-xs md:text-sm">
+                      {performanceData.pending}
+                    </Badge>
                   </div>
                   <div className="pt-2 border-t">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">Total Assigned</span>
-                      <span className="text-lg font-bold">
+                      <span className="font-medium text-sm md:text-base">
+                        Total Assigned
+                      </span>
+                      <span className="text-lg md:text-xl font-bold">
                         {performanceData.totalAssigned}
                       </span>
                     </div>
@@ -1028,17 +1066,19 @@ export function Profile() {
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Award className="h-5 w-5" />
+                <CardHeader className="pb-4 md:pb-6">
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <Award className="h-4 w-4 md:h-5 md:w-5" />
                     Performance Metrics
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 md:space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Resolution Rate</span>
-                      <span className="font-medium">
+                      <span className="text-sm md:text-base">
+                        Resolution Rate
+                      </span>
+                      <span className="font-medium text-sm md:text-base">
                         {performanceData.resolutionRate}%
                       </span>
                     </div>
@@ -1051,18 +1091,20 @@ export function Profile() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Average Rating</span>
+                    <span className="text-sm md:text-base">Average Rating</span>
                     <div className="flex items-center gap-1">
                       {renderStars(performanceData.averageRating)}
-                      <span className="ml-1 text-sm font-medium">
+                      <span className="ml-1 text-sm md:text-base font-medium">
                         {performanceData.averageRating}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Avg. Resolution Time</span>
-                    <span className="font-medium">
+                    <span className="text-sm md:text-base">
+                      Avg. Resolution Time
+                    </span>
+                    <span className="font-medium text-sm md:text-base">
                       {performanceData.averageResolutionTime}
                     </span>
                   </div>
@@ -1072,21 +1114,26 @@ export function Profile() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="security" className="space-y-6">
+        <TabsContent value="security" className="space-y-4 md:space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
+            <CardHeader className="pb-4 md:pb-6">
+              <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                <Shield className="h-4 w-4 md:h-5 md:w-5" />
                 Security Settings
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm md:text-base">
                 Manage your password and account security
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4 md:space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Label
+                    htmlFor="currentPassword"
+                    className="text-sm md:text-base"
+                  >
+                    Current Password
+                  </Label>
                   <Input
                     id="currentPassword"
                     type="password"
@@ -1095,11 +1142,14 @@ export function Profile() {
                       handlePasswordChange("currentPassword", e.target.value)
                     }
                     placeholder="Enter your current password"
+                    className="h-10 md:h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
+                  <Label htmlFor="newPassword" className="text-sm md:text-base">
+                    New Password
+                  </Label>
                   <Input
                     id="newPassword"
                     type="password"
@@ -1108,11 +1158,17 @@ export function Profile() {
                       handlePasswordChange("newPassword", e.target.value)
                     }
                     placeholder="Enter your new password"
+                    className="h-10 md:h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Label
+                    htmlFor="confirmPassword"
+                    className="text-sm md:text-base"
+                  >
+                    Confirm New Password
+                  </Label>
                   <Input
                     id="confirmPassword"
                     type="password"
@@ -1121,6 +1177,7 @@ export function Profile() {
                       handlePasswordChange("confirmPassword", e.target.value)
                     }
                     placeholder="Confirm your new password"
+                    className="h-10 md:h-11"
                   />
                 </div>
 
@@ -1131,21 +1188,21 @@ export function Profile() {
                     !passwordData.currentPassword ||
                     !passwordData.newPassword
                   }
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 h-10 md:h-11 text-sm md:text-base w-full sm:w-auto"
                 >
                   <Lock className="h-4 w-4" />
                   {isLoading ? "Updating..." : "Update Password"}
                 </Button>
               </div>
 
-              <div className="pt-6 border-t">
-                <div className="flex items-start gap-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+              <div className="pt-4 md:pt-6 border-t">
+                <div className="flex flex-col sm:flex-row items-start gap-3 p-3 md:p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                  <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-green-600 mt-0.5 flex-shrink-0" />
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                    <p className="text-sm md:text-base font-medium text-green-800 dark:text-green-200">
                       Account Security Status: Active
                     </p>
-                    <p className="text-xs text-green-600 dark:text-green-400">
+                    <p className="text-xs md:text-sm text-green-600 dark:text-green-400">
                       Your account is secure and all security measures are
                       active.
                     </p>
