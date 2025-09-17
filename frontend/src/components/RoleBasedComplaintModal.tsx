@@ -14,6 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 // import { Separator } from "@/components/ui/separator"; // not used
 import {
   FileText,
@@ -290,7 +297,6 @@ export function RoleBasedComplaintModal({
       isEscalated,
       submittedTo,
       // surface isAnonymous for UI logic if needed later
-      // @ts-expect-error: extending shape for convenience
       isAnonymous: isAnonymous,
       assignedToId,
       // Prefer backend department if present; fall back to existing
@@ -304,7 +310,7 @@ export function RoleBasedComplaintModal({
           ? (obj["canStaffAct"] as boolean)
           : fallback?.canStaffAct ?? false
       ),
-    };
+    } as Complaint & { isAnonymous?: boolean };
   }
 
   useEffect(() => {
@@ -1900,22 +1906,25 @@ export function RoleBasedComplaintModal({
               <CardContent className="space-y-4">
                 <div>
                   <Label className="mb-2">Update Status</Label>
-                  <select
-                    className="w-full border rounded px-3 py-2"
+                  <Select
                     value={hodActionStatus}
-                    onChange={(e) => {
-                      setHodActionStatus(e.target.value as Complaint["status"]);
+                    onValueChange={(val) => {
+                      setHodActionStatus(val as Complaint["status"]);
                       setIsEditingHodStatus(true);
                       setLastHodStatusEditAt(Date.now());
                     }}
                     disabled={readOnly}
                   >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    {/* HoD and Staff can resolve now */}
-                    <option value="Resolved">Resolved</option>
-                    <option value="Closed">Closed</option>
-                  </select>
+                    <SelectTrigger className="w-full border-input bg-background text-foreground">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background text-foreground">
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="mb-2">Note (optional)</Label>
@@ -2018,22 +2027,25 @@ export function RoleBasedComplaintModal({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="status-select">Update Status</Label>
-                  <select
-                    id="status-select"
-                    className={`w-full px-3 py-2 border bg-background rounded-md text-sm ${
-                      deanStatusUpdate
-                        ? "border-green-500 bg-green-50"
-                        : "border-input"
-                    }`}
+                  <Select
                     value={deanStatusUpdate}
-                    onChange={(e) => setDeanStatusUpdate(e.target.value)}
+                    onValueChange={setDeanStatusUpdate}
                     disabled={readOnly}
                   >
-                    <option value="">Select Status</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
-                    <option value="Close">Close</option>
-                  </select>
+                    <SelectTrigger
+                      id="status-select"
+                      className={`w-full text-sm bg-background text-foreground ${
+                        deanStatusUpdate ? "border-green-500" : "border-input"
+                      }`}
+                    >
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background text-foreground">
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Close">Close</SelectItem>
+                    </SelectContent>
+                  </Select>
                   {deanStatusUpdate && (
                     <p className="text-xs text-green-600 mt-1">
                       ✓ Ready to change status to "{deanStatusUpdate}"
@@ -2108,18 +2120,22 @@ export function RoleBasedComplaintModal({
             <CardContent className="space-y-4">
               <div>
                 <Label className="mb-2">Status</Label>
-                <select
-                  className="w-full border rounded px-3 py-2"
+                <Select
                   value={staffActionStatus}
-                  onChange={(e) =>
-                    setStaffActionStatus(e.target.value as Complaint["status"])
+                  onValueChange={(val) =>
+                    setStaffActionStatus(val as Complaint["status"])
                   }
                   disabled={readOnly}
                 >
-                  <option value="In Progress">In Progress</option>
-                  <option value="Resolved">Resolved</option>
-                  <option value="Closed">Closed</option>
-                </select>
+                  <SelectTrigger className="w-full border-input bg-background text-foreground">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background text-foreground">
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Resolved">Resolved</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="mb-2">Note (optional)</Label>
@@ -2293,22 +2309,26 @@ export function RoleBasedComplaintModal({
                   <CardContent className="space-y-4">
                     <div>
                       <Label className="mb-2">Status</Label>
-                      <select
-                        className="w-full border rounded px-3 py-2"
+                      <Select
                         value={adminActionStatus}
-                        onChange={(e) => {
+                        onValueChange={(val) => {
                           setIsEditingAdminStatus(true);
                           setLastAdminStatusEditAt(Date.now());
-                          setAdminActionStatus(
-                            e.target.value as Complaint["status"]
-                          );
+                          setAdminActionStatus(val as Complaint["status"]);
                         }}
                         disabled={readOnly}
                       >
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                        <option value="Closed">Closed</option>
-                      </select>
+                        <SelectTrigger className="w-full border-input bg-background text-foreground">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background text-foreground">
+                          <SelectItem value="In Progress">
+                            In Progress
+                          </SelectItem>
+                          <SelectItem value="Resolved">Resolved</SelectItem>
+                          <SelectItem value="Closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label className="mb-2">

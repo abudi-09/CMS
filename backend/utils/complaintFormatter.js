@@ -5,14 +5,21 @@ export function complaintToDTO(doc) {
   const displayName = (() => {
     try {
       if (c.isAnonymous) return "Anonymous";
-      if (typeof c.submittedBy === "string" && c.submittedBy) return c.submittedBy;
+      if (typeof c.submittedBy === "string" && c.submittedBy)
+        return c.submittedBy;
       if (c.submittedBy && typeof c.submittedBy === "object")
-        return c.submittedBy.name || c.submittedBy.fullName || c.submittedBy.email || null;
+        return (
+          c.submittedBy.name ||
+          c.submittedBy.fullName ||
+          c.submittedBy.email ||
+          null
+        );
       return null;
     } catch {
       return "Anonymous";
     }
   })();
+  my;
   return {
     id: String(c._id),
     complaintCode: c.complaintCode || null,
