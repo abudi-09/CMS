@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+ import jwt from "jsonwebtoken";
 import User, {
   normalizeRole as normalizeUserRole,
 } from "../models/user.model.js";
