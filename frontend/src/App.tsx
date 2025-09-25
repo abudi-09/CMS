@@ -74,11 +74,7 @@ function SplashScreen() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 to-blue-300 dark:from-gray-900 dark:to-gray-800">
       <div className="flex flex-col items-center gap-4">
-        <img
-          src="/public/favicon.ico"
-          alt="Gondar University Logo"
-          className="w-16 h-16 mb-2"
-        />
+        {/* Logo removed to avoid showing external/lovable icon during refresh */}
         <h1 className="text-3xl font-bold text-blue-900 dark:text-yellow-300">
           Gondar University
         </h1>

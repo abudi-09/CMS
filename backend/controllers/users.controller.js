@@ -147,12 +147,10 @@ export const promoteUser = async (req, res) => {
 
     await user.save();
     const safe = await User.findById(id).select("-password");
-    return res
-      .status(200)
-      .json({
-        message: `User role updated to ${role} successfully`,
-        user: safe,
-      });
+    return res.status(200).json({
+      message: `User role updated to ${role} successfully`,
+      user: safe,
+    });
   } catch (err) {
     const msg =
       err && typeof err === "object" && "message" in err
