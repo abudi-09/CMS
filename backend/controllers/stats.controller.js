@@ -1056,9 +1056,11 @@ export const getAdminCalendarDay = async (req, res) => {
     const dateFilter =
       viewType === "submission"
         ? {
+            // Include items created, explicitly submitted, or updated on this day
             $or: [
               { createdAt: { $gte: dayStart, $lte: dayEnd } },
               { submittedDate: { $gte: dayStart, $lte: dayEnd } },
+              { updatedAt: { $gte: dayStart, $lte: dayEnd } },
             ],
           }
         : { deadline: { $gte: dayStart, $lte: dayEnd } };
@@ -1153,9 +1155,11 @@ export const getAdminCalendarMonth = async (req, res) => {
     const monthFilter =
       viewType === "submission"
         ? {
+            // Include items created, explicitly submitted, or updated in this month
             $or: [
               { createdAt: { $gte: monthStart, $lte: monthEnd } },
               { submittedDate: { $gte: monthStart, $lte: monthEnd } },
+              { updatedAt: { $gte: monthStart, $lte: monthEnd } },
             ],
           }
         : { deadline: { $gte: monthStart, $lte: monthEnd } };
@@ -1517,6 +1521,12 @@ export const getDeanCalendarSummary = async (req, res) => {
                   $lte: monthEnd,
                 },
               },
+              {
+                updatedAt: {
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
             ],
           }
         : {
@@ -1562,6 +1572,12 @@ export const getDeanCalendarSummary = async (req, res) => {
                   {
                     submittedDate: {
                       ...(base.submittedDate || {}),
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                  {
+                    updatedAt: {
                       $gte: monthStart,
                       $lte: monthEnd,
                     },

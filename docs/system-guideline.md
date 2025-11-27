@@ -137,3 +137,44 @@ Other route groups exist: `stats`, `profile`, `users`, `categories`, `notificati
 - Escalation: `checkEscalations` runs hourly from server start; details in `backend/utils/escalation.js`.
 - Anonymous complaints: names are masked in responses using `maskSubmitter`.
 - Department scoping and dean/admin leakage protections are enforced across queries.
+
+## Troubleshooting (Dev errors and fixes)
+
+Common dev-time errors you may see in the browser console and how to resolve them:
+
+- net::ERR_CONNECTION_REFUSED or net::ERR_CONNECTION_RESET when calling `/api/*`
+
+  - Cause: Backend isn’t running or crashed on startup. In this repo, the server exits if `MONGO_URI` is missing/invalid.
+  - Fix:
+    - Create `.env` from `.env.example` and set `MONGO_URI` and `JWT_SECRET`.
+    - Start the backend: npm run dev (listens on http://localhost:5000).
+    - Optional quick check: GET http://localhost:5000/api/stats/test-db (public).
+
+- 401 Unauthorized on protected endpoints
+
+  - Cause: No auth cookie sent (not logged in) or token invalid/expired.
+  - Fix:
+    - Login at `/api/auth/login` (frontend uses credentials: 'include').
+    - Verify cookie exists: DevTools → Application → Cookies → http://localhost:8080 → `jwt`.
+    - If missing, ensure frontend origin matches CORS allowlist and proxy is configured (see `frontend/vite.config.ts`).
+
+- 403 Forbidden on endpoints like `/api/categories`, `/api/staff/...`, `/api/stats/complaints/department`
+
+  - Cause: Role/middleware checks or inactive account.
+  - Details:
+    - `protectRoute` returns 403 if the user is deactivated (`isActive === false`).
+    - Route guards like `hodOnly`, `deanOnly`, `adminOnly` return 403 for role mismatch.
+  - Fix:
+    - Ensure you’re logged in as the correct role for the route you’re calling.
+    - In DB, confirm the user is `isApproved: true` and `isActive: true` when required (e.g., HoD/Staff).
+
+- 403 on `/api/notifications/stream` (SSE)
+
+  - Cause: The notifications stream is protected; missing/invalid cookie or inactive account returns 401/403.
+  - Fix: Ensure you’re logged in and the auth cookie is sent. Frontend opens a relative EventSource (`/api/notifications/stream`) through the Vite proxy.
+
+- CORS issues (preflight blocked)
+  - Backend allows localhost origins: 8080/8081/8082 and 5173. If you use another port, add it in `backend/middleware/cors.js`.
+  - Frontend proxy forwards `/api` and `/uploads` to http://localhost:5000 (see `frontend/vite.config.ts`).
+
+Tip: The backend uses cookie-based auth with `SameSite=strict`. localhost→localhost is considered same-site, so cookies should be included when using relative `/api/*` paths or when `credentials: 'include'` is set.

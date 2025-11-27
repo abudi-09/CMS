@@ -1,10 +1,12 @@
- // CORS middleware for Express
+// CORS middleware for Express
 import cors from "cors";
 
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:8081",
   "http://localhost:8082",
+  // Common Vite default port
+  "http://localhost:5173",
 ];
 const corsOptions = {
   origin: function (origin, callback) {
