@@ -171,22 +171,16 @@ export const getActiveHodForMyDepartment = async (req, res) => {
         .json({ error: "Current user is not assigned to a department." });
     }
 
-    // TEMPORARY DEBUGGING: Remove the status check to find the user
-    // and see what their actual status is.
     const query = {
       department: userDepartment,
       role: "hod",
+      isApproved: true,
+      isActive: true,
     };
 
-    console.log("--- DEBUGGING HoD (Status check is OFF) ---");
-    console.log("Query criteria:", JSON.stringify(query, null, 2));
-
     const hods = await User.find(query).select(
-      "_id fullName name email department status" // IMPORTANT: We are logging the status
+      "_id fullName name email department status"
     );
-
-    console.log("Found HoD(s) in database:", JSON.stringify(hods, null, 2));
-    console.log("------------------------------------------");
 
     res.status(200).json(hods);
   } catch (error) {

@@ -977,11 +977,6 @@ export const getAdminCalendarSummary = async (req, res) => {
         : adminId; // always restrict to current admin
 
     // Debug: log admin scoping and filters
-    console.log("getAdminCalendarSummary: adminId=", String(adminId));
-    console.log(
-      "getAdminCalendarSummary: requestedAssignedTo=",
-      String(requestedAssignedTo)
-    );
 
     const status = req.query.status || null;
     const priority = req.query.priority || null;
@@ -1200,17 +1195,6 @@ export const getAdminCalendarDay = async (req, res) => {
         : { deadline: { $gte: dayStart, $lte: dayEnd } };
 
     // Debug: log effective query for day
-    console.log("getAdminCalendarDay: adminId=", String(adminId));
-    console.log(
-      "getAdminCalendarDay: date=",
-      dateStr,
-      "dayStart=",
-      dayStart.toISOString(),
-      "dayEnd=",
-      dayEnd.toISOString()
-    );
-    console.log("getAdminCalendarDay: base=", JSON.stringify(base));
-    console.log("getAdminCalendarDay: dateFilter=", JSON.stringify(dateFilter));
 
     const items = await Complaint.find({ $and: [base, dateFilter] })
       .select(
@@ -1221,15 +1205,6 @@ export const getAdminCalendarDay = async (req, res) => {
       .lean();
     // Debug: show which complaints matched and their ownership fields
     try {
-      console.log(
-        "getAdminCalendarDay: matched items=",
-        (items || []).map((it) => ({
-          id: String(it._id),
-          title: it.title,
-          assignedTo: it.assignedTo ? String(it.assignedTo) : null,
-          recipientId: it.recipientId ? String(it.recipientId) : null,
-        }))
-      );
     } catch (e) {
       console.error(
         "getAdminCalendarDay: failed to log items",
@@ -1299,18 +1274,6 @@ export const getAdminCalendarMonth = async (req, res) => {
         : { deadline: { $gte: monthStart, $lte: monthEnd } };
 
     // Debug: log effective query for month
-    console.log("getAdminCalendarMonth: adminId=", String(adminId));
-    console.log(
-      "getAdminCalendarMonth: monthStart=",
-      monthStart.toISOString(),
-      "monthEnd=",
-      monthEnd.toISOString()
-    );
-    console.log("getAdminCalendarMonth: base=", JSON.stringify(base));
-    console.log(
-      "getAdminCalendarMonth: monthFilter=",
-      JSON.stringify(monthFilter)
-    );
 
     const items = await Complaint.find({ $and: [base, monthFilter] })
       .select(
@@ -1321,15 +1284,6 @@ export const getAdminCalendarMonth = async (req, res) => {
       .lean();
     // Debug: show which complaints matched and their ownership fields
     try {
-      console.log(
-        "getAdminCalendarMonth: matched items=",
-        (items || []).map((it) => ({
-          id: String(it._id),
-          title: it.title,
-          assignedTo: it.assignedTo ? String(it.assignedTo) : null,
-          recipientId: it.recipientId ? String(it.recipientId) : null,
-        }))
-      );
     } catch (e) {
       console.error(
         "getAdminCalendarMonth: failed to log items",
@@ -1492,18 +1446,6 @@ export const getDeanCalendarMonth = async (req, res) => {
         : { deadline: { $gte: monthStart, $lte: monthEnd } };
 
     if (process.env.NODE_ENV !== "production") {
-      console.log("getDeanCalendarMonth: deanId=", String(deanId));
-      console.log(
-        "getDeanCalendarMonth: monthStart=",
-        monthStart.toISOString(),
-        "monthEnd=",
-        monthEnd.toISOString()
-      );
-      console.log("getDeanCalendarMonth: base=", JSON.stringify(base));
-      console.log(
-        "getDeanCalendarMonth: monthFilter=",
-        JSON.stringify(monthFilter)
-      );
     }
 
     const items = await Complaint.find({ $and: [base, monthFilter] })
@@ -1518,10 +1460,6 @@ export const getDeanCalendarMonth = async (req, res) => {
     if (!items || items.length === 0) {
       // Lightweight debug to help diagnose empty dean calendar (non-production only)
       if (process.env.NODE_ENV !== "production") {
-        console.log(
-          "getDeanCalendarMonth: NO ITEMS FOUND for dean",
-          String(deanId)
-        );
       }
     }
     return res.status(200).json(items || []);
@@ -1616,12 +1554,6 @@ export const getDeanCalendarSummary = async (req, res) => {
     };
     // Debug logging for parity verification
     if (process.env.NODE_ENV !== "production") {
-      console.log("[DeanCalendarSummary] user=", String(user._id));
-      console.log(
-        "[DeanCalendarSummary] assignedIds=",
-        deanAssignedIds.map(String)
-      );
-      console.log("[DeanCalendarSummary] baseFilter=", JSON.stringify(base));
     }
     if (status && status !== "all") base.status = status;
     if (priority && priority !== "all") base.priority = priority;

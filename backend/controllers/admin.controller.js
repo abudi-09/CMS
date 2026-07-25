@@ -39,10 +39,9 @@ export const getPendingStaff = async (req, res) => {
       isApproved: false,
       isRejected: { $ne: true },
     });
-    console.log("[DEBUG] Pending staff found:", pendingStaff);
     res.status(200).json(pendingStaff);
   } catch (error) {
-    console.error("[DEBUG] Error fetching pending staff:", error);
+    console.error("Error fetching pending staff:", error?.message || error);
     res.status(500).json({ error: "Failed to fetch pending staff" });
   }
 };
