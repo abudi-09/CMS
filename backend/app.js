@@ -1,0 +1,42 @@
+import express from "express";
+import cookieParser from "cookie-parser";
+import path from "path";
+import fs from "fs";
+import corsMiddleware from "./middleware/cors.js";
+import authRoutes from "./routes/authRoutes.js";
+import adminRoutes from "./routes/admin.route.js";
+import complaintRoutes from "./routes/complaint.routes.js";
+import statsRoutes from "./routes/stats.routes.js";
+import verifyRoutes from "./routes/verifyRoutes.js";
+import profileRoutes from "./routes/profileRoutes.js";
+import feedbackRoutes from "./routes/feedback.routes.js";
+import activityLogRoutes from "./routes/activityLog.routes.js";
+import approvalRoutes from "./routes/approval.routes.js";
+import usersRoutes from "./routes/users.route.js";
+import categoryRoutes from "./routes/category.routes.js";
+import staffRoutes from "./routes/staff.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
+
+const app = express();
+app.use(corsMiddleware);
+app.use(express.json());
+app.use(cookieParser());
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/complaints", complaintRoutes);
+app.use("/api/stats", statsRoutes);
+app.use("/api", verifyRoutes);
+app.use("/api", profileRoutes);
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/activity-logs", activityLogRoutes);
+app.use("/api/approvals", approvalRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/notifications", notificationRoutes);
+
+const uploadsPath = path.join(process.cwd(), "backend", "uploads");
+fs.mkdirSync(uploadsPath, { recursive: true });
+app.use("/uploads", express.static(uploadsPath));
+
+export default app;

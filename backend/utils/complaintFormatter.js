@@ -19,7 +19,6 @@ export function complaintToDTO(doc) {
       return "Anonymous";
     }
   })();
-  my;
   return {
     id: String(c._id),
     complaintCode: c.complaintCode || null,

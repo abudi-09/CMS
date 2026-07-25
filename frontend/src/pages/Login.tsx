@@ -306,14 +306,9 @@ export function Login() {
               </div>
 
               <div className="mt-4 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Demo Credentials:
+                <p className="text-xs text-muted-foreground">
+                  Need access? Contact your department administrator.
                 </p>
-                <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                  <div>Student: student@gondar.eduu / password</div>
-                  <div>Staff: staff@gondar.eduu / password</div>
-                  <div>Admin: admin@gondar.eduu / password</div>
-                </div>
               </div>
             </CardContent>
           </Card>

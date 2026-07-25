@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -29,8 +29,15 @@ import { RoleBasedComplaintModal } from "@/components/RoleBasedComplaintModal";
 import type { Complaint as ModalComplaint } from "@/components/ComplaintCard";
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { useState as useReactState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  assignComplaintApi,
+  getAdminWorkflowComplaintsApi,
+  getAssignedComplaintsApi,
+  getDeanScopedComplaintsApi,
+  getHodManagedComplaintsApi,
+  updateComplaintStatusApi,
+} from "@/lib/api";
 
 type Complaint = {
   id: string;
@@ -84,322 +91,12 @@ export function AssignComplaints() {
   const { getAllStaff, user } = useAuth();
   const userName = user?.fullName || user?.name || "";
   const role = user?.role;
-  // Diverse mock complaints for demo/testing
-  // At least half of complaints are overdue (deadline in the past)
-  const now = new Date();
-  const demoComplaints: Complaint[] = [
-    {
-      id: "ADM-001",
-      title: "Library computers are slow and outdated",
-      description:
-        "The computers in the main library are extremely slow and need upgrading.",
-      category: "Academic",
-      department: "IT",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "John Doe",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-15"),
-      lastUpdated: new Date("2024-01-18"),
-      evidence: "library_computer_issues.pdf",
-      resolutionNote: "Working on upgrading the hardware.",
-      deadline: new Date(now.getTime() - 3 * 86400000), // overdue
-    },
-    {
-      id: "ADM-002",
-      title: "Cafeteria food quality concerns",
-      description:
-        "The food quality in the main cafeteria has declined significantly.",
-      category: "Cafeteria",
-      priority: "Critical",
-      status: "Resolved",
-      submittedBy: "Jane Smith",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-10"),
-      lastUpdated: new Date("2024-01-20"),
-      feedback: {
-        rating: 4,
-        comment: "Issue was resolved quickly and effectively.",
-      },
-      resolutionNote:
-        "Improved food handling procedures and conducted staff training.",
-      deadline: new Date(now.getTime() + 5 * 86400000), // not overdue
-    },
-    {
-      id: "ADM-003",
-      title: "Broken air conditioning in lecture hall",
-      description:
-        "The air conditioning in lecture hall B-204 has been broken for over a week.",
-      category: "Facility",
-      priority: "Medium",
-      status: "Pending",
-      submittedBy: "Mike Johnson",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-22"),
-      lastUpdated: new Date("2024-01-22"),
-      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    },
-    {
-      id: "ADM-004",
-      title: "Parking lot lighting issues",
-      description:
-        "Several lights in the main parking lot are not working, making it unsafe.",
-      category: "Facility",
-      priority: "Medium",
-      status: "Closed",
-      submittedBy: "David Wilson",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-08"),
-      lastUpdated: new Date("2024-01-18"),
-      feedback: {
-        rating: 5,
-        comment: "Excellent work! All lights were replaced quickly.",
-      },
-      resolutionNote:
-        "All parking lot lights have been replaced with LED fixtures.",
-      deadline: new Date(now.getTime() + 7 * 86400000), // not overdue
-    },
-    {
-      id: "ADM-005",
-      title: "Exam schedule not published",
-      description:
-        "The final exam schedule for 2nd year students is overdue and not yet published.",
-      category: "Academic",
-      priority: "Critical",
-      status: "Pending",
-      submittedBy: "Paul Green",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-01"),
-      lastUpdated: new Date("2024-01-20"),
-      resolutionNote: "Awaiting department response.",
-      deadline: new Date(now.getTime() - 5 * 86400000), // overdue
-    },
-    {
-      id: "ADM-006",
-      title: "Unassigned complaint test",
-      description: "This complaint has not yet been assigned to any staff.",
-      category: "General",
-      priority: "Medium",
-      status: "Unassigned",
-      submittedBy: "Test User",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-12"),
-      lastUpdated: new Date("2024-01-12"),
-      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-    },
-    {
-      id: "ADM-007",
-      title: "Edge case: No description",
-      description: "",
-      category: "Other",
-      priority: "Low",
-      status: "Pending",
-      submittedBy: "Edge Case",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-18"),
-      lastUpdated: new Date("2024-01-18"),
-      deadline: new Date(now.getTime() + 10 * 86400000), // not overdue
-    },
-    {
-      id: "ADM-008",
-      title: "Edge case: No assigned staff, no feedback",
-      description: "Complaint submitted but not yet processed.",
-      category: "General",
-      priority: "Medium",
-      status: "Pending",
-      submittedBy: "Edge Case 2",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-19"),
-      lastUpdated: new Date("2024-01-19"),
-      deadline: new Date(now.getTime() + 3 * 86400000), // not overdue
-    },
-    {
-      id: "ADM-009",
-      title: "Elevator malfunction",
-      description: "Elevator in Admin Block is stuck on 2nd floor.",
-      category: "Facilities",
-      priority: "High",
-      status: "Pending",
-      submittedBy: "Linda Green",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-22"),
-      lastUpdated: new Date("2024-01-23"),
-      deadline: new Date(now.getTime() - 4 * 86400000), // overdue
-    },
-    {
-      id: "ADM-010",
-      title: "Printer out of service",
-      description: "Printer in Lab 5 is out of service.",
-      category: "IT & Technology",
-      priority: "Low",
-      status: "Pending",
-      submittedBy: "Tom Hardy",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-25"),
-      lastUpdated: new Date("2024-01-26"),
-      deadline: new Date(now.getTime() + 8 * 86400000), // not overdue
-    },
-    {
-      id: "ADM-011",
-      title: "WiFi connectivity issues in dorms",
-      description: "Students in Dorm A and B report frequent WiFi outages.",
-      category: "IT & Technology",
-      department: "IT",
-      priority: "High",
-      status: "Unassigned",
-      submittedBy: "Alice Brown",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-27"),
-      lastUpdated: new Date("2024-01-27"),
-      deadline: new Date(now.getTime() + 2 * 86400000),
-    },
-    {
-      id: "ADM-012",
-      title: "Broken chairs in classroom C-101",
-      description: "Several chairs are broken and unsafe for use.",
-      category: "Facility",
-      department: "Maintenance",
-      priority: "Medium",
-      status: "Unassigned",
-      submittedBy: "Bob Lee",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-28"),
-      lastUpdated: new Date("2024-01-28"),
-      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    },
-    {
-      id: "ADM-013",
-      title: "Late bus service",
-      description: "Campus bus service is consistently late in the mornings.",
-      category: "Transport",
-      department: "Transport",
-      priority: "Low",
-      status: "Unassigned",
-      submittedBy: "Chris Evans",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-29"),
-      lastUpdated: new Date("2024-01-29"),
-      deadline: new Date(now.getTime() + 4 * 86400000),
-    },
-    {
-      id: "ADM-014",
-      title: "Noisy construction near library",
-      description:
-        "Ongoing construction is disturbing students in the library.",
-      category: "Facility",
-      department: "Construction",
-      priority: "Medium",
-      status: "Unassigned",
-      submittedBy: "Dana White",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-30"),
-      lastUpdated: new Date("2024-01-30"),
-      deadline: new Date(now.getTime() + 6 * 86400000),
-    },
-    {
-      id: "ADM-015",
-      title: "Cafeteria menu lacks vegetarian options",
-      description:
-        "Vegetarian students request more options in the cafeteria menu.",
-      category: "Cafeteria",
-      department: "Cafeteria",
-      priority: "High",
-      status: "Unassigned",
-      submittedBy: "Eve Adams",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-01-31"),
-      lastUpdated: new Date("2024-01-31"),
-      deadline: new Date(now.getTime() - 2 * 86400000), // overdue
-    },
-    {
-      id: "ADM-016",
-      title: "Exam results delayed",
-      description:
-        "Final exam results for 3rd year students are not published yet.",
-      category: "Academic",
-      department: "Exams",
-      priority: "Critical",
-      status: "Unassigned",
-      submittedBy: "Frank Miller",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-02-01"),
-      lastUpdated: new Date("2024-02-01"),
-      deadline: new Date(now.getTime() - 3 * 86400000), // overdue
-    },
-    {
-      id: "ADM-017",
-      title: "Sports equipment missing",
-      description:
-        "Several footballs and rackets are missing from the sports room.",
-      category: "Sports",
-      department: "Sports",
-      priority: "Medium",
-      status: "Unassigned",
-      submittedBy: "Grace Hopper",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-02-02"),
-      lastUpdated: new Date("2024-02-02"),
-      deadline: new Date(now.getTime() + 5 * 86400000),
-    },
-    {
-      id: "ADM-018",
-      title: "Water leakage in hostel bathrooms",
-      description: "Hostel B bathrooms have water leakage issues.",
-      category: "Facility",
-      department: "Maintenance",
-      priority: "High",
-      status: "Unassigned",
-      submittedBy: "Henry Ford",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-02-03"),
-      lastUpdated: new Date("2024-02-03"),
-      deadline: new Date(now.getTime() + 1 * 86400000),
-    },
-    {
-      id: "ADM-019",
-      title: "Unhygienic restrooms",
-      description: "Restrooms in Block D are not cleaned regularly.",
-      category: "Facility",
-      department: "Cleaning",
-      priority: "Critical",
-      status: "Unassigned",
-      submittedBy: "Ivy Clark",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-02-04"),
-      lastUpdated: new Date("2024-02-04"),
-      deadline: new Date(now.getTime() - 1 * 86400000), // overdue
-    },
-    {
-      id: "ADM-020",
-      title: "No hand sanitizer in classrooms",
-      description: "Hand sanitizer dispensers are empty in most classrooms.",
-      category: "Facility",
-      department: "Health & Safety",
-      priority: "Low",
-      status: "Unassigned",
-      submittedBy: "Jack Black",
-      assignedStaff: undefined,
-      submittedDate: new Date("2024-02-05"),
-      lastUpdated: new Date("2024-02-05"),
-      deadline: new Date(now.getTime() + 3 * 86400000),
-    },
-  ];
-  // Ensure all complaints have a department value
-  const demoComplaintsWithDept = demoComplaints.map((c) => ({
-    ...c,
-    department: c.department || "General",
-  }));
-  const [complaints, setComplaints] = useReactState<Complaint[]>(
-    demoComplaintsWithDept
-  );
-  // Backend fetch and polling removed for demo/testing. Only mock data is shown.
-
-  const allComplaints = complaints;
-  // Remove priority sort
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [overdueFilter, setOverdueFilter] = useState<string>("all"); // 'all' | 'overdue' | 'notOverdue'
+  const [overdueFilter, setOverdueFilter] = useState<string>("all");
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
   );
@@ -409,6 +106,104 @@ export function AssignComplaints() {
   const [activeTab, setActiveTab] = useState<
     "Pending" | "Accepted" | "Rejected"
   >("Pending");
+
+  const normalizeRole = (r?: string) => {
+    const s = (r || "").toLowerCase().trim();
+    if (
+      s === "hod" ||
+      s === "head of department" ||
+      s === "headofdepartment" ||
+      s === "head_of_department"
+    ) {
+      return "hod";
+    }
+    return s;
+  };
+
+  const mapRawComplaint = (raw: Record<string, unknown>): Complaint => {
+    const submittedBy =
+      typeof raw.submittedBy === "string"
+        ? raw.submittedBy
+        : typeof raw.displayName === "string"
+        ? raw.displayName
+        : "Unknown";
+    const assignedStaff =
+      typeof raw.assignedStaff === "string"
+        ? raw.assignedStaff
+        : typeof raw.assignedTo === "string"
+        ? raw.assignedTo
+        : undefined;
+    return {
+      id: String(raw.id || raw._id || ""),
+      title: String(raw.title || "Untitled"),
+      description: String(raw.description || ""),
+      category: String(raw.category || "General"),
+      department: String(raw.department || "General"),
+      status: (raw.status as Complaint["status"]) || "Pending",
+      submittedBy,
+      assignedStaff,
+      submittedDate: raw.submittedDate
+        ? new Date(String(raw.submittedDate))
+        : raw.createdAt
+        ? new Date(String(raw.createdAt))
+        : new Date(),
+      lastUpdated: raw.lastUpdated
+        ? new Date(String(raw.lastUpdated))
+        : raw.updatedAt
+        ? new Date(String(raw.updatedAt))
+        : new Date(),
+      deadline: raw.deadline ? new Date(String(raw.deadline)) : undefined,
+      priority: (raw.priority as Complaint["priority"]) || "Medium",
+      assignedByRole: raw.assignedByRole as Complaint["assignedByRole"],
+      assignmentPath: Array.isArray(raw.assignmentPath)
+        ? (raw.assignmentPath as Complaint["assignmentPath"])
+        : [],
+    };
+  };
+
+  const loadComplaints = useCallback(async () => {
+    setLoading(true);
+    try {
+      const userRole = normalizeRole(role);
+      let raw: unknown[] = [];
+      if (userRole === "admin") {
+        const data = await getAdminWorkflowComplaintsApi();
+        raw = Array.isArray(data) ? data : [];
+      } else if (userRole === "dean") {
+        const data = await getDeanScopedComplaintsApi();
+        raw =
+          data && typeof data === "object" && "items" in (data as object)
+            ? ((data as { items?: unknown[] }).items || [])
+            : Array.isArray(data)
+            ? data
+            : [];
+      } else if (userRole === "hod") {
+        const data = await getHodManagedComplaintsApi();
+        raw = Array.isArray(data) ? data : [];
+      } else if (userRole === "staff") {
+        const data = await getAssignedComplaintsApi();
+        raw = Array.isArray(data) ? data : [];
+      }
+      setComplaints(
+        raw.map((item) => mapRawComplaint(item as Record<string, unknown>))
+      );
+    } catch (e) {
+      toast({
+        title: "Failed to load complaints",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+      setComplaints([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [role]);
+
+  useEffect(() => {
+    loadComplaints();
+  }, [loadComplaints]);
+
+  const allComplaints = complaints;
 
   // Inline assign/re-assign button click
   const handleAssignClick = (complaint: Complaint) => {
@@ -423,65 +218,71 @@ export function AssignComplaints() {
     setReassigningRow(null);
   };
 
-  // Assign staff and deadline to a complaint
-  // This function updates the complaint with the selected staff and deadline
-  const handleStaffAssignment = (complaintId: string, staffId: string) => {
+  const handleStaffAssignment = async (complaintId: string, staffId: string) => {
     const staff = getAllStaff().find((s) => s.id === staffId);
-    // Local-only update for demo/testing
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? {
-              ...c,
-              assignedStaff: staff?.fullName || staff?.name || "Unknown",
-              assignedByRole: "admin",
-              assignmentPath: Array.isArray(c.assignmentPath)
-                ? Array.from(
-                    new Set([...(c.assignmentPath || []), "admin", "staff"])
-                  )
-                : ["admin", "staff"],
-              lastUpdated: new Date(),
-              deadline: assigningDeadline
-                ? new Date(assigningDeadline)
-                : c.deadline,
-              status: "Accepted",
-            }
-          : c
-      )
-    );
-    toast({
-      title: "Assigned",
-      description: `Assigned to ${staff?.fullName || staff?.name}${
-        assigningDeadline
-          ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
-          : ""
-      }`,
-    });
+    const userRole = normalizeRole(role);
+    try {
+      await assignComplaintApi(
+        complaintId,
+        staffId,
+        assigningDeadline || undefined,
+        {
+          assignedByRole:
+            userRole === "admin"
+              ? "admin"
+              : userRole === "dean"
+              ? "dean"
+              : "hod",
+        }
+      );
+      await loadComplaints();
+      toast({
+        title: "Assigned",
+        description: `Assigned to ${staff?.fullName || staff?.name || "staff"}${
+          assigningDeadline
+            ? `, deadline ${new Date(assigningDeadline).toLocaleDateString()}`
+            : ""
+        }`,
+      });
+    } catch (e) {
+      toast({
+        title: "Assignment failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     setReassigningRow(null);
     setAssigningStaffId("");
     setAssigningDeadline("");
   };
 
-  const handleResolve = (complaintId: string) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? { ...c, status: "Resolved", lastUpdated: new Date() }
-          : c
-      )
-    );
-    toast({ title: "Resolved", description: "Complaint marked as resolved." });
+  const handleResolve = async (complaintId: string) => {
+    try {
+      await updateComplaintStatusApi(complaintId, "Resolved");
+      await loadComplaints();
+      toast({ title: "Resolved", description: "Complaint marked as resolved." });
+    } catch (e) {
+      toast({
+        title: "Update failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleReject = (complaintId: string) => {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === complaintId
-          ? { ...c, status: "Rejected", lastUpdated: new Date() }
-          : c
-      )
-    );
-    toast({ title: "Rejected", description: "Complaint rejected." });
+  const handleReject = async (complaintId: string) => {
+    try {
+      await updateComplaintStatusApi(complaintId, "Closed", "Rejected by assigner");
+      await loadComplaints();
+      toast({ title: "Rejected", description: "Complaint rejected." });
+    } catch (e) {
+      toast({
+        title: "Update failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Adapt local complaint shape to Modal's expected Complaint type
@@ -518,7 +319,8 @@ export function AssignComplaints() {
         c.status === "Assigned" ||
         c.status === "In Progress"
       );
-    if (activeTab === "Rejected") return c.status === "Rejected";
+    if (activeTab === "Rejected")
+      return c.status === "Rejected" || c.status === "Closed";
     return true;
   };
 
@@ -672,6 +474,16 @@ export function AssignComplaints() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              Loading complaints...
+            </p>
+          ) : filteredComplaints.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              No complaints found.
+            </p>
+          ) : (
+          <>
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto">
             <Table>
@@ -908,34 +720,16 @@ export function AssignComplaints() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {filteredComplaints.map((complaint) => (
-              <Card
-                key={complaint.id}
-                className={`p-4 ${
-                  complaint.id.startsWith("MOCK-")
-                    ? "bg-yellow-50 border-l-4 border-yellow-400"
-                    : ""
-                }`}
-              >
+              <Card key={complaint.id} className="p-4">
                 <div className="space-y-3">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <h3 className="font-semibold text-sm leading-tight flex items-center gap-2">
                         {complaint.title}
-                        {complaint.id.startsWith("MOCK-") && (
-                          <Badge className="bg-yellow-400 text-white text-xs">
-                            Mock/Test
-                          </Badge>
-                        )}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1">
                         Submitted by {complaint.submittedBy}
                       </p>
-                      {complaint.id.startsWith("MOCK-") && (
-                        <div className="text-xs text-yellow-700 mt-1">
-                          This is a mock/test complaint for UI and feature
-                          demonstration.
-                        </div>
-                      )}
                     </div>
                     {complaint.status !== "Unassigned" && (
                       <Badge
@@ -1143,6 +937,8 @@ export function AssignComplaints() {
               </Card>
             ))}
           </div>
+          </>
+          )}
         </CardContent>
       </Card>
 
@@ -1161,4 +957,3 @@ export function AssignComplaints() {
     </div>
   );
 }
-// polling removed in demo mode

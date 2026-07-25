@@ -25,6 +25,18 @@ import {
   deanReactivateHod,
   deanGetActiveHod,
   deanGetRejectedHod,
+  deanGetPendingStaff,
+  deanApproveStaff,
+  deanRejectStaff,
+  deanDeactivateStaff,
+  deanReactivateStaff,
+  deanGetActiveStaff,
+  deanGetDeactivatedStaff,
+  deanGetRejectedStaff,
+  deanGetUsers,
+  deanActivateUser,
+  deanDeactivateUser,
+  deanPromoteUser,
   adminGetPendingDeans,
   adminGetActiveDeans,
   adminApproveDean,
@@ -102,6 +114,39 @@ router.put(
 );
 router.get("/dean/active-hod", protectRoute, deanOnly, deanGetActiveHod);
 router.get("/dean/rejected-hod", protectRoute, deanOnly, deanGetRejectedHod);
+// Dean staff management (same department)
+router.get("/dean/pending-staff", protectRoute, deanOnly, deanGetPendingStaff);
+router.put("/dean/approve-staff/:id", protectRoute, deanOnly, deanApproveStaff);
+router.delete("/dean/reject-staff/:id", protectRoute, deanOnly, deanRejectStaff);
+router.put(
+  "/dean/deactivate-staff/:id",
+  protectRoute,
+  deanOnly,
+  deanDeactivateStaff
+);
+router.put(
+  "/dean/reactivate-staff/:id",
+  protectRoute,
+  deanOnly,
+  deanReactivateStaff
+);
+router.get("/dean/active-staff", protectRoute, deanOnly, deanGetActiveStaff);
+router.get(
+  "/dean/deactivated-staff",
+  protectRoute,
+  deanOnly,
+  deanGetDeactivatedStaff
+);
+router.get("/dean/rejected-staff", protectRoute, deanOnly, deanGetRejectedStaff);
+router.get("/dean/users", protectRoute, deanOnly, deanGetUsers);
+router.put("/dean/activate-user/:id", protectRoute, deanOnly, deanActivateUser);
+router.put(
+  "/dean/deactivate-user/:id",
+  protectRoute,
+  deanOnly,
+  deanDeactivateUser
+);
+router.put("/dean/promote-user/:id", protectRoute, deanOnly, deanPromoteUser);
 // new: get all hods grouped
 router.get("/dean/all-hod", protectRoute, deanOnly, deanGetAllHod);
 // Development-only debug endpoint

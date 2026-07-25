@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UserCheck, UserX, Clock, Users, Mail, Building } from "lucide-react";
+import { UserCheck, UserX, RefreshCcw } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import {
+  getDeanPendingStaffApi,
+  getDeanActiveStaffApi,
+  getDeanRejectedStaffApi,
+  getDeanDeactivatedStaffApi,
+  deanApproveStaffApi,
+  deanRejectStaffApi,
+  deanDeactivateStaffApi,
+  deanReactivateStaffApi,
+} from "@/lib/api";
 
 type Staff = {
   id: string;
@@ -21,133 +32,123 @@ type Staff = {
   department: string;
   workingPlace: string;
   registeredDate: Date;
-  status: string;
+  status: "pending" | "approved" | "rejected" | "deactivated";
 };
 
-const mockStaff = [
-  {
-    id: "st1",
-    name: "Alex Johnson",
-    email: "alex@university.edu",
-    department: "IT",
-    workingPlace: "IT Office",
-    registeredDate: new Date("2023-09-01"),
-    status: "pending",
-  },
-  {
-    id: "st2",
-    name: "Maria Lopez",
-    email: "maria@university.edu",
-    department: "IT",
-    workingPlace: "IT Lab",
-    registeredDate: new Date("2023-08-15"),
-    status: "approved",
-  },
-  {
-    id: "st3",
-    name: "David Kim",
-    email: "david@university.edu",
-    department: "IT",
-    workingPlace: "IT Helpdesk",
-    registeredDate: new Date("2023-07-10"),
-    status: "rejected",
-  },
-  {
-    id: "st4",
-    name: "Nina Patel",
-    email: "nina@university.edu",
-    department: "IT",
-    workingPlace: "IT Office",
-    registeredDate: new Date("2023-09-10"),
-    status: "approved",
-  },
-  {
-    id: "st5",
-    name: "Brian Smith",
-    email: "brian@university.edu",
-    department: "IT",
-    workingPlace: "Server Room",
-    registeredDate: new Date("2023-06-20"),
-    status: "pending",
-  },
-  {
-    id: "st6",
-    name: "Linda Green",
-    email: "linda@university.edu",
-    department: "IT",
-    workingPlace: "IT Support",
-    registeredDate: new Date("2023-05-05"),
-    status: "approved",
-  },
-  {
-    id: "st7",
-    name: "Oscar White",
-    email: "oscar@university.edu",
-    department: "IT",
-    workingPlace: "IT Lab",
-    registeredDate: new Date("2023-04-12"),
-    status: "rejected",
-  },
-  {
-    id: "st8",
-    name: "Priya Singh",
-    email: "priya@university.edu",
-    department: "IT",
-    workingPlace: "IT Office",
-    registeredDate: new Date("2023-03-30"),
-    status: "approved",
-  },
-  {
-    id: "st9",
-    name: "Tom Brown",
-    email: "tom@university.edu",
-    department: "IT",
-    workingPlace: "IT Helpdesk",
-    registeredDate: new Date("2023-02-18"),
-    status: "pending",
-  },
-  {
-    id: "st10",
-    name: "Emily Clark",
-    email: "emily@university.edu",
-    department: "IT",
-    workingPlace: "IT Lab",
-    registeredDate: new Date("2023-01-25"),
-    status: "approved",
-  },
-];
+type RawStaff = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  fullName?: string;
+  username?: string;
+  email?: string;
+  department?: string;
+  workingPlace?: string;
+  createdAt?: string;
+};
+
+function mapStaff(u: RawStaff, status: Staff["status"]): Staff {
+  return {
+    id: String(u._id || u.id || ""),
+    name: u.fullName || u.name || u.username || u.email || "Unknown",
+    email: u.email || "",
+    department: u.department || "-",
+    workingPlace: u.workingPlace || "-",
+    registeredDate: u.createdAt ? new Date(u.createdAt) : new Date(),
+    status,
+  };
+}
 
 export default function DeanStaffManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [tab, setTab] = useState("approved");
-  const [staff, setStaff] = useState(mockStaff);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const loadStaff = async () => {
+    setLoading(true);
+    try {
+      const [pending, active, rejected, deactivated] = await Promise.all([
+        getDeanPendingStaffApi().catch(() => []),
+        getDeanActiveStaffApi().catch(() => []),
+        getDeanRejectedStaffApi().catch(() => []),
+        getDeanDeactivatedStaffApi().catch(() => []),
+      ]);
+      const combined: Staff[] = [
+        ...(Array.isArray(pending) ? pending : []).map((u: RawStaff) =>
+          mapStaff(u, "pending")
+        ),
+        ...(Array.isArray(active) ? active : []).map((u: RawStaff) =>
+          mapStaff(u, "approved")
+        ),
+        ...(Array.isArray(rejected) ? rejected : []).map((u: RawStaff) =>
+          mapStaff(u, "rejected")
+        ),
+        ...(Array.isArray(deactivated) ? deactivated : []).map((u: RawStaff) =>
+          mapStaff(u, "deactivated")
+        ),
+      ];
+      setStaff(combined);
+    } catch (e) {
+      toast({
+        title: "Failed to load staff",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+      setStaff([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
 
   const filteredStaff = staff.filter(
     (s) =>
-      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      s.department === "IT"
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.workingPlace.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const approvedStaff = filteredStaff.filter((s) => s.status === "approved");
   const pendingStaff = filteredStaff.filter((s) => s.status === "pending");
   const rejectedStaff = filteredStaff.filter((s) => s.status === "rejected");
+  const deactivatedStaff = filteredStaff.filter(
+    (s) => s.status === "deactivated"
+  );
 
-  const handleApprove = (id: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s))
-    );
+  const runAction = async (
+    id: string,
+    action: () => Promise<unknown>,
+    successTitle: string
+  ) => {
+    setProcessingId(id);
+    try {
+      await action();
+      toast({ title: successTitle });
+      await loadStaff();
+    } catch (e) {
+      toast({
+        title: "Action failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+    }
   };
-  const handleReject = (id: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s))
-    );
-  };
-  const handleDeactivate = (id: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "deactivated" } : s))
-    );
-  };
+
+  const handleApprove = (id: string) =>
+    runAction(id, () => deanApproveStaffApi(id), "Staff approved");
+  const handleReject = (id: string) =>
+    runAction(id, () => deanRejectStaffApi(id), "Staff rejected");
+  const handleDeactivate = (id: string) =>
+    runAction(id, () => deanDeactivateStaffApi(id), "Staff deactivated");
+  const handleReactivate = (id: string) =>
+    runAction(id, () => deanReactivateStaffApi(id), "Staff reactivated");
 
   const StaffTable = ({
     data,
@@ -157,7 +158,6 @@ export default function DeanStaffManagement() {
     actions: (s: Staff) => JSX.Element;
   }) => (
     <>
-      {/* Mobile: cards */}
       <div className="md:hidden space-y-3">
         {data.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground border rounded-lg">
@@ -205,7 +205,6 @@ export default function DeanStaffManagement() {
         )}
       </div>
 
-      {/* Desktop: table */}
       <div className="hidden md:block rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -266,7 +265,18 @@ export default function DeanStaffManagement() {
       </div>
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Staff Directory</CardTitle>
+          <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+            <span>Staff Directory</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadStaff}
+              disabled={loading}
+            >
+              <RefreshCcw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
+          </CardTitle>
           <div className="flex flex-wrap gap-2 mt-4">
             <Input
               placeholder="Search by name or email..."
@@ -277,72 +287,109 @@ export default function DeanStaffManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-            </TabsList>
-            <TabsContent value="approved">
-              <StaffTable
-                data={approvedStaff}
-                actions={(s) => (
-                  <div className="flex flex-col md:flex-row gap-2 md:justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeactivate(s.id)}
-                      className="w-full md:w-auto text-red-600 hover:text-red-700"
-                    >
-                      <UserX className="h-4 w-4" /> Deactivate
-                    </Button>
-                  </div>
-                )}
-              />
-            </TabsContent>
-            <TabsContent value="pending">
-              <StaffTable
-                data={pendingStaff}
-                actions={(s) => (
-                  <div className="flex flex-col md:flex-row gap-2 md:justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleApprove(s.id)}
-                      className="w-full md:w-auto text-green-600 hover:text-green-700"
-                    >
-                      <UserCheck className="h-4 w-4" /> Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReject(s.id)}
-                      className="w-full md:w-auto text-red-600 hover:text-red-700"
-                    >
-                      <UserX className="h-4 w-4" /> Reject
-                    </Button>
-                  </div>
-                )}
-              />
-            </TabsContent>
-            <TabsContent value="rejected">
-              <StaffTable
-                data={rejectedStaff}
-                actions={(s) => (
-                  <div className="flex flex-col md:flex-row gap-2 md:justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleApprove(s.id)}
-                      className="w-full md:w-auto text-green-600 hover:text-green-700"
-                    >
-                      <UserCheck className="h-4 w-4" /> Re-approve
-                    </Button>
-                  </div>
-                )}
-              />
-            </TabsContent>
-          </Tabs>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              Loading staff...
+            </p>
+          ) : (
+            <Tabs value={tab} onValueChange={setTab} className="w-full">
+              <TabsList>
+                <TabsTrigger value="pending">
+                  Pending ({pendingStaff.length})
+                </TabsTrigger>
+                <TabsTrigger value="approved">
+                  Approved ({approvedStaff.length})
+                </TabsTrigger>
+                <TabsTrigger value="rejected">
+                  Rejected ({rejectedStaff.length})
+                </TabsTrigger>
+                <TabsTrigger value="deactivated">
+                  Deactivated ({deactivatedStaff.length})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="approved">
+                <StaffTable
+                  data={approvedStaff}
+                  actions={(s) => (
+                    <div className="flex flex-col md:flex-row gap-2 md:justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={processingId === s.id}
+                        onClick={() => handleDeactivate(s.id)}
+                        className="w-full md:w-auto text-red-600 hover:text-red-700"
+                      >
+                        <UserX className="h-4 w-4" /> Deactivate
+                      </Button>
+                    </div>
+                  )}
+                />
+              </TabsContent>
+              <TabsContent value="pending">
+                <StaffTable
+                  data={pendingStaff}
+                  actions={(s) => (
+                    <div className="flex flex-col md:flex-row gap-2 md:justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={processingId === s.id}
+                        onClick={() => handleApprove(s.id)}
+                        className="w-full md:w-auto text-green-600 hover:text-green-700"
+                      >
+                        <UserCheck className="h-4 w-4" /> Approve
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={processingId === s.id}
+                        onClick={() => handleReject(s.id)}
+                        className="w-full md:w-auto text-red-600 hover:text-red-700"
+                      >
+                        <UserX className="h-4 w-4" /> Reject
+                      </Button>
+                    </div>
+                  )}
+                />
+              </TabsContent>
+              <TabsContent value="rejected">
+                <StaffTable
+                  data={rejectedStaff}
+                  actions={(s) => (
+                    <div className="flex flex-col md:flex-row gap-2 md:justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={processingId === s.id}
+                        onClick={() => handleApprove(s.id)}
+                        className="w-full md:w-auto text-green-600 hover:text-green-700"
+                      >
+                        <UserCheck className="h-4 w-4" /> Re-approve
+                      </Button>
+                    </div>
+                  )}
+                />
+              </TabsContent>
+              <TabsContent value="deactivated">
+                <StaffTable
+                  data={deactivatedStaff}
+                  actions={(s) => (
+                    <div className="flex flex-col md:flex-row gap-2 md:justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={processingId === s.id}
+                        onClick={() => handleReactivate(s.id)}
+                        className="w-full md:w-auto text-green-600 hover:text-green-700"
+                      >
+                        <UserCheck className="h-4 w-4" /> Reactivate
+                      </Button>
+                    </div>
+                  )}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
     </div>

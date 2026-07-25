@@ -1046,6 +1046,36 @@ export async function getAdminStaffPerformanceApi() {
 }
 
 // Dean Analytics APIs
+export async function getDeanStaffPerformanceApi() {
+  const res = await fetch(
+    `${API_BASE}/stats/analytics/dean/staff-performance`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{
+    department?: string;
+    count?: number;
+    staff: Array<{
+      staffId: string;
+      name: string;
+      email?: string;
+      department?: string;
+      workPlace?: string;
+      totalAssigned: number;
+      resolved: number;
+      pending: number;
+      inProgress: number;
+      successRate: number;
+      avgRating: number;
+      avgResolutionHours: number;
+      profilePicture?: string;
+    }>;
+  }>(res);
+}
+
 export async function getDeanAnalyticsSummaryApi() {
   const res = await fetch(`${API_BASE}/stats/analytics/dean/summary`, {
     method: "GET",
@@ -1854,6 +1884,149 @@ export async function getDeanAllHodApi() {
     credentials: "include",
   });
   return handleJson(res);
+}
+
+// Dean: staff management in dean's department
+export async function getDeanPendingStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/pending-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson(res);
+}
+
+export async function getDeanActiveStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/active-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson(res);
+}
+
+export async function getDeanRejectedStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/rejected-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson(res);
+}
+
+export async function getDeanDeactivatedStaffApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/deactivated-staff`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson(res);
+}
+
+export async function deanApproveStaffApi(staffId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/approve-staff/${staffId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson(res);
+}
+
+export async function deanRejectStaffApi(staffId: string) {
+  const res = await fetch(`${API_BASE}/approvals/dean/reject-staff/${staffId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson(res);
+}
+
+export async function deanDeactivateStaffApi(staffId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/deactivate-staff/${staffId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson(res);
+}
+
+export async function deanReactivateStaffApi(staffId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/reactivate-staff/${staffId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson(res);
+}
+
+// Dean: department students/users
+export async function deanGetUsersApi() {
+  const res = await fetch(`${API_BASE}/approvals/dean/users`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  return handleJson<
+    Array<{
+      _id: string;
+      name?: string;
+      fullName?: string;
+      username?: string;
+      email: string;
+      department: string;
+      role?: "student" | "staff";
+      isActive?: boolean;
+      createdAt: string;
+      updatedAt?: string;
+      complaintsCount?: number;
+    }>
+  >(res);
+}
+
+export async function deanActivateUserApi(userId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/activate-user/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{ message?: string }>(res);
+}
+
+export async function deanDeactivateUserApi(userId: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/deactivate-user/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }
+  );
+  return handleJson<{ message?: string }>(res);
+}
+
+export async function deanPromoteUserApi(userId: string, workingPlace: string) {
+  const res = await fetch(
+    `${API_BASE}/approvals/dean/promote-user/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ workingPlace }),
+    }
+  );
+  return handleJson<{ message?: string; user?: unknown }>(res);
 }
 
 // Dean -> assign complaint to HoD (pending HoD acceptance)

@@ -42,6 +42,7 @@ import {
   getDeanDepartmentOverview,
   getDeanAnalyticsMonthlyTrends,
   getDeanDepartmentPerformance,
+  getDeanDepartmentStaffPerformance,
   getDeanChartCategoryDistribution,
   getDeanChartPriorityDistribution,
   getDeanChartStatusDistribution,
@@ -295,6 +296,13 @@ router.get("/analytics/dean/monthly-trends", getDeanAnalyticsMonthlyTrends);
 router.get(
   "/analytics/dean/department-performance",
   getDeanDepartmentPerformance
+);
+
+router.get(
+  "/analytics/dean/staff-performance",
+  protectRoute,
+  deanOnly,
+  getDeanDepartmentStaffPerformance
 );
 
 router.get("/analytics/dean/charts/category", getDeanChartCategoryDistribution);

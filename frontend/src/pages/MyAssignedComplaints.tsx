@@ -1,6 +1,3 @@
-// For demo/testing: import mockComplaint
-// Demo mock removed; complaints will be loaded from backend
-// import { mockComplaint as baseMockComplaint } from "@/lib/mockComplaint";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +45,6 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// Removed useComplaints to avoid requiring ComplaintProvider for this page's local mock state
 import { useAuth } from "@/components/auth/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { getAssignedComplaintsApi, updateComplaintStatusApi } from "@/lib/api";
@@ -58,10 +54,9 @@ import React from "react";
 import type { Complaint } from "@/components/ComplaintCard";
 
 export function MyAssignedComplaints() {
-  // MOCK DATA ENABLED BY DEFAULT
   const { user } = useAuth();
-  // Complaints will be loaded from backend; remove demo generation
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
     null
@@ -105,7 +100,12 @@ export function MyAssignedComplaints() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!user || user.role !== "staff") return;
+      if (!user || user.role !== "staff") {
+        setComplaints([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
       try {
         const data = await getAssignedComplaintsApi();
         if (cancelled) return;
@@ -171,6 +171,13 @@ export function MyAssignedComplaints() {
         setComplaints(mapped);
       } catch {
         setComplaints([]);
+        toast({
+          title: "Failed to load complaints",
+          description: "Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
     load();
@@ -191,17 +198,7 @@ export function MyAssignedComplaints() {
     }
   }, [location.search, complaints]);
 
-  // Only show complaints assigned to the current staff user; if no user (demo), show all mock complaints
-  const myAssignedComplaints = React.useMemo(() => {
-    if (!user) return complaints; // demo fallback: show all mock complaints
-    const name = user.fullName ?? user.name;
-    if (!name) return complaints;
-    return complaints.filter(
-      (c) => c.assignedStaff && c.assignedStaff === name
-    );
-  }, [complaints, user]);
-
-  // No demo reassignment — complaints are loaded from backend for staff users
+  const myAssignedComplaints = complaints;
 
   const handleViewComplaint = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -872,7 +869,14 @@ export function MyAssignedComplaints() {
         </p>
       </div>
 
-      {/* Summary Cards */}
+      {loading ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Loading assigned complaints...
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
         <Card
           onClick={applyRecentFilter}
@@ -1506,6 +1510,9 @@ export function MyAssignedComplaints() {
             </PaginationContent>
           </Pagination>
         </div>
+      )}
+
+        </>
       )}
 
       {/* Modal */}

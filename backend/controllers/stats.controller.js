@@ -599,6 +599,140 @@ export const getDepartmentStaffPerformance = async (req, res) => {
   }
 };
 
+// /analytics/dean/staff-performance (Dean)
+export const getDeanDepartmentStaffPerformance = async (req, res) => {
+  try {
+    const user = req.user;
+    const role = String(user?.role || "").toLowerCase();
+    if (role !== "dean") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const department = user.department && String(user.department).trim();
+    if (!department) {
+      return res.status(400).json({ error: "Department is required" });
+    }
+    const escapeRegex = (s) =>
+      String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const deptRegex = new RegExp(`^${escapeRegex(department)}$`, "i");
+
+    const staffUsers = await User.find({
+      role: "staff",
+      department: deptRegex,
+      isApproved: true,
+      isRejected: { $ne: true },
+    })
+      .select("_id name email department workingPlace avatarUrl")
+      .lean();
+    const staffIds = staffUsers.map((u) => u._id);
+
+    if (!staffIds.length) {
+      return res.status(200).json({ department, staff: [], count: 0 });
+    }
+
+    const agg = await Complaint.aggregate([
+      {
+        $match: {
+          isDeleted: { $ne: true },
+          assignedTo: { $in: staffIds },
+        },
+      },
+      {
+        $group: {
+          _id: "$assignedTo",
+          totalAssigned: { $sum: 1 },
+          resolved: {
+            $sum: { $cond: [{ $eq: ["$status", "Resolved"] }, 1, 0] },
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+          },
+          inProgress: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    "$status",
+                    ["Accepted", "Assigned", "In Progress", "Under Review"],
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          avgRating: {
+            $avg: {
+              $cond: [
+                { $gte: ["$feedback.rating", 0] },
+                "$feedback.rating",
+                null,
+              ],
+            },
+          },
+          avgResolutionHours: {
+            $avg: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Resolved"] },
+                    { $ne: ["$resolvedAt", null] },
+                    { $ne: ["$createdAt", null] },
+                  ],
+                },
+                {
+                  $divide: [
+                    { $subtract: ["$resolvedAt", "$createdAt"] },
+                    1000 * 60 * 60,
+                  ],
+                },
+                null,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const aggMap = new Map(agg.map((a) => [String(a._id), a]));
+
+    const staff = staffUsers.map((u) => {
+      const a = aggMap.get(String(u._id));
+      const totalAssigned = a?.totalAssigned || 0;
+      const resolved = a?.resolved || 0;
+      const successRate = totalAssigned
+        ? Number(((resolved / totalAssigned) * 100).toFixed(1))
+        : 0;
+      return {
+        staffId: String(u._id),
+        name: u.name || u.email || "Unknown",
+        email: u.email,
+        department: u.department,
+        workPlace: u.workingPlace || "",
+        totalAssigned,
+        resolved,
+        pending: a?.pending || 0,
+        inProgress: a?.inProgress || 0,
+        successRate,
+        avgRating: Number((a?.avgRating || 0).toFixed(1)),
+        avgResolutionHours: Number((a?.avgResolutionHours || 0).toFixed(1)),
+        profilePicture: u.avatarUrl || undefined,
+      };
+    });
+
+    staff.sort((a, b) => b.successRate - a.successRate);
+
+    return res.status(200).json({ department, staff, count: staff.length });
+  } catch (err) {
+    console.error(
+      "getDeanDepartmentStaffPerformance error:",
+      err?.message || err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dean staff performance" });
+  }
+};
+
 // ROLE COUNTS (Admin): total number of deans, department heads, students, staff that have access
 export const getRoleCounts = async (req, res) => {
   try {

@@ -1180,6 +1180,7 @@ export const getAdminWorkflowComplaints = async (req, res) => {
 
     const complaints = await Complaint.find(filter)
       .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email")
       .sort({ createdAt: -1 })
       .limit(500)
       .lean();
@@ -1187,6 +1188,7 @@ export const getAdminWorkflowComplaints = async (req, res) => {
     const mapped = complaints.map((c) => ({
       id: String(c._id),
       title: c.title,
+      description: c.description,
       category: c.category,
       status: c.status,
       priority: c.priority,
@@ -1194,6 +1196,14 @@ export const getAdminWorkflowComplaints = async (req, res) => {
       lastUpdated: c.updatedAt,
       submittedBy: maskSubmitter(c, req.user?._id),
       displayName: maskSubmitter(c, req.user?._id),
+      assignedTo:
+        c.assignedTo && typeof c.assignedTo === "object"
+          ? c.assignedTo.name || c.assignedTo.email
+          : null,
+      assignedStaff:
+        c.assignedTo && typeof c.assignedTo === "object"
+          ? c.assignedTo.name || c.assignedTo.email
+          : null,
       deadline: c.deadline,
       assignedByRole: c.assignedByRole,
       assignmentPath: c.assignmentPath || [],
@@ -1227,7 +1237,7 @@ export const getAdminComplaintsDebug = async (req, res) => {
       { assignedByRole: "admin" },
     ];
     if (adminId && mongoose.Types.ObjectId.isValid(String(adminId))) {
-      orClauses.push({ assignedTo: mongoose.Types.ObjectId(String(adminId)) });
+      orClauses.push({ assignedTo: new mongoose.Types.ObjectId(String(adminId)) });
     }
 
     const complaints = await Complaint.find({

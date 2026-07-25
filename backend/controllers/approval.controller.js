@@ -276,6 +276,269 @@ export const hodGetRejectedStaff = async (req, res) => {
   }
 };
 
+// Dean: manage Staff in same department
+export const deanGetPendingStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const pending = await User.find({
+      role: "staff",
+      department: dept,
+      isApproved: false,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(pending);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch pending staff" });
+  }
+};
+
+export const deanApproveStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await User.findById(id);
+    if (!staff || staff.role !== "staff")
+      return res.status(404).json({ error: "Staff not found" });
+    if (staff.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only approve staff in your department" });
+    }
+    staff.isApproved = true;
+    staff.isActive = true;
+    staff.isRejected = false;
+    await staff.save();
+    const returned = staff.toObject();
+    if (returned.password) delete returned.password;
+    res.status(200).json({ message: "Staff approved", user: returned });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to approve staff" });
+  }
+};
+
+export const deanRejectStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await User.findById(id);
+    if (!staff || staff.role !== "staff")
+      return res.status(404).json({ error: "Staff not found" });
+    if (staff.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only reject staff in your department" });
+    }
+    staff.isRejected = true;
+    staff.isApproved = false;
+    staff.isActive = false;
+    await staff.save();
+    res.status(200).json({ message: "Staff rejected" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reject staff" });
+  }
+};
+
+export const deanDeactivateStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await User.findById(id);
+    if (!staff || staff.role !== "staff")
+      return res.status(404).json({ error: "Staff not found" });
+    if (staff.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only deactivate staff in your department" });
+    }
+    if (!staff.isApproved || staff.isRejected) {
+      return res.status(400).json({
+        error:
+          "Only approved staff can be deactivated. Use approve or reject for pending accounts.",
+      });
+    }
+    staff.isActive = false;
+    await staff.save();
+    res.status(200).json({ message: "Staff deactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to deactivate staff" });
+  }
+};
+
+export const deanReactivateStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await User.findById(id);
+    if (!staff || staff.role !== "staff")
+      return res.status(404).json({ error: "Staff not found" });
+    if (staff.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only reactivate staff in your department" });
+    }
+    if (!staff.isApproved || staff.isRejected) {
+      return res.status(400).json({
+        error:
+          "Only approved staff can be reactivated. Approve staff to move out of rejected/pending.",
+      });
+    }
+    staff.isActive = true;
+    await staff.save();
+    res.status(200).json({ message: "Staff reactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reactivate staff" });
+  }
+};
+
+export const deanGetActiveStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const active = await User.find({
+      role: "staff",
+      department: dept,
+      isApproved: true,
+      isActive: true,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(active);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch active staff" });
+  }
+};
+
+export const deanGetDeactivatedStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const deactivated = await User.find({
+      role: "staff",
+      department: dept,
+      isApproved: true,
+      isActive: false,
+      isRejected: { $ne: true },
+    }).select("-password");
+    res.status(200).json(deactivated);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch deactivated staff" });
+  }
+};
+
+export const deanGetRejectedStaff = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const rejected = await User.find({
+      role: "staff",
+      department: dept,
+      isRejected: true,
+    }).select("-password");
+    res.status(200).json(rejected);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch rejected staff" });
+  }
+};
+
+// Dean: manage students in same department
+export const deanGetUsers = async (req, res) => {
+  try {
+    const dept = req.user.department;
+    const users = await User.find({
+      department: dept,
+      role: { $in: ["student", "staff"] },
+    })
+      .select("_id name email department role isActive createdAt updatedAt")
+      .lean();
+
+    const userIds = users.map((u) => u._id);
+    const counts = await Complaint.aggregate([
+      { $match: { submittedBy: { $in: userIds } } },
+      { $group: { _id: "$submittedBy", count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(
+      counts.map((c) => [
+        String(c._id),
+        typeof c.count === "number" ? c.count : 0,
+      ])
+    );
+
+    const withCounts = users.map((u) => ({
+      ...u,
+      complaintsCount: countMap.get(String(u._id)) || 0,
+    }));
+
+    res.status(200).json(withCounts);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+};
+
+export const deanActivateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user || user.role !== "student")
+      return res.status(404).json({ error: "User not found" });
+    if (user.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only activate users in your department" });
+    }
+    user.isActive = true;
+    await user.save();
+    res.status(200).json({ message: "User activated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to activate user" });
+  }
+};
+
+export const deanDeactivateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user || user.role !== "student")
+      return res.status(404).json({ error: "User not found" });
+    if (user.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only deactivate users in your department" });
+    }
+    user.isActive = false;
+    await user.save();
+    res.status(200).json({ message: "User deactivated" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to deactivate user" });
+  }
+};
+
+export const deanPromoteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { workingPlace } = req.body;
+    const user = await User.findById(id);
+    if (!user || user.role !== "student")
+      return res.status(404).json({ error: "User not found" });
+    if (user.department !== req.user.department) {
+      return res
+        .status(403)
+        .json({ error: "Can only promote users in your department" });
+    }
+    if (!workingPlace) {
+      return res
+        .status(400)
+        .json({ error: "Working position is required to promote to staff" });
+    }
+    user.role = "staff";
+    user.workingPlace = workingPlace;
+    user.isApproved = true;
+    user.isRejected = false;
+    user.isActive = true;
+    await user.save();
+
+    const returned = user.toObject();
+    if (returned.password) delete returned.password;
+    res.status(200).json({
+      message: "User promoted to staff and approved.",
+      user: returned,
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to promote user" });
+  }
+};
+
 // Dean: manage HoD
 export const deanGetPendingHod = async (req, res) => {
   try {
